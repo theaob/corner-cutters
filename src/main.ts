@@ -10,6 +10,7 @@ import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById } from './f1/layouts';
 import { CONTROL_SCHEMES, type ControlScheme } from './f1/racing';
 import { chooseCircuit } from './f1/circuitSelect';
+import { TEAMS, teamById } from './f1/teams';
 
 const screen = document.getElementById('screen')!;
 const deck = document.getElementById('deck')!;
@@ -95,9 +96,10 @@ function withCircuit(id: string | null): string {
   return url.href;
 }
 
-// the last circuit raced, highlighted first in the menu, and the control scheme chosen there
+// the last circuit raced, highlighted first in the menu, and the team and control scheme chosen there
 const CIRCUIT_KEY = storeKey('circuit');
 const SCHEME_KEY = storeKey('controls');
+const TEAM_KEY = storeKey('team');
 const saved = (key: string): string | null => {
   try {
     return localStorage.getItem(key);
@@ -112,6 +114,7 @@ const save = (key: string, value: string) => {
     // storage blocked: not remembered
   }
 };
+const savedTeam = () => teamById(saved(TEAM_KEY)) ?? TEAMS[0];
 const savedScheme = (): ControlScheme => {
   const s = saved(SCHEME_KEY);
   return CONTROL_SCHEMES.find((c) => c === s) ?? 'stick';
@@ -126,9 +129,10 @@ async function start(): Promise<void> {
   const fit = sizeScreen();
   const layout = layoutById(new URLSearchParams(window.location.search).get('circuit'));
   if (!layout) {
-    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(saved(CIRCUIT_KEY)), savedScheme());
+    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(saved(CIRCUIT_KEY)), savedScheme(), savedTeam());
     save(CIRCUIT_KEY, picked.layout.id);
     save(SCHEME_KEY, picked.scheme);
+    save(TEAM_KEY, picked.team.id);
     window.location.assign(withCircuit(picked.layout.id));
     return;
   }
@@ -136,7 +140,7 @@ async function start(): Promise<void> {
   const tuning = mountTuning(screen, 'f1', F1_TUNING);
   const { raceOn } = await import('./f1/race');
   const quit = () => window.location.assign(withCircuit(null));
-  const view: StandaloneView = await raceOn(layout, quit, savedScheme())({ host: screen, services, tuning, fit });
+  const view: StandaloneView = await raceOn(layout, quit, savedScheme(), savedTeam())({ host: screen, services, tuning, fit });
   onResize = () => view.resize(sizeScreen());
 }
 

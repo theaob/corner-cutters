@@ -123,10 +123,10 @@
         font-size: 11px;
         color: var(--muted);
       }
-      .circuit-menu .controls-row {
+      /* the option rows under the circuits (team, controls) */
+      .circuit-menu .option-row {
         width: 100%;
-        margin-top: 6px;
-        padding: 10px 12px;
+        padding: 8px 12px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -138,11 +138,25 @@
         font-family: var(--pixel);
         cursor: pointer;
       }
-      .circuit-menu .controls-row strong {
+      .circuit-menu .option-row.focused {
+        border-style: solid;
+        border-color: var(--accent-b);
+      }
+      .circuit-menu .option-row strong {
         font-size: 13px;
         font-weight: 400;
         color: var(--accent-b);
         white-space: pre;
+      }
+      .circuit-menu .option-row .chips {
+        display: flex;
+        gap: 4px;
+      }
+      .circuit-menu .option-row .chips i {
+        width: 22px;
+        height: 10px;
+        border-radius: 3px;
+        border: 1px solid #5a577c;
       }
       .desktop .circuit-menu {
         padding: 24px max(24px, calc(50% - 220px));

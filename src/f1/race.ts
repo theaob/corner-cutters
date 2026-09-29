@@ -10,13 +10,14 @@ import { groundAt } from '../engine/sim';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, playerInput, type AiDriver, type ControlScheme } from './racing';
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
+import { TEAMS, teamGrid, type Team } from './teams';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
 import { QUALITY_LEVELS, QualityGovernor } from '../engine/render/quality';
 import type { ScreenFit } from '../engine/layout';
-import { loadVehicleEdits, vehicleColors } from '../engine/vehicleEdits';
+import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
 import { defaults } from '../engine/tuning';
 import { buildCircuit } from './circuit';
@@ -29,9 +30,10 @@ const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
 const NAMES = ['VOLT', 'RAZZ', 'MOCHI', 'TANK', 'ZIGGY', 'PIP', 'NOVA', 'BLAZE', 'DOT'];
 
-/** How each entrant looks: its name, colour, model and effects (index-matched with the race's entrants). */
+/** How each entrant looks: its name, team, colour, model and effects (index-matched with the race's entrants). */
 interface Look {
   name: string;
+  team: Team;
   mesh: CarMesh;
   fx: CarFx;
   color: string;
@@ -39,11 +41,11 @@ interface Look {
 
 const fmt = (s?: number) => (s === undefined ? '–' : `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}`);
 
-/** The race on `layout`, driven with `scheme`; `onQuit` runs when the player presses SELECT. */
-export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: ControlScheme = 'stick'): MountStandalone => async ({ host, services, tuning, fit }) => {
+/** The race on `layout`, driven with `scheme` for `team`; `onQuit` runs when the player presses SELECT. */
+export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: ControlScheme = 'stick', team: Team = TEAMS[0]): MountStandalone => async ({ host, services, tuning, fit }) => {
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
-  const edits = loadVehicleEdits();
+  loadVehicleEdits(); // (any saved stat edits apply to the cars)
   const f1 = carClass('f1');
   const HANDLING = RACE_HANDLING;
   // the AI's line: flat out wherever the car can follow the bend, like a player can
@@ -134,17 +136,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     world.scene.remove(safetyCar.group);
     const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
     you = Math.floor(total / 2);
-    const palette = vehicleColors('f1', edits);
-    const yourColor = palette[0];
-    const others = ['#d8323c', '#3d7fc4', '#1b1b26', '#f08a24', '#5fe0d0', '#f4f4f8', '#8a3cc8', '#f2c14e', '#3f9a4c', '#ff5fb8'].filter((c) => c !== yourColor);
+    // your team and four drawn at random, two cars each, in their liveries
+    const teams = teamGrid(team, total, you);
     looks = [];
     const field = Array.from({ length: total }, (_, i) => {
       const slot = circuit.slots[i];
-      const color = i === you ? yourColor : others[i % others.length];
-      const mesh = createCarMesh('f1', color);
+      const livery = teams[i];
+      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent });
       world.scene.add(mesh);
       // each AI driver its own name (the grid slots skip yours)
-      looks.push({ name: i === you ? 'YOU' : NAMES[(i < you ? i : i - 1) % NAMES.length], mesh, fx: new CarFx(mesh), color });
+      looks.push({ name: i === you ? 'YOU' : NAMES[(i < you ? i : i - 1) % NAMES.length], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
       // AI drivers differ a little in pace and line; a quicker car starts further up the grid
       const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: t.aiPace * (1 - (i / total) * 0.05) };
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai };
@@ -175,7 +176,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
         clock: () => race.clock,
         order: () => raceOrder(race).map((i) => looks[i].name),
         you: () => ({ ...race.entrants[you].progress, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
-        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health })),
+        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health })),
         safetyCar: () => !!race.sc,
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
@@ -198,9 +199,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
           : `${p.lap}/${race.laps} laps`;
       const best = p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–';
       const pen = p.penalty ? ` +${p.penalty}s` : '';
-      return `${String(pos + 1).padStart(2)}  ${looks[i].name.padEnd(6)} ${time.padStart(9)}  ${best}${pen}`;
+      return `${String(pos + 1).padStart(2)}  ${looks[i].name.padEnd(6)} ${looks[i].team.code} ${time.padStart(9)}  ${best}${pen}`;
     });
-    results.textContent = `CHEQUERED FLAG\n\n    NAME        TIME  BEST LAP\n${lines.join('\n')}\n\nSTART to race again\nSELECT for circuits`;
+    results.textContent = `CHEQUERED FLAG\n\n    NAME   TEAM      TIME  BEST LAP\n${lines.join('\n')}\n\nSTART to race again\nSELECT for circuits`;
     results.style.display = 'block';
   };
 

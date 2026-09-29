@@ -1,13 +1,14 @@
 // The menu shown before a race: each circuit's outline, name and the real
-// circuit it's inspired by, and the control scheme. Up/down picks a circuit,
-// left/right (or a tap on the row) switches the controls, A or START (or a tap
-// on a circuit) races.
+// circuit it's inspired by, then your team and the control scheme. Up/down
+// moves between the circuits and those two rows, left/right changes the row
+// (or tap it), A or START (or a tap on a circuit) races.
 
 import type { Button } from '../engine/controls';
 import { holdTouches } from '../engine/deck';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
 import { CONTROL_SCHEMES, type ControlScheme } from './racing';
+import { TEAMS, type Team } from './teams';
 
 /** What each control scheme is called, and how it drives, in a line. */
 const SCHEME_TEXT: Record<ControlScheme, [name: string, how: string]> = {
@@ -44,14 +45,62 @@ function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
   return c;
 }
 
-/** Show the menu in `host` until a circuit is picked; `initial` is highlighted first, with the controls set to `scheme`. */
+/** What the menu comes back with. */
+export interface MenuChoice {
+  layout: CircuitLayout;
+  scheme: ControlScheme;
+  team: Team;
+}
+
+/**
+ * A row of options under the circuits: its label and the current value (with a
+ * line about it and, for a team, its colours), switched with left/right or a tap.
+ */
+function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { name: string; about: string; colors?: string[] }) {
+  const el = document.createElement('button');
+  el.className = 'option-row';
+  let i = Math.max(0, values.indexOf(start));
+  const render = () => {
+    const v = show(values[i]);
+    el.innerHTML = '';
+    const top = document.createElement('strong');
+    top.textContent = `${label}  ◀ ${v.name} ▶`;
+    const about = document.createElement('span');
+    about.textContent = v.about;
+    el.append(top);
+    if (v.colors) {
+      const chips = document.createElement('div');
+      chips.className = 'chips';
+      for (const c of v.colors) {
+        const chip = document.createElement('i');
+        chip.style.background = c;
+        chips.append(chip);
+      }
+      el.append(chips);
+    }
+    el.append(about);
+  };
+  const step = (by: number) => {
+    i = (i + by + values.length) % values.length;
+    render();
+  };
+  el.addEventListener('pointerup', () => step(1));
+  render();
+  return { el, step, value: () => values[i] };
+}
+
+/**
+ * Show the menu in `host` until a circuit is picked: `initial` highlighted
+ * first, your team `team` and the controls `scheme` as last chosen.
+ */
 export function chooseCircuit(
   host: HTMLElement,
   services: Services,
   layouts: CircuitLayout[],
   initial?: CircuitLayout,
   scheme: ControlScheme = 'stick',
-): Promise<{ layout: CircuitLayout; scheme: ControlScheme }> {
+  team: Team = TEAMS[0],
+): Promise<MenuChoice> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
   menu.className = 'circuit-menu';
@@ -62,28 +111,18 @@ export function chooseCircuit(
   const list = document.createElement('ul');
   menu.append(title, hint, list);
 
+  /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
+  /** where up/down is: a circuit (0…), then the team row, then the controls row */
+  let focus = selected;
   /** the button a press started on: lifting on the same button picks it */
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
-  // the control scheme row, under the circuits
-  const controlsRow = document.createElement('button');
-  controlsRow.className = 'controls-row';
-  const showScheme = () => {
-    const [name, how] = SCHEME_TEXT[scheme];
-    controlsRow.innerHTML = '';
-    const label = document.createElement('strong');
-    label.textContent = `CONTROLS  ◀ ${name} ▶`;
-    const about = document.createElement('span');
-    about.textContent = how;
-    controlsRow.append(label, about);
-  };
-  const switchScheme = (step: number) => {
-    scheme = CONTROL_SCHEMES[(CONTROL_SCHEMES.indexOf(scheme) + step + CONTROL_SCHEMES.length) % CONTROL_SCHEMES.length];
-    showScheme();
-  };
-  controlsRow.addEventListener('pointerup', () => switchScheme(1));
-  showScheme();
+
+  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: `like ${t.inspiredBy}`, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])] }));
+  const schemeRow = optionRow('CONTROLS', CONTROL_SCHEMES, scheme, (c) => ({ name: SCHEME_TEXT[c][0], about: SCHEME_TEXT[c][1] }));
+  const rows = [teamRow, schemeRow];
+
   const buttons = layouts.map((layout, i) => {
     const li = document.createElement('li');
     const b = document.createElement('button');
@@ -98,7 +137,7 @@ export function chooseCircuit(
     // the click a tap turns into can land on the wrong button
     b.addEventListener('pointerdown', (e) => {
       armed = i;
-      selected = i;
+      selected = focus = i;
       show();
       try {
         b.releasePointerCapture(e.pointerId); // (touch captures to the button: let pointerup find where the finger lifts)
@@ -115,9 +154,17 @@ export function chooseCircuit(
     list.append(li);
     return b;
   });
-  const show = () => buttons.forEach((b, i) => b.classList.toggle('selected', i === selected));
+  const show = () => {
+    buttons.forEach((b, i) => b.classList.toggle('selected', i === selected));
+    rows.forEach((r, k) => r.el.classList.toggle('focused', focus === layouts.length + k));
+  };
+  // a tap on a row focuses it too
+  rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
+    focus = layouts.length + k;
+    show();
+  }));
   show();
-  menu.append(controlsRow);
+  menu.append(...rows.map((r) => r.el));
   holdTouches(menu);
   host.append(menu);
   hud.setPosition('');
@@ -138,18 +185,21 @@ export function chooseCircuit(
       if (done) return;
       done = true;
       menu.remove();
-      resolve({ layout, scheme });
+      resolve({ layout, scheme: schemeRow.value(), team: teamRow.value() });
     };
+    const places = layouts.length + rows.length;
     const tick = () => {
       if (done) return;
       // poll every button each frame, so a press is never counted late
       const [down, right, up, left, a, start] = (['down', 'right', 'up', 'left', 'a', 'start'] as const).map(pressed);
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
-        selected = (selected + move + layouts.length) % layouts.length;
+        focus = (focus + move + places) % places;
+        if (focus < layouts.length) selected = focus;
         show();
       }
-      if (left || right) switchScheme(right ? 1 : -1);
+      const row = rows[focus - layouts.length];
+      if (row && (left || right)) row.step(right ? 1 : -1);
       if (a || start) finish(layouts[selected]);
       else requestAnimationFrame(tick);
     };
