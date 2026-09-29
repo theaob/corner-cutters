@@ -6,11 +6,40 @@ import { directionsFromOffset, stickFromOffset, type Button, type Controls } fro
 const DEAD_ZONE = 0.14; // fraction of the D-pad's width
 
 function buzz(): void {
-  navigator.vibrate?.(8);
+  try {
+    navigator.vibrate?.(8);
+  } catch {
+    // not allowed here (some frames): no buzz
+  }
+}
+
+/**
+ * Keep the browser's own touch gestures (scrolling, zooming, a tap turning into
+ * a click) off `el`, so every touch on it reaches the game as pointer events.
+ * `touch-action: none` in the CSS should be enough, but inside a cross-origin
+ * frame (itch.io on a phone) the page around the frame can still take a touch
+ * over as a scroll, which cancels it; a non-passive touch handler can't be overruled.
+ */
+export function holdTouches(el: HTMLElement): void {
+  const stop = (e: TouchEvent) => {
+    if (e.cancelable) e.preventDefault();
+  };
+  el.addEventListener('touchstart', stop, { passive: false });
+  el.addEventListener('touchmove', stop, { passive: false });
+}
+
+/** Keep the pointer's events coming to `el` while it's held, if the browser allows it (it can refuse). */
+function capture(el: HTMLElement, pointerId: number): void {
+  try {
+    el.setPointerCapture(pointerId);
+  } catch {
+    // the pointer is already gone (or capture isn't allowed): the press still counts
+  }
 }
 
 export function bindDeck(deck: HTMLElement, controls: Controls): void {
   deck.addEventListener('contextmenu', (e) => e.preventDefault());
+  holdTouches(deck);
 
   const dpad = deck.querySelector<HTMLElement>('[data-dpad]');
   if (dpad) bindDpad(dpad, controls);
@@ -18,20 +47,34 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
   for (const el of deck.querySelectorAll<HTMLElement>('[data-button]')) {
     const button = el.dataset.button as Button;
     const source = `touch-${button}`;
+    let held: number | undefined;
     const release = () => {
+      held = undefined;
       controls.clear(source);
       el.classList.remove('pressed');
     };
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      el.setPointerCapture(e.pointerId);
+      held = e.pointerId;
       controls.press(source, button, true);
       el.classList.add('pressed');
+      capture(el, e.pointerId);
       buzz();
     });
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', release);
     el.addEventListener('lostpointercapture', release);
+    // (without capture the finger can lift off somewhere else)
+    releaseAnywhere(() => held, release);
+  }
+}
+
+/** Also let go when the held pointer lifts anywhere on the page. */
+function releaseAnywhere(held: () => number | undefined, release: () => void): void {
+  for (const type of ['pointerup', 'pointercancel'] as const) {
+    window.addEventListener(type, (e) => {
+      if (e.pointerId === held()) release();
+    });
   }
 }
 
@@ -50,21 +93,25 @@ function bindDpad(dpad: HTMLElement, controls: Controls): void {
     dpad.dataset.held = dirs.join(' ');
   };
   const release = () => {
+    held = undefined;
     controls.clear('dpad');
     last = '';
     dpad.dataset.held = '';
   };
+  let held: number | undefined;
   dpad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    dpad.setPointerCapture(e.pointerId);
+    held = e.pointerId;
     update(e);
+    capture(dpad, e.pointerId);
   });
   dpad.addEventListener('pointermove', (e) => {
-    if (dpad.hasPointerCapture(e.pointerId)) update(e);
+    if (e.pointerId === held) update(e);
   });
   dpad.addEventListener('pointerup', release);
   dpad.addEventListener('pointercancel', release);
   dpad.addEventListener('lostpointercapture', release);
+  releaseAnywhere(() => held, release);
 }
 
 /** Show every deck button as let go (after the controls were cleared from outside). */

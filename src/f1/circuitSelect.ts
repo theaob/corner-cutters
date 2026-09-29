@@ -2,6 +2,7 @@
 // real circuit it's inspired by. The D-pad moves, A or START (or a tap) picks.
 
 import type { Button } from '../engine/controls';
+import { holdTouches } from '../engine/deck';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
 
@@ -47,6 +48,8 @@ export function chooseCircuit(host: HTMLElement, services: Services, layouts: Ci
   menu.append(title, hint, list);
 
   let selected = Math.max(0, layouts.indexOf(initial!));
+  /** the button a press started on: lifting on the same button picks it */
+  let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
   const buttons = layouts.map((layout, i) => {
     const li = document.createElement('li');
@@ -58,13 +61,30 @@ export function chooseCircuit(host: HTMLElement, services: Services, layouts: Ci
     const text = document.createElement('div');
     text.append(name, about);
     b.append(outline(layout, 56), text);
-    b.addEventListener('click', () => finish(layouts[i]));
+    // picked on the pointer's press and release, not 'click': in a cross-origin frame on a phone
+    // the click a tap turns into can land on the wrong button
+    b.addEventListener('pointerdown', (e) => {
+      armed = i;
+      selected = i;
+      show();
+      try {
+        b.releasePointerCapture(e.pointerId); // (touch captures to the button: let pointerup find where the finger lifts)
+      } catch {
+        // nothing to release
+      }
+    });
+    b.addEventListener('pointerup', () => {
+      if (armed === i) finish(layouts[i]);
+      armed = undefined;
+    });
+    b.addEventListener('pointerleave', () => (armed = undefined));
     li.append(b);
     list.append(li);
     return b;
   });
   const show = () => buttons.forEach((b, i) => b.classList.toggle('selected', i === selected));
   show();
+  holdTouches(menu);
   host.append(menu);
   hud.setPosition('');
   hud.setLap('');

@@ -3,6 +3,7 @@ import { mountTuning } from './engine/tuning';
 import { Controls, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
 import { Hud, bindDeck, releaseDeck } from './engine/deck';
+import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
 import { storeKey, useStore } from './engine/storage';
 import { F1_TUNING } from './f1/tuning';
@@ -48,6 +49,8 @@ bindKeyboard(controls);
 bindDeck(deck, controls);
 guardInput(controls, () => releaseDeck(deck));
 const services: Services = { controls, hud: new Hud(deck) };
+// ?inputlog lists the input events the page receives, for debugging controls on a device
+if (new URLSearchParams(window.location.search).has('inputlog')) showInputLog(document.getElementById('app')!, controls);
 
 /** Size the screen element: full column width and a height to suit the phone, or the window on a desktop. */
 function sizeScreen(): ScreenFit {
