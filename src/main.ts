@@ -1,0 +1,93 @@
+import { type StandaloneView } from './engine/view';
+import { mountTuning } from './engine/tuning';
+import { Controls, bindKeyboard, guardInput } from './engine/controls';
+import type { Services } from './engine/services';
+import { Hud, bindDeck, releaseDeck } from './engine/deck';
+import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
+import { storeKey, useStore } from './engine/storage';
+import { F1_TUNING } from './f1/tuning';
+
+const screen = document.getElementById('screen')!;
+const deck = document.getElementById('deck')!;
+
+const app = document.getElementById('app')!;
+const layoutButton = document.querySelector<HTMLButtonElement>('[data-layout]');
+
+// this game's saves (each game has its own prefix: itch.io games share one origin's storage)
+useStore('cc:');
+
+// The layout: every device starts in the handheld one. The player can switch
+// to the desktop layout (a wide screen with the deck laid over it as a HUD)
+// with the WIDE button or the V key, and back; the choice is kept on the device.
+const LAYOUT_KEY = storeKey('layout');
+const savedLayout = () => {
+  try {
+    return localStorage.getItem(LAYOUT_KEY);
+  } catch {
+    return null;
+  }
+};
+let layout: LayoutMode = startLayout(window.location.search, savedLayout());
+function applyLayout(): void {
+  const desktop = layout === 'desktop';
+  document.documentElement.classList.toggle('desktop', desktop);
+  // the deck sits over the screen as a HUD on desktop, under it on a phone
+  if (desktop) screen.append(deck);
+  else app.append(deck);
+  if (layoutButton) {
+    layoutButton.hidden = !canSwitchLayout() && !desktop;
+    layoutButton.textContent = desktop ? 'HANDHELD' : 'WIDE';
+  }
+}
+applyLayout();
+
+const controls = new Controls();
+bindKeyboard(controls);
+bindDeck(deck, controls);
+guardInput(controls, () => releaseDeck(deck));
+const services: Services = { controls, hud: new Hud(deck) };
+
+/** Size the screen element: full column width and a height to suit the phone, or the window on a desktop. */
+function sizeScreen(): ScreenFit {
+  const fit = measureFit(layout);
+  screen.style.width = `${fit.width * fit.scale}px`;
+  screen.style.height = `${fit.height * fit.scale}px`;
+  return fit;
+}
+
+/** What a window resize (or a layout switch) does: re-fit the screen and tell the running view. */
+let onResize: () => void = () => sizeScreen();
+window.addEventListener('resize', () => onResize());
+
+/** The player switches layout: no reload, the game carries on in the new shape. */
+function switchLayout(): void {
+  layout = layout === 'desktop' ? 'handheld' : 'desktop';
+  try {
+    localStorage.setItem(LAYOUT_KEY, layout);
+  } catch {
+    // storage blocked: the switch still holds until the page closes
+  }
+  controls.clearAll();
+  releaseDeck(deck);
+  applyLayout();
+  onResize();
+}
+layoutButton?.addEventListener('click', (e) => {
+  e.preventDefault();
+  switchLayout();
+  layoutButton.blur();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement)) switchLayout();
+});
+
+async function start(): Promise<void> {
+  const fit = sizeScreen();
+  // ?tune shows the TUNE panel (laps, grid, AI pace, camera); otherwise the race runs on the locked defaults
+  const tuning = new URLSearchParams(window.location.search).has('tune') ? mountTuning(screen, 'f1', F1_TUNING) : undefined;
+  const { mount } = await import('./f1/race');
+  const view: StandaloneView = await mount({ host: screen, services, tuning, fit });
+  onResize = () => view.resize(sizeScreen());
+}
+
+void start();
