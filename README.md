@@ -22,6 +22,17 @@ npm run dev        # http://localhost:5173
 
 **URL flags:** `?tune` shows the TUNE panel (laps, AI opponents, AI pace, camera zoom and look-ahead), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests, and `?desktop` / `?mobile` force a layout.
 
+## Publishing to itch.io
+
+`.github/workflows/itch.yml` tests and builds every push and pull request. A push to the default branch (or **Run workflow** in the Actions tab on it) also uploads `dist/` to itch.io with [butler](https://itch.io/docs/butler/) as the `html5` channel, versioned `<package version>+<commit>`.
+
+Setup (once):
+1. On itch.io, create the project with kind **HTML**. Under the embed options, tick **Mobile friendly** (portrait) and **Fullscreen button**, and set a viewport of about 390×844.
+2. In the GitHub repo, under Settings → Secrets and variables → Actions, add the secret `BUTLER_API_KEY` (itch.io → Settings → API keys) and the variable `ITCH_TARGET` = `<itch-user>/<game-slug>`.
+3. Push to the default branch. After the first upload, tick **This file will be played in the browser** on the upload in the project's edit page.
+
+Until both settings exist, the workflow skips the upload and warns which one is missing.
+
 ## Layout
 
 ```
