@@ -5,9 +5,9 @@
 
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
-import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type DriveInput } from '../engine/driving';
+import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf } from '../engine/driving';
 import { groundAt } from '../engine/sim';
-import { RACE_HANDLING, lineCornerSpeed, lineDecel, type AiDriver } from './racing';
+import { RACE_HANDLING, lineCornerSpeed, lineDecel, playerInput, type AiDriver, type ControlScheme } from './racing';
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
@@ -39,8 +39,8 @@ interface Look {
 
 const fmt = (s?: number) => (s === undefined ? '–' : `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}`);
 
-/** The race on `layout`; `onQuit` runs when the player presses SELECT. */
-export const raceOn = (layout: CircuitLayout, onQuit: () => void): MountStandalone => async ({ host, services, tuning, fit }) => {
+/** The race on `layout`, driven with `scheme`; `onQuit` runs when the player presses SELECT. */
+export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: ControlScheme = 'stick'): MountStandalone => async ({ host, services, tuning, fit }) => {
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   const edits = loadVehicleEdits();
@@ -212,8 +212,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void): MountStandalo
   let statTime = 0;
   let fps = 0;
   let miniTime = 0;
-  hud.setLabel('a', '');
-  hud.setLabel('b', 'DRIFT');
+  hud.setLabel('a', scheme === 'pedals' ? 'BRAKE' : '');
+  hud.setLabel('b', scheme === 'pedals' ? 'GAS' : 'DRIFT');
 
   const tick = (now: number) => {
     // (the first frame's timestamp can be a touch before mount time)
@@ -227,10 +227,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void): MountStandalo
     const laps = race.laps;
 
     // the race: everyone drives, the rules run
-    const step = stepRace(race, dt, () => {
-      const d = controls.direction();
-      return { steer: d.x || d.y ? d : undefined, handbrake: controls.isDown('b') } satisfies DriveInput;
-    });
+    const step = stepRace(race, dt, (e) => playerInput(scheme, { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') }, e.car));
     for (const e of step.race) {
       if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);

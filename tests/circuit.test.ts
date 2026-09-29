@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildCircuit } from '../src/f1/circuit';
 import { AMIMO_PARK, LAYOUTS, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
-import { carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
+import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, coolDownInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
 import { collideCars } from '../src/engine/driving';
@@ -77,6 +77,24 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap })
     expect(p.lapTimes[0]).toBeLessThan(lap[1]);
     expect(car.health).toBe(f1.health);
     expect(speedOf(car)).toBeGreaterThan(100);
+  });
+
+  it('can be lapped with pedals: the wheel toward the line ahead, the gas held', () => {
+    const start = circuit.slots[0];
+    const car = newCar(f1, start.x, start.y, start.heading);
+    let p = newProgress(track.samples.length - 3);
+    const n = track.samples.length;
+    for (let t = 0; t < 80 && p.lap < 1; t += 1 / 60) {
+      // a simple driver: steer toward a point on the line a little ahead, proportionally
+      const ahead = track.samples[(p.idx + 12) % n];
+      const want = Math.atan2(ahead.x - car.x, -(ahead.y - car.y));
+      const turn = Math.max(-1, Math.min(1, angleDiff(want, car.heading) * 3));
+      stepCar(car, { pedals: { turn, gas: 1, reverse: false }, handbrake: false }, RACE_HANDLING, 1 / 60, grid);
+      p = stepProgress(p, track, car, t, 3, 1 / 60);
+    }
+    expect(p.lap).toBe(1);
+    expect(p.lapTimes[0]).toBeLessThan(lap[1] + 3);
+    expect(car.health).toBe(f1.health);
   });
 
   it('has an AI that goes flat out almost everywhere, like a player can', () => {

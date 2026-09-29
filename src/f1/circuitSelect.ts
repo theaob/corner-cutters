@@ -1,10 +1,19 @@
-// The circuit menu shown before a race: each circuit's outline, name and the
-// real circuit it's inspired by. The thumbstick (or arrow keys) moves, A or START (or a tap) picks.
+// The menu shown before a race: each circuit's outline, name and the real
+// circuit it's inspired by, and the control scheme. Up/down picks a circuit,
+// left/right (or a tap on the row) switches the controls, A or START (or a tap
+// on a circuit) races.
 
 import type { Button } from '../engine/controls';
 import { holdTouches } from '../engine/deck';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
+import { CONTROL_SCHEMES, type ControlScheme } from './racing';
+
+/** What each control scheme is called, and how it drives, in a line. */
+const SCHEME_TEXT: Record<ControlScheme, [name: string, how: string]> = {
+  stick: ['STICK', 'point where to go · push = throttle · B drift'],
+  pedals: ['PEDALS', 'stick steers · B gas · A brake/reverse · A+B drift'],
+};
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -35,8 +44,14 @@ function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
   return c;
 }
 
-/** Show the menu in `host` until a circuit is picked; `initial` is highlighted first. */
-export function chooseCircuit(host: HTMLElement, services: Services, layouts: CircuitLayout[], initial?: CircuitLayout): Promise<CircuitLayout> {
+/** Show the menu in `host` until a circuit is picked; `initial` is highlighted first, with the controls set to `scheme`. */
+export function chooseCircuit(
+  host: HTMLElement,
+  services: Services,
+  layouts: CircuitLayout[],
+  initial?: CircuitLayout,
+  scheme: ControlScheme = 'stick',
+): Promise<{ layout: CircuitLayout; scheme: ControlScheme }> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
   menu.className = 'circuit-menu';
@@ -51,6 +66,24 @@ export function chooseCircuit(host: HTMLElement, services: Services, layouts: Ci
   /** the button a press started on: lifting on the same button picks it */
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
+  // the control scheme row, under the circuits
+  const controlsRow = document.createElement('button');
+  controlsRow.className = 'controls-row';
+  const showScheme = () => {
+    const [name, how] = SCHEME_TEXT[scheme];
+    controlsRow.innerHTML = '';
+    const label = document.createElement('strong');
+    label.textContent = `CONTROLS  ◀ ${name} ▶`;
+    const about = document.createElement('span');
+    about.textContent = how;
+    controlsRow.append(label, about);
+  };
+  const switchScheme = (step: number) => {
+    scheme = CONTROL_SCHEMES[(CONTROL_SCHEMES.indexOf(scheme) + step + CONTROL_SCHEMES.length) % CONTROL_SCHEMES.length];
+    showScheme();
+  };
+  controlsRow.addEventListener('pointerup', () => switchScheme(1));
+  showScheme();
   const buttons = layouts.map((layout, i) => {
     const li = document.createElement('li');
     const b = document.createElement('button');
@@ -84,6 +117,7 @@ export function chooseCircuit(host: HTMLElement, services: Services, layouts: Ci
   });
   const show = () => buttons.forEach((b, i) => b.classList.toggle('selected', i === selected));
   show();
+  menu.append(controlsRow);
   holdTouches(menu);
   host.append(menu);
   hud.setPosition('');
@@ -104,17 +138,18 @@ export function chooseCircuit(host: HTMLElement, services: Services, layouts: Ci
       if (done) return;
       done = true;
       menu.remove();
-      resolve(layout);
+      resolve({ layout, scheme });
     };
     const tick = () => {
       if (done) return;
       // poll every button each frame, so a press is never counted late
       const [down, right, up, left, a, start] = (['down', 'right', 'up', 'left', 'a', 'start'] as const).map(pressed);
-      const move = (down || right ? 1 : 0) - (up || left ? 1 : 0);
+      const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
         selected = (selected + move + layouts.length) % layouts.length;
         show();
       }
+      if (left || right) switchScheme(right ? 1 : -1);
       if (a || start) finish(layouts[selected]);
       else requestAnimationFrame(tick);
     };

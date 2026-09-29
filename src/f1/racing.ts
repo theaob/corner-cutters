@@ -244,6 +244,37 @@ export function lateralOffset(track: Track, i: number, x: number, y: number): nu
   return (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
 }
 
+/**
+ * How the player drives:
+ * - 'stick': point the thumbstick where you want to go; how far you push it is the throttle. B drifts.
+ * - 'pedals': the stick's left/right turns the wheel; B is the gas, A the brake (held once stopped,
+ *   it reverses); both together drift.
+ */
+export type ControlScheme = 'stick' | 'pedals';
+export const CONTROL_SCHEMES: ControlScheme[] = ['stick', 'pedals'];
+
+/** The pad as the player holds it: the stick (screen space, length 0…1) and the A and B buttons. */
+export interface Pad {
+  stick: { x: number; y: number };
+  a: boolean;
+  b: boolean;
+}
+
+/** px/s: slower than this (forwards), the brake button reverses instead */
+const REVERSE_BELOW = 10;
+
+/** The driving input for the player's `car` from the pad, in the chosen control scheme. */
+export function playerInput(scheme: ControlScheme, pad: Pad, car: Car): DriveInput {
+  const { stick, a, b } = pad;
+  if (scheme === 'stick') return { steer: stick.x || stick.y ? stick : undefined, handbrake: b };
+  const turn = stick.x;
+  if (a && b) return { pedals: { turn, gas: 1, reverse: false }, handbrake: true };
+  if (b) return { pedals: { turn, gas: 1, reverse: false }, handbrake: false };
+  const forward = car.vx * Math.sin(car.heading) - car.vy * Math.cos(car.heading);
+  if (a && forward < REVERSE_BELOW) return { pedals: { turn, gas: 0, reverse: true }, handbrake: false };
+  return { pedals: { turn, gas: 0, reverse: false }, handbrake: false, brake: a };
+}
+
 /** Race control's orders for a driver: a speed limit, and whether it may overtake. */
 export interface Orders {
   /** px/s: never faster than this (the safety car's limiter) */

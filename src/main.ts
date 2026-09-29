@@ -8,6 +8,7 @@ import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenF
 import { storeKey, useStore } from './engine/storage';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById } from './f1/layouts';
+import { CONTROL_SCHEMES, type ControlScheme } from './f1/racing';
 import { chooseCircuit } from './f1/circuitSelect';
 
 const screen = document.getElementById('screen')!;
@@ -94,8 +95,27 @@ function withCircuit(id: string | null): string {
   return url.href;
 }
 
-// the last circuit raced, highlighted first in the menu
+// the last circuit raced, highlighted first in the menu, and the control scheme chosen there
 const CIRCUIT_KEY = storeKey('circuit');
+const SCHEME_KEY = storeKey('controls');
+const saved = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null; // storage blocked
+  }
+};
+const save = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage blocked: not remembered
+  }
+};
+const savedScheme = (): ControlScheme => {
+  const s = saved(SCHEME_KEY);
+  return CONTROL_SCHEMES.find((c) => c === s) ?? 'stick';
+};
 
 /**
  * ?circuit=<id> races there; otherwise the circuit menu comes first. Picking
@@ -106,26 +126,17 @@ async function start(): Promise<void> {
   const fit = sizeScreen();
   const layout = layoutById(new URLSearchParams(window.location.search).get('circuit'));
   if (!layout) {
-    let last: string | null = null;
-    try {
-      last = localStorage.getItem(CIRCUIT_KEY);
-    } catch {
-      // storage blocked: start from the first circuit
-    }
-    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(last));
-    try {
-      localStorage.setItem(CIRCUIT_KEY, picked.id);
-    } catch {
-      // storage blocked: not remembered
-    }
-    window.location.assign(withCircuit(picked.id));
+    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(saved(CIRCUIT_KEY)), savedScheme());
+    save(CIRCUIT_KEY, picked.layout.id);
+    save(SCHEME_KEY, picked.scheme);
+    window.location.assign(withCircuit(picked.layout.id));
     return;
   }
   // ?tune shows the TUNE panel (laps, grid, AI pace, camera); otherwise the race runs on the locked defaults
   const tuning = new URLSearchParams(window.location.search).has('tune') ? mountTuning(screen, 'f1', F1_TUNING) : undefined;
   const { raceOn } = await import('./f1/race');
   const quit = () => window.location.assign(withCircuit(null));
-  const view: StandaloneView = await raceOn(layout, quit)({ host: screen, services, tuning, fit });
+  const view: StandaloneView = await raceOn(layout, quit, savedScheme())({ host: screen, services, tuning, fit });
   onResize = () => view.resize(sizeScreen());
 }
 
