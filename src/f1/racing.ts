@@ -7,11 +7,12 @@ import { DEFAULT_HANDLING, angleDiff, speedOf, type Car, type CarClass, type Dri
 
 /**
  * Race handling: the driving rules with lighter crash damage, so a nudge
- * doesn't end a race. The tyre limit and slide scrub (lateralGrip, slideScrub)
- * are off: that version made the race too hard, so races play like the
- * first prototype, where an F1 car takes most bends flat out.
+ * doesn't end a race, but damage that costs pace: a car on its last legs has
+ * lost 30% of its top speed. The tyre limit and slide scrub (lateralGrip,
+ * slideScrub) are off: that version made the race too hard, so races play
+ * like the first prototype, where an F1 car takes most bends flat out.
  */
-export const RACE_HANDLING: HandlingParams = { ...DEFAULT_HANDLING, allowReverse: true, crashDamage: 0.2 };
+export const RACE_HANDLING: HandlingParams = { ...DEFAULT_HANDLING, allowReverse: true, crashDamage: 0.2, damageSlow: 0.3 };
 
 /**
  * The racing line's corner speed for a car: the fastest it can follow a bend of
@@ -163,9 +164,13 @@ export interface RaceProgress {
   finished?: number;
   /** seconds spent facing the wrong way (for the warning) */
   wrongWay: number;
+  /** seconds added to the finish time (overtaking under the safety car) */
+  penalty: number;
+  /** out of the race (wrecked, and cleared off the track): classified last, as DNF */
+  retired?: boolean;
 }
 
-export const newProgress = (idx: number): RaceProgress => ({ lap: 0, idx, sector: 0, lapTimes: [], wrongWay: 0 });
+export const newProgress = (idx: number): RaceProgress => ({ lap: 0, idx, sector: 0, lapTimes: [], wrongWay: 0, penalty: 0 });
 
 /**
  * Update a racer's progress. Cars start just behind the line: the first
@@ -201,7 +206,7 @@ export function stepProgress(p: RaceProgress, track: Track, car: Car, raceTime: 
   return next;
 }
 
-/** Race order: finishers by time, then by laps done, then by distance round the current lap. */
+/** Race order: finishers by time (penalties added), then by laps done, then by distance round the current lap; retired cars last. */
 export function standings(racers: RaceProgress[], track: Track): number[] {
   const n = track.samples.length;
   // on the grid (before the first crossing) a car is behind the line: idx − n
@@ -211,10 +216,16 @@ export function standings(racers: RaceProgress[], track: Track): number[] {
     .sort((a, b) => {
       const pa = racers[a];
       const pb = racers[b];
+      // retired cars go to the back, the one that got furthest first
+      if (pa.retired || pb.retired) {
+        if (!pa.retired) return -1;
+        if (!pb.retired) return 1;
+        return score(pb) - score(pa);
+      }
       if (pa.finished !== undefined || pb.finished !== undefined) {
         if (pa.finished === undefined) return 1;
         if (pb.finished === undefined) return -1;
-        return pa.finished - pb.finished;
+        return pa.finished + pa.penalty - (pb.finished + pb.penalty);
       }
       return score(pb) - score(pa);
     });
@@ -233,13 +244,21 @@ export function lateralOffset(track: Track, i: number, x: number, y: number): nu
   return (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
 }
 
+/** Race control's orders for a driver: a speed limit, and whether it may overtake. */
+export interface Orders {
+  /** px/s: never faster than this (the safety car's limiter) */
+  limit?: number;
+  /** stay in line behind the car ahead instead of moving over to pass */
+  noOvertaking?: boolean;
+}
+
 /**
  * Drive the racing line: aim at a point ahead (further at speed), at the
  * driver's lane, and hold the speed the line allows there, braking when over it.
  * `others` are the other cars, so an AI can move over rather than run into one,
  * and holds the speed of a car right ahead in its lane rather than hit it.
  */
-export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, others: Car[] = []): DriveInput {
+export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, others: Car[] = [], orders: Orders = {}): DriveInput {
   const n = track.samples.length;
   const v = speedOf(car);
   const ahead = Math.round((40 + v * 0.3) / track.spacing);
@@ -258,9 +277,10 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
     const across = lateralOffset(track, idx, o.x, o.y) - lateralOffset(track, idx, car.x, car.y);
     // look further ahead the faster we're closing on it
     const closing = v - speedOf(o);
-    if (along > 0 && along < 40 + Math.max(0, closing) * 0.8 && Math.abs(across) < 18 && closing > 0) lane = across > 0 ? lane - 26 : lane + 26;
+    // (a wreck is always steered round, never followed: it isn't going anywhere)
+    if ((!orders.noOvertaking || o.wrecked) && along > 0 && along < 40 + Math.max(0, closing) * 0.8 && Math.abs(across) < 18 && closing > 0) lane = across > 0 ? lane - 26 : lane + 26;
     // too close to get by (a pack braking into a hairpin): don't drive into its gearbox
-    if (along > 0 && along < 44 + Math.max(0, closing) * 0.7 && Math.abs(across) < 18) follow = Math.min(follow, speedOf(o));
+    if (!o.wrecked && along > 0 && along < 44 + Math.max(0, closing) * 0.7 && Math.abs(across) < 18) follow = Math.min(follow, speedOf(o));
   }
   lane = Math.max(-32, Math.min(32, lane));
   const tx = t.x + Math.cos(t.dir) * lane;
@@ -269,9 +289,9 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const dy = ty - car.y;
   const d = Math.hypot(dx, dy) || 1;
   // the line's speed a little ahead (it already includes braking for what's beyond)
-  const want = Math.min(track.samples[(idx + 2) % n].speed * ai.pace, follow);
+  const want = Math.min(track.samples[(idx + 2) % n].speed * ai.pace, follow, orders.limit ?? Infinity);
   const mag = Math.max(0.05, Math.min(1, want / car.cls.topSpeed));
-  return { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 12 };
+  return { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 12, limit: orders.limit };
 }
 
 /**

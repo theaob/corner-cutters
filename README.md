@@ -6,6 +6,8 @@ An arcade F1 race in the HD-2D look: start lights, laps, positions, a minimap an
 - **Amimo Park**, inspired by Istanbul Park: anticlockwise, flat out almost everywhere, a lap of about 24 s.
 - **Silver Heath**, inspired by Silverstone: clockwise and fast, traced from the real circuit's outline (from [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits), MIT), with the Loop and Vale as the places to lift; a lap of about 27 s.
 
+**Damage and the safety car:** every car, yours and the AI's, takes damage from walls, landings and contact. A damaged car smokes, then burns, and loses up to 30% of its top speed; your health shows as five blocks in the readout. A wrecked car is cleared off the track and classified DNF. A big crash (a wreck, or one hit taking 40% of a car's health) brings out the safety car: it joins ahead of the leader, the field queues behind it on a 200 px/s limiter with no overtaking (and nobody gets past the safety car itself), and after 12 s with the leader lined up behind it, it goes in. Passing a car under it costs 5 s a place, added at the flag. The rules are in `src/f1/raceControl.ts`.
+
 Copied from the `?demo=f1` race in [rpg-platformer](https://github.com/theaob/rpg-platformer) (Grand Theft Monster): its shared `engine/` and the `f1/` game.
 
 ## Run it
@@ -24,7 +26,7 @@ npm run dev        # http://localhost:5173
 
 **Controls:** pick a circuit with the D-pad and A (or tap it). In a race, B drifts, START restarts and SELECT goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
-**URL flags:** `?circuit=amimo-park` or `?circuit=silver-heath` goes straight to a race, `?tune` shows the TUNE panel (laps, AI opponents, AI pace, camera zoom and look-ahead), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests, and `?desktop` / `?mobile` force a layout.
+**URL flags:** `?circuit=amimo-park` or `?circuit=silver-heath` goes straight to a race, `?tune` shows the TUNE panel (laps, AI opponents, AI pace, camera zoom and look-ahead), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3), and `?desktop` / `?mobile` force a layout.
 
 ## Publishing to itch.io
 
@@ -46,10 +48,10 @@ src/
   engine/         Controls, deck, layout, storage, TUNE panel, view types, driving physics (driving.ts),
                   ground and collision (sim.ts), vehicle edits, render/ (HD-2D pipeline, quality, effects,
                   car models, daylight, sprites, textures)
-  f1/             The race, circuit menu, circuit layouts (layouts.ts), circuit builder and scene, race rules
-                  and tuning; uses only engine/
+  f1/             The race, race control (raceControl.ts: wrecks, safety car, penalties), circuit menu,
+                  circuit layouts (layouts.ts), circuit builder and scene, race rules and tuning; uses only engine/
 public/fonts/     Pixel font, Silkscreen (SIL Open Font License)
-tests/            Driving, circuit, racing, controls, layout, storage, vehicle edits, code boundaries
+tests/            Driving, circuit, racing, race control, controls, layout, storage, vehicle edits, code boundaries
 ```
 
 Saves (layout choice, last circuit, TUNE values) live in local storage under the `cc:` prefix. The status strip under the screen shows your position and lap.

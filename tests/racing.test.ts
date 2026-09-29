@@ -102,6 +102,16 @@ describe('race progress', () => {
     expect(standings([b, a, c], track)).toEqual([1, 2, 0]);
   });
 
+  it('adds penalties at the flag and classifies retired cars last', () => {
+    const base = newProgress(0);
+    const fin = (finished: number, penalty = 0) => ({ ...base, lap: 2, finished, penalty });
+    // 10 s ahead on the road, but 15 s of penalties
+    expect(standings([fin(50, 15), fin(60), fin(55)], track)).toEqual([2, 1, 0]);
+    // a car that retired on lap 2 trails one still running on lap 1; retired cars by how far they got
+    const out = (lap: number) => ({ ...base, lap, lapStart: 0, retired: true });
+    expect(standings([out(2), { ...base, lap: 1, lapStart: 0 }, out(1)], track)).toEqual([1, 0, 2]);
+  });
+
   it('warns a car going the wrong way', () => {
     const s = track.samples[20];
     Object.assign(car, { x: s.x, y: s.y, heading: s.dir + Math.PI, vx: -Math.sin(s.dir) * 100, vy: Math.cos(s.dir) * 100 });
@@ -153,5 +163,15 @@ describe('AI driver', () => {
     // far ahead, or a lane over: no need
     expect(aiInput(car, track, i, { lane: 0, pace: 1 }, [slowAt(400, 0)]).brake).toBe(false);
     expect(aiInput(car, track, i, { lane: 0, pace: 1 }, [slowAt(40, 30)]).brake).toBe(false);
+    // no overtaking (safety car): it stays in line behind; a wreck it steers round even so
+    const queued = aiInput(car, track, i, { lane: 0, pace: 1 }, [slowAt(40, 0)], { noOvertaking: true });
+    expect(queued.brake).toBe(true);
+    const wreck = slowAt(40, 0);
+    Object.assign(wreck, { vx: 0, wrecked: true });
+    const round = aiInput(car, track, i, { lane: 0, pace: 1 }, [wreck], { noOvertaking: true });
+    expect(round.brake).toBe(false);
+    // it aims off the line to one side (a lane over), not straight at the wreck
+    const straight = aiInput(car, track, i, { lane: 0, pace: 1 }, [], { noOvertaking: true });
+    expect(Math.abs(round.steer!.y - straight.steer!.y)).toBeGreaterThan(0.05);
   });
 });

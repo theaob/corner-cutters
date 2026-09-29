@@ -162,6 +162,8 @@ export interface HandlingParams {
   bankGravity: number;
   /** landings faster than this (px/s down) do damage */
   landThreshold: number;
+  /** share of top speed a car has lost by the time its health runs out (0 = damage never slows it) */
+  damageSlow: number;
 }
 
 export const DEFAULT_HANDLING: HandlingParams = {
@@ -178,6 +180,7 @@ export const DEFAULT_HANDLING: HandlingParams = {
   lateralGrip: Infinity,
   slideScrub: 0,
   landThreshold: 200,
+  damageSlow: 0,
 };
 
 export const SKID_SPEED = 30;
@@ -235,6 +238,8 @@ export interface DriveInput {
   handbrake: boolean;
   /** full brakes, keeping grip (AI drivers use this; players brake by pulling back) */
   brake?: boolean;
+  /** px/s: a speed limiter the car won't pull beyond (e.g. under a safety car) */
+  limit?: number;
 }
 
 export interface StepEvents {
@@ -337,7 +342,11 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   const cls = car.cls;
   // rough ground: road vehicles lose top speed and grip; off-road ones keep theirs
   const rough = onRough ? cls.offRoad : 1;
-  const top = cls.topSpeed * rough;
+  // a damaged car loses power and downforce: its top speed falls with its health
+  const hurt = p.damageSlow * (1 - car.health / cls.health);
+  const top = cls.topSpeed * rough * (1 - hurt);
+  // a speed limiter caps what the stick asks for (it doesn't shrink the scale the stick works on)
+  const limit = input.limit ?? Infinity;
   // brakes work as well anywhere
   const brake = cls.topSpeed / cls.brakeTime;
   // rough ground drags a car down to its off-road speed quickly (but not in one frame)
@@ -381,11 +390,11 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
     fwd = car.vx * nf0.x + car.vy * nf0.y;
     side = car.vx * nr0.x + car.vy * nr0.y;
     if (reversing) {
-      const want = -top * 0.35 * mag;
+      const want = -Math.min(top * 0.35 * mag, limit);
       fwd = fwd > want ? Math.max(want, fwd - enginePull(cls, fwd) * dt) : toward(fwd, want, drag);
     } else if (Math.abs(diff) < Math.PI / 2) {
       // the engine pulls up to the speed the stick asks for; above it, the car eases back
-      const want = top * mag;
+      const want = Math.min(top * mag, limit);
       fwd = fwd < want ? Math.min(want, fwd + enginePull(cls, fwd) * (1 - Math.abs(diff) / Math.PI) * dt) : toward(fwd, want, drag);
     } else {
       // target is behind: brake and swing round

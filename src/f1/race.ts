@@ -1,22 +1,15 @@
 // The F1 race: you and the AI field in F1 cars on one of the circuits.
-// Start lights, laps, positions, lap times, a minimap, and results at the flag.
-// START restarts the race; SELECT goes back to choose a circuit.
+// Start lights, laps, positions, lap times, damage, the safety car after a big
+// crash, a minimap, and results at the flag. The rules live in raceControl.ts;
+// this is the picture and the HUD. START restarts; SELECT goes back to choose a circuit.
 
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
-import {
-  bodyTilt,
-  carClass,
-  collideCars,
-  condition,
-  newCar,
-  speedOf,
-  stepCar,
-  type Car,
-  type DriveInput,
-} from '../engine/driving';
+import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type DriveInput } from '../engine/driving';
 import { groundAt } from '../engine/sim';
-import { RACE_HANDLING, aiInput, coolDownInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress, type AiDriver, type RaceProgress } from './racing';
+import { RACE_HANDLING, lineCornerSpeed, lineDecel, type AiDriver } from './racing';
+import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
+import { createSafetyCarMesh } from './safetyCar3d';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -36,13 +29,11 @@ const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
 const NAMES = ['VOLT', 'RAZZ', 'MOCHI', 'TANK', 'ZIGGY', 'PIP', 'NOVA', 'BLAZE', 'DOT'];
 
-interface Racer {
+/** How each entrant looks: its name, colour, model and effects (index-matched with the race's entrants). */
+interface Look {
   name: string;
-  car: Car;
   mesh: CarMesh;
   fx: CarFx;
-  ai?: AiDriver;
-  progress: RaceProgress;
   color: string;
 }
 
@@ -128,32 +119,40 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void): MountStandalo
   host.append(readout, banner, results, mini);
 
   // ---------------------------------------------------------------- race state
-  let racers: Racer[] = [];
-  let phase: 'lights' | 'racing' | 'done' = 'lights';
-  let clock = 0; // seconds since the lights went out (negative during the lights)
-  let lightsOut = 0;
+  let race!: Race;
+  let looks: Look[] = [];
+  /** your race is over (finished, or out) and the results are coming */
+  let done = false;
   let you = 0;
+  const safetyCar = createSafetyCarMesh();
+  /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
+  let notice = { text: '', color: '', until: 0 };
+  const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
 
   const startRace = () => {
-    for (const r of racers) world.scene.remove(r.mesh);
+    for (const l of looks) world.scene.remove(l.mesh);
+    world.scene.remove(safetyCar.group);
     const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
     you = Math.floor(total / 2);
     const palette = vehicleColors('f1', edits);
     const yourColor = palette[0];
     const others = ['#d8323c', '#3d7fc4', '#1b1b26', '#f08a24', '#5fe0d0', '#f4f4f8', '#8a3cc8', '#f2c14e', '#3f9a4c', '#ff5fb8'].filter((c) => c !== yourColor);
-    racers = Array.from({ length: total }, (_, i) => {
+    looks = [];
+    const field = Array.from({ length: total }, (_, i) => {
       const slot = circuit.slots[i];
-      const car = newCar(carClass('f1'), slot.x, slot.y, slot.heading);
       const color = i === you ? yourColor : others[i % others.length];
       const mesh = createCarMesh('f1', color);
       world.scene.add(mesh);
+      // each AI driver its own name (the grid slots skip yours)
+      looks.push({ name: i === you ? 'YOU' : NAMES[(i < you ? i : i - 1) % NAMES.length], mesh, fx: new CarFx(mesh), color });
       // AI drivers differ a little in pace and line; a quicker car starts further up the grid
       const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: t.aiPace * (1 - (i / total) * 0.05) };
-      return { name: i === you ? 'YOU' : NAMES[i % NAMES.length], car, mesh, fx: new CarFx(mesh), ai, progress: newProgress(track.samples.length - 4), color };
+      return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai };
     });
-    phase = 'lights';
-    clock = -3.6; // five lights, one every 0.6 s, then out after a short random wait
-    lightsOut = 0.3 + Math.random() * 0.7;
+    // five lights, one every 0.6 s, then out after a short random wait
+    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7);
+    done = false;
+    notice = { text: '', color: '', until: 0 };
     skids.clear();
     particles.clear();
     results.style.display = 'none';
@@ -172,31 +171,41 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void): MountStandalo
     Object.assign(window, {
       __cc: {
         circuit: () => layout.id,
-        phase: () => phase,
-        clock: () => clock,
-        order: () => standings(racers.map((r) => r.progress), track).map((i) => racers[i].name),
-        you: () => ({ ...racers[you].progress, speed: speedOf(racers[you].car), x: racers[you].car.x, y: racers[you].car.y }),
-        racers: () => racers.map((r) => ({ name: r.name, lap: r.progress.lap, idx: r.progress.idx, finished: r.progress.finished, health: r.car.health })),
-        skip: (seconds: number) => (clock += seconds),
+        phase: () => (done ? 'done' : race.phase),
+        clock: () => race.clock,
+        order: () => raceOrder(race).map((i) => looks[i].name),
+        you: () => ({ ...race.entrants[you].progress, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
+        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health })),
+        safetyCar: () => !!race.sc,
+        skip: (seconds: number) => (race.clock += seconds),
+        /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
+        wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
       },
     });
   }
 
   const showResults = (order: number[]) => {
-    const winner = racers[order[0]].progress.finished ?? 0;
+    const first = race.entrants[order[0]].progress;
+    const winner = (first.finished ?? 0) + first.penalty;
     const lines = order.map((i, pos) => {
-      const r = racers[i];
-      const p = r.progress;
-      const time = p.finished !== undefined ? (pos === 0 ? fmt(p.finished) : `+${(p.finished - winner).toFixed(2)}`) : `${p.lap}/${Math.round(t.laps)} laps`;
+      const p = race.entrants[i].progress;
+      const time = p.retired
+        ? 'DNF'
+        : p.finished !== undefined
+          ? pos === 0
+            ? fmt(p.finished + p.penalty)
+            : `+${(p.finished + p.penalty - winner).toFixed(2)}`
+          : `${p.lap}/${race.laps} laps`;
       const best = p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–';
-      return `${String(pos + 1).padStart(2)}  ${r.name.padEnd(6)} ${time.padStart(9)}  ${best}`;
+      const pen = p.penalty ? ` +${p.penalty}s` : '';
+      return `${String(pos + 1).padStart(2)}  ${looks[i].name.padEnd(6)} ${time.padStart(9)}  ${best}${pen}`;
     });
     results.textContent = `CHEQUERED FLAG\n\n    NAME        TIME  BEST LAP\n${lines.join('\n')}\n\nSTART to race again\nSELECT for circuits`;
     results.style.display = 'block';
   };
 
   // ---------------------------------------------------------------- loop
-  const focus = new THREE.Vector3(racers[you].car.x, 0, racers[you].car.y);
+  const focus = new THREE.Vector3(race.entrants[you].car.x, 0, race.entrants[you].car.y);
   const target = new THREE.Vector3();
   let last = performance.now();
   let frames = 0;
@@ -213,82 +222,99 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void): MountStandalo
     if (pressed('start')) startRace();
     pressed('a');
     if (pressed('select')) onQuit();
-    const laps = Math.round(t.laps);
-    clock += dt;
+    // laps can be tuned live (TUNE), so the race picks up the current value
+    race.laps = Math.round(t.laps);
+    const laps = race.laps;
 
-    // start lights: five reds come on, then all go out together
-    if (phase === 'lights') {
-      const lit = Math.max(0, Math.min(5, Math.floor((clock + 3.6) / 0.6)));
-      banner.textContent = clock < 0 ? '● '.repeat(lit).trim() + ' ○'.repeat(5 - lit) : '● ● ● ● ●';
-      banner.style.color = '#d8323c';
-      if (clock >= lightsOut) {
-        phase = 'racing';
-        clock = 0;
-      }
-    } else if (phase === 'racing' && clock < 1.2) {
-      banner.textContent = 'GO!';
-      banner.style.color = '#5fe0d0';
-    }
-
-    // cars
-    const cars = racers.map((r) => r.car);
-    racers.forEach((r, i) => {
-      let input: DriveInput;
-      const others = cars.filter((c) => c !== r.car);
-      if (phase === 'lights') {
-        input = { handbrake: true, brake: true };
-      } else if (r.progress.finished !== undefined) {
-        // after the flag everyone (you too, on autopilot) coasts round a cool-down lap
-        input = coolDownInput(r.car, track, r.progress.idx, others);
-      } else if (r.ai) {
-        input = aiInput(r.car, track, r.progress.idx, r.ai, others);
-      } else {
-        const d = controls.direction();
-        input = { steer: d.x || d.y ? d : undefined, handbrake: controls.isDown('b') };
-      }
-      const ev = stepCar(r.car, input, HANDLING, dt, grid);
-      if (ev.skidding) skids.mark(i, r.car.x, r.car.y, r.car.heading, Math.min(1, speedOf(r.car) / r.car.cls.topSpeed), r.car.cls);
-      else skids.lift(i);
-      if (phase !== 'lights') r.progress = stepProgress(r.progress, track, r.car, clock, laps, dt);
-      const speed = speedOf(r.car);
-      const tilt = bodyTilt(r.car, grid);
-      r.mesh.position.set(r.car.x, r.car.z, r.car.y);
-      r.mesh.rotation.set(tilt.pitch, -r.car.heading, tilt.roll, 'YXZ');
-      r.fx.update(dt, condition(r.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
+    // the race: everyone drives, the rules run
+    const step = stepRace(race, dt, () => {
+      const d = controls.direction();
+      return { steer: d.x || d.y ? d : undefined, handbrake: controls.isDown('b') } satisfies DriveInput;
     });
-    for (let i = 0; i < racers.length; i++) for (let j = i + 1; j < racers.length; j++) collideCars(racers[i].car, racers[j].car, HANDLING);
+    for (const e of step.race) {
+      if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
+      else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
+      else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER SC · +${e.seconds} S`, '#d8323c', 3);
+      else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
+    }
+    race.entrants.forEach((e, i) => {
+      if (!running(e)) return;
+      const ev = step.cars[i];
+      const l = looks[i];
+      if (ev.skidding) skids.mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
+      else skids.lift(i);
+      const tilt = bodyTilt(e.car, grid);
+      l.mesh.position.set(e.car.x, e.car.z, e.car.y);
+      l.mesh.rotation.set(tilt.pitch, -e.car.heading, tilt.roll, 'YXZ');
+      const speed = speedOf(e.car);
+      l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
+    });
+    // the safety car on the track while it's out
+    const sc = race.sc;
+    if (sc && !safetyCar.group.parent) world.scene.add(safetyCar.group);
+    if (!sc && safetyCar.group.parent) world.scene.remove(safetyCar.group);
+    if (sc) {
+      const tilt = bodyTilt(sc.car, grid);
+      safetyCar.group.position.set(sc.car.x, sc.car.z, sc.car.y);
+      safetyCar.group.rotation.set(tilt.pitch, -sc.car.heading, tilt.roll, 'YXZ');
+      safetyCar.update(dt);
+    }
 
     // standings and HUD
-    const order = standings(racers.map((r) => r.progress), track);
-    const me = racers[you];
+    const order = raceOrder(race);
+    const me = race.entrants[you];
     const pos = order.indexOf(you) + 1;
     const p = me.progress;
-    if (phase === 'racing' && p.finished !== undefined) {
-      phase = 'done';
-      banner.textContent = '';
+    const clock = race.clock;
+    if (!done && race.phase === 'racing' && (p.finished !== undefined || p.retired)) done = true;
+    // the results come up a moment after your flag, or once the rest have finished if you're out
+    const others = race.entrants.filter((e) => e !== me && running(e));
+    const showNow = p.finished !== undefined ? clock > p.finished + 1.5 : others.every((e) => e.progress.finished !== undefined);
+    if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
+    hud.setPosition(`P${pos}/${race.entrants.length}`);
+    hud.setLap(p.retired ? 'OUT' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+
+    // the banner: start lights, GO!, then the most urgent message
+    if (race.phase === 'lights') {
+      const lit = Math.max(0, Math.min(5, Math.floor((clock + LIGHTS) / 0.6)));
+      banner.textContent = clock < 0 ? '● '.repeat(lit).trim() + ' ○'.repeat(5 - lit) : '● ● ● ● ●';
+      banner.style.color = '#d8323c';
+    } else {
+      const [text, color] =
+        me.car.wrecked || p.retired ? ['DNF · START to restart', '#d8323c']
+        : done ? ['', '']
+        : p.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
+        : clock < 1.2 ? ['GO!', '#5fe0d0']
+        : clock < notice.until ? [notice.text, notice.color]
+        : sc ? ['SAFETY CAR', '#f2c14e']
+        : ['', ''];
+      banner.textContent = text;
+      banner.style.color = color;
     }
-    if (phase === 'done' && results.style.display === 'none' && clock > (p.finished ?? 0) + 1.5) showResults(order);
-    if (phase === 'done' && results.style.display === 'block') showResults(order); // keep the table live as others finish
-    hud.setPosition(`P${pos}/${racers.length}`);
-    hud.setLap(`LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
-    if (phase === 'racing' && clock > 1.2) banner.textContent = p.wrongWay > 1 ? 'WRONG WAY' : me.car.wrecked ? 'DNF · START to restart' : '';
-    if (p.wrongWay > 1) banner.style.color = '#d8323c';
     const lapTime = p.lapStart !== undefined && p.finished === undefined ? clock - p.lapStart : undefined;
     const best = p.lapTimes.length ? Math.min(...p.lapTimes) : undefined;
-    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}`;
+    // your car's health as five blocks (each is 20%)
+    const blocks = Math.ceil((me.car.health / me.car.cls.health) * 5);
+    const car = me.car.wrecked ? 'WRECKED' : '■'.repeat(blocks) + '□'.repeat(5 - blocks);
+    const limiter = sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
+    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nCAR  ${car}${limiter}`;
 
-    // minimap, ten times a second
+    // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
     if (miniTime > 0.1) {
       miniTime = 0;
       miniCtx.clearRect(0, 0, mini.width, mini.height);
       miniCtx.drawImage(map.canvas, 0, 0);
-      racers.forEach((r, i) => {
-        const q = map.toMap(r.car.x, r.car.y);
-        miniCtx.fillStyle = i === you ? '#f2c14e' : r.color;
-        const size = i === you ? 7 : 5;
+      const dot = (x: number, y: number, color: string, size: number) => {
+        const q = map.toMap(x, y);
+        miniCtx.fillStyle = color;
         miniCtx.fillRect(q.x - size / 2, q.y - size / 2, size, size);
+      };
+      race.entrants.forEach((e, i) => {
+        if (running(e) && i !== you) dot(e.car.x, e.car.y, e.car.wrecked ? '#6c707a' : looks[i].color, 5);
       });
+      if (sc) dot(sc.car.x, sc.car.y, '#ffb020', 6);
+      dot(me.car.x, me.car.y, '#f2c14e', 7);
     }
     particles.update(dt);
     skids.update(dt);

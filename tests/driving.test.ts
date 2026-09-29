@@ -427,6 +427,30 @@ describe('slopes, ramps and banks', () => {
   });
 });
 
+describe('race rules in the physics', () => {
+  it('slows a damaged car when damage costs pace, and not otherwise', () => {
+    const top = (health: number, damageSlow: number) => {
+      const car = newCar(ROAD, 1600, 1600);
+      car.health = health;
+      return speedOf(drive(car, north, 3, open, { ...DEFAULT_HANDLING, damageSlow }).car);
+    };
+    expect(top(100, 0.3)).toBeCloseTo(180, 0);
+    expect(top(50, 0.3)).toBeCloseTo(180 * 0.85, 0);
+    expect(top(1, 0.3)).toBeCloseTo(180 * 0.703, 0);
+    expect(top(1, 0)).toBeCloseTo(180, 0);
+  });
+
+  it('holds a car to its speed limiter', () => {
+    const car = drive(newCar(ROAD, 1600, 1600), { ...north, limit: 90 }, 3).car;
+    expect(speedOf(car)).toBeCloseTo(90, 0);
+    // it caps the speed asked for, not the scale the stick works on: half stick is still half of top speed
+    const half = drive(newCar(ROAD, 1600, 1600), { steer: { x: 0, y: -0.5 }, handbrake: false, limit: 150 }, 3).car;
+    expect(speedOf(half)).toBeCloseTo(90, 0);
+    const full = drive(newCar(ROAD, 1600, 1600), { ...north, limit: 150 }, 3).car;
+    expect(speedOf(full)).toBeCloseTo(150, 0);
+  });
+});
+
 describe('robustness', () => {
   it('ignores a zero or negative time step instead of turning the car to NaN', () => {
     const car = newCar(carClass('f1'), 1600, 1600);
