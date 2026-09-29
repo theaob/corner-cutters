@@ -1,8 +1,11 @@
-# Builds the Android app (the web build in a Capacitor WebView) as an APK on
-# every push and pull request, kept as a download on the run (Artifacts). A
-# push to the default branch, or a run by hand, also uploads the APK to the
-# itch.io page's "android" channel (with the same BUTLER_API_KEY / ITCH_TARGET
-# as the web build), where phones can download it.
+# Builds the Android app (the web build in a Capacitor WebView) as an APK,
+# kept as a download on the run (Artifacts), and uploads it to the itch.io
+# page's "android" channel (with the same BUTLER_API_KEY / ITCH_TARGET as the
+# web build), where phones can download it.
+#
+# Paused: it runs only when started by hand (Actions -> android -> Run
+# workflow). To build on every push again, add `push:` and `pull_request:`
+# back under `on:`.
 #
 # Signing: with the four ANDROID_* secrets set (see the README), the APK is
 # signed with your release key. Without them, it's signed with the sideload key
@@ -10,8 +13,6 @@
 name: android
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:

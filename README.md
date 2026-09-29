@@ -3,7 +3,7 @@
 An arcade F1 race in the HD-2D look: start lights, laps, positions, a minimap and results, against up to nine AI cars. Mobile-first portrait layout with a touch control deck.
 
 **Circuits:**
-- **Amimo Park**: anticlockwise, flat out almost everywhere, a lap of about 24 s.
+- **Crescent Park**: anticlockwise, flat out almost everywhere, a lap of about 24 s.
 - **Silver Heath**: clockwise and fast, with a hairpin and a tight complex as the places to lift; a lap of about 27 s. Its outline is traced from circuit outline data by [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT).
 
 **Teams:** eleven, each in its own colours: Milk Energy, Prancing Monkey, Golden Arrows, Calrissian Racing, British Lime, Reneé, Frankie's Groove, Cheaper Milk, DMW – DEUTCHE MOTOR WERKE, MaaS and Grandma's Fave (`src/f1/teams.ts`). Pick yours on the menu's TEAM row; a race runs five teams of two: yours (you and an AI teammate) and four drawn at random. The results show each car's team.
@@ -34,7 +34,7 @@ Pick a circuit with up/down and A (or tap it). In a race, START restarts and SEL
 
 **TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead, and the pedals' steering; changes apply at once and are kept on the device (Reset puts the defaults back).
 
-**URL flags:** `?circuit=amimo-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3), and `?desktop` / `?mobile` force a layout.
+**URL flags:** `?circuit=crescent-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3), and `?desktop` / `?mobile` force a layout.
 
 ## Publishing to itch.io
 
@@ -51,7 +51,7 @@ Until both settings exist, the workflow skips the upload and warns which one is 
 
 The same web build, wrapped by [Capacitor](https://capacitorjs.com) into an Android app (`android/`, `capacitor.config.ts`): full screen, portrait, the screen kept on, played offline; the back button goes from a race to the circuit menu, then out.
 
-`.github/workflows/android.yml` builds an APK on every push and pull request (a download under the run's **Artifacts**). A push to the default branch also uploads it to the itch.io page as the `android` channel, so it can be downloaded there on a phone. To install, allow installs from your browser or files app when Android asks. Each build has a higher version code, so it installs as an update over the last.
+`.github/workflows/android.yml` builds an APK (a download under the run's **Artifacts**) and uploads it to the itch.io page as the `android` channel, so it can be downloaded there on a phone. **It's paused:** it runs only when started by hand (Actions → android → Run workflow); to build on every push again, add `push:` and `pull_request:` back under `on:` in the workflow. To install, allow installs from your browser or files app when Android asks. Each build has a higher version code, so it installs as an update over the last.
 
 **Signing:** without secrets, the APK is signed with `android/app/sideload.keystore`, a key committed to the repo so every build updates the last one (like Android's debug key, it isn't a secret, so don't rely on it for anything you publish widely). For your own key, create one once and keep it safe (an update must always be signed with the same key):
 

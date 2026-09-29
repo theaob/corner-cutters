@@ -18,15 +18,15 @@ export interface CircuitLayout {
 }
 
 /**
- * Amimo Park. Anticlockwise: a downhill Turn 1 left and Turn 2 right, a fast
+ * Crescent Park. Anticlockwise: a downhill Turn 1 left and Turn 2 right, a fast
  * sweeping Turn 3, a twisty middle section, the long four-apex Turn 8 left, the
  * Turn 9–10 esses, a long back straight with a kink, a heavy-braking Turn 12,
  * and the Turn 13–14 chicane onto the main straight. A lap is about 7600 px,
  * about 24 s.
  */
-export const AMIMO_PARK: CircuitLayout = {
-  id: 'amimo-park',
-  name: 'Amimo Park',
+export const CRESCENT_PARK: CircuitLayout = {
+  id: 'crescent-park',
+  name: 'Crescent Park',
   about: 'anticlockwise · flowing, flat out',
   points: [
     // main straight, running north up the east side
@@ -138,7 +138,7 @@ export const SILVER_HEATH: CircuitLayout = {
   ],
 };
 
-export const LAYOUTS: CircuitLayout[] = [AMIMO_PARK, SILVER_HEATH];
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH];
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {
