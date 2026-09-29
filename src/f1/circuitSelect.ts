@@ -1,5 +1,5 @@
 // The circuit menu shown before a race: each circuit's outline, name and the
-// real circuit it's inspired by. The D-pad moves, A or START (or a tap) picks.
+// real circuit it's inspired by. The thumbstick (or arrow keys) moves, A or START (or a tap) picks.
 
 import type { Button } from '../engine/controls';
 import { holdTouches } from '../engine/deck';

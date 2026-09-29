@@ -53,7 +53,7 @@ export class Controls {
     this.sticks.clear();
   }
 
-  /** Analogue position from a touch source (the D-pad reports the thumb's exact offset). */
+  /** Analogue position from a touch source (the thumbstick reports the thumb's exact offset). */
   setStick(source: string, stick: Stick): void {
     this.sticks.set(source, stick);
   }
@@ -65,7 +65,7 @@ export class Controls {
   }
 
   /**
-   * Where the player is pushing, length 0…1: the touch D-pad's exact thumb
+   * Where the player is pushing, length 0…1: the touch thumbstick's exact thumb
    * position when there is one, otherwise the held direction buttons (8-way,
    * length 1). Used for analogue walking and driving.
    */
@@ -97,7 +97,7 @@ const SECTORS: Direction[][] = [
 ];
 
 /**
- * Directions held for a thumb at (dx, dy) from the centre of the D-pad.
+ * Directions held for a thumb at (dx, dy) from the centre of a pad.
  * Anything inside the dead zone counts as no direction.
  */
 export function directionsFromOffset(dx: number, dy: number, deadZone: number): Direction[] {
@@ -106,14 +106,33 @@ export function directionsFromOffset(dx: number, dy: number, deadZone: number): 
   return SECTORS[((sector % 8) + 8) % 8];
 }
 
+/** How the on-screen thumbstick reads, as shares of how far its knob can travel from the centre. */
+export const THUMBSTICK = {
+  /** nothing until the thumb is this far out */
+  deadZone: 0.12,
+  /** full push from here to the rim, so full throttle doesn't need the very edge */
+  full: 0.85,
+  /** the up/down/left/right buttons (menus) come on past this */
+  buttons: 0.5,
+};
+
 /**
- * Analogue reading of a thumb at (dx, dy) on a pad of the given radius: the
- * exact direction, with length rising from 0 at the dead zone to 1 at the rim.
+ * The thumbstick for a thumb at (dx, dy) px from its centre, with a knob that
+ * can travel `travel` px: the analogue reading (exact angle, length 0…1), where
+ * to draw the knob (following the thumb, stopped at the rim), and the direction
+ * buttons it holds for anything that reads buttons (8-way, only when pushed well out).
  */
-export function stickFromOffset(dx: number, dy: number, radius: number, deadZone: number): Stick {
+export function thumbstick(dx: number, dy: number, travel: number): { stick: Stick; knob: { x: number; y: number }; dirs: Direction[] } {
   const d = Math.hypot(dx, dy);
-  const t = Math.min(1, Math.max(0, (d / radius - deadZone) / (1 - deadZone)));
-  return d === 0 ? { x: 0, y: 0 } : { x: (dx / d) * t, y: (dy / d) * t };
+  const reach = Math.min(1, d / travel);
+  const t = Math.min(1, Math.max(0, (reach - THUMBSTICK.deadZone) / (THUMBSTICK.full - THUMBSTICK.deadZone)));
+  const ux = d ? dx / d : 0;
+  const uy = d ? dy / d : 0;
+  return {
+    stick: t ? { x: ux * t, y: uy * t } : { x: 0, y: 0 },
+    knob: { x: ux * reach * travel, y: uy * reach * travel },
+    dirs: directionsFromOffset(dx, dy, travel * THUMBSTICK.buttons),
+  };
 }
 
 const KEY_MAP: Record<string, Button> = {

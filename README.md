@@ -24,7 +24,7 @@ npm run dev        # http://localhost:5173
 | `npm test` | Unit tests (Vitest) |
 | `npm run typecheck` | TypeScript only |
 
-**Controls:** pick a circuit with the D-pad and A (or tap it). In a race, B drifts, START restarts and SELECT goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
+**Controls:** the on-screen thumbstick is analogue: point it where you want to go, and how far you push it is the throttle (full from about 85% of the way out). Pick a circuit by pushing it up or down and pressing A (or tap the circuit). In a race, B drifts, START restarts and SELECT goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
 **URL flags:** `?circuit=amimo-park` or `?circuit=silver-heath` goes straight to a race, `?tune` shows the TUNE panel (laps, AI opponents, AI pace, camera zoom and look-ahead), `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3), and `?desktop` / `?mobile` force a layout.
 

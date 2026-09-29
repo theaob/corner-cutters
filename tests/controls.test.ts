@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Controls, directionsFromOffset, guardInput, stickFromOffset } from '../src/engine/controls';
+import { Controls, THUMBSTICK, directionsFromOffset, guardInput, thumbstick } from '../src/engine/controls';
 
 describe('directionsFromOffset', () => {
   it('ignores the dead zone', () => {
@@ -58,13 +58,31 @@ describe('Controls', () => {
   });
 });
 
-describe('stickFromOffset', () => {
-  it('keeps the exact angle and scales length from the dead zone to the rim', () => {
-    const s = stickFromOffset(30, 40, 50, 0.2);
+describe('thumbstick', () => {
+  const len = (v: { x: number; y: number }) => Math.hypot(v.x, v.y);
+
+  it('keeps the exact angle and ramps the push from the dead zone to full, short of the rim', () => {
+    const s = thumbstick(30, 40, 50).stick; // 50 px out: at the rim
     expect(s.x / s.y).toBeCloseTo(0.75);
-    expect(Math.hypot(s.x, s.y)).toBeCloseTo(1);
-    expect(Math.hypot(...Object.values(stickFromOffset(3, 4, 50, 0.2)))).toBe(0);
-    expect(Math.hypot(...Object.values(stickFromOffset(0, 30, 50, 0.2)))).toBeCloseTo(0.5);
+    expect(len(s)).toBeCloseTo(1);
+    expect(len(thumbstick(0, 50 * THUMBSTICK.deadZone * 0.9, 50).stick)).toBe(0);
+    expect(len(thumbstick(0, 50 * THUMBSTICK.full, 50).stick)).toBeCloseTo(1);
+    const mid = (THUMBSTICK.deadZone + THUMBSTICK.full) / 2;
+    expect(len(thumbstick(50 * mid, 0, 50).stick)).toBeCloseTo(0.5);
+  });
+
+  it('moves the knob with the thumb, stopped at the rim', () => {
+    expect(thumbstick(10, -20, 50).knob).toEqual({ x: 10, y: -20 });
+    const far = thumbstick(300, 400, 50).knob;
+    expect(len(far)).toBeCloseTo(50);
+    expect(far.x / far.y).toBeCloseTo(0.75);
+    expect(thumbstick(0, 0, 50)).toEqual({ stick: { x: 0, y: 0 }, knob: { x: 0, y: 0 }, dirs: [] });
+  });
+
+  it('holds direction buttons only when pushed well out, 8-way', () => {
+    expect(thumbstick(0, -20, 50).dirs).toEqual([]);
+    expect(thumbstick(0, -40, 50).dirs).toEqual(['up']);
+    expect(thumbstick(30, 30, 50).dirs).toEqual(['down', 'right']);
   });
 });
 

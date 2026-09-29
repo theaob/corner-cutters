@@ -228,33 +228,47 @@
         align-items: center;
         padding: 8px 22px;
       }
-      .dpad {
+      /* the analogue thumbstick: a round well with a knob that follows the thumb */
+      .stick {
+        position: relative;
         width: 132px;
         height: 132px;
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: repeat(3, 1fr);
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 1px solid var(--key-edge);
+        background: radial-gradient(circle, #1b1a29 0 58%, var(--key) 60%);
+        box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
         touch-action: none;
       }
-      .dpad span {
-        background: var(--key);
-        border: 1px solid var(--key-edge);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #a9a6c0;
+      .stick .tick {
+        position: absolute;
+        font-size: 10px;
+        line-height: 1;
+        color: #6f6c8c;
+        pointer-events: none;
       }
-      .dpad .up { grid-area: 1 / 2; border-bottom: none; border-radius: 8px 8px 0 0; }
-      .dpad .left { grid-area: 2 / 1; border-right: none; border-radius: 8px 0 0 8px; }
-      .dpad .mid { grid-area: 2 / 2; border: none; }
-      .dpad .right { grid-area: 2 / 3; border-left: none; border-radius: 0 8px 8px 0; }
-      .dpad .down { grid-area: 3 / 2; border-top: none; border-radius: 0 0 8px 8px; }
-      .dpad[data-held~='up'] .up,
-      .dpad[data-held~='down'] .down,
-      .dpad[data-held~='left'] .left,
-      .dpad[data-held~='right'] .right {
-        background: var(--key-held);
-        color: var(--text);
+      .stick .up { top: 6px; left: 50%; transform: translateX(-50%); }
+      .stick .down { bottom: 6px; left: 50%; transform: translateX(-50%); }
+      .stick .left { left: 7px; top: 50%; transform: translateY(-50%); }
+      .stick .right { right: 7px; top: 50%; transform: translateY(-50%); }
+      .stick .knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 56px;
+        height: 56px;
+        margin: -28px 0 0 -28px;
+        border-radius: 50%;
+        border: 1px solid #5a577c;
+        background: radial-gradient(circle at 38% 32%, #56537a, #34324c 62%, #26253a);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+        /* springs back to the centre when let go; follows the thumb without lag while held */
+        transition: transform 0.12s ease-out;
+      }
+      .stick.pressed .knob {
+        transition: none;
+        border-color: var(--accent-b);
       }
       .face {
         display: flex;
@@ -353,7 +367,7 @@
         border-radius: 8px;
         background: rgba(21, 20, 31, 0.82);
       }
-      .desktop .dpad {
+      .desktop .stick {
         display: none;
       }
       /* A and B as key prompts, bottom right: [Z] ENTER CAR  [X] RUN */
@@ -458,12 +472,13 @@
           <div><span data-hud="position"></span><span class="lap" data-hud="lap"></span></div>
         </div>
         <div class="controls">
-          <div class="dpad" data-dpad aria-label="D-pad">
-            <span class="up">&#9650;</span>
-            <span class="left">&#9664;</span>
-            <span class="mid"></span>
-            <span class="right">&#9654;</span>
-            <span class="down">&#9660;</span>
+          <!-- analogue thumbstick: the knob follows the thumb (data-dpad: the deck binds it) -->
+          <div class="stick" data-dpad aria-label="Thumbstick">
+            <span class="tick up">&#9650;</span>
+            <span class="tick left">&#9664;</span>
+            <span class="tick right">&#9654;</span>
+            <span class="tick down">&#9660;</span>
+            <span class="knob"></span>
           </div>
           <div class="face">
             <div class="col low">

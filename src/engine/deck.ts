@@ -1,9 +1,7 @@
-// The control deck under the game screen: touch D-pad, A/B, Start/Select,
-// and the status strip (race position, lap) plus A/B context labels.
+// The control deck under the game screen: an analogue thumbstick, A/B,
+// Start/Select, and the status strip (race position, lap) plus A/B context labels.
 
-import { directionsFromOffset, stickFromOffset, type Button, type Controls } from './controls';
-
-const DEAD_ZONE = 0.14; // fraction of the D-pad's width
+import { thumbstick, type Button, type Controls } from './controls';
 
 function buzz(): void {
   try {
@@ -41,8 +39,8 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
   deck.addEventListener('contextmenu', (e) => e.preventDefault());
   holdTouches(deck);
 
-  const dpad = deck.querySelector<HTMLElement>('[data-dpad]');
-  if (dpad) bindDpad(dpad, controls);
+  const stick = deck.querySelector<HTMLElement>('[data-dpad]');
+  if (stick) bindStick(stick, controls);
 
   for (const el of deck.querySelectorAll<HTMLElement>('[data-button]')) {
     const button = el.dataset.button as Button;
@@ -78,47 +76,51 @@ function releaseAnywhere(held: () => number | undefined, release: () => void): v
   }
 }
 
-function bindDpad(dpad: HTMLElement, controls: Controls): void {
-  let last = '';
+/**
+ * The thumbstick: a round base with a knob that follows the thumb (stopped at
+ * the rim). It reports the thumb's exact direction and push (analogue), and the
+ * 8-way direction buttons once it's pushed well out, for menus.
+ */
+function bindStick(pad: HTMLElement, controls: Controls): void {
+  const knob = pad.querySelector<HTMLElement>('.knob');
+  let held: number | undefined;
+  const moveKnob = (x: number, y: number) => knob?.style.setProperty('transform', `translate(${x}px, ${y}px)`);
   const update = (e: PointerEvent) => {
-    const r = dpad.getBoundingClientRect();
-    const ox = e.clientX - (r.left + r.width / 2);
-    const oy = e.clientY - (r.top + r.height / 2);
-    const dirs = directionsFromOffset(ox, oy, r.width * DEAD_ZONE);
-    controls.set('dpad', dirs);
-    controls.setStick('dpad', stickFromOffset(ox, oy, r.width / 2, DEAD_ZONE * 2));
-    const key = dirs.join(',');
-    if (key !== last && dirs.length) buzz();
-    last = key;
-    dpad.dataset.held = dirs.join(' ');
+    const r = pad.getBoundingClientRect();
+    // the knob's centre can go as far as the base's rim minus its own radius
+    const travel = (r.width - (knob?.offsetWidth ?? r.width * 0.42)) / 2;
+    const s = thumbstick(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2), travel);
+    controls.set('dpad', s.dirs);
+    controls.setStick('dpad', s.stick);
+    moveKnob(s.knob.x, s.knob.y);
   };
   const release = () => {
     held = undefined;
     controls.clear('dpad');
-    last = '';
-    dpad.dataset.held = '';
+    pad.classList.remove('pressed');
+    moveKnob(0, 0);
   };
-  let held: number | undefined;
-  dpad.addEventListener('pointerdown', (e) => {
+  pad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     held = e.pointerId;
+    pad.classList.add('pressed');
     update(e);
-    capture(dpad, e.pointerId);
+    capture(pad, e.pointerId);
+    buzz();
   });
-  dpad.addEventListener('pointermove', (e) => {
+  pad.addEventListener('pointermove', (e) => {
     if (e.pointerId === held) update(e);
   });
-  dpad.addEventListener('pointerup', release);
-  dpad.addEventListener('pointercancel', release);
-  dpad.addEventListener('lostpointercapture', release);
+  pad.addEventListener('pointerup', release);
+  pad.addEventListener('pointercancel', release);
+  pad.addEventListener('lostpointercapture', release);
   releaseAnywhere(() => held, release);
 }
 
 /** Show every deck button as let go (after the controls were cleared from outside). */
 export function releaseDeck(deck: HTMLElement): void {
   deck.querySelectorAll('.pressed').forEach((el) => el.classList.remove('pressed'));
-  const dpad = deck.querySelector<HTMLElement>('[data-dpad]');
-  if (dpad) dpad.dataset.held = '';
+  deck.querySelector<HTMLElement>('[data-dpad] .knob')?.style.setProperty('transform', 'translate(0px, 0px)');
 }
 
 /** Status strip (race position and lap) + button labels. */

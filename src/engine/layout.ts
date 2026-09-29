@@ -15,7 +15,7 @@
 export const GAME_WIDTH = 195;
 export const MIN_GAME_HEIGHT = 216;
 export const MAX_GAME_HEIGHT = 300;
-/** Smallest deck (status strip + D-pad/buttons + Start/Select) that stays comfortable. */
+/** Smallest deck (status strip + thumbstick/buttons + Start/Select) that stays comfortable. */
 export const MIN_DECK_HEIGHT = 220;
 /** Widest the handheld column gets on tablets/desktop. */
 export const MAX_APP_WIDTH = 430;
