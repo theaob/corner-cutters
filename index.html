@@ -7,21 +7,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Corner Cutters</title>
     <style>
-      /* Pixel fonts, bundled (SIL Open Font License; see fonts/OFL-*.txt): Silkscreen for labels and
-         headings, Pixelify Sans for in-game reading text. */
+      /* Pixel font, bundled (SIL Open Font License; see fonts/OFL-Silkscreen.txt). */
       @font-face {
         font-family: 'Silkscreen';
         font-style: normal;
         font-weight: 400;
         font-display: swap;
-        src: url(fonts/silkscreen.woff2) format('woff2');
-      }
-      @font-face {
-        font-family: 'Pixelify Sans';
-        font-style: normal;
-        font-weight: 400 700;
-        font-display: swap;
-        src: url(fonts/pixelify-sans.woff2) format('woff2');
+        src: url(/fonts/silkscreen.woff2) format('woff2');
       }
     </style>
     <style>
@@ -36,8 +28,6 @@
         --accent-a: #ff4fd8;
         --accent-b: #5fe0d0;
         --pixel: 'Silkscreen', ui-monospace, monospace;
-        /* in-game reading text: a pixel font with lower case */
-        --pixel-text: 'Pixelify Sans', 'Silkscreen', ui-monospace, monospace;
       }
       html,
       body {

@@ -43,7 +43,7 @@ src/
                   ground and collision (sim.ts), vehicle edits, render/ (HD-2D pipeline, quality, effects,
                   car models, daylight, sprites, textures)
   f1/             The race, circuit, circuit scene, race rules and tuning; uses only engine/
-public/fonts/     Pixel fonts (SIL Open Font License)
+public/fonts/     Pixel font, Silkscreen (SIL Open Font License)
 tests/            Driving, circuit, racing, controls, layout, storage, vehicle edits, code boundaries
 ```
 
