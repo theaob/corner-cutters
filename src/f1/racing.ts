@@ -236,7 +236,8 @@ export function lateralOffset(track: Track, i: number, x: number, y: number): nu
 /**
  * Drive the racing line: aim at a point ahead (further at speed), at the
  * driver's lane, and hold the speed the line allows there, braking when over it.
- * `others` are the other cars, so an AI can move over rather than run into one.
+ * `others` are the other cars, so an AI can move over rather than run into one,
+ * and holds the speed of a car right ahead in its lane rather than hit it.
  */
 export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, others: Car[] = []): DriveInput {
   const n = track.samples.length;
@@ -245,6 +246,8 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const t = track.samples[(idx + ahead) % n];
   // move over for a slower car ahead in our lane
   let lane = ai.lane;
+  /** speed of the slowest car close ahead in our lane (Infinity = none) */
+  let follow = Infinity;
   const here = track.samples[idx];
   const fx = Math.sin(here.dir);
   const fy = -Math.cos(here.dir);
@@ -256,6 +259,8 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
     // look further ahead the faster we're closing on it
     const closing = v - speedOf(o);
     if (along > 0 && along < 40 + Math.max(0, closing) * 0.8 && Math.abs(across) < 18 && closing > 0) lane = across > 0 ? lane - 26 : lane + 26;
+    // too close to get by (a pack braking into a hairpin): don't drive into its gearbox
+    if (along > 0 && along < 44 + Math.max(0, closing) * 0.7 && Math.abs(across) < 18) follow = Math.min(follow, speedOf(o));
   }
   lane = Math.max(-32, Math.min(32, lane));
   const tx = t.x + Math.cos(t.dir) * lane;
@@ -264,7 +269,7 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const dy = ty - car.y;
   const d = Math.hypot(dx, dy) || 1;
   // the line's speed a little ahead (it already includes braking for what's beyond)
-  const want = track.samples[(idx + 2) % n].speed * ai.pace;
+  const want = Math.min(track.samples[(idx + 2) % n].speed * ai.pace, follow);
   const mag = Math.max(0.05, Math.min(1, want / car.cls.topSpeed));
   return { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 12 };
 }

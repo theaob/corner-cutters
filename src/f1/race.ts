@@ -1,6 +1,6 @@
-// The F1 race: you and the AI field in F1 cars at Amimo Park.
+// The F1 race: you and the AI field in F1 cars on one of the circuits.
 // Start lights, laps, positions, lap times, a minimap, and results at the flag.
-// START restarts the race.
+// START restarts the race; SELECT goes back to choose a circuit.
 
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
@@ -27,6 +27,7 @@ import { loadVehicleEdits, vehicleColors } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
 import { defaults } from '../engine/tuning';
 import { buildCircuit } from './circuit';
+import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
 import { F1_TUNING } from './tuning';
 
@@ -47,14 +48,15 @@ interface Racer {
 
 const fmt = (s?: number) => (s === undefined ? '–' : `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}`);
 
-export const mount: MountStandalone = async ({ host, services, tuning, fit }) => {
+/** The race on `layout`; `onQuit` runs when the player presses SELECT. */
+export const raceOn = (layout: CircuitLayout, onQuit: () => void): MountStandalone => async ({ host, services, tuning, fit }) => {
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   const edits = loadVehicleEdits();
   const f1 = carClass('f1');
   const HANDLING = RACE_HANDLING;
   // the AI's line: flat out wherever the car can follow the bend, like a player can
-  const circuit = buildCircuit({ cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
+  const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
   const { track, grid } = circuit;
   const world = createCircuitScene(circuit);
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
@@ -110,8 +112,10 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
     position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
     background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '13px Silkscreen, monospace', whiteSpace: 'pre', display: 'none',
   });
-  const MINI_W = 96;
-  const MINI_H = Math.round((MINI_W * circuit.height) / circuit.width);
+  // the minimap fits the circuit in a 96 × 110 box, whatever its shape
+  const miniScale = Math.min(96 / circuit.width, 110 / circuit.height);
+  const MINI_W = Math.round(circuit.width * miniScale);
+  const MINI_H = Math.round(circuit.height * miniScale);
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
   const mini = document.createElement('canvas');
   mini.width = MINI_W * 2;
@@ -167,6 +171,7 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
   if (new URLSearchParams(window.location.search).has('debug')) {
     Object.assign(window, {
       __cc: {
+        circuit: () => layout.id,
         phase: () => phase,
         clock: () => clock,
         order: () => standings(racers.map((r) => r.progress), track).map((i) => racers[i].name),
@@ -186,7 +191,7 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
       const best = p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–';
       return `${String(pos + 1).padStart(2)}  ${r.name.padEnd(6)} ${time.padStart(9)}  ${best}`;
     });
-    results.textContent = `CHEQUERED FLAG\n\n    NAME        TIME  BEST LAP\n${lines.join('\n')}\n\nSTART to race again`;
+    results.textContent = `CHEQUERED FLAG\n\n    NAME        TIME  BEST LAP\n${lines.join('\n')}\n\nSTART to race again\nSELECT for circuits`;
     results.style.display = 'block';
   };
 
@@ -207,7 +212,7 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
     last = now;
     if (pressed('start')) startRace();
     pressed('a');
-    pressed('select');
+    if (pressed('select')) onQuit();
     const laps = Math.round(t.laps);
     clock += dt;
 

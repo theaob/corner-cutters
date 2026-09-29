@@ -1,12 +1,9 @@
-// "Amimo Park": the race's circuit, inspired by Istanbul Park. Anticlockwise,
-// like the real one: a downhill Turn 1 left and Turn 2 right, a fast sweeping
-// Turn 3, a twisty middle section, the long four-apex Turn 8 left, the Turn 9–10
-// esses, a long back straight with a kink, a heavy-braking Turn 12, and the
-// Turn 13–14 chicane onto the main straight. Pure layout (no rendering): the
+// A circuit from its layout (layouts.ts). Pure layout (no rendering): the
 // track's tiles, run-off, heights and starting grid.
 
 import type { Grid } from '../engine/sim';
-import { buildTrack, type Pt, type Track } from './racing';
+import type { CircuitLayout } from './layouts';
+import { buildTrack, type Track } from './racing';
 
 export const TILE = 16;
 /** px from the centreline to the track edge */
@@ -14,86 +11,23 @@ export const HALF_WIDTH = 44;
 /** px of run-off (grass or gravel) beyond the track edge before the barriers */
 export const RUNOFF = 72;
 
-/** Centreline control points (px, before scaling), in racing order. The first is the start/finish line. */
-const RAW: Pt[] = [
-  // main straight, running north up the east side
-  { x: 2300, y: 1000 },
-  { x: 2300, y: 700 },
-  // T1: downhill left
-  { x: 2270, y: 470 },
-  { x: 2170, y: 390 },
-  // T2: right
-  { x: 2040, y: 380 },
-  { x: 1960, y: 300 },
-  // T3: long fast left
-  { x: 1850, y: 210 },
-  { x: 1680, y: 210 },
-  { x: 1560, y: 290 },
-  // T4–T7: the twisty middle
-  { x: 1440, y: 420 },
-  { x: 1330, y: 560 },
-  { x: 1180, y: 600 },
-  { x: 1030, y: 540 },
-  { x: 890, y: 590 },
-  { x: 720, y: 700 },
-  // T8: the long four-apex left, round the west end
-  { x: 540, y: 720 },
-  { x: 380, y: 800 },
-  { x: 290, y: 980 },
-  { x: 330, y: 1160 },
-  { x: 460, y: 1280 },
-  { x: 640, y: 1300 },
-  // T9–T10: right, left
-  { x: 790, y: 1360 },
-  { x: 900, y: 1450 },
-  // back straight with the T11 kink
-  { x: 1100, y: 1480 },
-  { x: 1500, y: 1460 },
-  { x: 1900, y: 1490 },
-  // T12: heavy braking, left
-  { x: 2140, y: 1500 },
-  { x: 2210, y: 1420 },
-  // T13–T14 chicane
-  { x: 2220, y: 1320 },
-  { x: 2290, y: 1260 },
-  { x: 2300, y: 1150 },
-];
-
-/** Scale of the layout: a lap is about 7600 px, about 24 s in an F1 car. */
-const SCALE = 1.35;
-export const CONTROL: Pt[] = RAW.map((p) => ({ x: p.x * SCALE, y: p.y * SCALE }));
-
-/** Elevation (px) along the lap, as [share of the lap, height]: the dip through T1, climbs round T3 and T8. */
-const ELEVATION: [number, number][] = [
-  [0, 22],
-  [0.06, 24],
-  [0.1, 4],
-  [0.16, 2],
-  [0.24, 18],
-  [0.36, 14],
-  [0.46, 6],
-  [0.58, 20],
-  [0.7, 12],
-  [0.84, 10],
-  [0.94, 18],
-  [1, 22],
-];
-
-function elevation(share: number): number {
-  for (let i = 1; i < ELEVATION.length; i++) {
-    const [s0, h0] = ELEVATION[i - 1];
-    const [s1, h1] = ELEVATION[i];
+/** Height (px) at a share of the lap, eased between the profile's points. */
+function elevationAt(profile: [number, number][], share: number): number {
+  for (let i = 1; i < profile.length; i++) {
+    const [s0, h0] = profile[i - 1];
+    const [s1, h1] = profile[i];
     if (share <= s1) {
       const t = (share - s0) / (s1 - s0);
       return h0 + (h1 - h0) * (1 - Math.cos(t * Math.PI)) * 0.5;
     }
   }
-  return ELEVATION[0][1];
+  return profile[0][1];
 }
 
 export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'wall';
 
 export interface Circuit {
+  layout: CircuitLayout;
   width: number;
   height: number;
   cells: CircuitCell[];
@@ -110,8 +44,9 @@ export interface CircuitOptions {
   decel: number;
 }
 
-export function buildCircuit(opts: CircuitOptions): Circuit {
-  const track = buildTrack(CONTROL, 8, opts.cornerSpeed, opts.decel);
+export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circuit {
+  const control = layout.points.map((p) => ({ x: p.x * layout.scale, y: p.y * layout.scale }));
+  const track = buildTrack(control, 8, opts.cornerSpeed, opts.decel);
   const margin = HALF_WIDTH + RUNOFF + 64;
   const minX = Math.min(...track.samples.map((p) => p.x)) - margin;
   const minY = Math.min(...track.samples.map((p) => p.y)) - margin;
@@ -188,7 +123,7 @@ export function buildCircuit(opts: CircuitOptions): Circuit {
         const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
         if (d2 > 200 * 200) continue;
         const w = 1 / (d2 + 400);
-        sum += w * elevation(i / n);
+        sum += w * elevationAt(layout.elevation, i / n);
         wsum += w;
       }
       heights.push(wsum ? sum / wsum : 0);
@@ -212,5 +147,5 @@ export function buildCircuit(opts: CircuitOptions): Circuit {
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });
 
-  return { width: W, height: H, cells, grid, track, slots };
+  return { layout, width: W, height: H, cells, grid, track, slots };
 }

@@ -6,6 +6,8 @@ import { Hud, bindDeck, releaseDeck } from './engine/deck';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
 import { storeKey, useStore } from './engine/storage';
 import { F1_TUNING } from './f1/tuning';
+import { LAYOUTS, layoutById } from './f1/layouts';
+import { chooseCircuit } from './f1/circuitSelect';
 
 const screen = document.getElementById('screen')!;
 const deck = document.getElementById('deck')!;
@@ -81,12 +83,46 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement)) switchLayout();
 });
 
+/** This page's address with ?circuit set to `id`, or removed (null); other flags (?tune, ?debug…) stay. */
+function withCircuit(id: string | null): string {
+  const url = new URL(window.location.href);
+  if (id) url.searchParams.set('circuit', id);
+  else url.searchParams.delete('circuit');
+  return url.href;
+}
+
+// the last circuit raced, highlighted first in the menu
+const CIRCUIT_KEY = storeKey('circuit');
+
+/**
+ * ?circuit=<id> races there; otherwise the circuit menu comes first. Picking
+ * one (or SELECT during a race) moves between the two by address, so the
+ * browser's back button works and the race starts from a clean page.
+ */
 async function start(): Promise<void> {
   const fit = sizeScreen();
+  const layout = layoutById(new URLSearchParams(window.location.search).get('circuit'));
+  if (!layout) {
+    let last: string | null = null;
+    try {
+      last = localStorage.getItem(CIRCUIT_KEY);
+    } catch {
+      // storage blocked: start from the first circuit
+    }
+    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(last));
+    try {
+      localStorage.setItem(CIRCUIT_KEY, picked.id);
+    } catch {
+      // storage blocked: not remembered
+    }
+    window.location.assign(withCircuit(picked.id));
+    return;
+  }
   // ?tune shows the TUNE panel (laps, grid, AI pace, camera); otherwise the race runs on the locked defaults
   const tuning = new URLSearchParams(window.location.search).has('tune') ? mountTuning(screen, 'f1', F1_TUNING) : undefined;
-  const { mount } = await import('./f1/race');
-  const view: StandaloneView = await mount({ host: screen, services, tuning, fit });
+  const { raceOn } = await import('./f1/race');
+  const quit = () => window.location.assign(withCircuit(null));
+  const view: StandaloneView = await raceOn(layout, quit)({ host: screen, services, tuning, fit });
   onResize = () => view.resize(sizeScreen());
 }
 

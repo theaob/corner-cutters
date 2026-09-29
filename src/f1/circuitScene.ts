@@ -1,4 +1,4 @@
-// Amimo Park in 3D: grass and gravel run-off, a smooth painted track with
+// A circuit in 3D: grass and gravel run-off, a smooth painted track with
 // white edge lines and red-and-white kerbs, the start line and grid boxes, all
 // draped over the circuit's heights; tyre walls round the outside and
 // grandstands along the main straight.

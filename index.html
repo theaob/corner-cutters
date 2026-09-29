@@ -53,6 +53,79 @@
         background: #000;
         position: relative;
       }
+      /* the circuit menu, before a race */
+      .circuit-menu {
+        position: absolute;
+        inset: 0;
+        box-sizing: border-box;
+        padding: 20px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+        background: #111118;
+        color: var(--text);
+        font-family: var(--pixel);
+      }
+      .circuit-menu h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 400;
+        color: var(--gold);
+        text-align: center;
+      }
+      .circuit-menu p {
+        margin: 0 0 6px;
+        font-size: 12px;
+        letter-spacing: 1px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .circuit-menu ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .circuit-menu button {
+        width: 100%;
+        min-height: 72px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font-family: var(--pixel);
+        text-align: left;
+        cursor: pointer;
+      }
+      .circuit-menu button.selected {
+        border-color: var(--accent-a);
+        box-shadow: 0 0 0 1px var(--accent-a);
+      }
+      .circuit-menu button canvas {
+        flex: none;
+      }
+      .circuit-menu strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 400;
+      }
+      .circuit-menu button.selected strong {
+        color: var(--accent-a);
+      }
+      .circuit-menu span {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .desktop .circuit-menu {
+        padding: 24px max(24px, calc(50% - 220px));
+      }
       .tune-toggle {
         position: absolute;
         top: 6px;

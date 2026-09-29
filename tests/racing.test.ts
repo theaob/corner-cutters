@@ -132,4 +132,26 @@ describe('AI driver', () => {
     expect(worst).toBeLessThan(40);
     expect(speedOf(car)).toBeGreaterThan(50);
   });
+
+  it("holds the speed of a car close ahead in its lane instead of running into it", () => {
+    // along the top straight, heading east at 250 px/s
+    const i = track.samples.findIndex((p) => p.x > 500);
+    const s = track.samples[i];
+    const car = newCar(carClass('f1'), s.x, s.y, s.dir);
+    car.vx = 250;
+    const slowAt = (dx: number, dy: number) => {
+      const o = newCar(carClass('f1'), s.x + dx, s.y + dy, s.dir);
+      o.vx = 100;
+      return o;
+    };
+    const free = aiInput(car, track, i, { lane: 0, pace: 1 });
+    expect(free.brake).toBe(false);
+    // right on its tail: brakes toward its speed
+    const behind = aiInput(car, track, i, { lane: 0, pace: 1 }, [slowAt(40, 0)]);
+    expect(behind.brake).toBe(true);
+    expect(Math.hypot(behind.steer!.x, behind.steer!.y)).toBeCloseTo(100 / carClass('f1').topSpeed, 2);
+    // far ahead, or a lane over: no need
+    expect(aiInput(car, track, i, { lane: 0, pace: 1 }, [slowAt(400, 0)]).brake).toBe(false);
+    expect(aiInput(car, track, i, { lane: 0, pace: 1 }, [slowAt(40, 30)]).brake).toBe(false);
+  });
 });
