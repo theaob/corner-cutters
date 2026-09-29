@@ -1,7 +1,7 @@
 // The menu shown before a race: each circuit's outline, name and a line about
-// it, then your team and the control scheme. Up/down
-// moves between the circuits and those two rows, left/right changes the row
-// (or tap it), A or START (or a tap on a circuit) races.
+// it, then your team and the control scheme. On a phone it's all touch (the
+// deck is hidden): tap a circuit to race it, swipe a row (or tap its sides) to
+// change it. On a keyboard, up/down moves, left/right changes a row, Enter races.
 
 import type { Button } from '../engine/controls';
 import { holdTouches } from '../engine/deck';
@@ -53,6 +53,22 @@ export interface MenuChoice {
   team: Team;
 }
 
+/** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
+const SWIPE = 28;
+const TAP_SLOP = 12;
+
+/**
+ * What a gesture on an option row does: a swipe left is the next value and a
+ * swipe right the previous (like a carousel); a tap on the row's left third
+ * (its ◀) steps back, anywhere else forward; a short wobble does nothing.
+ * `dx` is how far the finger moved sideways (px), `at` where it lifted across the row (0…1).
+ */
+export function rowGesture(dx: number, at: number): -1 | 0 | 1 {
+  if (Math.abs(dx) >= SWIPE) return dx < 0 ? 1 : -1;
+  if (Math.abs(dx) < TAP_SLOP) return at < 1 / 3 ? -1 : 1;
+  return 0;
+}
+
 /**
  * A row of options under the circuits: its label and the current value (with a
  * line about it and, for a team, its colours), switched with left/right or a tap.
@@ -86,7 +102,17 @@ function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { na
     i = (i + by + values.length) % values.length;
     render();
   };
-  el.addEventListener('pointerup', () => step(1));
+  // swipe it, or tap its sides (the row keeps the finger's events: touch captures to it)
+  let startX: number | undefined;
+  el.addEventListener('pointerdown', (e) => (startX = e.clientX));
+  el.addEventListener('pointercancel', () => (startX = undefined));
+  el.addEventListener('pointerup', (e) => {
+    if (startX === undefined) return;
+    const r = el.getBoundingClientRect();
+    const by = rowGesture(e.clientX - startX, (e.clientX - r.left) / Math.max(1, r.width));
+    startX = undefined;
+    if (by) step(by);
+  });
   render();
   return { el, step, value: () => values[i] };
 }
@@ -109,7 +135,7 @@ export function chooseCircuit(
   const title = document.createElement('h1');
   title.textContent = 'CORNER CUTTERS';
   const hint = document.createElement('p');
-  hint.textContent = 'CHOOSE A CIRCUIT';
+  hint.textContent = 'TAP A CIRCUIT TO RACE · SWIPE TO CHANGE';
   const list = document.createElement('ul');
   menu.append(title, hint, list);
 
@@ -137,8 +163,10 @@ export function chooseCircuit(
     b.append(outline(layout, 56), text);
     // picked on the pointer's press and release, not 'click': in a cross-origin frame on a phone
     // the click a tap turns into can land on the wrong button
+    let downX = 0;
     b.addEventListener('pointerdown', (e) => {
       armed = i;
+      downX = e.clientX;
       selected = focus = i;
       show();
       try {
@@ -147,8 +175,9 @@ export function chooseCircuit(
         // nothing to release
       }
     });
-    b.addEventListener('pointerup', () => {
-      if (armed === i) finish(layouts[i]);
+    b.addEventListener('pointerup', (e) => {
+      // a tap races; a finger dragged across (a swipe that started here) doesn't
+      if (armed === i && Math.abs(e.clientX - downX) < TAP_SLOP) finish(layouts[i]);
       armed = undefined;
     });
     b.addEventListener('pointerleave', () => (armed = undefined));

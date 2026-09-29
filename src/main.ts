@@ -129,6 +129,14 @@ async function start(): Promise<void> {
   const fit = sizeScreen();
   const layout = layoutById(new URLSearchParams(window.location.search).get('circuit'));
   if (!layout) {
+    // the menu: all touch, no deck; the screen fills the column
+    document.documentElement.classList.add('menu');
+    const fillScreen = () => {
+      screen.style.width = '100%';
+      screen.style.height = '100%';
+    };
+    fillScreen();
+    onResize = fillScreen;
     const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(saved(CIRCUIT_KEY)), savedScheme(), savedTeam());
     save(CIRCUIT_KEY, picked.layout.id);
     save(SCHEME_KEY, picked.scheme);

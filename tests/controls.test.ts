@@ -159,3 +159,14 @@ describe('guardInput', () => {
     expect(win.focus).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('menu row gestures', () => {
+  it('swipe left for the next value, right for the previous; tap the sides to step; ignore a wobble', async () => {
+    const { rowGesture } = await import('../src/f1/circuitSelect');
+    expect(rowGesture(-60, 0.5)).toBe(1);
+    expect(rowGesture(45, 0.5)).toBe(-1);
+    expect(rowGesture(3, 0.8)).toBe(1); // a tap on the right
+    expect(rowGesture(-2, 0.1)).toBe(-1); // a tap on the ◀ side
+    expect(rowGesture(18, 0.5)).toBe(0); // neither a tap nor a swipe
+  });
+});

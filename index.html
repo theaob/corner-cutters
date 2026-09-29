@@ -230,6 +230,16 @@
       #screen canvas {
         display: block;
       }
+      /* the menu is all touch: no deck, the screen fills the column */
+      .menu #deck {
+        display: none;
+      }
+      .menu #screen {
+        flex: 1;
+      }
+      .menu .circuit-menu {
+        justify-content: center;
+      }
       #deck {
         flex: 1;
         display: flex;
