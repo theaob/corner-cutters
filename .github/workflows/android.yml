@@ -64,11 +64,15 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "../out/corner-cutters-$version-$GITHUB_RUN_NUMBER.apk"
           echo "signed with: ${ANDROID_KEYSTORE_FILE:+release key}${ANDROID_KEYSTORE_FILE:-sideload key}"
 
+      # a download on the run; kept a week, and not fatal: the account's artifact storage can be full
+      # (it's shared by every repo), and the itch.io upload below is the real way out
       - uses: actions/upload-artifact@v7
+        continue-on-error: true
         with:
           name: corner-cutters-apk
           path: out/*.apk
           if-no-files-found: error
+          retention-days: 7
 
       - name: Push to itch.io (android channel)
         if: env.PUBLISH == 'true' && env.BUTLER_API_KEY != '' && env.ITCH_TARGET != ''
