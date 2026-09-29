@@ -30,7 +30,9 @@ npm run dev        # http://localhost:5173
 
 Pick a circuit with up/down and A (or tap it). In a race, START restarts and SELECT goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
-**URL flags:** `?circuit=amimo-park` or `?circuit=silver-heath` goes straight to a race, `?tune` shows the TUNE panel (laps, AI opponents, AI pace, camera zoom and look-ahead), `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3), and `?desktop` / `?mobile` force a layout.
+**TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead, and the pedals' steering; changes apply at once and are kept on the device (Reset puts the defaults back).
+
+**URL flags:** `?circuit=amimo-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3), and `?desktop` / `?mobile` force a layout.
 
 ## Publishing to itch.io
 

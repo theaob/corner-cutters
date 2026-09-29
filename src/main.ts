@@ -132,8 +132,8 @@ async function start(): Promise<void> {
     window.location.assign(withCircuit(picked.layout.id));
     return;
   }
-  // ?tune shows the TUNE panel (laps, grid, AI pace, camera); otherwise the race runs on the locked defaults
-  const tuning = new URLSearchParams(window.location.search).has('tune') ? mountTuning(screen, 'f1', F1_TUNING) : undefined;
+  // the TUNE button (laps, grid, AI pace, camera, pedal steering), in every build; values are kept on the device
+  const tuning = mountTuning(screen, 'f1', F1_TUNING);
   const { raceOn } = await import('./f1/race');
   const quit = () => window.location.assign(withCircuit(null));
   const view: StandaloneView = await raceOn(layout, quit, savedScheme())({ host: screen, services, tuning, fit });

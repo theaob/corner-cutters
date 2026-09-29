@@ -12,7 +12,7 @@ export interface StandaloneView {
 export type MountStandalone = (args: {
   host: HTMLElement;
   services: Services;
-  /** live TUNE values; undefined unless the page was opened with ?tune */
+  /** live TUNE values; undefined when a game runs without the TUNE panel (its defaults) */
   tuning?: Values<ParamSpec>;
   fit: ScreenFit;
 }) => Promise<StandaloneView>;

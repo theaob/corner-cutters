@@ -1,5 +1,5 @@
-// Live tuning panel (?tune): sliders over the game screen that edit a plain
-// object the game reads every frame. Values persist per panel in localStorage, and "Copy" puts them on the clipboard as JSON for the spec.
+// Live tuning panel (the TUNE button): sliders over the game screen that edit a
+// plain object the game reads every frame. Values persist per panel in localStorage, and "Copy" puts them on the clipboard as JSON for the spec.
 
 import { storeKey } from './storage';
 
@@ -60,6 +60,20 @@ function storageSet(key: string, value: string): void {
 }
 
 /**
+ * Run `fn` when a press starts and ends on `el`. Not 'click': inside a cross-origin
+ * frame on a phone (itch.io) the click a tap turns into can land on the wrong element.
+ */
+function onTap(el: HTMLElement, fn: () => void): void {
+  let armed = false;
+  el.addEventListener('pointerdown', () => (armed = true));
+  el.addEventListener('pointerleave', () => (armed = false));
+  el.addEventListener('pointerup', () => {
+    if (armed) fn();
+    armed = false;
+  });
+}
+
+/**
  * Mounts the tuning panel into `host` and returns the live values object.
  * The game reads from it every frame; edits apply immediately.
  */
@@ -109,7 +123,7 @@ export function mountTuning<S extends ParamSpec>(host: HTMLElement, panelId: str
   actions.className = 'tune-actions';
   const reset = document.createElement('button');
   reset.textContent = 'Reset';
-  reset.addEventListener('click', () => {
+  onTap(reset, () => {
     Object.assign(values, defaults(spec));
     for (const r of rows) {
       r.input.value = String(values[r.k]);
@@ -119,7 +133,7 @@ export function mountTuning<S extends ParamSpec>(host: HTMLElement, panelId: str
   });
   const copy = document.createElement('button');
   copy.textContent = 'Copy';
-  copy.addEventListener('click', async () => {
+  onTap(copy, async () => {
     const json = JSON.stringify({ panel: panelId, ...values }, null, 2);
     try {
       await navigator.clipboard.writeText(json);
@@ -132,7 +146,7 @@ export function mountTuning<S extends ParamSpec>(host: HTMLElement, panelId: str
   actions.append(reset, copy);
   panel.append(actions);
 
-  toggle.addEventListener('click', () => {
+  onTap(toggle, () => {
     panel.hidden = !panel.hidden;
     toggle.setAttribute('aria-expanded', String(!panel.hidden));
   });
