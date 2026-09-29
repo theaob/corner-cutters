@@ -39,6 +39,23 @@ Setup (once):
 
 Until both settings exist, the workflow skips the upload and warns which one is missing.
 
+## Android
+
+The same web build, wrapped by [Capacitor](https://capacitorjs.com) into an Android app (`android/`, `capacitor.config.ts`): full screen, portrait, the screen kept on, played offline; the back button goes from a race to the circuit menu, then out.
+
+`.github/workflows/android.yml` builds an APK on every push and pull request (a download under the run's **Artifacts**). A push to the default branch also uploads it to the itch.io page as the `android` channel, so it can be downloaded there on a phone. To install, allow installs from your browser or files app when Android asks. Each build has a higher version code, so it installs as an update over the last.
+
+**Signing:** without secrets, the APK is signed with `android/app/sideload.keystore`, a key committed to the repo so every build updates the last one (like Android's debug key, it isn't a secret, so don't rely on it for anything you publish widely). For your own key, create one once and keep it safe (an update must always be signed with the same key):
+
+```sh
+keytool -genkeypair -keystore release.keystore -alias cornercutters -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 release.keystore      # the value for ANDROID_KEYSTORE_BASE64
+```
+
+then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`cornercutters`) and `ANDROID_KEY_PASSWORD`. Switching from the sideload key to yours changes the app's signature: uninstall the sideloaded build once before installing the first one signed with your key.
+
+Locally (with the Android SDK and JDK 21): `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`. `npm run android:art` redraws the launcher icons and splash screens (`tools/android-art.py`, needs Pillow).
+
 ## Layout
 
 ```

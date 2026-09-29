@@ -1,0 +1,79 @@
+# Builds the Android app (the web build in a Capacitor WebView) as an APK on
+# every push and pull request, kept as a download on the run (Artifacts). A
+# push to the default branch, or a run by hand, also uploads the APK to the
+# itch.io page's "android" channel (with the same BUTLER_API_KEY / ITCH_TARGET
+# as the web build), where phones can download it.
+#
+# Signing: with the four ANDROID_* secrets set (see the README), the APK is
+# signed with your release key. Without them, it's signed with the sideload key
+# in the repo, so every build still installs as an update over the last one.
+name: android
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      ITCH_TARGET: ${{ vars.ITCH_TARGET || secrets.ITCH_TARGET }}
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      PUBLISH: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - name: Build the web game and copy it into the Android project
+        run: npm run android:sync
+
+      - name: Release key (when the secrets are set)
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build the APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          version="$(node -p "require('../package.json').version")"
+          # every run gets a higher version code, so each APK installs as an update over the last
+          ./gradlew --no-daemon assembleRelease -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version+${GITHUB_SHA::7}"
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk "../out/corner-cutters-$version-$GITHUB_RUN_NUMBER.apk"
+          echo "signed with: ${ANDROID_KEYSTORE_FILE:+release key}${ANDROID_KEYSTORE_FILE:-sideload key}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: corner-cutters-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: Push to itch.io (android channel)
+        if: env.PUBLISH == 'true' && env.BUTLER_API_KEY != '' && env.ITCH_TARGET != ''
+        run: |
+          curl -sSfL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d butler && chmod +x butler/butler
+          version="$(node -p "require('./package.json').version")+${GITHUB_SHA::7}"
+          butler/butler push out/*.apk "$ITCH_TARGET:android" --userversion "$version"
