@@ -1,4 +1,4 @@
-// F1 race demo (MECHANICS §11): you and the AI field in F1 cars at Amimo Park.
+// The F1 race: you and the AI field in F1 cars at Amimo Park.
 // Start lights, laps, positions, lap times, a minimap, and results at the flag.
 // START restarts the race.
 
@@ -166,7 +166,7 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
 
   if (new URLSearchParams(window.location.search).has('debug')) {
     Object.assign(window, {
-      __gtm: {
+      __cc: {
         phase: () => phase,
         clock: () => clock,
         order: () => standings(racers.map((r) => r.progress), track).map((i) => racers[i].name),
@@ -198,7 +198,6 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
   let statTime = 0;
   let fps = 0;
   let miniTime = 0;
-  hud.setHeat(0);
   hud.setLabel('a', '');
   hud.setLabel('b', 'DRIFT');
 
@@ -265,8 +264,8 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
     }
     if (phase === 'done' && results.style.display === 'none' && clock > (p.finished ?? 0) + 1.5) showResults(order);
     if (phase === 'done' && results.style.display === 'block') showResults(order); // keep the table live as others finish
-    hud.setDistrict(`P${pos}/${racers.length}`);
-    hud.setInfo(`LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setPosition(`P${pos}/${racers.length}`);
+    hud.setLap(`LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
     if (phase === 'racing' && clock > 1.2) banner.textContent = p.wrongWay > 1 ? 'WRONG WAY' : me.car.wrecked ? 'DNF · START to restart' : '';
     if (p.wrongWay > 1) banner.style.color = '#d8323c';
     const lapTime = p.lapStart !== undefined && p.finished === undefined ? clock - p.lapStart : undefined;

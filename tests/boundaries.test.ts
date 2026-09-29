@@ -1,7 +1,6 @@
-// The code is split into a shared engine and the games built on it (see
-// docs/ROADMAP.md, "F1 as its own game"). These rules keep the split honest:
-// the engine never reaches into a game, and F1 uses nothing but the engine,
-// so it can ship on its own and still run as the arcade cabinet.
+// The code is split into an engine and the F1 game built on it. These rules
+// keep the split honest: the engine never reaches into the game, and F1 uses
+// nothing but the engine and itself.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, normalize, relative } from 'node:path';

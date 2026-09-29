@@ -20,7 +20,7 @@ npm run dev        # http://localhost:5173
 
 **Controls:** on a phone, use the on-screen D-pad; B drifts and START restarts. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
-**URL flags:** `?tune` shows the TUNE panel (laps, AI opponents, AI pace, camera zoom and look-ahead), `?debug` shows the FPS / quality readout and exposes `window.__gtm` for tests, and `?desktop` / `?mobile` force a layout.
+**URL flags:** `?tune` shows the TUNE panel (laps, AI opponents, AI pace, camera zoom and look-ahead), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests, and `?desktop` / `?mobile` force a layout.
 
 ## Layout
 
@@ -36,4 +36,4 @@ public/fonts/     Pixel fonts (SIL Open Font License)
 tests/            Driving, circuit, racing, controls, layout, storage, vehicle edits, code boundaries
 ```
 
-Saves (layout choice, TUNE values) live in local storage under the `cc:` prefix.
+Saves (layout choice, TUNE values) live in local storage under the `cc:` prefix. The status strip under the screen shows your position and lap.

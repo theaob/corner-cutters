@@ -1,4 +1,4 @@
-// Car effects for the 3D city: skid marks painted onto the ground, smoke from
+// Car effects for a 3D scene: skid marks painted onto the ground, smoke from
 // damaged cars, fire on burning ones, charred paint on wrecks, and the cop
 // light bar. Driven each frame from the engine-free car state.
 
@@ -16,7 +16,7 @@ interface SkidChunk {
 
 /**
  * Dark marks left by sliding tyres, drawn into canvases laid over the ground.
- * The city is split into 256 px chunks, made on first use, so a skid only
+ * The ground is split into 256 px chunks, made on first use, so a skid only
  * re-uploads the small texture it touched.
  */
 export class SkidLayer {
@@ -218,8 +218,8 @@ export class CarFx {
   private flash = 0;
 
   /**
-   * `fireLight: false` skips the flickering fire light: for traffic, which
-   * comes and goes, since adding or removing a light recompiles every shader.
+   * `fireLight: false` skips the flickering fire light: for cars that
+   * come and go, since adding or removing a light recompiles every shader.
    */
   constructor(readonly mesh: CarMesh, fireLight = true) {
     this.original = mesh.userData.paint.map((m) => m.color.clone());

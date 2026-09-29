@@ -1,9 +1,9 @@
-// Sky light and a shadow-casting sun (or moon) for any 3D scene: the city,
-// the test course and the F1 circuit.
+// Sky light and a shadow-casting sun (or moon) for any 3D scene, such as
+// the F1 circuit.
 
 import * as THREE from 'three';
 
-/** What the sky looks like at one moment (the street game works it out from the time of day). */
+/** What the sky looks like at one moment. */
 export interface SkyState {
   background: number;
   sky: number;
@@ -27,7 +27,7 @@ export interface Daylight {
   setSky(sky: SkyState): void;
 }
 
-/** Sky light plus a warm shadow-casting sun, shared by the city and the test course. Starts at noon. */
+/** Sky light plus a warm shadow-casting sun, for any scene. Starts at noon. */
 export function addDaylight(scene: THREE.Scene): Daylight {
   const hemi = new THREE.HemisphereLight(0xb8d4ff, 0x5a4f48, 1.35);
   scene.add(hemi);

@@ -1,6 +1,5 @@
-// Live tuning panel for mechanic demos: sliders over the game screen that edit
-// a plain object the demo reads every frame. Values persist per demo in
-// localStorage, and "Copy" puts them on the clipboard as JSON for the spec.
+// Live tuning panel (?tune): sliders over the game screen that edit a plain
+// object the game reads every frame. Values persist per panel in localStorage, and "Copy" puts them on the clipboard as JSON for the spec.
 
 import { storeKey } from './storage';
 
@@ -62,10 +61,10 @@ function storageSet(key: string, value: string): void {
 
 /**
  * Mounts the tuning panel into `host` and returns the live values object.
- * The demo reads from it every frame; edits apply immediately.
+ * The game reads from it every frame; edits apply immediately.
  */
-export function mountTuning<S extends ParamSpec>(host: HTMLElement, demoId: string, spec: S): Values<S> {
-  const key = storeKey(`tune:${demoId}`);
+export function mountTuning<S extends ParamSpec>(host: HTMLElement, panelId: string, spec: S): Values<S> {
+  const key = storeKey(`tune:${panelId}`);
   const values = restore(spec, storageGet(key));
   const save = () => storageSet(key, JSON.stringify(values));
 
@@ -121,7 +120,7 @@ export function mountTuning<S extends ParamSpec>(host: HTMLElement, demoId: stri
   const copy = document.createElement('button');
   copy.textContent = 'Copy';
   copy.addEventListener('click', async () => {
-    const json = JSON.stringify({ demo: demoId, ...values }, null, 2);
+    const json = JSON.stringify({ panel: panelId, ...values }, null, 2);
     try {
       await navigator.clipboard.writeText(json);
       copy.textContent = 'Copied';

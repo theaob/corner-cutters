@@ -60,7 +60,7 @@ describe('fitDesktop', () => {
 describe('startLayout', () => {
   it('starts handheld, whatever the device', () => {
     expect(startLayout('', null)).toBe('handheld');
-    expect(startLayout('?demo=game', 'handheld')).toBe('handheld');
+    expect(startLayout('?tune', 'handheld')).toBe('handheld');
   });
 
   it('remembers the player switching to desktop', () => {
@@ -69,6 +69,6 @@ describe('startLayout', () => {
 
   it('can be forced either way from the address', () => {
     expect(startLayout('?desktop', null)).toBe('desktop');
-    expect(startLayout('?demo=game&mobile', 'desktop')).toBe('handheld');
+    expect(startLayout('?tune&mobile', 'desktop')).toBe('handheld');
   });
 });

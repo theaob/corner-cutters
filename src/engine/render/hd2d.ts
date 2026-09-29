@@ -84,7 +84,7 @@ export class Hd2dPipeline {
     this.composer.addPass(new OutputPass());
   }
 
-  /** Draw a different scene from now on (the street, or a room inside a building). */
+  /** Draw a different scene from now on. */
   setScene(scene: THREE.Scene): void {
     this.scenePass.scene = scene;
   }

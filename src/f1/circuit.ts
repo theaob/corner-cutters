@@ -1,4 +1,4 @@
-// "Amimo Park": the F1 demo's circuit, inspired by Istanbul Park. Anticlockwise,
+// "Amimo Park": the race's circuit, inspired by Istanbul Park. Anticlockwise,
 // like the real one: a downhill Turn 1 left and Turn 2 right, a fast sweeping
 // Turn 3, a twisty middle section, the long four-apex Turn 8 left, the Turn 9–10
 // esses, a long back straight with a kink, a heavy-braking Turn 12, and the

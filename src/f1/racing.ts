@@ -1,7 +1,7 @@
-// F1 racing rules (mechanics spec §11): a closed track as a smooth centreline,
+// F1 racing rules: a closed track as a smooth centreline,
 // the speed each part of it can be taken at, lap and sector timing, race
 // standings, and AI drivers that follow the racing line. Engine-free and
-// unit-tested; the circuit layout and rendering live in the F1 demo.
+// unit-tested; the circuit layout and rendering live in circuit.ts and race.ts.
 
 import { DEFAULT_HANDLING, angleDiff, speedOf, type Car, type CarClass, type DriveInput, type HandlingParams } from '../engine/driving';
 

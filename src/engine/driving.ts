@@ -1,4 +1,4 @@
-// Driving rules (mechanics spec §5): thirteen vehicle classes (city, farm and an F1 car), loose arcade
+// Driving rules: thirteen vehicle classes (road, farm and an F1 car), loose arcade
 // handling (heading and velocity differ while sliding), wall and vehicle-vs-
 // vehicle collisions, damage, fire and wrecks. Engine-free and unit-tested.
 
@@ -170,7 +170,7 @@ export interface HandlingParams {
   /**
    * Tyre saturation: the most sideways grip (px/s² per unit of class grip) the
    * tyres give. Turn in too fast and the nose comes round but the car slides
-   * wide. Infinity = no limit (street driving, as tuned); races use about 25.
+   * wide. Infinity = no limit (the default); races use about 25.
    */
   lateralGrip: number;
   /** per second: forward speed a sliding car scrubs off, as a share of its sideways speed (0 = none) */

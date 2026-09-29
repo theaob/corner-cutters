@@ -1,6 +1,6 @@
 import type { ParamSpec } from '../engine/tuning';
 
-// Kept separate from raceDemo.ts so the registry can list these without
+// Kept separate from race.ts so the page can mount the TUNE panel without
 // pulling three.js into the main bundle.
 // Defaults locked from on-phone tuning: a full grid of 10 at 94% AI pace.
 export const F1_TUNING = {

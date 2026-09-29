@@ -1,7 +1,6 @@
-// Vehicle edits from the car editor (?demo=cars): per-class stat changes and
-// paint palettes, saved on this device and applied to the game and demos here.
-// "Copy" in the editor exports them as JSON so they can be made permanent in
-// the class table (engine/driving.ts) and DEFAULT_COLORS below.
+// Vehicle edits: per-class stat changes and paint palettes, saved on this
+// device and applied to the game. Exported as JSON, they can be made permanent
+// in the class table (engine/driving.ts) and DEFAULT_COLORS below.
 
 import { CAR_CLASS_IDS, STAT_KEYS, setStatOverrides, type CarClassId, type StatOverrides, type VehicleStats } from './driving';
 import { storeKey } from './storage';

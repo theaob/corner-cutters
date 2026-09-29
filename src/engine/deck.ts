@@ -1,5 +1,5 @@
 // The control deck under the game screen: touch D-pad, A/B, Start/Select,
-// and the status strip (district, cash, clock, heat) plus A/B context labels.
+// and the status strip (race position, lap) plus A/B context labels.
 
 import { directionsFromOffset, stickFromOffset, type Button, type Controls } from './controls';
 
@@ -74,7 +74,7 @@ export function releaseDeck(deck: HTMLElement): void {
   if (dpad) dpad.dataset.held = '';
 }
 
-/** Status strip + button labels. */
+/** Status strip (race position and lap) + button labels. */
 export class Hud {
   constructor(private readonly deck: HTMLElement) {}
 
@@ -82,36 +82,22 @@ export class Hud {
     return this.deck.querySelector(`[data-hud="${name}"]`);
   }
 
-  setDistrict(name: string): void {
-    const el = this.el('district');
-    if (el) el.textContent = name.toUpperCase();
-  }
-
-  setCash(amount: number): void {
-    const el = this.el('cash');
-    if (el) el.textContent = `$${amount.toLocaleString('en-US')}`;
-  }
-
-  /** Free text in the cash slot, for demos that show something else there. */
-  setInfo(text: string): void {
-    const el = this.el('cash');
+  private set(name: string, text: string): void {
+    const el = this.el(name);
     if (el && el.textContent !== text) el.textContent = text;
   }
 
-  /** The game clock, e.g. "21:30" (empty hides it). */
-  setClock(text: string): void {
-    const el = this.el('clock');
-    if (el && el.textContent !== text) el.textContent = text;
+  /** Race position, e.g. "P3/10". */
+  setPosition(text: string): void {
+    this.set('position', text);
   }
 
-  setHeat(level: number): void {
-    this.deck.querySelectorAll<HTMLElement>('[data-heat-pip]').forEach((pip, i) => {
-      pip.classList.toggle('on', i < level);
-    });
+  /** Lap counter, e.g. "LAP 2/3". */
+  setLap(text: string): void {
+    this.set('lap', text);
   }
 
   setLabel(button: 'a' | 'b', text: string): void {
-    const el = this.el(`label-${button}`);
-    if (el && el.textContent !== text) el.textContent = text;
+    this.set(`label-${button}`, text);
   }
 }

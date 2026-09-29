@@ -8,7 +8,7 @@
     <title>Corner Cutters</title>
     <style>
       /* Pixel fonts, bundled (SIL Open Font License; see fonts/OFL-*.txt): Silkscreen for labels and
-         headings, Pixelify Sans for in-game reading text (messages, calls, notifications, battle lines). */
+         headings, Pixelify Sans for in-game reading text. */
       @font-face {
         font-family: 'Silkscreen';
         font-style: normal;
@@ -32,11 +32,11 @@
         --key-held: #3a3858;
         --muted: #9d9ab8;
         --text: #f4f2fa;
-        --cash: #f2c14e;
+        --gold: #f2c14e;
         --accent-a: #ff4fd8;
         --accent-b: #5fe0d0;
         --pixel: 'Silkscreen', ui-monospace, monospace;
-        /* in-game reading text (messages, calls, notifications, battle lines): a pixel font with lower case */
+        /* in-game reading text: a pixel font with lower case */
         --pixel-text: 'Pixelify Sans', 'Silkscreen', ui-monospace, monospace;
       }
       html,
@@ -63,62 +63,6 @@
         background: #000;
         position: relative;
       }
-.demo-menu {
-        position: absolute;
-        inset: 0;
-        box-sizing: border-box;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        background: #111118;
-        color: var(--text);
-        font-family: var(--pixel);
-      }
-      .demo-menu h1 {
-        margin: 0 0 6px;
-        font-size: 17px;
-        font-weight: 400;
-        color: var(--cash);
-      }
-      .demo-menu ul {
-        margin: 0;
-        padding: 0;
-        list-style: none;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .demo-menu button {
-        width: 100%;
-        min-height: 44px;
-        padding: 8px 12px;
-        border: 1px solid var(--key-edge);
-        border-radius: 10px;
-        background: var(--key);
-        color: var(--text);
-        font-family: var(--pixel);
-        font-size: 15px;
-        text-align: left;
-      }
-      .demo-menu button.selected {
-        border-color: var(--accent-a);
-        color: var(--accent-a);
-      }
-      .demo-menu p {
-        margin: auto 0 0;
-        font-family: system-ui, sans-serif;
-        font-size: 15px;
-        line-height: 1.4;
-        color: var(--muted);
-      }
-      .demo-menu p.hint {
-        margin-top: 8px;
-        font-family: inherit;
-        font-size: 12px;
-        letter-spacing: 1px;
-        opacity: 0.7;
-      }
       .tune-toggle {
         position: absolute;
         top: 6px;
@@ -128,7 +72,7 @@
         border: 1px solid var(--key-edge);
         border-radius: 8px;
         background: rgba(21, 20, 31, 0.85);
-        color: var(--cash);
+        color: var(--gold);
         font-family: var(--pixel);
         font-size: 12px;
       }
@@ -181,134 +125,6 @@
         background: var(--key);
         color: var(--text);
       }
-      /* car editor (?demo=cars): panel over the lower part of the screen, preview above */
-      .car-editor {
-        position: absolute;
-        left: 6px;
-        right: 6px;
-        bottom: 6px;
-        top: 44%;
-        z-index: 2;
-        display: flex;
-        flex-direction: column;
-        box-sizing: border-box;
-        padding: 8px 10px;
-        border-radius: 10px;
-        background: rgba(21, 20, 31, 0.92);
-        font-family: system-ui, sans-serif;
-        font-size: 14px;
-        color: var(--text);
-      }
-      .car-editor[hidden] {
-        display: none;
-      }
-      .ce-head {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .ce-head strong {
-        flex: 1;
-        text-align: center;
-        font-family: var(--pixel);
-        font-size: 14px;
-        color: var(--cash);
-      }
-      .ce-tabs {
-        display: flex;
-        gap: 4px;
-        margin: 6px 0;
-      }
-      .car-editor button {
-        padding: 5px 9px;
-        border: 1px solid var(--key-edge);
-        border-radius: 8px;
-        background: var(--key);
-        color: var(--text);
-        font: inherit;
-      }
-      .ce-tabs button {
-        flex: 1;
-        font-family: var(--pixel);
-        font-size: 11px;
-      }
-      .car-editor button.on {
-        border-color: var(--cash);
-        color: var(--cash);
-      }
-      .ce-body {
-        flex: 1;
-        overflow-y: auto;
-        min-height: 0;
-      }
-      .ce-row {
-        display: grid;
-        grid-template-columns: 1fr 48px;
-        gap: 0 8px;
-        align-items: center;
-        margin-bottom: 6px;
-      }
-      .ce-row span {
-        grid-column: 1 / 3;
-        color: var(--muted);
-      }
-      .ce-row input {
-        width: 100%;
-      }
-      .ce-row output {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-      }
-      .ce-row output.changed {
-        color: var(--cash);
-      }
-      .ce-swatches {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-bottom: 8px;
-      }
-      .ce-swatches button {
-        width: 34px;
-        height: 34px;
-        padding: 0;
-        border-width: 2px;
-      }
-      .ce-swatches button.on {
-        border-color: var(--text);
-        box-shadow: 0 0 0 2px var(--cash);
-      }
-      .ce-line {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-      .ce-line input[type='color'] {
-        width: 44px;
-        height: 30px;
-        padding: 0;
-        border: 0;
-        background: none;
-      }
-      .ce-note {
-        color: var(--muted);
-        margin: 0 0 8px;
-      }
-      .ce-actions {
-        display: flex;
-        gap: 6px;
-        justify-content: flex-end;
-        margin-top: 6px;
-      }
-      .ce-actions .drive {
-        margin-right: auto;
-        border-color: var(--cash);
-        color: var(--cash);
-        font-family: var(--pixel);
-        font-size: 12px;
-      }
       #screen canvas {
         display: block;
       }
@@ -336,71 +152,11 @@
         letter-spacing: 1px;
         color: var(--muted);
       }
-      .strip .cash {
+      .strip .lap {
         margin-left: 10px;
         font-size: 17px;
         letter-spacing: 0;
-        color: var(--cash);
-      }
-      .strip .clock {
-        margin-left: 10px;
-        font-size: 15px;
-        letter-spacing: 0;
-        color: var(--text);
-      }
-      /* an unread message on your phone: a dot on START */
-      button[data-button='start'].unread {
-        position: relative;
-      }
-      button[data-button='start'].unread::after {
-        content: '';
-        position: absolute;
-        top: -3px;
-        right: -3px;
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: var(--accent-a);
-        box-shadow: 0 0 8px var(--accent-a);
-      }
-      /* an incoming call: START shakes and glows in time with the phone's buzz (every 1.6 s, MECHANICS §4.9) */
-      button[data-button='start'].ringing {
-        border-color: var(--accent-b);
-        color: var(--accent-b);
-        box-shadow: 0 0 10px var(--accent-b);
-        animation: start-ring 1.6s linear infinite;
-      }
-      @keyframes start-ring {
-        0%, 36%, 100% { transform: rotate(0); }
-        3%, 11%, 19%, 27% { transform: rotate(-9deg) scale(1.08); }
-        7%, 15%, 23%, 31% { transform: rotate(9deg) scale(1.08); }
-      }
-      /* a text arrives: one pulse */
-      button[data-button='start'].pinged:not(.ringing) {
-        animation: start-ping 0.7s ease-out;
-      }
-      @keyframes start-ping {
-        0% { transform: scale(1); box-shadow: 0 0 0 0 var(--accent-a); }
-        30% { transform: scale(1.15); box-shadow: 0 0 12px 2px var(--accent-a); }
-        100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
-      }
-      .heat {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-      }
-      .heat span[data-heat-pip] {
-        width: 10px;
-        height: 10px;
-        background: #34324a;
-      }
-      .heat span[data-heat-pip].on:nth-child(odd) {
-        background: #ff4b4b;
-        box-shadow: 0 0 8px #ff4b4b;
-      }
-      .heat span[data-heat-pip].on:nth-child(even) {
-        background: #4b8bff;
-        box-shadow: 0 0 8px #4b8bff;
+        color: var(--gold);
       }
       .controls {
         flex: 1;
@@ -520,11 +276,7 @@
         padding: 0;
         pointer-events: none;
       }
-      /* battles bring their own HUD */
-      .desktop #screen.in-battle #deck {
-        display: none;
-      }
-      /* top centre: the demos' readouts sit top left and TUNE top right */
+      /* top centre: the race readouts sit top left and TUNE top right */
       .desktop .strip {
         position: absolute;
         left: 50%;
@@ -633,9 +385,6 @@
         right: auto;
         width: 340px;
       }
-      .desktop .demo-menu {
-        padding: 24px max(24px, calc(50% - 260px));
-      }
     </style>
   </head>
   <body>
@@ -643,11 +392,7 @@
       <div id="screen"></div>
       <div id="deck">
         <div class="strip">
-          <div><span data-hud="district"></span><span class="cash" data-hud="cash">$0</span><span class="clock" data-hud="clock"></span></div>
-          <div class="heat" aria-label="Heat">
-            <span>HEAT</span>
-            <span data-heat-pip></span><span data-heat-pip></span><span data-heat-pip></span><span data-heat-pip></span>
-          </div>
+          <div><span data-hud="position"></span><span class="lap" data-hud="lap"></span></div>
         </div>
         <div class="controls">
           <div class="dpad" data-dpad aria-label="D-pad">
