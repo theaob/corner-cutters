@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_HANDLING, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import type { Grid } from '../src/engine/sim';
 import {
+  PEDAL_STEER,
   aiInput,
   playerInput,
+  wheel,
   buildTrack,
   nearestSample,
   newProgress,
@@ -187,11 +189,21 @@ describe('control schemes', () => {
   });
 
   it('pedals: the stick turns the wheel, B is the gas, A the brake, both drift', () => {
-    expect(playerInput('pedals', pad(-0.5, false, true), car).pedals).toEqual({ turn: -0.5, gas: 1, reverse: false });
+    expect(playerInput('pedals', pad(-0.5, false, true), car).pedals).toEqual({ turn: wheel(-0.5), gas: 1, reverse: false });
     const both = playerInput('pedals', pad(0.2, true, true), car);
     expect(both.pedals?.gas).toBe(1);
     expect(both.handbrake).toBe(true);
     expect(playerInput('pedals', pad(0), car)).toEqual({ pedals: { turn: 0, gas: 0, reverse: false }, handbrake: false, brake: false });
+  });
+
+  it('pedals: the wheel is gentle near the centre and capped at full lock', () => {
+    expect(wheel(1)).toBeCloseTo(PEDAL_STEER);
+    expect(wheel(-1)).toBeCloseTo(-PEDAL_STEER);
+    expect(wheel(0)).toBe(0);
+    // a quarter push turns far less than a quarter of full lock
+    expect(wheel(0.25)).toBeLessThan(PEDAL_STEER * 0.25 * 0.5);
+    expect(wheel(0.5, 1)).toBeGreaterThan(wheel(0.25, 1));
+    expect(wheel(2, 0.8)).toBeCloseTo(0.8);
   });
 
   it('pedals: A brakes while moving forwards, and reverses once stopped', () => {

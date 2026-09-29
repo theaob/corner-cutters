@@ -227,7 +227,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     const laps = race.laps;
 
     // the race: everyone drives, the rules run
-    const step = stepRace(race, dt, (e) => playerInput(scheme, { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') }, e.car));
+    const pad = { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') };
+    const step = stepRace(race, dt, (e) => playerInput(scheme, pad, e.car, t.pedalSteer));
     for (const e of step.race) {
       if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);

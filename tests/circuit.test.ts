@@ -3,7 +3,7 @@ import { buildCircuit } from '../src/f1/circuit';
 import { AMIMO_PARK, LAYOUTS, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
-import { RACE_HANDLING, aiInput, coolDownInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
+import { RACE_HANDLING, aiInput, playerInput, coolDownInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
 import { collideCars } from '../src/engine/driving';
 
 const f1 = carClass('f1');
@@ -79,7 +79,7 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap })
     expect(speedOf(car)).toBeGreaterThan(100);
   });
 
-  it('can be lapped with pedals: the wheel toward the line ahead, the gas held', () => {
+  it('can be lapped with pedals (the real steering: capped, gentle near the centre), braking for the tight corners', () => {
     const start = circuit.slots[0];
     const car = newCar(f1, start.x, start.y, start.heading);
     let p = newProgress(track.samples.length - 3);
@@ -88,8 +88,11 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap })
       // a simple driver: steer toward a point on the line a little ahead, proportionally
       const ahead = track.samples[(p.idx + 12) % n];
       const want = Math.atan2(ahead.x - car.x, -(ahead.y - car.y));
-      const turn = Math.max(-1, Math.min(1, angleDiff(want, car.heading) * 3));
-      stepCar(car, { pedals: { turn, gas: 1, reverse: false }, handbrake: false }, RACE_HANDLING, 1 / 60, grid);
+      const off = angleDiff(want, car.heading);
+      const x = Math.max(-1, Math.min(1, off * 3));
+      // like a player: on the gas, but on the brake when the car's well off the line at speed
+      const brake = Math.abs(off) > 0.45 && speedOf(car) > 150;
+      stepCar(car, playerInput('pedals', { stick: { x, y: 0 }, a: brake, b: !brake }, car), RACE_HANDLING, 1 / 60, grid);
       p = stepProgress(p, track, car, t, 3, 1 / 60);
     }
     expect(p.lap).toBe(1);

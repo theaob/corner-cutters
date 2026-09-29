@@ -263,11 +263,22 @@ export interface Pad {
 /** px/s: slower than this (forwards), the brake button reverses instead */
 const REVERSE_BELOW = 10;
 
+/** Pedals' steering: how hard the wheel turns the car at full lock, as a share of its turn rate. */
+export const PEDAL_STEER = 0.55;
+/** …and the stick's response curve (1 = linear; higher = gentler near the centre, for fine corrections) */
+const PEDAL_CURVE = 1.6;
+
+/** The wheel for a stick pushed `x` (−1…1) sideways: gentle near the centre, `lock` at full push. */
+export function wheel(x: number, lock = PEDAL_STEER): number {
+  const v = Math.min(1, Math.abs(x));
+  return Math.sign(x) * v ** PEDAL_CURVE * lock;
+}
+
 /** The driving input for the player's `car` from the pad, in the chosen control scheme. */
-export function playerInput(scheme: ControlScheme, pad: Pad, car: Car): DriveInput {
+export function playerInput(scheme: ControlScheme, pad: Pad, car: Car, lock = PEDAL_STEER): DriveInput {
   const { stick, a, b } = pad;
   if (scheme === 'stick') return { steer: stick.x || stick.y ? stick : undefined, handbrake: b };
-  const turn = stick.x;
+  const turn = wheel(stick.x, lock);
   if (a && b) return { pedals: { turn, gas: 1, reverse: false }, handbrake: true };
   if (b) return { pedals: { turn, gas: 1, reverse: false }, handbrake: false };
   const forward = car.vx * Math.sin(car.heading) - car.vy * Math.cos(car.heading);
