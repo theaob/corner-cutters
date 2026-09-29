@@ -6,12 +6,96 @@ import { carClass, type CarClassId } from '../driving';
 
 const lambert = (extra: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial(extra);
 
+/** How the second colour runs over the top of the car, so a team reads by shape as well as colour. */
+export type LiveryPattern = 'plain' | 'stripe' | 'twin' | 'band' | 'chevron' | 'halves' | 'split' | 'nose';
+
 export interface CarLook {
   body: string;
-  /** wings and nose */
+  /** wings and nose, and the pattern's colour */
   stripe?: string;
   /** sidepods (the body colour when unset) */
   accent?: string;
+  /** the pattern painted along the top of the car */
+  pattern?: LiveryPattern;
+  /** a logo for the engine cover: SVG drawing on a 64 x 64 canvas */
+  decal?: string;
+}
+
+/**
+ * Paint `pattern` into a w x h canvas: body colour, with the second colour as a
+ * stripe, twin stripes, bands, chevrons, halves, a split or a coloured nose.
+ * The canvas top is the front of the car.
+ */
+function paintPattern(w: number, h: number, pattern: LiveryPattern, body: string, second: string): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const x = c.getContext('2d')!;
+  x.fillStyle = body;
+  x.fillRect(0, 0, w, h);
+  x.fillStyle = second;
+  switch (pattern) {
+    case 'stripe':
+      x.fillRect(w * 0.36, 0, w * 0.28, h);
+      break;
+    case 'twin':
+      x.fillRect(w * 0.14, 0, w * 0.18, h);
+      x.fillRect(w * 0.68, 0, w * 0.18, h);
+      break;
+    case 'band':
+      for (let y = h * 0.12; y < h; y += h * 0.3) x.fillRect(0, y, w, h * 0.12);
+      break;
+    case 'chevron':
+      x.lineWidth = Math.max(2, w * 0.18);
+      x.strokeStyle = second;
+      for (let y = h * 0.2; y < h + w; y += h * 0.34) {
+        x.beginPath();
+        x.moveTo(0, y + w * 0.5);
+        x.lineTo(w / 2, y);
+        x.lineTo(w, y + w * 0.5);
+        x.stroke();
+      }
+      break;
+    case 'halves':
+      x.fillRect(0, 0, w, h / 2);
+      break;
+    case 'split':
+      x.fillRect(w / 2, 0, w / 2, h);
+      break;
+    case 'nose':
+      x.fillRect(0, 0, w, h * 0.34);
+      break;
+    case 'plain':
+      break;
+  }
+  return c;
+}
+
+/** A crisp texture from a canvas. */
+function canvasTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/** The engine-cover texture (`w` x `h` world px): the pattern, with the logo (drawn in when its SVG has loaded) on top. */
+function deckTexture(look: CarLook, second: string, w: number, h: number): THREE.CanvasTexture {
+  // 8 texels to a world px, in the deck's own proportions, so the logo isn't stretched
+  const cw = Math.round(w * 8);
+  const size = Math.round(h * 8);
+  const c = paintPattern(cw, size, look.pattern ?? 'plain', look.body, second);
+  const tex = canvasTexture(c);
+  if (look.decal && typeof Image !== 'undefined') {
+    const img = new Image();
+    img.onload = () => {
+      const s = size * 0.84;
+      c.getContext('2d')!.drawImage(img, (cw - s) / 2, (size - s) / 2, s, s);
+      tex.needsUpdate = true;
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${look.decal}</svg>`)}`;
+  }
+  return tex;
 }
 
 export const CAR_LOOKS: Record<CarClassId, CarLook> = {
@@ -51,16 +135,28 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   };
 
   const body = mat(look.body);
-  const trim = mat(look.stripe ?? '#f4f4f8');
+  const second = look.stripe ?? '#f4f4f8';
+  const trim = mat(second);
   const pods = look.accent ? mat(look.accent) : body;
   const carbon = lambert({ color: 0x1b1b26 });
-  box(5, 3.5, L - 6, 3.5, 1, [body, body, body, dark, body, body]); // tub
+  // textured paint (white, so the texture shows as drawn; it still chars when the car burns)
+  const painted = (tex: THREE.Texture) => {
+    const m = lambert({ map: tex, color: 0xffffff });
+    paint.push(m);
+    return m;
+  };
+  // the pattern along the top of the tub, from the nose back
+  const tubTop = look.pattern && look.pattern !== 'plain' ? painted(canvasTexture(paintPattern(8, 48, look.pattern, look.body, second))) : body;
+  box(5, 3.5, L - 6, 3.5, 1, [body, body, tubTop, dark, body, body]); // tub
   box(3, 2.5, 8, 3, -(L / 2 - 6), [body, body, trim, dark, body, body]); // nose
   for (const x of [-4, 4]) {
     const pod = box(3, 3, 9, 3, 3, [pods, pods, pods, dark, pods, pods]);
     pod.position.x = x;
   }
   box(3.5, 1.5, 5, 5.8, 0, [carbon, carbon, carbon, dark, carbon, carbon]); // cockpit
+  // the engine cover, spanning the sidepods behind the cockpit: the biggest surface seen from above,
+  // carrying the pattern and the team's logo
+  if (look.pattern || look.decal) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8)), dark, pods, pods]);
   const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 8), mat('#f2c14e'));
   helmet.position.set(0, 7.2, 0.5);
   helmet.castShadow = true;
