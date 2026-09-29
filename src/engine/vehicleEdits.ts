@@ -1,24 +1,12 @@
-// Vehicle edits: per-class stat changes and paint palettes, saved on this
+// Vehicle edits: stat changes and paint palettes for the F1 car, saved on this
 // device and applied to the game. Exported as JSON, they can be made permanent
 // in the class table (engine/driving.ts) and DEFAULT_COLORS below.
 
 import { CAR_CLASS_IDS, STAT_KEYS, setStatOverrides, type CarClassId, type StatOverrides, type VehicleStats } from './driving';
 import { storeKey } from './storage';
 
-/** Paint colours each class can spawn in; the first is its showroom colour. */
+/** Team colours the grid is painted in; the first is the player's. */
 export const DEFAULT_COLORS: Record<CarClassId, string[]> = {
-  sedan: ['#f08a24', '#3d7fc4', '#e9e5dc', '#5b5566', '#c8323c'],
-  taxi: ['#f2c14e'],
-  muscle: ['#8a3cc8', '#1b1b26', '#d8323c', '#2f7a3a'],
-  sports: ['#d8323c', '#f2c14e', '#f4f4f8', '#3d7fc4'],
-  cop: ['#f4f4f8'],
-  van: ['#e9e5dc', '#6f86a8', '#8a4b3c'],
-  trash: ['#4f8a4a', '#3d5a80'],
-  bus: ['#3d7fc4', '#c8323c'],
-  pickup: ['#a8302a', '#3d5a80', '#e9e5dc', '#5b7a3a'],
-  offroad: ['#5b7a3a', '#8a6a48', '#1b1b26'],
-  tractor: ['#3f9a4c', '#c8323c', '#3d7fc4'],
-  combine: ['#e9c46a', '#3f9a4c', '#c8323c'],
   f1: ['#d8323c', '#3d7fc4', '#1b1b26', '#f08a24', '#5fe0d0', '#f4f4f8'],
 };
 

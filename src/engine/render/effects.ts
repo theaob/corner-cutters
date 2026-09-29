@@ -1,6 +1,6 @@
 // Car effects for a 3D scene: skid marks painted onto the ground, smoke from
-// damaged cars, fire on burning ones, charred paint on wrecks, and the cop
-// light bar. Driven each frame from the engine-free car state.
+// damaged cars, fire on burning ones, and charred paint on
+// wrecks. Driven each frame from the engine-free car state.
 
 import * as THREE from 'three';
 import { canvas } from './sprites';
@@ -215,7 +215,6 @@ export class CarFx {
   private readonly original: THREE.Color[];
   private emit = 0;
   private dustEmit = 0;
-  private flash = 0;
 
   /**
    * `fireLight: false` skips the flickering fire light: for cars that
@@ -228,12 +227,12 @@ export class CarFx {
   }
 
   /**
-   * `condition` comes from the driving rules. `sirens` flashes a cop light bar.
+   * `condition` comes from the driving rules.
    * The fire light is always in the scene (intensity 0 when off) so turning it
    * on doesn't recompile shaders mid-drive.
    */
   /** `dust` (0…1): how hard the car is kicking up dust on rough ground (0 = none). */
-  update(dt: number, condition: 'ok' | 'smoking' | 'burning' | 'wrecked', sirens: boolean, particles: Particles, dust = 0): void {
+  update(dt: number, condition: 'ok' | 'smoking' | 'burning' | 'wrecked', particles: Particles, dust = 0): void {
     const { x, y, z } = this.mesh.position;
     this.dustEmit -= dt;
     if (dust > 0 && this.dustEmit <= 0) {
@@ -258,14 +257,5 @@ export class CarFx {
 
     const char = condition === 'wrecked' ? 0.22 : condition === 'burning' ? 0.6 : 1;
     this.mesh.userData.paint.forEach((m, i) => m.color.copy(this.original[i]).multiplyScalar(char));
-
-    this.flash += dt;
-    const bar = this.mesh.userData.lightbar;
-    if (bar.length === 2) {
-      const on = sirens && condition !== 'wrecked';
-      const phase = Math.floor(this.flash * 6) % 2 === 0;
-      bar[0].visible = !on || phase;
-      bar[1].visible = !on || !phase;
-    }
   }
 }

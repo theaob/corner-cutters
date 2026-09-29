@@ -1,21 +1,17 @@
-// Driving rules: thirteen vehicle classes (road, farm and an F1 car), loose arcade
+// Driving rules: the F1 car's numbers, loose arcade
 // handling (heading and velocity differ while sliding), wall and vehicle-vs-
 // vehicle collisions, damage, fire and wrecks. Engine-free and unit-tested.
 
 import { circleBlocked, groundAt, isRough, moveCircle, type Grid } from './sim';
 
-export type CarClassId =
-  | 'sedan' | 'taxi' | 'muscle' | 'sports' | 'cop' | 'van' | 'trash' | 'bus'
-  | 'pickup' | 'offroad' | 'tractor' | 'combine'
-  | 'f1';
+export type CarClassId = 'f1';
 
 /**
  * A vehicle's numbers. The engine is a torque and a power: at low speed it
  * pulls with its full torque (force; ÷ mass = acceleration), and once it's
  * moving faster the pull falls off as power ÷ speed. Top speed is where the
- * gearing tops out. So a combine (huge torque, heavy, low top speed) crawls up
- * hills a sports car can't, and a bus (modest torque for its mass) needs a run
- * at steep ones.
+ * gearing tops out, and how steep a hill it can climb from a standstill
+ * comes from its torque for its mass.
  */
 export interface VehicleStats {
   /** px/s: where the gearing tops out */
@@ -45,8 +41,8 @@ export interface CarClass extends VehicleStats {
 }
 
 /**
- * Global tuning knobs, as the sedan's numbers: TUNE edits these and every
- * class scales by the same ratio (top speed, turn rate, grip, braking), and
+ * Global tuning knobs, as a reference car's numbers: a different reference
+ * scales every class by the same ratio (top speed, turn rate, grip, braking), and
  * a quicker 0 → top scales every engine's torque and power up to match.
  */
 export interface ReferenceTuning {
@@ -57,29 +53,16 @@ export interface ReferenceTuning {
   grip: number;
 }
 
-export const SEDAN: ReferenceTuning = { topSpeed: 180, zeroToTop: 1.2, brakeTime: 0.6, turnRate: 3.0, grip: 6 };
+export const REFERENCE: ReferenceTuning = { topSpeed: 180, zeroToTop: 1.2, brakeTime: 0.6, turnRate: 3.0, grip: 6 };
 
 const stats = (
   topSpeed: number, torque: number, power: number, brakeTime: number, turnRate: number, grip: number,
   health: number, mass: number, width: number, length: number, offRoad: number,
 ): VehicleStats => ({ topSpeed, torque, power, brakeTime, turnRate, grip, health, mass, width, length, offRoad });
 
-/** Each class at the default reference (spec §5.1). */
+/** Each class at the default reference. */
 export const CLASS_TABLE: Record<CarClassId, [name: string, stats: VehicleStats]> = {
   //                                top  torque power  brake turn grip  hp  mass  w   l  offRoad
-  sedan: ['Sedan', stats(180, 150, 16500, 0.6, 3.0, 6, 100, 1, 14, 26, 0.55)],
-  taxi: ['Taxi', stats(180, 150, 16500, 0.6, 3.1, 6.5, 100, 1, 14, 26, 0.55)],
-  muscle: ['Muscle', stats(210, 204, 30600, 0.8, 2.6, 4.5, 120, 1.2, 15, 28, 0.5)],
-  sports: ['Sports', stats(240, 171, 34200, 0.45, 3.4, 7.5, 80, 0.9, 14, 24, 0.4)],
-  cop: ['Cop cruiser', stats(200, 234, 30400, 0.5, 3.2, 7, 140, 1.3, 14, 27, 0.6)],
-  van: ['Van', stats(160, 176, 17600, 0.8, 2.5, 5.5, 140, 1.6, 16, 30, 0.6)],
-  trash: ['Trash truck', stats(130, 182, 9500, 1.2, 1.9, 5, 220, 2.6, 18, 38, 0.6)],
-  bus: ['Bus', stats(140, 180, 12600, 1.3, 1.7, 4.8, 240, 3, 18, 50, 0.5)],
-  // farm country: geared for pulling, not speed
-  pickup: ['Pickup', stats(140, 196, 19600, 0.7, 2.8, 5.5, 130, 1.4, 15, 30, 0.85)],
-  offroad: ['Off-roader', stats(135, 255, 25500, 0.7, 2.9, 6, 150, 1.5, 16, 26, 1)],
-  tractor: ['Tractor', stats(80, 360, 25200, 0.6, 2.4, 7, 160, 2, 16, 26, 1)],
-  combine: ['Combine harvester', stats(35, 640, 19200, 0.8, 1.4, 6, 260, 4, 30, 44, 1)],
   // race car: the fastest thing on wheels, light, fragile, stuck to the road, hopeless off it
   f1: ['F1 car', stats(320, 161, 37000, 0.35, 3.8, 10, 60, 0.7, 14, 30, 0.25)],
 };
@@ -93,7 +76,7 @@ export const STAT_KEYS: (keyof VehicleStats)[] = [
 export type StatOverrides = Partial<Record<CarClassId, Partial<VehicleStats>>>;
 let overrides: StatOverrides = {};
 
-/** Edits from the car editor, applied on top of the class table (see game/vehicleEdits.ts). */
+/** Saved vehicle edits, applied on top of the class table (see vehicleEdits.ts). */
 export function setStatOverrides(o: StatOverrides): void {
   overrides = o;
 }
@@ -103,15 +86,15 @@ export function baseStats(id: CarClassId): VehicleStats {
   return { ...CLASS_TABLE[id][1] };
 }
 
-/** A class's numbers with any editor edits applied. */
+/** A class's numbers with any saved edits applied. */
 export function classStats(id: CarClassId): VehicleStats {
   return { ...baseStats(id), ...overrides[id] };
 }
 
-export function carClass(id: CarClassId, ref: ReferenceTuning = SEDAN): CarClass {
+export function carClass(id: CarClassId, ref: ReferenceTuning = REFERENCE): CarClass {
   const st = classStats(id);
-  const speed = ref.topSpeed / SEDAN.topSpeed;
-  const quick = SEDAN.zeroToTop / ref.zeroToTop;
+  const speed = ref.topSpeed / REFERENCE.topSpeed;
+  const quick = REFERENCE.zeroToTop / ref.zeroToTop;
   return {
     ...st,
     id,
@@ -120,9 +103,9 @@ export function carClass(id: CarClassId, ref: ReferenceTuning = SEDAN): CarClass
     torque: st.torque * quick,
     // more speed needs more power to reach it in the same time
     power: st.power * quick * speed,
-    brakeTime: (st.brakeTime * ref.brakeTime) / SEDAN.brakeTime,
-    turnRate: (st.turnRate * ref.turnRate) / SEDAN.turnRate,
-    grip: (st.grip * ref.grip) / SEDAN.grip,
+    brakeTime: (st.brakeTime * ref.brakeTime) / REFERENCE.brakeTime,
+    turnRate: (st.turnRate * ref.turnRate) / REFERENCE.turnRate,
+    grip: (st.grip * ref.grip) / REFERENCE.grip,
   };
 }
 
@@ -136,7 +119,7 @@ export function maxClimb(cls: VehicleStats, p: HandlingParams): number {
   return cls.torque / cls.mass / (p.gravity * p.slopeGravity);
 }
 
-/** Seconds from standstill to 95% of top speed on flat ground, full throttle (for the editor). */
+/** Seconds from standstill to 95% of top speed on flat ground, full throttle. */
 export function zeroToTop(cls: VehicleStats): number {
   let v = 0;
   let t = 0;

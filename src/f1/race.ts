@@ -249,7 +249,7 @@ export const mount: MountStandalone = async ({ host, services, tuning, fit }) =>
       const tilt = bodyTilt(r.car, grid);
       r.mesh.position.set(r.car.x, r.car.z, r.car.y);
       r.mesh.rotation.set(tilt.pitch, -r.car.heading, tilt.roll, 'YXZ');
-      r.fx.update(dt, condition(r.car), false, particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
+      r.fx.update(dt, condition(r.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
     });
     for (let i = 0; i < racers.length; i++) for (let j = i + 1; j < racers.length; j++) collideCars(racers[i].car, racers[j].car, HANDLING);
 
