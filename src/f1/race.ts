@@ -10,8 +10,8 @@ import { groundAt } from '../engine/sim';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, playerInput, type AiDriver, type ControlScheme } from './racing';
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
-import { TEAMS, teamGrid, type Team } from './teams';
-import { LOGOS, logoSvg } from './logos';
+import { TEAMS, secondCars, teamGrid, type Team } from './teams';
+import { logoSvg } from './logos';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -29,6 +29,8 @@ import { F1_TUNING } from './tuning';
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
+/** The T-camera colour marking a team's second car. */
+const TCAM_GREEN = '#39ff14';
 const NAMES = ['VOLT', 'RAZZ', 'MOCHI', 'TANK', 'ZIGGY', 'PIP', 'NOVA', 'BLAZE', 'DOT'];
 
 /** How each entrant looks: its name, team, colour, model and effects (index-matched with the race's entrants). */
@@ -130,34 +132,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     background: 'rgba(21,20,31,.6)', borderRadius: '6px',
   });
   const miniCtx = mini.getContext('2d')!;
-  // team tags: a chip with the team's code over every rival (and YOU over yours), readable from afar
-  const tagLayer = document.createElement('div');
-  style(tagLayer, { position: 'absolute', inset: '0', zIndex: '2', pointerEvents: 'none', overflow: 'hidden' });
-  host.append(readout, banner, results, mini, teamCard, tagLayer);
-  /** black or white text, whichever reads on `bg` */
-  const inkOn = (bg: string) => {
-    const n = parseInt(bg.slice(1), 16);
-    const lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
-    return lum > 150 ? '#1b1b26' : '#f4f4f8';
-  };
-  let tags: HTMLElement[] = [];
-  const makeTags = () => {
-    tagLayer.replaceChildren();
-    tags = looks.map((l, i) => {
-      const el = document.createElement('div');
-      const mine = i === you;
-      el.textContent = mine ? 'YOU' : l.team.code;
-      style(el, {
-        position: 'absolute', left: '0', top: '0', padding: '1px 4px', borderRadius: '4px',
-        font: '9px Silkscreen, monospace', letterSpacing: '1px', whiteSpace: 'nowrap',
-        background: mine ? '#f2c14e' : l.team.body, color: mine ? '#1b1b26' : inkOn(l.team.body),
-        border: `1px solid ${mine ? '#1b1b26' : l.team.trim}`, boxShadow: '0 1px 2px rgba(0,0,0,.5)',
-      });
-      tagLayer.append(el);
-      return el;
-    });
-  };
-  const tagAt = new THREE.Vector3();
+  host.append(readout, banner, results, mini, teamCard);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
@@ -177,11 +152,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     you = Math.floor(total / 2);
     // your team and four drawn at random, two cars each, in their liveries
     const teams = teamGrid(team, total, you);
+    const seconds = secondCars(teams);
     looks = [];
     const field = Array.from({ length: total }, (_, i) => {
       const slot = circuit.slots[i];
       const livery = teams[i];
-      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, decal: LOGOS[livery.id] });
+      // teammates: the team's second car has the bright green T-camera
+      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seconds[i] ? TCAM_GREEN : undefined });
       world.scene.add(mesh);
       // each AI driver its own name (the grid slots skip yours)
       looks.push({ name: i === you ? 'YOU' : NAMES[(i < you ? i : i - 1) % NAMES.length], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
@@ -193,7 +170,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7);
     done = false;
     notice = { text: '', color: '', until: 0 };
-    makeTags();
     skids.clear();
     particles.clear();
     results.style.display = 'none';
@@ -369,23 +345,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     camera.lookAt(focus.x, focus.y, focus.z);
     world.followSun(focus);
 
-    // team tags follow their cars on screen (a little above each)
-    tagLayer.style.display = t.tags >= 0.5 ? 'block' : 'none';
-    if (t.tags >= 0.5) {
-      camera.updateMatrixWorld();
-      const w = host.clientWidth;
-      const h = host.clientHeight;
-      race.entrants.forEach((e, i) => {
-        const el = tags[i];
-        if (!el) return;
-        tagAt.set(e.car.x, e.car.z + 14, e.car.y).project(camera);
-        const on = running(e) && tagAt.z < 1 && Math.abs(tagAt.x) < 1.1 && Math.abs(tagAt.y) < 1.1;
-        el.style.display = on ? 'block' : 'none';
-        if (!on) return;
-        el.style.opacity = e.car.wrecked ? '0.45' : '1';
-        el.style.transform = `translate(${((tagAt.x + 1) / 2) * w}px, ${((1 - tagAt.y) / 2) * h}px) translate(-50%, -100%)`;
-      });
-    }
 
     governor.sample(dt);
     const q = QUALITY_LEVELS[governor.level];

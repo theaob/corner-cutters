@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEAMS, TEAMS_PER_RACE, teamById, teamGrid } from '../src/f1/teams';
+import { TEAMS, TEAMS_PER_RACE, secondCars, teamById, teamGrid } from '../src/f1/teams';
 
 /** A repeatable random sequence. */
 const seeded = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
@@ -28,6 +28,15 @@ describe('teams', () => {
     expect(Object.keys(c)).toHaveLength(TEAMS_PER_RACE);
     expect(Object.values(c).every((k) => k === 2)).toBe(true);
     expect(c[yours.id]).toBe(2);
+  });
+
+  it('mark one car of each pair as the second (the green T-camera), so teammates tell apart', () => {
+    const grid = teamGrid(TEAMS[2], 10, 5, seeded(11));
+    const seconds = secondCars(grid);
+    for (const t of new Set(grid)) {
+      const marks = grid.flatMap((g, i) => (g === t ? [seconds[i]] : []));
+      expect(marks.sort()).toEqual([false, true]);
+    }
   });
 
   it('draw different rivals from race to race', () => {

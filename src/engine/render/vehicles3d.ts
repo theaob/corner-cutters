@@ -17,8 +17,11 @@ export interface CarLook {
   accent?: string;
   /** the pattern painted along the top of the car */
   pattern?: LiveryPattern;
-  /** a logo for the engine cover: SVG drawing on a 64 x 64 canvas */
-  decal?: string;
+  /**
+   * the T-camera on top of the air intake: dark on a team's first car, bright
+   * green on its second, so teammates tell apart (carbon when unset)
+   */
+  tcam?: string;
 }
 
 /**
@@ -79,23 +82,9 @@ function canvasTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
   return t;
 }
 
-/** The engine-cover texture (`w` x `h` world px): the pattern, with the logo (drawn in when its SVG has loaded) on top. */
+/** The engine-cover texture (`w` x `h` world px): the pattern, 8 texels to a world px. */
 function deckTexture(look: CarLook, second: string, w: number, h: number): THREE.CanvasTexture {
-  // 8 texels to a world px, in the deck's own proportions, so the logo isn't stretched
-  const cw = Math.round(w * 8);
-  const size = Math.round(h * 8);
-  const c = paintPattern(cw, size, look.pattern ?? 'plain', look.body, second);
-  const tex = canvasTexture(c);
-  if (look.decal && typeof Image !== 'undefined') {
-    const img = new Image();
-    img.onload = () => {
-      const s = size * 0.84;
-      c.getContext('2d')!.drawImage(img, (cw - s) / 2, (size - s) / 2, s, s);
-      tex.needsUpdate = true;
-    };
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${look.decal}</svg>`)}`;
-  }
-  return tex;
+  return canvasTexture(paintPattern(Math.round(w * 8), Math.round(h * 8), look.pattern ?? 'plain', look.body, second));
 }
 
 export const CAR_LOOKS: Record<CarClassId, CarLook> = {
@@ -155,8 +144,13 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   }
   box(3.5, 1.5, 5, 5.8, 0, [carbon, carbon, carbon, dark, carbon, carbon]); // cockpit
   // the engine cover, spanning the sidepods behind the cockpit: the biggest surface seen from above,
-  // carrying the pattern and the team's logo
-  if (look.pattern || look.decal) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8)), dark, pods, pods]);
+  // carrying the team's pattern
+  if (look.pattern) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8)), dark, pods, pods]);
+  // the air intake above the driver's head, and the T-camera on it: dark, or bright green to mark the
+  // team's second car (unlit, so it stays bright in shade and from afar)
+  box(2.6, 2.4, 3, 7.6, 2.6, [body, body, body, dark, body, carbon]);
+  const tcam = look.tcam ? new THREE.MeshBasicMaterial({ color: look.tcam, toneMapped: false }) : carbon;
+  box(4.2, 1, 1.6, 9.3, 2.4, [tcam, tcam, tcam, dark, tcam, tcam]);
   const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 8), mat('#f2c14e'));
   helmet.position.set(0, 7.2, 0.5);
   helmet.castShadow = true;

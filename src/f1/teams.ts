@@ -42,6 +42,9 @@ export const TEAMS_PER_RACE = 5;
 /** The team with this id, or undefined. */
 export const teamById = (id: string | null | undefined) => TEAMS.find((t) => t.id === id);
 
+/** For each grid slot, whether it's its team's second car (the one with the bright green T-camera). */
+export const secondCars = (grid: Team[]): boolean[] => grid.map((t, i) => grid.slice(0, i).includes(t));
+
 /** A shuffled copy of `list` (Fisher–Yates), with `rng` returning 0 ≤ x < 1. */
 function shuffled<T>(list: T[], rng: () => number): T[] {
   const out = [...list];
