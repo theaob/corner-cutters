@@ -1,15 +1,12 @@
-// The teams, each a look-alike of a real 2026 Formula 1 team: a name, a
-// three-letter code for the timing screens, and a livery (body, trim, and an
-// optional third colour for the sidepods). A race runs five of them, two cars
-// each: yours (you and an AI teammate) and four drawn at random.
+// The teams: a name, a three-letter code for the timing screens, and a livery
+// (body, trim, and an optional third colour for the sidepods). A race runs five
+// of them, two cars each: yours (you and an AI teammate) and four drawn at random.
 
 export interface Team {
   id: string;
   /** three letters, for the timing screens */
   code: string;
   name: string;
-  /** the real team it's a take on */
-  inspiredBy: string;
   /** main colour */
   body: string;
   /** wings and nose */
@@ -19,17 +16,17 @@ export interface Team {
 }
 
 export const TEAMS: Team[] = [
-  { id: 'milk-energy', code: 'MLK', name: 'Milk Energy', inspiredBy: 'Red Bull Racing', body: '#1e2b5c', trim: '#f2c14e' },
-  { id: 'prancing-monkey', code: 'PRM', name: 'Prancing Monkey', inspiredBy: 'Ferrari', body: '#dc0000', trim: '#fff200' },
-  { id: 'golden-arrows', code: 'GOA', name: 'Golden Arrows', inspiredBy: 'Mercedes', body: '#c6c9d0', trim: '#00d2be' },
-  { id: 'calrissian', code: 'CAL', name: 'Calrissian Racing', inspiredBy: 'McLaren', body: '#ff8000', trim: '#1b1b26' },
-  { id: 'british-lime', code: 'BLI', name: 'British Lime', inspiredBy: 'Aston Martin', body: '#00594f', trim: '#cedc00' },
-  { id: 'renee', code: 'REN', name: 'Reneé', inspiredBy: 'Alpine', body: '#f7d117', trim: '#1b1b26' },
-  { id: 'frankies-groove', code: 'FRG', name: "Frankie's Groove", inspiredBy: 'Williams', body: '#1868db', trim: '#f4f4f8' },
-  { id: 'cheaper-milk', code: 'CHM', name: 'Cheaper Milk', inspiredBy: 'Racing Bulls', body: '#f4f4f8', trim: '#1634cc' },
-  { id: 'dmw', code: 'DMW', name: 'DMW – DEUTCHE MOTOR WERKE', inspiredBy: 'Audi', body: '#1c69d4', trim: '#f4f4f8' },
-  { id: 'maas', code: 'MAS', name: 'MaaS', inspiredBy: 'Haas', body: '#f4f4f8', trim: '#d8323c', accent: '#8a8d94' },
-  { id: 'grandmas-fave', code: 'GMF', name: "Grandma's Fave", inspiredBy: 'Cadillac', body: '#1b1b26', trim: '#f4f4f8' },
+  { id: 'milk-energy', code: 'MLK', name: 'Milk Energy', body: '#1e2b5c', trim: '#f2c14e' },
+  { id: 'prancing-monkey', code: 'PRM', name: 'Prancing Monkey', body: '#dc0000', trim: '#fff200' },
+  { id: 'golden-arrows', code: 'GOA', name: 'Golden Arrows', body: '#c6c9d0', trim: '#00d2be' },
+  { id: 'calrissian', code: 'CAL', name: 'Calrissian Racing', body: '#ff8000', trim: '#1b1b26' },
+  { id: 'british-lime', code: 'BLI', name: 'British Lime', body: '#00594f', trim: '#cedc00' },
+  { id: 'renee', code: 'REN', name: 'Reneé', body: '#f7d117', trim: '#1b1b26' },
+  { id: 'frankies-groove', code: 'FRG', name: "Frankie's Groove", body: '#1868db', trim: '#f4f4f8' },
+  { id: 'cheaper-milk', code: 'CHM', name: 'Cheaper Milk', body: '#f4f4f8', trim: '#1634cc' },
+  { id: 'dmw', code: 'DMW', name: 'DMW – DEUTCHE MOTOR WERKE', body: '#1c69d4', trim: '#f4f4f8' },
+  { id: 'maas', code: 'MAS', name: 'MaaS', body: '#f4f4f8', trim: '#d8323c', accent: '#8a8d94' },
+  { id: 'grandmas-fave', code: 'GMF', name: "Grandma's Fave", body: '#1b1b26', trim: '#f4f4f8' },
 ];
 
 /** How many teams race at once, two cars each. */

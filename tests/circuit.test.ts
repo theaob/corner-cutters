@@ -12,7 +12,7 @@ const f1 = carClass('f1');
 const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, number]; flatGap: number }[] = [
   // flat out almost everywhere, like a player can
   { layout: AMIMO_PARK, length: [7000, 8200], lap: [20, 26], flatGap: 0.5 },
-  // the Loop and Vale want a lift
+  // the hook's hairpin and the last complex want a lift
   { layout: SILVER_HEATH, length: [8300, 9300], lap: [24, 30], flatGap: 0.75 },
 ];
 

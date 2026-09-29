@@ -3,10 +3,10 @@
 An arcade F1 race in the HD-2D look: start lights, laps, positions, a minimap and results, against up to nine AI cars. Mobile-first portrait layout with a touch control deck.
 
 **Circuits:**
-- **Amimo Park**, inspired by Istanbul Park: anticlockwise, flat out almost everywhere, a lap of about 24 s.
-- **Silver Heath**, inspired by Silverstone: clockwise and fast, traced from the real circuit's outline (from [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits), MIT), with the Loop and Vale as the places to lift; a lap of about 27 s.
+- **Amimo Park**: anticlockwise, flat out almost everywhere, a lap of about 24 s.
+- **Silver Heath**: clockwise and fast, with a hairpin and a tight complex as the places to lift; a lap of about 27 s. Its outline is traced from circuit outline data by [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT).
 
-**Teams:** eleven, each a take on a real 2026 team: Milk Energy (Red Bull), Prancing Monkey (Ferrari), Golden Arrows (Mercedes), Calrissian Racing (McLaren), British Lime (Aston Martin), Reneé (Alpine), Frankie's Groove (Williams), Cheaper Milk (Racing Bulls), DMW – DEUTCHE MOTOR WERKE (Audi), MaaS (Haas) and Grandma's Fave (Cadillac), in their colours (`src/f1/teams.ts`). Pick yours on the menu's TEAM row; a race runs five teams of two: yours (you and an AI teammate) and four drawn at random. The results show each car's team.
+**Teams:** eleven, each in its own colours: Milk Energy, Prancing Monkey, Golden Arrows, Calrissian Racing, British Lime, Reneé, Frankie's Groove, Cheaper Milk, DMW – DEUTCHE MOTOR WERKE, MaaS and Grandma's Fave (`src/f1/teams.ts`). Pick yours on the menu's TEAM row; a race runs five teams of two: yours (you and an AI teammate) and four drawn at random. The results show each car's team.
 
 **Damage and the safety car:** every car, yours and the AI's, takes damage from walls, landings and contact. A damaged car smokes, then burns, and loses up to 30% of its top speed; your health shows as five blocks in the readout. A wrecked car is cleared off the track and classified DNF. A big crash (a wreck, or one hit taking 40% of a car's health) brings out the safety car: it joins ahead of the leader, the field queues behind it on a 200 px/s limiter with no overtaking (and nobody gets past the safety car itself), and after 12 s with the leader lined up behind it, it goes in. Passing a car under it costs 5 s a place, added at the flag. The rules are in `src/f1/raceControl.ts`.
 

@@ -1,5 +1,5 @@
-// The menu shown before a race: each circuit's outline, name and the real
-// circuit it's inspired by, then your team and the control scheme. Up/down
+// The menu shown before a race: each circuit's outline, name and a line about
+// it, then your team and the control scheme. Up/down
 // moves between the circuits and those two rows, left/right changes the row
 // (or tap it), A or START (or a tap on a circuit) races.
 
@@ -119,7 +119,7 @@ export function chooseCircuit(
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
 
-  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: `like ${t.inspiredBy}`, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])] }));
+  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])] }));
   const schemeRow = optionRow('CONTROLS', CONTROL_SCHEMES, scheme, (c) => ({ name: SCHEME_TEXT[c][0], about: SCHEME_TEXT[c][1] }));
   const rows = [teamRow, schemeRow];
 
@@ -129,7 +129,7 @@ export function chooseCircuit(
     const name = document.createElement('strong');
     name.textContent = layout.name;
     const about = document.createElement('span');
-    about.textContent = `inspired by ${layout.inspiredBy}`;
+    about.textContent = layout.about;
     const text = document.createElement('div');
     text.append(name, about);
     b.append(outline(layout, 56), text);

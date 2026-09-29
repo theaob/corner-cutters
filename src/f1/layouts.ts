@@ -7,8 +7,8 @@ import type { Pt } from './racing';
 export interface CircuitLayout {
   id: string;
   name: string;
-  /** the real circuit it's modelled on */
-  inspiredBy: string;
+  /** a line about it, for the menu */
+  about: string;
   /** centreline control points (px, before scaling), in racing order; the first is on the start/finish line */
   points: Pt[];
   /** px per unit of `points` */
@@ -18,16 +18,16 @@ export interface CircuitLayout {
 }
 
 /**
- * Amimo Park, inspired by Istanbul Park. Anticlockwise, like the real one: a
- * downhill Turn 1 left and Turn 2 right, a fast sweeping Turn 3, a twisty
- * middle section, the long four-apex Turn 8 left, the Turn 9–10 esses, a long
- * back straight with a kink, a heavy-braking Turn 12, and the Turn 13–14
- * chicane onto the main straight. A lap is about 7600 px, about 24 s.
+ * Amimo Park. Anticlockwise: a downhill Turn 1 left and Turn 2 right, a fast
+ * sweeping Turn 3, a twisty middle section, the long four-apex Turn 8 left, the
+ * Turn 9–10 esses, a long back straight with a kink, a heavy-braking Turn 12,
+ * and the Turn 13–14 chicane onto the main straight. A lap is about 7600 px,
+ * about 24 s.
  */
 export const AMIMO_PARK: CircuitLayout = {
   id: 'amimo-park',
   name: 'Amimo Park',
-  inspiredBy: 'Istanbul Park',
+  about: 'anticlockwise · flowing, flat out',
   points: [
     // main straight, running north up the east side
     { x: 2300, y: 1000 },
@@ -90,19 +90,19 @@ export const AMIMO_PARK: CircuitLayout = {
 };
 
 /**
- * Silver Heath, inspired by Silverstone. Clockwise and fast, traced from the
- * real circuit's outline (in metres, eased a little so the bends suit the
- * arcade handling; from github.com/bacinger/f1-circuits, MIT): from the start
- * on the Hamilton Straight, Abbey and Farm, the tight Village–Loop–Aintree
- * hook, the Wellington Straight, Brooklands and the long Luffield right,
- * Woodcote, flat-out Copse, the Maggotts–Becketts–Chapel esses, the Hangar
- * Straight, Stowe, and the Vale–Club complex back onto the straight. The Loop
- * and Vale are the two places to lift. A lap is about 8800 px, about 27 s.
+ * Silver Heath. Clockwise and fast, traced from a circuit outline (in metres,
+ * eased a little so the bends suit the arcade handling; outline data from
+ * github.com/bacinger/f1-circuits, MIT): from the start straight, a fast right
+ * and a left kink, a tight right–hairpin–left hook, a long straight, a left and
+ * a long right, a fast right onto the old straight, a flat-out right, a run of
+ * esses onto the longest straight, a fast right, and a tight left–right complex
+ * back onto the start straight. The hook's hairpin and the last complex are the
+ * two places to lift. A lap is about 8800 px, about 27 s.
  */
 export const SILVER_HEATH: CircuitLayout = {
   id: 'silver-heath',
   name: 'Silver Heath',
-  inspiredBy: 'Silverstone',
+  about: 'clockwise · fast, two hard stops',
   points: ([
     [159, 1017], [195, 970], [232, 923], [272, 880], [319, 851], [374, 841],
     [433, 843], [491, 841], [546, 825], [597, 796], [645, 761], [692, 733],
@@ -123,7 +123,7 @@ export const SILVER_HEATH: CircuitLayout = {
     [97, 1096], [134, 1049],
   ] as [number, number][]).map(([x, y]) => ({ x, y })),
   scale: 1.6,
-  // an old airfield, nearly flat: a gentle crest at Copse, rising along the Hangar Straight to Stowe, down through Vale
+  // an old airfield, nearly flat: a gentle crest after the esses, rising along the longest straight, down through the last complex
   elevation: [
     [0, 10],
     [0.1, 12],
