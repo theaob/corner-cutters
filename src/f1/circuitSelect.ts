@@ -9,6 +9,7 @@ import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
 import { CONTROL_SCHEMES, type ControlScheme } from './racing';
 import { TEAMS, type Team } from './teams';
+import { logoSvg } from './logos';
 
 /** What each control scheme is called, and how it drives, in a line. */
 const SCHEME_TEXT: Record<ControlScheme, [name: string, how: string]> = {
@@ -56,7 +57,7 @@ export interface MenuChoice {
  * A row of options under the circuits: its label and the current value (with a
  * line about it and, for a team, its colours), switched with left/right or a tap.
  */
-function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { name: string; about: string; colors?: string[] }) {
+function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { name: string; about: string; colors?: string[]; icon?: Element }) {
   const el = document.createElement('button');
   el.className = 'option-row';
   let i = Math.max(0, values.indexOf(start));
@@ -68,10 +69,11 @@ function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { na
     const about = document.createElement('span');
     about.textContent = v.about;
     el.append(top);
-    if (v.colors) {
+    if (v.colors || v.icon) {
       const chips = document.createElement('div');
       chips.className = 'chips';
-      for (const c of v.colors) {
+      if (v.icon) chips.append(v.icon);
+      for (const c of v.colors ?? []) {
         const chip = document.createElement('i');
         chip.style.background = c;
         chips.append(chip);
@@ -119,7 +121,7 @@ export function chooseCircuit(
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
 
-  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])] }));
+  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
   const schemeRow = optionRow('CONTROLS', CONTROL_SCHEMES, scheme, (c) => ({ name: SCHEME_TEXT[c][0], about: SCHEME_TEXT[c][1] }));
   const rows = [teamRow, schemeRow];
 

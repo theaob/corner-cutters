@@ -11,6 +11,7 @@ import { RACE_HANDLING, lineCornerSpeed, lineDecel, playerInput, type AiDriver, 
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { TEAMS, teamGrid, type Team } from './teams';
+import { logoSvg } from './logos';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -108,6 +109,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
   // the minimap fits the circuit in a 96 × 110 box, whatever its shape
   const miniScale = Math.min(96 / circuit.width, 110 / circuit.height);
   const MINI_W = Math.round(circuit.width * miniScale);
+  // your team's card under the start lights: its logo and name, gone at lights out
+  const teamCard = document.createElement('div');
+  style(teamCard, {
+    position: 'absolute', left: '50%', top: 'calc(30% + 34px)', zIndex: '2', transform: 'translateX(-50%)',
+    display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px 4px 4px', borderRadius: '10px',
+    background: 'rgba(21,20,31,.8)', color: '#f4f2fa', font: '12px Silkscreen, monospace', whiteSpace: 'nowrap',
+    pointerEvents: 'none', transition: 'opacity .4s',
+  });
+  const cardLogo = logoSvg(team.id, 36);
+  if (cardLogo) teamCard.append(cardLogo);
+  teamCard.append(team.name.toUpperCase());
   const MINI_H = Math.round(circuit.height * miniScale);
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
   const mini = document.createElement('canvas');
@@ -118,7 +130,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     background: 'rgba(21,20,31,.6)', borderRadius: '6px',
   });
   const miniCtx = mini.getContext('2d')!;
-  host.append(readout, banner, results, mini);
+  host.append(readout, banner, results, mini, teamCard);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
@@ -274,6 +286,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     hud.setLap(p.retired ? 'OUT' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // the banner: start lights, GO!, then the most urgent message
+    teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';
     if (race.phase === 'lights') {
       const lit = Math.max(0, Math.min(5, Math.floor((clock + LIGHTS) / 0.6)));
       banner.textContent = clock < 0 ? '● '.repeat(lit).trim() + ' ○'.repeat(5 - lit) : '● ● ● ● ●';
