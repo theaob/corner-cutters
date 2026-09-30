@@ -4,7 +4,9 @@
 // safety car, which joins ahead of the leader and leads the field at a limited
 // pace, with no overtaking, until it goes in and racing resumes. After the flag
 // each car does an in-lap: the top three park in their numbered spots on the
-// main straight, and the rest drive down the pit lane to their garages. Engine-free,
+// main straight, and the rest drive down the pit lane to their garages. Cutting
+// the inside of a marked corner is a strike: warnings first, then seconds added
+// (trackLimits.ts). Engine-free,
 // so a whole race, crashes and all, runs in a test exactly as in the game.
 
 import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
@@ -12,6 +14,7 @@ import type { Grid } from '../engine/sim';
 import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
 import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
 import { stepTow, towBoost, towFrom } from './slipstream';
+import { judge, markCorners, newLimits, type Corner, type Limits } from './trackLimits';
 import type { WeatherId } from './weather';
 import { aiInput, coolDownInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
 
@@ -63,6 +66,8 @@ export interface Entrant {
   tyres: TyreSet;
   /** how much it's being towed along in the slipstream of a car ahead, 0…1 */
   tow: number;
+  /** its track-limits strikes */
+  limits: Limits;
   /** after its flag: px driven on its in-lap, and where it's going once it's back at the pits (a podium spot 0–2, or its garage) */
   inLap?: { driven: number; to?: 'garage' | number; parked?: boolean };
 }
@@ -86,11 +91,15 @@ export type RaceEvent =
   | { kind: 'pit-in'; who: number }
   | { kind: 'pit-stop'; who: number; seconds: number }
   | { kind: 'pit-out'; who: number }
-  | { kind: 'mistake'; who: number; what: 'late' | 'wide' };
+  | { kind: 'mistake'; who: number; what: 'late' | 'wide' }
+  /** a cut across a corner's inside: strike number `strike`, costing `seconds` (0: a warning) */
+  | { kind: 'track-limits'; who: number; strike: number; seconds: number };
 
 export interface Race {
   track: Track;
   grid: Grid;
+  /** the track's marked corners, for track limits */
+  corners: Corner[];
   /** the circuit's pit lane (none: no stops) */
   pit?: PitLane;
   /** the track's weather: it sets which tyres the crews fit and how they do */
@@ -117,9 +126,9 @@ export function newRace(
   track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver; box?: number }[], lightsOut = 0.5, pit?: PitLane,
   weather: WeatherId = 'dry',
 ): Race {
-  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, tyres: freshTyres(tyreFor(weather)), progress: newProgress(track.samples.length - 4) }));
+  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(weather)), progress: newProgress(track.samples.length - 4) }));
   for (const e of entrants) fitTyres(e.tyres, e.car, weather);
-  return { track, grid, pit, weather, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
+  return { track, grid, corners: markCorners(track), pit, weather, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
 }
 
 /** Samples before the pit entry from which an AI car that wants to stop heads in. */
@@ -369,6 +378,17 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   for (let i = 0; i < cars.length; i++) for (let j = i + 1; j < cars.length; j++) collideCars(cars[i], cars[j], p);
   if (sc) sc.car.health = sc.car.cls.health;
   if (racing) for (const e of onTrack) e.progress = stepProgress(e.progress, track, e.car, race.clock, race.laps, dt);
+
+  // track limits: a cut across a corner's inside (racing only: not in the pit lane, a wreck, or after the flag)
+  if (racing) {
+    entrants.forEach((e, i) => {
+      if (!running(e) || e.car.wrecked || e.pit || e.progress.finished !== undefined) return;
+      const cut = judge(e.limits, track, race.corners, e.progress.idx, e.car.x, e.car.y, e.car.cls.width);
+      if (!cut) return;
+      if (cut.seconds) e.progress = { ...e.progress, penalty: e.progress.penalty + cut.seconds };
+      out.push({ kind: 'track-limits', who: i, ...cut });
+    });
+  }
 
   // wrecks: cleared off the track after a moment; the car retires
   let bigCrash = false;
