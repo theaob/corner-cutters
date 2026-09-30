@@ -1,7 +1,7 @@
 # Corner Cutters: design and development plan
 
 A plan for taking Corner Cutters from a playable prototype (one race, two circuits) to a
-small, finished arcade racer for phones and the browser. It starts from what the code does
+small, finished arcade racer on Google Play and itch.io. It starts from what the code does
 today, sets out what the game should feel like, and orders the work into milestones that
 each end in a build worth putting on itch.io.
 
@@ -38,7 +38,8 @@ What's missing for it to feel like a game rather than a tech demo:
 ### Pitch
 
 *Pocket-sized F1 in the HD-2D style: 1–3 minute races you can play one-handed on a phone,
-where cutting a corner is a risk you choose to take.*
+where cutting a corner is a risk you choose to take. Once you've mastered the sprints,
+longer Grand Prix races add tyres and pit stops.*
 
 ### Pillars
 
@@ -68,6 +69,7 @@ pick circuit + team ─▶ race (1–3 laps) ─▶ results: position, best lap,
 | **Quick Race** | Today's race: any circuit, any team, grid size and laps from settings | The fastest route into the game |
 | **Time Trial** | Alone on track, against your best-lap ghost; sector splits | Pure driving mastery; cheap to build on the existing sim; teaches the circuits |
 | **Championship** | A season of rounds across the circuits, points per finish, standings between races, team standings | The long-term "one more race" loop |
+| **Grand Prix** *(later, M6)* | Longer races (8–15 laps, about 4–7 minutes) with tyre wear and a pit stop; also a Championship length option | The step up once the sprints are mastered; brings strategy in |
 | **Daily Challenge** *(later)* | One seeded circuit + conditions per day, one best result kept | Gives a reason to open the game daily; seeds make it fair without a server |
 
 ### Difficulty
@@ -121,16 +123,35 @@ as now).
    where the game's name becomes a mechanic.
 3. **Qualifying (short):** one flying lap sets your grid slot; skippable. Today the player is
    always mid-grid.
-4. **Tyres and pit stops:** *not planned* for a 1–3 lap race. Revisit only if longer races
-   become a mode.
+4. **Tyres and pit stops:** only in Grand Prix races (M6). Sprints stay 1–3 laps with no
+   tyre model. Two compounds (soft: fast, wears quickly; hard: slower, lasts), with grip
+   falling off as they wear, shown as a bar next to the health blocks. One pit stop: enter
+   the pit lane, the car drives itself through at a speed limit, the stop takes a fixed
+   time, and you pick the next compound. The AI chooses when to stop from its tyre wear and
+   the gap behind, and some AI cars gamble on a different strategy.
+
+   To get ready for this, circuits built in M4 get a pit lane along the main straight in
+   their layout data, even though sprints don't use it yet.
 5. **Weather:** wet sections with lower grip and spray. Later milestone; touches the look and
    the handling.
 
 ### Feel and presentation
 
-- **Audio:** engine note that follows speed and throttle (synthesised with Web Audio, so no
-  big assets), tyre squeal while sliding, impacts, start-light beeps, a crowd swell at the
-  flag, UI clicks. Music is optional; a short loop for menus.
+- **Sound effects:** engine note that follows speed and throttle (synthesised with Web Audio,
+  so no big assets), tyre squeal while sliding, impacts, start-light beeps, a crowd swell at
+  the flag, UI clicks.
+- **Music, made for the game:** an original soundtrack, which also gives the game its identity
+  on the store pages. Planned tracks:
+  - a menu theme (loops seamlessly)
+  - race music: one track per circuit, or a shared race loop at first; it ducks under the
+    engine and lifts on the final lap
+  - short cues (stings): lights out, fastest lap, podium, winning the championship
+  - later: a results/standings loop and a Grand Prix "final laps" track
+
+  Delivery format: 44.1 kHz stereo, loops cut sample-accurately with the loop points
+  written down, exported as Ogg Vorbis (with an AAC/M4A fallback for iOS Safari), aiming
+  for under about 1 MB per minute. Separate music and effects volume sliders, both
+  remembered.
 - **Haptics:** a short vibration on impacts and kerbs on Android (Capacitor Haptics) and
   where `navigator.vibrate` exists.
 - **HUD:** a lap/position readout that grows at key moments (new lap, overtake, fastest lap),
@@ -157,9 +178,21 @@ as now).
 
 ### Out of scope (for now)
 
-Online multiplayer, accounts, in-app purchases, real team/driver/circuit names or logos,
-car setup screens, and long-distance races with strategy. Each would take more than it gives
-at this size of game.
+Online multiplayer, accounts, paid content or ads, real team/driver/circuit names or logos,
+and car setup screens. Each would take more than it gives at this size of game. (Longer races
+with strategy, once out of scope, are now the Grand Prix mode in M6.)
+
+### Release and pricing
+
+- **itch.io:** pay what you want (minimum $0, with a suggested price). Web build to play in
+  the browser, plus the Android APK as a download.
+- **Google Play:** Play has no pay-what-you-want pricing: an app is either free or has one
+  fixed price. To keep the same spirit, the Play version is **free with an optional
+  "support the game" purchase** (one or a few amounts, using Play Billing), which unlocks
+  nothing except a thank-you (for example a special livery or a credits mention). Play's
+  policy requires in-app tips to use its own billing, so there are no outside donation
+  links in the app. Check the current Play payments policy before building this.
+- The game is the same everywhere: no content locked behind payment, no ads.
 
 ## 3. Technical approach
 
@@ -178,7 +211,10 @@ New pieces:
 |---|---|---|
 | Game state / screens | `src/f1/screens/` (menu, mode select, championship standings, results) | Replace the "reload the page with `?circuit=`" flow with an in-page screen stack, so a championship can carry state between races without saving and reloading; keep `?circuit=` as a shortcut |
 | Save data | `src/engine/save.ts` | Versioned JSON over `storage.ts`, with migrations and tests |
-| Audio | `src/engine/audio.ts` | Web Audio: one synthesised engine voice per nearby car, pooled one-shots; unlocked on the first touch (mobile browsers require it); a mute toggle in the menu |
+| Audio | `src/engine/audio.ts` | Web Audio: one synthesised engine voice per nearby car, pooled one-shots; unlocked on the first touch (mobile browsers require it); separate music/effects volumes |
+| Music | `src/engine/music.ts`, files in `public/audio/` | Streams the soundtrack files, loops at the written loop points, crossfades between menu and race, ducks under effects; loads lazily so the first screen isn't slower |
+| Support purchase | `src/engine/store.ts` | Only in the Android build: Play Billing through a Capacitor plugin; does nothing on the web |
+| Tyres and pits | `src/f1/tyres.ts`, `src/f1/pits.ts` | Engine-free rules with headless tests, like `raceControl.ts`; pit lane geometry in `layouts.ts` |
 | Pause | `src/f1/race.ts` + `main.ts` | Pause on `visibilitychange`, on Android's app pause, and from a PAUSE button; the sim clock stops |
 | Fixed-step sim | `f1/raceControl.ts` | Step the race at a fixed 1/120 s and render interpolated; needed for ghosts and replays to be reproducible, and makes tests match the game exactly |
 | Seeded randomness | `src/engine/random.ts` | One seeded RNG for lights-out, team draw and AI mistakes; needed for Daily Challenge and replays |
@@ -198,7 +234,9 @@ changelog in the README.
 The goal: someone who opens the itch.io page plays three races in a row.
 
 - [ ] Pause: PAUSE button, auto-pause when the tab or app is hidden, resume/restart/quit menu
-- [ ] Audio: engine note, tyre squeal, impacts, lights beeps, flag; mute toggle, remembered
+- [ ] Sound effects: engine note, tyre squeal, impacts, lights beeps, flag; volume, remembered
+- [ ] Music playback (`engine/music.ts`) with a placeholder loop, so the composed tracks can be dropped in
+- [ ] Music: menu theme and a first race loop
 - [ ] Difficulty levels on the menu (Rookie / Pro / Legend) replacing AI pace as the player's choice
 - [ ] Saved best lap and best race per circuit, shown on the menu and at the results ("NEW RECORD")
 - [ ] HUD: gap to the car ahead/behind; a flash on position change and fastest lap
@@ -235,17 +273,53 @@ The goal: a full first season.
 - [ ] Night desert circuit (straights, slipstream) with a night variant of `render/daylight.ts`
 - [ ] Rain/forest circuit with wet-grip sections and spray (weather)
 - [ ] Start-of-race grid pan; 10-second replay after the flag
-- [ ] Menu music loop
+- [ ] Music: a race track per circuit (or per pair of circuits), stings for fastest lap / podium / title
+- [ ] Pit lane in every circuit's layout data (not used until M6)
 
 ### M5: Release
 
-The goal: a version 1.0 on itch.io and, if wanted, Google Play.
+The goal: version 1.0 on Google Play and itch.io.
 
-- [ ] Resume the Android workflow on push; release keystore in secrets; Play Store listing (if wanted)
+Google Play:
+- [ ] Google Play developer account and app created in the Play Console
+- [ ] Resume the Android workflow on push; build an **AAB** (Play's upload format) as well as the APK
+- [ ] Release **upload key** in the repo's secrets, and Play App Signing turned on (Google holds
+      the app signing key). The sideloaded APK signed with the repo key can't update to the
+      Play version: say so on the itch.io page.
+- [ ] Target SDK level up to Play's current requirement; test on Android 8 up to the newest version
+- [ ] CI uploads the AAB to Play's **internal testing** track (Play Developer API with a service
+      account key in the repo's secrets); promoting to closed/open testing and production stays manual
+- [ ] Closed test with enough testers for long enough to meet Play's rule for new personal
+      developer accounts (check the current numbers) before production is allowed
+- [ ] Store listing: icon, feature graphic, phone screenshots, short and full description,
+      a trailer with the game's music
+- [ ] Privacy policy page (the game collects nothing; say so), Data safety form, content rating
+      questionnaire, ads declaration (none)
+- [ ] Optional support purchase with Play Billing (see *Release and pricing*)
+- [ ] Android extras: Play Games sign-in is **not** needed; save data backed up with Android's
+      Auto Backup so a new phone keeps records
+
+Everywhere:
 - [ ] Performance pass on a low-end Android phone; quality governor thresholds re-checked
 - [ ] Accessibility: colour-blind-safe position/HUD colours, larger-text option, left-handed deck
 - [ ] Daily Challenge (seeded circuit + conditions, best result kept locally)
-- [ ] itch.io page: screenshots, GIF, description; version 1.0.0
+- [ ] itch.io page: pay what you want with a suggested price; screenshots, GIF, soundtrack
+      as an optional download; version 1.0.0
+
+### M6: Grand Prix (after 1.0)
+
+The goal: longer races with strategy, once players have mastered the sprints.
+
+- [ ] Tyre model: two compounds, wear, grip falling off; tyre bar in the HUD
+- [ ] Pit lane: entry and exit, speed limit, the car drives itself through, a fixed stop time,
+      pick the next compound
+- [ ] AI strategy: when to stop and which compound, from wear and gaps; some AI cars take a
+      different strategy
+- [ ] Grand Prix mode (8–15 laps) and a Grand Prix length option in Championship
+- [ ] Mid-race save, so a long race survives the app being closed
+- [ ] Headless tests: a whole Grand Prix with stops runs in a test; strategies are balanced
+      (no single strategy always wins)
+- [ ] Music: a "final laps" track
 
 ## 5. Working practice
 
@@ -263,14 +337,24 @@ The goal: a version 1.0 on itch.io and, if wanted, Google Play.
 | Audio on mobile browsers (autoplay rules, itch.io iframe, latency) | Unlock on first touch; synthesise rather than stream; test in the itch.io frame on iOS Safari and Android Chrome early in M1 |
 | Frame rate on low-end phones as effects and audio grow | Quality governor already steps down; add audio voice limits; keep a low-end test phone in the loop |
 | Variable timestep makes ghosts/replays drift | Fixed-step sim before any recording (M2) |
-| Scope creep (tyres, online, car setup) | The out-of-scope list above; each new idea must serve a pillar |
+| Scope creep (online, car setup) | The out-of-scope list above; each new idea must serve a pillar |
+| Play review delays or rejection (policy, closed-testing rule for new accounts) | Create the developer account and start the closed test early (during M4), not at the end |
+| Losing the Play upload key | Play App Signing lets Google reset the upload key; keep a backup of it outside the repo secrets |
+| Music files making the download big or the first load slow | Size budget per minute, lazy loading, one shared race loop until the per-circuit tracks are ready |
+| Grand Prix races too long for the "pocket" pillar | Mid-race save; sprints stay the default in Quick Race |
 | Look-alike teams and traced circuits too close to real ones | Keep invented names and logos; only use permissively licensed outline data, credited in the README |
 
-## 7. Open questions
+## 7. Decisions
 
-1. **Android / Google Play:** is a store release a goal, or is itch.io (web + APK) enough?
-   This decides whether M5 includes store work.
-2. **Race length:** keep 1–3 laps as the default, or offer a longer "Grand Prix" length in
-   Championship? Longer races would bring tyres and pit stops back into scope.
-3. **Music:** synthesised/chiptune made in-house, or licensed tracks?
-4. **Monetisation:** free, pay-what-you-want on itch.io, or a paid store release?
+| Question | Decision |
+|---|---|
+| Store release | **Google Play** is a target for 1.0 (M5), alongside itch.io |
+| Race length | Short races (1–3 laps) first; longer **Grand Prix** races with tyres and pit stops after 1.0 (M6) |
+| Music | **Custom soundtrack** made for the game |
+| Pricing | **Pay what you want** on itch.io; free with an optional support purchase on Play, which has no pay-what-you-want option |
+
+### Still open
+
+1. Is the support purchase on Play wanted, or should the Play version just be free?
+2. Is an iOS / App Store version wanted later? The Capacitor setup would allow it, but it
+   needs a Mac to build and a paid Apple developer account.
