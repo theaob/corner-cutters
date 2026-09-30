@@ -6,6 +6,8 @@
 import type { Button } from '../engine/controls';
 import { holdTouches, setStickSide, stickSide, type StickSide } from '../engine/deck';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
+import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
+import { menuPick, menuTick } from './sounds';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
 import { TEAMS, type Team } from './teams';
@@ -129,6 +131,7 @@ function optionRow<T>(
   const step = (by: number) => {
     i = (i + by + values.length) % values.length;
     render();
+    menuTick();
     onChange?.(values[i]);
   };
   // swipe it, or tap its sides (the row keeps the finger's events: touch captures to it)
@@ -209,15 +212,22 @@ export function chooseCircuit(
     setVibration(on);
     vibrate(40);
   });
-  const settingsRows = [difficultyRow, stickRow, vibrationRow];
+  // (the nearest step to the saved volume)
+  const volumeNow = VOLUMES.reduce((a, b) => (Math.abs(b - soundVolume()) < Math.abs(a - soundVolume()) ? b : a));
+  const soundRow = optionRow('SOUND', [...VOLUMES], volumeNow, (v) => ({ name: ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])], about: v ? 'engines, tyres, crashes, lights' : 'silence' }), (v) => {
+    setSoundVolume(v);
+  });
+  const settingsRows = [difficultyRow, stickRow, vibrationRow, soundRow];
   const settingsTitle = document.createElement('h2');
   settingsTitle.textContent = 'SETTINGS';
   const openSettings = () => {
+    menuPick();
     view = 'settings';
     focus = 0;
     show();
   };
   const closeSettings = () => {
+    menuPick();
     view = 'menu';
     focus = layouts.length + rows.length;
     show();
@@ -313,6 +323,7 @@ export function chooseCircuit(
     finish = (layout) => {
       if (done) return;
       done = true;
+      menuPick();
       menu.remove();
       resolve({ layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value() });
     };

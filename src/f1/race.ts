@@ -30,6 +30,8 @@ import { defaults } from '../engine/tuning';
 import { TILE, buildCircuit } from './circuit';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
+import { RaceSounds } from './sounds';
+import { setAudioPaused } from '../engine/audio';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
@@ -242,9 +244,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   /** frames to leave out of the quality governor after a pause (the first frame back measures the pause) */
   let settle = 0;
   let last = performance.now();
+  // the race's sounds (silent until the first tap or key: browsers require one)
+  const sounds = new RaceSounds(weather.rain);
+  /** start lights lit so far (a beep for each), and whether your flag has been sounded */
+  let soundState = { lights: 0, flag: false };
   const setPaused = (on: boolean) => {
     if (on === paused) return;
     paused = on;
+    setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     hud.setLabel('a', on ? 'RESUME' : 'PAUSE');
     if (!on) {
@@ -255,6 +262,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
 
   const startRace = () => {
     setPaused(false);
+    soundState = { lights: 0, flag: false };
     for (const l of looks) world.scene.remove(l.mesh);
     world.scene.remove(safetyCar.group);
     const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
@@ -479,9 +487,29 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         dt, speed: speedOf(me.car), topSpeed: me.car.cls.topSpeed, healthLost: healthBefore - me.car.health,
         wreckedNow: ev.wreckedNow, landed: ev.landed, onRough: ev.onRough, onKerb: cell === 'kerb',
       }));
+      // and its sounds: the engine, tyres, ground, the nearest rival, and hits
+      const lost = healthBefore - me.car.health;
+      if (ev.wreckedNow) sounds.hit(1);
+      else if (lost > 0.5) sounds.hit(Math.min(1, 0.25 + lost / 15));
+      else if (ev.landed > 160) sounds.hit(0.3);
+      if (!running(me) || me.car.wrecked) sounds.quiet();
+      else {
+        const f = { x: Math.sin(me.car.heading), y: -Math.cos(me.car.heading) };
+        let rival: { speed: number; distance: number } | undefined;
+        race.entrants.forEach((o, i) => {
+          if (i === you || !running(o) || o.car.wrecked) return;
+          const d = Math.hypot(o.car.x - me.car.x, o.car.y - me.car.y);
+          if (!rival || d < rival.distance) rival = { speed: speedOf(o.car), distance: d };
+        });
+        sounds.update({
+          dt, speed: speedOf(me.car), top: me.car.cls.topSpeed, slide: Math.abs(me.car.vx * -f.y + me.car.vy * f.x),
+          onRough: ev.onRough, onKerb: cell === 'kerb', rival,
+        });
+      }
     }
     for (const e of step.race) {
-      if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
+      if (e.kind === 'lights-out') sounds.go();
+      else if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
       else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER SC · +${e.seconds} S`, '#d8323c', 3);
       else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
@@ -500,6 +528,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       hudState.fastest = { time: lap, who: i };
       // (not for the first lap anyone completes: that's always the fastest so far)
       if (!first && race.clock >= notice.until) announce(`FASTEST LAP · ${looks[i].name} ${fmt(lap)}`, '#b36bff', 2.5);
+      if (!first && i === you) sounds.record();
     });
     // your records: a new lap as soon as it's done (a record announced if it beats one), the race at your flag
     const mine = race.entrants[you].progress;
@@ -508,7 +537,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         const had = rec()?.bestLap !== undefined;
         if (recordLap(records, recordId, lap)) {
           saved.newLap = true;
-          if (had) announce(`NEW LAP RECORD ${fmt(lap)}`, '#f2c14e', 3);
+          if (had) {
+            announce(`NEW LAP RECORD ${fmt(lap)}`, '#f2c14e', 3);
+            sounds.record();
+          }
         }
       }
       saved.laps = mine.lapTimes.length;
@@ -564,6 +596,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const p = me.progress;
     const clock = race.clock;
     if (!done && race.phase === 'racing' && (p.finished !== undefined || p.retired)) done = true;
+    if (p.finished !== undefined && !soundState.flag) {
+      soundState.flag = true;
+      sounds.flag();
+    }
     // the results come up a moment after your flag, or once the rest have finished if you're out
     const others = race.entrants.filter((e) => e !== me && running(e));
     const showNow = p.finished !== undefined ? clock > p.finished + 1.5 : others.every((e) => e.progress.finished !== undefined);
@@ -583,6 +619,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';
     if (race.phase === 'lights') {
       const lit = Math.max(0, Math.min(5, Math.floor((clock + LIGHTS) / 0.6)));
+      // a beep as each light comes on
+      if (clock < 0 && lit > soundState.lights) sounds.light();
+      soundState.lights = Math.max(soundState.lights, clock < 0 ? lit : 5);
       banner.textContent = clock < 0 ? '● '.repeat(lit).trim() + ' ○'.repeat(5 - lit) : '● ● ● ● ●';
       banner.style.color = '#d8323c';
     } else {
