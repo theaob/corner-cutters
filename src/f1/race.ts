@@ -12,7 +12,7 @@ import { keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type Ai
 import { NORMAL, aiPaceFor, handlingFor, type Difficulty } from './difficulty';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
-import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, planLapTime, running, stepRace, type Race } from './raceControl';
+import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
@@ -40,6 +40,9 @@ import { F1_TUNING } from './tuning';
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
+/** Seconds the top three are shown in their spots, after skipping the in-lap, before the results. */
+const PODIUM_HOLD = 3;
+
 /** The T-camera colour marking a team's second car. */
 const TCAM_GREEN = '#39ff14';
 
@@ -214,8 +217,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   let looks: Look[] = [];
   /** your race is over (finished, or out) and the results are coming */
   let done = false;
-  /** the in-lap after your flag skipped (A): the results now, not once you're parked */
-  let skipInLap = false;
+  /** the in-lap skipped (A): the top three in their spots, and seconds the camera has been on them (the results follow) */
+  let podium: { top: number[]; time: number } | undefined;
   let you = 0;
   const safetyCar = createSafetyCarMesh();
   // your car's marker on the grid, so you can find it before the start: a gold arrow bobbing above it and a
@@ -292,7 +295,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     hudState = { gaps: newGapTimer(total), lastPos: 0, flashUntil: 0, lapsSeen: new Array(total).fill(0), fastest: undefined };
     hud.setPositionChange(undefined);
     done = false;
-    skipInLap = false;
+    podium = undefined;
     hud.setLabel('a', 'PAUSE');
     saved = { laps: 0, race: false, newLap: false, newRace: false };
     notice = { text: '', color: '', until: 0 };
@@ -465,9 +468,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     last = now;
     if (pressed('start')) startRace();
     // A pauses and resumes (not once the race is over: the results are up)
-    if (pressed('a') && !done) setPaused(!paused);
-    // on your in-lap after the flag, A skips to the results
-    else if (pressed('a') && done && results.style.display !== 'block') skipInLap = true;
+    const aPressed = pressed('a');
+    if (aPressed && !done) setPaused(!paused);
+    // after your flag (or once you're out), A skips the in-lap: straight to the top three in their spots, then the results
+    else if (aPressed && done && results.style.display !== 'block') {
+      if (!podium) {
+        podium = { top: skipToParked(race), time: 0 };
+        hudState.flashUntil = 0;
+      } else podium.time = PODIUM_HOLD;
+    }
     // SELECT goes back to the circuits once it's let go: leaving the page with a finger still down
     // can leave the next page deaf to touch on a phone (in itch.io's frame the lifting finger's
     // events go to a page that's gone)
@@ -616,7 +625,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const clock = race.clock;
     if (!done && race.phase === 'racing' && (p.finished !== undefined || p.retired)) {
       done = true;
-      if (p.finished !== undefined) hud.setLabel('a', 'RESULTS');
+      hud.setLabel('a', 'SKIP');
     }
     if (p.finished !== undefined && !soundState.flag) {
       soundState.flag = true;
@@ -624,7 +633,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
     // the results come up once you're parked after your in-lap (or at A), or once the rest have finished if you're out
     const others = race.entrants.filter((e) => e !== me && running(e));
-    const showNow = p.finished !== undefined ? skipInLap || !!me.inLap?.parked : others.every((e) => e.progress.finished !== undefined);
+    if (podium) podium.time += dt;
+    const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished !== undefined ? !!me.inLap?.parked : others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
     hud.setPosition(`P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
@@ -649,7 +659,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     } else {
       const stop = me.pit;
       const [text, color] =
-        me.car.wrecked || p.retired ? ['DNF · START to restart', '#d8323c']
+        podium && results.style.display !== 'block' ? [podium.top.map((i, k) => `P${k + 1} ${looks[i].name}`).join(' · '), '#f2c14e']
+        : me.car.wrecked || p.retired ? ['DNF · START to restart', '#d8323c']
         : done && p.finished !== undefined && results.style.display !== 'block' ? inLapBanner(me.inLap?.to, order.indexOf(you))
         : done ? ['', '']
         : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']
@@ -672,7 +683,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const left = 1 - me.tyres.wear;
     const tyreBlocks = Math.ceil(left * 5);
     const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
-    const limiter = me.pit ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
+    const limiter = me.pit && !done ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
     // the gaps to the cars either side of you (by the timing points), while you're racing
     const gapLine = (other: number | undefined, mark: string) => {
       if (other === undefined || done) return '';
@@ -711,9 +722,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     drawRain(dt);
     skids.update(dt);
 
-    // camera: follow your car, looking ahead along its motion
+    // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
     const c = me.car;
-    target.set(c.x + (c.vx / c.cls.topSpeed) * t.lead, c.z * 0.5, c.y + (c.vy / c.cls.topSpeed) * t.lead);
+    if (podium && podium.top.length) {
+      const cars = podium.top.map((i) => race.entrants[i].car);
+      target.set(cars.reduce((a, o) => a + o.x, 0) / cars.length, cars[0].z * 0.5, cars.reduce((a, o) => a + o.y, 0) / cars.length);
+      if (podium.time <= dt) focus.copy(target);
+    } else target.set(c.x + (c.vx / c.cls.topSpeed) * t.lead, c.z * 0.5, c.y + (c.vy / c.cls.topSpeed) * t.lead);
     focus.lerp(target, 1 - Math.exp(-dt * 6));
     const pitch = deg(LOOK.pitch);
     const dist = viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / t.zoom;

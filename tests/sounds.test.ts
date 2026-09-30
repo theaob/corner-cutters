@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { GEARS, RaceSounds, engineNote } from '../src/f1/sounds';
+import { GEARS, RaceSounds, doppler, engineNote } from '../src/f1/sounds';
 
 describe('the engine note', () => {
   const top = 320;
-  it('idles low at a standstill', () => {
-    expect(engineNote(0, top, 0).freq).toBeLessThan(100);
+  it('idles lower than it ever revs on the move', () => {
+    const idle = engineNote(0, top, 0).freq;
+    for (let v = 5; v <= top; v += 5) expect(engineNote(v, top, 1).freq).toBeGreaterThan(idle);
+  });
+
+  it('drops less at an upshift in the high gears than in the low (closer ratios), and never past the limiter', () => {
+    const at = (share: number) => engineNote(share * top, top, 1).freq;
+    const w = 1 / GEARS;
+    const drop = (g: number) => at((g + 0.999) * w) / at((g + 1.001) * w);
+    expect(drop(1)).toBeGreaterThan(drop(6));
+    expect(drop(6)).toBeGreaterThan(1.1);
+    for (let v = 0; v <= top; v += 3) expect(engineNote(v, top, 1).freq).toBeLessThanOrEqual(630);
+  });
+
+  it('counts the gears up to the top one', () => {
+    expect(engineNote(10, top, 1).gear).toBe(0);
+    expect(engineNote(top, top, 1).gear).toBe(GEARS - 1);
   });
 
   it('climbs through each gear, and drops back at each upshift', () => {
@@ -23,6 +38,15 @@ describe('the engine note', () => {
     const off = engineNote(200, top, 0);
     expect(on.gain).toBeGreaterThan(off.gain);
     expect(on.brightness).toBeGreaterThan(off.brightness);
+  });
+});
+
+describe('a passing car', () => {
+  it('sounds higher coming, lower going, and the same keeping pace', () => {
+    expect(doppler(200)).toBeGreaterThan(1);
+    expect(doppler(-200)).toBeLessThan(1);
+    expect(doppler(0)).toBe(1);
+    expect(doppler(5000)).toBeLessThanOrEqual(1.2);
   });
 });
 

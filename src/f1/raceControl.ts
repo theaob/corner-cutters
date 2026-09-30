@@ -9,7 +9,7 @@
 
 import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
-import { PIT, between, entersPit, newPitStop, pitStep, wantsPit, type PitLane, type PitStop } from './pits';
+import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
 import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
 import type { WeatherId } from './weather';
 import { aiInput, coolDownInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
@@ -174,6 +174,59 @@ function podiumInput(race: Race, e: Entrant, spot: number, others: Car[]): Drive
   }
   const want = Math.min(PARK.speed, Math.sqrt(2 * PARK.decel * left));
   return { ...aiInput(e.car, track, e.progress.idx, { lane: at.lane, pace: 0.7 }, others), limit: want, brake: speedOf(e.car) > want + 10 };
+}
+
+/**
+ * Skip to the end: every car still racing is given the finish its pace would
+ * bring it (the laps it has left at its average lap), a wreck retires, and every
+ * finisher is put where its in-lap would end: the top three stopped in their
+ * spots on the straight, the rest in their garages. No safety car. Returns the
+ * top three (indexes into `entrants`).
+ */
+export function skipToParked(race: Race): number[] {
+  const { track, pit, entrants } = race;
+  const n = track.samples.length;
+  race.phase = 'racing';
+  race.sc = undefined;
+  race.holdBehind = entrants.map(() => new Set());
+  for (const e of entrants) {
+    const p = e.progress;
+    if (p.retired) continue;
+    if (e.car.wrecked) {
+      e.progress = { ...p, retired: true };
+      continue;
+    }
+    if (p.finished !== undefined) continue;
+    const times = p.lapTimes;
+    const lap = times.length ? times.reduce((a, b) => a + b, 0) / times.length : planLapTime(race, e);
+    const left = Math.max(0, race.laps - p.lap - (p.lapStart === undefined ? 0 : p.idx / n));
+    e.progress = { ...p, lap: race.laps, finished: race.clock + left * lap };
+  }
+  const finishers = order(race).filter((i) => entrants[i].progress.finished !== undefined);
+  const home = new Set<number>();
+  finishers.forEach((i, place) => {
+    const e = entrants[i];
+    const car = e.car;
+    car.vx = car.vy = 0;
+    e.inLap = { driven: track.length, to: place < PIT.podium.length && pit ? place : 'garage', parked: true };
+    if (!pit) return;
+    if (place < PIT.podium.length) {
+      const spot = pit.podium[place];
+      const s = track.samples[spot.idx];
+      car.x = s.x + Math.cos(s.dir) * spot.lane;
+      car.y = s.y + Math.sin(s.dir) * spot.lane;
+      car.heading = s.dir;
+      e.pit = undefined;
+    } else {
+      const slot = PIT.garageSlots[home.has(e.box) ? 1 : 0];
+      home.add(e.box);
+      const q = pit.points.find((pt) => pt.s >= pit.boxes[e.box]) ?? pit.points[pit.points.length - 1];
+      e.pit = { phase: 'garage', at: 0, box: e.box, left: 0, time: 0, home: slot, push: { x: q.x, y: q.y, heading: q.dir, done: PIT.garagePush } };
+      pushIntoGarage(pit, e.pit, car);
+    }
+    e.progress = { ...e.progress, idx: nearestSample(track, car.x, car.y) };
+  });
+  return finishers.slice(0, PIT.podium.length);
 }
 
 /** Still on the track: not retired (a wreck counts until it's cleared). */

@@ -259,7 +259,7 @@ changelog in the README.
 The goal: someone who opens the itch.io page plays three races in a row.
 
 - [x] Pause: A pauses, auto-pause when the tab or app is hidden, resume/restart/circuits screen
-- [x] Sound effects: engine note, tyre squeal, impacts, lights beeps, flag; volume, remembered (synthesised, no files)
+- [x] Sound effects: engine note (V6 orders, gearshift cuts, overrun pops, a rival's Doppler), tyre squeal, impacts, lights beeps, flag; volume, remembered (synthesised, no files)
 - [ ] Music playback (`engine/music.ts`) with a placeholder loop, so the composed tracks can be dropped in
 - [ ] Music: menu theme and a first race loop
 - [x] Difficulty levels on the menu (Easy / Normal / Hard): crash damage and AI pace
@@ -267,7 +267,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 - [x] HUD: gap to the car ahead/behind; a flash on position change and fastest lap
 - [ ] Save format with a version number (`engine/save.ts`) and tests
 - [x] Haptics: crashes, landings, grass and gravel, kerbs; on/off on the pause screen (Android app and Android browsers)
-- [x] After the flag, an in-lap: the top three park in numbered spots on the main straight, the rest are pushed back into their garages; the results come up once you're parked (A skips)
+- [x] After the flag, an in-lap: the top three park in numbered spots on the main straight, the rest are pushed back into their garages; the results come up once you're parked; A skips straight to the top three in their spots
 
 ### M2: Racecraft
 
