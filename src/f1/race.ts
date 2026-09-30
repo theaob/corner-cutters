@@ -6,13 +6,15 @@
 
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
-import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car } from '../engine/driving';
+import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car, type StepEvents } from '../engine/driving';
+import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
+import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
 import { keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiPaceFor, handlingFor, type Difficulty } from './difficulty';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
-import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
+import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
@@ -267,8 +269,27 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
   };
 
+  // the simulation steps at a fixed rate (engine/fixedStep.ts); each car is drawn between its last two steps
+  const simClock = fixedClock();
+  /** each car (then the safety car, when it's out) where it was before the latest step (undefined: draw it where it is, after a restart or a skip) */
+  let before: { x: number; y: number; z: number; heading: number }[] | undefined;
+  const pose = (car: Car, i: number, alpha: number) => {
+    const b = before?.[i];
+    return b ? { x: lerp(b.x, car.x, alpha), y: lerp(b.y, car.y, alpha), z: lerp(b.z, car.z, alpha), heading: lerpAngle(b.heading, car.heading, alpha) } : car;
+  };
+  /** the cars' driving events over the latest frame's steps (kept through a frame with none, less its one-off hits) */
+  let frameEvents: StepEvents[] = [];
+  // each race's random draws (its rival teams, the start-light wait) come from its seed: ?seed=<n> repeats a race exactly
+  const seedParam = Number(new URLSearchParams(window.location.search).get('seed'));
+  let seed = 0;
+
   const startRace = () => {
     setPaused(false);
+    seed = Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
+    const rng = seededRandom(seed);
+    resetClock(simClock);
+    before = undefined;
+    frameEvents = [];
     soundState = { lights: 0, flag: false };
     playMusic(RACE_MUSIC);
     for (const l of looks) world.scene.remove(l.mesh);
@@ -276,7 +297,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
     you = Math.floor(total / 2);
     // your team and four drawn at random, two cars each, in their liveries
-    const teams = teamGrid(team, total, you);
+    const teams = teamGrid(team, total, you, rng);
     // each car's seat in its team: you take your team's first, your teammate its second
     const seats = driverSeats(teams, you);
     looks = [];
@@ -294,7 +315,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai, box: [...new Set(teams)].indexOf(livery) };
     });
     // five lights, one every 0.6 s, then out after a short random wait
-    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7, circuit.pit, weather.id);
+    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + rng() * 0.7, circuit.pit, weather.id);
     hudState = { gaps: newGapTimer(total), lastPos: 0, flashUntil: 0, lapsSeen: new Array(total).fill(0), fastest: undefined };
     hud.setPositionChange(undefined);
     done = false;
@@ -335,6 +356,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         /** show the results table as the race stands, for checking its layout */
         results: () => showResults(raceOrder(race)),
         records: () => records,
+        /** this race's seed (?seed=<n> plays it again) */
+        seed: () => seed,
         /** the music track playing (or loading) */
         music: () => musicPlaying(),
         /** wave the chequered flag for everyone now, in race order (you in `place`, 1 = the winner, if given), for watching the in-lap and the parking */
@@ -479,6 +502,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     else if (aPressed && done && results.style.display !== 'block') {
       if (!podium) {
         podium = { top: skipToParked(race), time: 0 };
+        before = undefined;
         hudState.flashUntil = 0;
       } else podium.time = PODIUM_HOLD;
     }
@@ -510,7 +534,30 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
       : playerInput(pad);
     const healthBefore = race.entrants[you].car.health;
-    const step = stepRace(race, dt, (e) => driveInput(e.car));
+    // the race runs in fixed steps: as many as this frame's time holds (none, one, or a few)
+    const { steps, alpha } = advance(simClock, dt);
+    const raceEvents: RaceEvent[] = [];
+    const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 }));
+    for (let k = 0; k < steps; k++) {
+      before = [...race.entrants.map((e) => e.car), ...(race.sc ? [race.sc.car] : [])].map((c) => ({ x: c.x, y: c.y, z: c.z, heading: c.heading }));
+      const s = stepRace(race, SIM_DT, (e) => driveInput(e.car));
+      raceEvents.push(...s.race);
+      s.cars.forEach((ev, i) => {
+        const m = cars[i];
+        m.damage += ev.damage;
+        m.skidding ||= ev.skidding;
+        m.wreckedNow ||= ev.wreckedNow;
+        m.onRough ||= ev.onRough;
+        m.airborne ||= ev.airborne;
+        m.landed = Math.max(m.landed, ev.landed);
+      });
+      // gaps at the timing points, timed to the step
+      if (race.phase === 'racing') stepGaps(hudState.gaps, race.entrants.map((e) => e.progress), track, race.clock);
+    }
+    // a frame between steps (a screen faster than the simulation) carries on the last one's skids and ground
+    if (steps === 0) frameEvents.forEach((ev, i) => cars[i] && Object.assign(cars[i], { skidding: ev.skidding, onRough: ev.onRough, airborne: ev.airborne }));
+    frameEvents = cars;
+    const step = { cars, race: raceEvents };
     // your car's vibration: crashes, landings, grass and gravel, kerbs
     {
       const me = race.entrants[you];
@@ -549,8 +596,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       else if (e.kind === 'pit-out' && e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
     }
-    // gaps at the timing points, and the race's fastest lap (announced; purple in the results)
-    if (race.phase === 'racing') stepGaps(hudState.gaps, race.entrants.map((e) => e.progress), track, race.clock);
+    // the race's fastest lap (announced; purple in the results)
     race.entrants.forEach((e, i) => {
       const count = e.progress.lapTimes.length;
       if (count <= hudState.lapsSeen[i]) return;
@@ -590,8 +636,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       if (ev.skidding) skids.mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
       else skids.lift(i);
       const tilt = bodyTilt(e.car, grid);
-      l.mesh.position.set(e.car.x, e.car.z, e.car.y);
-      l.mesh.rotation.set(tilt.pitch, -e.car.heading, tilt.roll, 'YXZ');
+      const at = pose(e.car, i, alpha);
+      l.mesh.position.set(at.x, at.z, at.y);
+      l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
       const speed = speedOf(e.car);
       l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
       // the tyres' compound colour, and spray off a wet track from behind the car at speed
@@ -617,8 +664,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     if (!sc && safetyCar.group.parent) world.scene.remove(safetyCar.group);
     if (sc) {
       const tilt = bodyTilt(sc.car, grid);
-      safetyCar.group.position.set(sc.car.x, sc.car.z, sc.car.y);
-      safetyCar.group.rotation.set(tilt.pitch, -sc.car.heading, tilt.roll, 'YXZ');
+      // (drawn between its steps too, once it has been out for one)
+      const at = before && before.length > race.entrants.length ? pose(sc.car, race.entrants.length, alpha) : sc.car;
+      safetyCar.group.position.set(at.x, at.z, at.y);
+      safetyCar.group.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
       safetyCar.update(dt);
     }
 
@@ -731,11 +780,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
 
     // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
     const c = me.car;
+    const drawn = pose(c, you, alpha);
     if (podium && podium.top.length) {
       const cars = podium.top.map((i) => race.entrants[i].car);
       target.set(cars.reduce((a, o) => a + o.x, 0) / cars.length, cars[0].z * 0.5, cars.reduce((a, o) => a + o.y, 0) / cars.length);
       if (podium.time <= dt) focus.copy(target);
-    } else target.set(c.x + (c.vx / c.cls.topSpeed) * t.lead, c.z * 0.5, c.y + (c.vy / c.cls.topSpeed) * t.lead);
+    } else target.set(drawn.x + (c.vx / c.cls.topSpeed) * t.lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * t.lead);
     focus.lerp(target, 1 - Math.exp(-dt * 6));
     const pitch = deg(LOOK.pitch);
     const dist = viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / t.zoom;
