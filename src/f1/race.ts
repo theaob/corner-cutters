@@ -36,7 +36,7 @@ import { newRumble, rumble } from './rumble';
 import { RaceSounds } from './sounds';
 import { setAudioPaused } from '../engine/audio';
 import { musicPlaying, playMusic } from '../engine/music';
-import { MENU_MUSIC, RACE_MUSIC } from './music';
+import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
@@ -713,6 +713,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // the results come up once you're parked after your in-lap (or at A), or once the rest have finished if you're out
     const others = race.entrants.filter((e) => e !== me && running(e));
     if (podium) podium.time += dt;
+    // the winners drive into their spots to a march: from the moment the winner turns for its spot (or the in-lap is skipped)
+    if (podium || race.entrants.some((e) => e.inLap?.to === 0)) playMusic(PODIUM_MUSIC, 1);
     const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished !== undefined ? !!me.inLap?.parked : others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
     hud.setPosition(`P${pos}/${race.entrants.length}`);

@@ -6,12 +6,16 @@
 //   menu  A minor, 96 bpm, 8 bars: arpeggios over Am F C G, a soft pad, a walking bass
 //   race  E minor, 150 bpm, 8 bars: a driving octave bass, drums, a lead riff over Em C G D
 //         (under the engines: it plays quieter)
+//   podium  A major, 120 bpm, 8 bars: a triumphal march in the manner of a bullring parade (the
+//         spirit of Bizet's "Les Toréadors"; an original tune): dotted brass fanfares in thirds,
+//         an oom-pah tuba and chords, a marching snare with a roll back into the top, cymbals on the
+//         phrases. For the winners driving into their spots after the race.
 //
 // The notes are plain data (tested: in key, inside the loop); `voice` plays one.
 
 import type { Placeholder, Track } from '../engine/music';
 
-export type Voice = 'lead' | 'arp' | 'pad' | 'bass' | 'kick' | 'snare' | 'hat';
+export type Voice = 'lead' | 'arp' | 'pad' | 'bass' | 'kick' | 'snare' | 'hat' | 'brass' | 'stab' | 'crash';
 
 export interface Note {
   /** start and length, in beats */
@@ -80,6 +84,60 @@ export function raceSong(): Song {
     notes.push({ at: bar + BEATS + 3, len: 0.9, midi: r, voice: 'lead', vel: 0.5 });
   });
   return { bpm: 150, bars: 8, notes };
+}
+
+/** A major's scale (pitch classes), for the brass's second part a third below the tune. */
+const A_MAJOR = [9, 11, 1, 2, 4, 6, 8];
+
+/** The note two steps down the A major scale from `midi` (a third below, in key). */
+function thirdBelow(midi: number): number {
+  let m = midi - 1;
+  let steps = 0;
+  while (steps < 2) {
+    if (A_MAJOR.includes(((m % 12) + 12) % 12)) steps++;
+    if (steps < 2) m--;
+  }
+  return m;
+}
+
+/** The podium march: A major, a fanfare tune over A A E7 A | D A E7 A. */
+export function podiumSong(): Song {
+  const notes: Note[] = [];
+  // the tune, bar by bar, as [beat in the bar, beats long, midi]: dotted fanfare figures, leaps to the top A
+  const A4 = 69, B4 = 71, Cs5 = 73, D5 = 74, E5 = 76, Fs5 = 78, Gs5 = 80, A5 = 81, B5 = 83;
+  const tune: [number, number, number][][] = [
+    [[0, 0.75, E5], [0.75, 0.25, E5], [1, 1, A5], [2, 0.5, E5], [2.5, 0.5, Cs5], [3, 1, A4]],
+    [[0, 0.5, Cs5], [0.5, 0.5, D5], [1, 0.75, E5], [1.75, 0.25, Fs5], [2, 2, E5]],
+    [[0, 0.75, D5], [0.75, 0.25, D5], [1, 1, Gs5], [2, 0.5, Fs5], [2.5, 0.5, E5], [3, 0.5, D5], [3.5, 0.5, B4]],
+    [[0, 1, Cs5], [1, 1, E5], [2, 2, A5]],
+    [[0, 0.75, Fs5], [0.75, 0.25, Fs5], [1, 1, A5], [2, 0.5, Fs5], [2.5, 0.5, D5], [3, 1, A4]],
+    [[0, 0.75, E5], [0.75, 0.25, E5], [1, 0.5, Cs5], [1.5, 0.5, E5], [2, 2, A5]],
+    [[0, 0.5, Gs5], [0.5, 0.5, A5], [1, 1, B5], [2, 0.5, Gs5], [2.5, 0.5, E5], [3, 1, D5]],
+    [[0, 0.5, Cs5], [0.5, 0.5, E5], [1, 1, A5], [2, 1, A4]],
+  ];
+  tune.forEach((bar, k) =>
+    bar.forEach(([at, len, midi]) => {
+      notes.push({ at: k * BEATS + at, len: len * 0.9, midi, voice: 'brass', vel: at % 1 ? 0.6 : 0.75 });
+      // the second brass a third below, on the longer notes
+      if (len >= 1) notes.push({ at: k * BEATS + at, len: len * 0.9, midi: thirdBelow(midi), voice: 'brass', vel: 0.45 });
+    }),
+  );
+  // the harmony: A A E7 A D A E7 A; the tuba on the beat (root, then fifth below), the chords off it
+  const roots = [45, 45, 40, 45, 38, 45, 40, 45];
+  const chords: number[][] = [[61, 64, 69], [61, 64, 69], [62, 64, 68], [61, 64, 69], [62, 66, 69], [61, 64, 69], [62, 64, 68], [61, 64, 69]];
+  roots.forEach((root, k) => {
+    const bar = k * BEATS;
+    notes.push({ at: bar, len: 0.8, midi: root, voice: 'bass', vel: 0.85 });
+    notes.push({ at: bar + 2, len: 0.8, midi: root - 5, voice: 'bass', vel: 0.75 });
+    for (const off of [1, 3]) for (const m of chords[k]) notes.push({ at: bar + off, len: 0.35, midi: m, voice: 'stab', vel: 0.5 });
+    // the march: kick on the beat, snare on the off-beats with an accent on 2 and 4
+    for (const t of [0, 2]) notes.push({ at: bar + t, len: 0.2, midi: 0, voice: 'kick', vel: 0.8 });
+    for (let i = 0; i < 8; i++) if (i % 2) notes.push({ at: bar + i / 2, len: 0.1, midi: 0, voice: 'snare', vel: i === 3 || i === 7 ? 0.6 : 0.35 });
+  });
+  // cymbals on each phrase, and a snare roll in the last bar back into the top
+  for (const bar of [0, 4]) notes.push({ at: bar * BEATS, len: 1, midi: 0, voice: 'crash', vel: 0.7 });
+  for (let i = 0; i < 8; i++) notes.push({ at: 7 * BEATS + 3 + i / 8, len: 0.06, midi: 0, voice: 'snare', vel: 0.3 + i * 0.05 });
+  return { bpm: 120, bars: 8, notes };
 }
 
 const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
@@ -184,6 +242,44 @@ function voice(ctx: BaseAudioContext, out: AudioNode, n: Note, t: number, len: n
     case 'hat':
       hit('highpass', 7500, 0.35, 0.05);
       break;
+    case 'brass': {
+      // a saw and a square, the filter opening with each note's attack (the brass's bite), and a little vibrato
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 1.5;
+      f.frequency.setValueAtTime(600, t);
+      f.frequency.linearRampToValueAtTime(3400, t + 0.04);
+      f.frequency.exponentialRampToValueAtTime(1800, t + 0.25);
+      const g = envelope(ctx, t, len, 0.16 * n.vel, 0.1, 0.02);
+      f.connect(g).connect(out);
+      for (const [type, detune, level] of [['sawtooth', 0, 1], ['square', 5, 0.35]] as const) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = hz(n.midi);
+        o.detune.value = detune;
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 5.5;
+        const depth = ctx.createGain();
+        depth.gain.value = len > 0.8 ? 7 : 0;
+        lfo.connect(depth).connect(o.detune);
+        const lv = ctx.createGain();
+        lv.gain.value = level;
+        o.connect(lv).connect(f);
+        for (const x of [o, lfo]) {
+          x.start(t);
+          x.stop(t + len + 0.2);
+        }
+      }
+      break;
+    }
+    case 'stab':
+      tone('square', hz(n.midi), 0.05, 0.05, 2200);
+      tone('triangle', hz(n.midi), 0.08, 0.06);
+      break;
+    case 'crash':
+      hit('highpass', 5000, 0.45, 1.4);
+      hit('bandpass', 9000, 0.2, 0.9);
+      break;
   }
 }
 
@@ -203,3 +299,4 @@ export function placeholder(song: Song): Placeholder {
 
 export const MENU_MUSIC: Track = { id: 'menu', placeholder: placeholder(menuSong()), gain: 0.8 };
 export const RACE_MUSIC: Track = { id: 'race', placeholder: placeholder(raceSong()), gain: 0.45 };
+export const PODIUM_MUSIC: Track = { id: 'podium', placeholder: placeholder(podiumSong()), gain: 0.95 };
