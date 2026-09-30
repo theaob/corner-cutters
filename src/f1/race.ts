@@ -531,6 +531,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
       // the tyres' compound colour, and spray off a wet track from behind the car at speed
       l.mesh.userData.tyreMark.color.set(COMPOUNDS[e.tyres.compound].color);
+      // the rain light blinks on a damp or wet track, each car a little out of step with the rest
+      l.mesh.userData.rainLight.visible = weather.spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5;
       if (weather.spray && speed > 60 && Math.random() < dt * (weather.rain > 0 ? 14 : 6) * Math.min(1, speed / 250)) {
         particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);
       }
