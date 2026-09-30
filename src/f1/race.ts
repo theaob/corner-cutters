@@ -24,7 +24,7 @@ import { createCeremony } from './podium3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
-import { formatTime as fmt, loadRecords, recordLap, recordRace, saveRecords } from './records';
+import { formatTime as fmt, loadRecords, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -318,8 +318,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   // (kept apart for each weather: a wet lap is slower)
   const recordId = weather.id === 'dry' ? layout.id : `${layout.id}:${weather.id}`;
   const rec = () => records.circuits[recordId];
-  /** your laps saved so far this race, whether your finish is saved, and the records this race set */
-  let saved = { laps: 0, race: false, newLap: false, newRace: false };
+  /** your laps saved so far this race, whether your finish is saved, and the records this race (or qualifying) set */
+  let saved = { laps: 0, race: false, newLap: false, newRace: false, newQualifying: false };
 
   /** the race is stopped: nothing moves and the clock doesn't run */
   let paused = false;
@@ -419,7 +419,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     hud.setPositionChange(undefined);
     done = false;
     podium = undefined;
-    saved = { laps: 0, race: false, newLap: false, newRace: false };
+    saved = { laps: 0, race: false, newLap: false, newRace: false, newQualifying: false };
     notice = { text: '', color: '', until: 0 };
     skids.clear();
     particles.clear();
@@ -468,6 +468,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     reference ??= referenceLap(track, grid, HANDLING, weather.id);
     const times = aiTimes(w.drivers.map((d) => d.ai?.pace), reference, seededRandom(seed + 1));
     times[w.youDriver] = time;
+    // your qualifying record here (apart from the race's lap record)
+    if (time !== undefined) {
+      saved.newQualifying = recordQualifying(records, recordId, time);
+      saveRecords(records);
+    }
     quali.over = { grid: gridOrder(times), times };
     hud.setLabel('a', 'RACE');
     showQualifying();
@@ -662,6 +667,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       line(`QUALIFYING · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
       table,
       line(place === 1 ? 'POLE POSITION!' : `YOU START P${place}`, { color: '#f2c14e', marginTop: '8px' }),
+      line(`QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}${saved.newQualifying ? ' · NEW!' : ''}`, { color: saved.newQualifying ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
       line('A or START to the grid', { marginTop: '8px' }),
       line('SELECT for circuits'),
     );
@@ -842,7 +848,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     });
     // your records: a new lap as soon as it's done (a record announced if it beats one), the race at your flag
     const mine = race.entrants[you].progress;
-    // (race laps only: a qualifying lap may have been deleted)
+    // (race laps only: qualifying keeps its own record, set as its good lap ends)
     if (session === 'race' && (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race))) {
       for (const lap of mine.lapTimes.slice(saved.laps)) {
         const had = rec()?.bestLap !== undefined;
@@ -1003,7 +1009,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const ahead = pos > 1 ? order[pos - 2] : undefined;
     const behindCar = order[pos];
     const behind = behindCar !== undefined && running(race.entrants[behindCar]) && !race.entrants[behindCar].car.wrecked ? behindCar : undefined;
-    readout.textContent = `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}${limiter}\n`;
+    readout.textContent = `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(session === 'qualifying' ? rec()?.bestQualifying : rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}${limiter}\n`;
     // the tyre line in its compound's colour
     tyreLine.textContent = `TYRE ${tyres}\n`;
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;

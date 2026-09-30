@@ -1,14 +1,17 @@
-// Your records, kept on the device between races: the best lap on each
-// circuit, and the best race time on each circuit for each number of laps
-// (penalties included). Engine-free and unit-tested; the race saves a lap as
+// Your records, kept on the device between races: the best race lap on each
+// circuit, the best qualifying lap there (kept apart: a flying lap on your own
+// isn't a race lap), and the best race time on each circuit for each number of
+// laps (penalties included). Engine-free and unit-tested; the race saves a lap as
 // soon as it's done, so a record isn't lost by quitting mid-race. They're the
 // save's 'records' section (engine/save.ts).
 
 import { save, savedSection } from '../engine/save';
 
 export interface CircuitRecords {
-  /** seconds: your fastest lap here */
+  /** seconds: your fastest lap here in a race */
   bestLap?: number;
+  /** seconds: your fastest qualifying lap here (a deleted lap doesn't count) */
+  bestQualifying?: number;
   /** seconds: your fastest finish here, by the race's number of laps */
   bestRace: Record<number, number>;
 }
@@ -40,7 +43,7 @@ export function recordsFrom(raw: unknown): Records {
   try {
     const circuits = (raw as { circuits?: unknown } | null)?.circuits;
     if (!circuits || typeof circuits !== 'object') return out;
-    for (const [id, c] of Object.entries(circuits as Record<string, { bestLap?: unknown; bestRace?: Record<string, unknown> }>)) {
+    for (const [id, c] of Object.entries(circuits as Record<string, { bestLap?: unknown; bestQualifying?: unknown; bestRace?: Record<string, unknown> }>)) {
       if (!c || typeof c !== 'object') continue;
       const bestRace: Record<number, number> = {};
       for (const [laps, t] of Object.entries(c.bestRace ?? {})) {
@@ -49,6 +52,8 @@ export function recordsFrom(raw: unknown): Records {
         if (Number.isInteger(n) && n > 0 && v !== undefined) bestRace[n] = v;
       }
       out.circuits[id] = { bestLap: time(c.bestLap), bestRace };
+      const q = time(c.bestQualifying);
+      if (q !== undefined) out.circuits[id].bestQualifying = q;
     }
   } catch {
     // not records: none
@@ -63,6 +68,14 @@ export function recordLap(r: Records, id: string, seconds: number): boolean {
   const c = circuit(r, id);
   if (c.bestLap !== undefined && c.bestLap <= seconds) return false;
   c.bestLap = seconds;
+  return true;
+}
+
+/** Note a qualifying lap on circuit `id`; true if it's a new best qualifying lap there (the race's laps are kept apart). */
+export function recordQualifying(r: Records, id: string, seconds: number): boolean {
+  const c = circuit(r, id);
+  if (c.bestQualifying !== undefined && c.bestQualifying <= seconds) return false;
+  c.bestQualifying = seconds;
   return true;
 }
 
