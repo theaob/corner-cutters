@@ -1,11 +1,12 @@
 // The pit lane and pit stops. The lane runs beside the main straight, behind
 // a pit wall: a car that leaves the track at the pit entry is committed, and
 // from there it drives itself: down the lane on the speed limiter, into its
-// team's box, stopped while the crew repairs its damage, and back out onto the
-// track at the exit. Engine-free, so a stop runs in a test as in the game.
+// team's box, stopped while the crew fits new tyres and repairs its damage, and
+// back out onto the track at the exit. Engine-free, so a stop runs in a test as in the game.
 
 import { speedOf, type Car, type DriveInput } from '../engine/driving';
 import { lateralOffset, type Pt, type Track } from './racing';
+import { stopNow, wearPerLap, type TyreSet } from './tyres';
 
 export const PIT = {
   /** px from the track's centreline out to the lane's centre */
@@ -22,7 +23,7 @@ export const PIT = {
   /** boxes along the lane, one per team, and the px between them */
   boxes: 5,
   boxSpacing: 44,
-  /** seconds a stop takes with nothing to repair (tyres on, jacks down) */
+  /** seconds a stop takes with nothing to repair (new tyres on, jacks down) */
   stop: 1.2,
   /** seconds to repair a car from no health to full; a stop repairs its share of that */
   repair: 3,
@@ -152,17 +153,17 @@ export function newPitStop(pit: PitLane, car: Car, box: number): PitStop {
 }
 
 /**
- * A would-be race engineer: whether a car should stop at the next chance, from
- * the time its damage will cost over the laps left (a damaged car loses up to
- * `damageSlow` of its top speed) against the time a stop costs.
+ * A would-be race engineer: whether a car at the pit entry should stop now,
+ * weighing the time its worn tyres and damage will cost over the laps left
+ * against the stop (see tyres.ts), stopping now, later or not at all.
+ * `lapTime` is a lap on new tyres.
  */
-export function wantsPit(car: Car, lapsLeft: number, lapTime: number, damageSlow: number): boolean {
-  if (car.wrecked || lapsLeft < 1) return false;
-  const damage = 1 - car.health / car.cls.health;
-  const saved = damage * damageSlow * lapTime * lapsLeft;
-  // the stop's cost: the lane on the limiter, slowing into the box, and the stop itself
-  const cost = stopTime(car) + 4;
-  return saved > cost;
+export function wantsPit(car: Car, tyres: TyreSet, lapsLeft: number, lapTime: number, damageSlow: number, trackLength: number): boolean {
+  if (car.wrecked) return false;
+  return stopNow({
+    lapsLeft, lapTime, wear: tyres.wear, perLap: wearPerLap(tyres, trackLength),
+    damage: 1 - car.health / car.cls.health, damageSlow, stopTime: stopTime(car),
+  });
 }
 
 /** px across the lane (+ = away from the track) a car in `stop` aims for at lane position `s`. */

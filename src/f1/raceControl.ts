@@ -8,6 +8,7 @@
 import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
 import { between, entersPit, newPitStop, pitStep, wantsPit, type PitLane, type PitStop } from './pits';
+import { fitTyres, freshTyres, wearTyres, type TyreSet } from './tyres';
 import { aiInput, coolDownInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
 
 export const SAFETY_CAR = {
@@ -51,6 +52,8 @@ export interface Entrant {
   pit?: PitStop;
   /** pit stops made */
   stops: number;
+  /** the set of tyres it's on */
+  tyres: TyreSet;
 }
 
 export interface SafetyCar {
@@ -98,21 +101,24 @@ export interface Race {
 export function newRace(
   track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver; box?: number }[], lightsOut = 0.5, pit?: PitLane,
 ): Race {
-  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, progress: newProgress(track.samples.length - 4) }));
+  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tyres: freshTyres(), progress: newProgress(track.samples.length - 4) }));
+  for (const e of entrants) fitTyres(e.tyres, e.car);
   return { track, grid, pit, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
 }
 
 /** Samples before the pit entry from which an AI car that wants to stop heads in. */
 const PIT_CALL = 20;
 
-/** Whether an AI entrant heads into the pit lane now: it's at the entry and its damage is worth a stop. */
+/** A lap's time on new tyres, to plan a stop by: the entrant's best so far, or a guess before it has one. */
+export const planLapTime = (race: Race, e: Entrant) => (e.progress.lapTimes.length ? Math.min(...e.progress.lapTimes) : race.track.length / 300);
+
+/** Whether an AI entrant heads into the pit lane now: it's at the entry, and new tyres and repairs are worth a stop now. */
 function aiPits(race: Race, e: Entrant): boolean {
   const { pit, track } = race;
   const n = track.samples.length;
   if (!pit || e.progress.lapStart === undefined || !between(e.progress.idx, pit.entry - PIT_CALL, pit.entry + 4, n)) return false;
   const lapsLeft = race.laps - e.progress.lap - e.progress.idx / n;
-  const lapTime = e.progress.lapTimes[e.progress.lapTimes.length - 1] ?? track.length / 280;
-  return wantsPit(e.car, lapsLeft, lapTime, race.handling.damageSlow);
+  return wantsPit(e.car, e.tyres, lapsLeft, planLapTime(race, e), race.handling.damageSlow, track.length);
 }
 
 /** Still on the track: not retired (a wreck counts until it's cleared). */
@@ -188,7 +194,12 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     }
     if (pit && e.pit) {
       const r = pitStep(pit, e.pit, e.car, others, dt);
-      if (r.stopped) out.push({ kind: 'pit-stop', who: i, seconds: e.pit.time });
+      if (r.stopped) {
+        // new tyres on
+        e.tyres = freshTyres();
+        fitTyres(e.tyres, e.car);
+        out.push({ kind: 'pit-stop', who: i, seconds: e.pit.time });
+      }
       if (!r.done) return stepCar(e.car, r.input, p, dt, grid);
       e.pit = undefined;
       out.push({ kind: 'pit-out', who: i });
@@ -200,6 +211,10 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     // the player's limiter: right behind the safety car, its speed; alongside or just past it, slower, to drop back
     else input = { ...player(e), limit: playerLimit(e) };
     return stepCar(e.car, input, p, dt, grid);
+  });
+  // the tyres wear with the driving
+  entrants.forEach((e, i) => {
+    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt);
   });
   if (sc) {
     // it drives the line at its own pace, moving round a slower car in its way (a backmarker it joined

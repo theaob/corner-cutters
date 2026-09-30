@@ -10,7 +10,7 @@ import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf } from '../
 import { groundAt } from '../engine/sim';
 import { lineCornerSpeed, lineDecel, playerInput, type AiDriver } from './racing';
 import { NORMAL, aiPaceFor, handlingFor, type Difficulty } from './difficulty';
-import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
+import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, planLapTime, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, secondCars, teamGrid, type Team } from './teams';
@@ -282,8 +282,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const p = me.progress;
     const n = track.samples.length;
     if (p.lapStart === undefined || p.finished !== undefined || !between(p.idx, circuit.pit.entry - 60, circuit.pit.entry + 4, n)) return false;
-    const lapTime = p.lapTimes[p.lapTimes.length - 1] ?? track.length / 280;
-    return wantsPit(me.car, race.laps - p.lap - p.idx / n, lapTime, HANDLING.damageSlow);
+    return wantsPit(me.car, me.tyres, race.laps - p.lap - p.idx / n, planLapTime(race, me), HANDLING.damageSlow, track.length);
   };
 
   /**
@@ -481,8 +480,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // your car's health as five blocks (each is 20%)
     const blocks = Math.ceil((me.car.health / me.car.cls.health) * 5);
     const car = me.car.wrecked ? 'WRECKED' : '■'.repeat(blocks) + '□'.repeat(5 - blocks);
+    // your tyres as five blocks and a share left, amber once they're past their best
+    const left = 1 - me.tyres.wear;
+    const tyreBlocks = Math.ceil(left * 5);
+    const tyres = `${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
     const limiter = me.pit ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
-    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}\nCAR  ${car}${limiter}`;
+    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}\nCAR  ${car}${limiter}\nTYRE ${tyres}`;
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
