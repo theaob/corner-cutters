@@ -5,7 +5,7 @@ import { LAYOUTS, SILVER_HEATH, type CircuitLayout } from '../src/f1/layouts';
 import { GARAGE_ACROSS, PIT, entersPit, stopTime, wantsPit } from '../src/f1/pits';
 import { freshTyres } from '../src/f1/tyres';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, nearestSample } from '../src/f1/racing';
-import { newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
+import { newRace, order, running, skipToParked, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -217,4 +217,37 @@ describe.each(LAYOUTS)('after the race at $name', (layout) => {
     // nobody stopped for tyres on the way in
     expect(race.entrants.every((e) => e.stops === 0)).toBe(true);
   }, 60_000);
+});
+
+describe.each(LAYOUTS)('skipping the in-lap at $name', (layout) => {
+  it('finishes everyone at their pace and puts them where their in-lap would end, where they stay', () => {
+    const c = build(layout);
+    const race = raceOn(layout, 3);
+    while (race.phase !== 'racing' || race.clock < 20) stepRace(race, dt);
+    const before = order(race);
+    const top = skipToParked(race);
+    const ranked = order(race);
+    expect(top).toEqual(ranked.slice(0, 3));
+    // nobody had finished: the order stands (at the pace each has shown, nearly)
+    expect(ranked.slice(0, 3).every((i) => before.slice(0, 5).includes(i))).toBe(true);
+    for (const e of race.entrants) {
+      expect(e.progress.finished).toBeGreaterThan(race.clock);
+      expect(e.inLap?.parked).toBe(true);
+    }
+    // a couple of seconds on, all still in place
+    const at = race.entrants.map((e) => ({ x: e.car.x, y: e.car.y }));
+    for (let k = 0; k < 120; k++) stepRace(race, dt);
+    race.entrants.forEach((e, i) => {
+      expect(Math.hypot(e.car.x - at[i].x, e.car.y - at[i].y)).toBeLessThan(3);
+      expect(e.car.wrecked).toBe(false);
+    });
+    ranked.forEach((i, place) => {
+      const e = race.entrants[i];
+      if (place < 3) {
+        const spot = c.pit.podium[place];
+        const s = c.track.samples[spot.idx];
+        expect(Math.hypot(e.car.x - (s.x + Math.cos(s.dir) * spot.lane), e.car.y - (s.y + Math.sin(s.dir) * spot.lane))).toBeLessThan(3);
+      } else expect(e.pit?.phase).toBe('garage');
+    });
+  });
 });

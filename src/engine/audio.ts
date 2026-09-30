@@ -2,7 +2,9 @@
 // works offline in the app): continuous voices (an engine note, filtered noise
 // for tyres, rumble and rain) the game sets every frame, and one-shots (beeps,
 // thumps, chimes). Browsers only let a page make sound after a tap or a key, so
-// the context starts on the first one. The volume is a setting kept on the
+// the context starts on the first one. The engine is built as an engine sounds:
+// a waveform from the crank's orders (the firing pulses strongest), two banks a
+// touch apart, a soft clip for grit and a breath of exhaust noise. The volume is a setting kept on the
 // device; without Web Audio (tests, old browsers) everything here does nothing.
 
 import { storeKey } from './storage';
@@ -53,7 +55,14 @@ function audio(): AudioContext | undefined {
     }
     master = ctx.createGain();
     master.gain.value = soundVolume();
-    master.connect(ctx.destination);
+    // a limiter at the end, so the engines' grit and a crash together never clip
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 8;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.15;
+    master.connect(limiter).connect(ctx.destination);
     // two seconds of white noise, looped by the noise voices
     noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
@@ -79,9 +88,15 @@ export function setAudioPaused(paused: boolean): void {
   else void ctx.resume().catch(() => {});
 }
 
-/** An engine note: a sawtooth and a square an octave apart through a low-pass filter; set its pitch, loudness and brightness every frame. */
+/**
+ * An engine note. `freq` is the firing frequency (Hz: the pitch you hear),
+ * `gain` its loudness and `brightness` (0…1) how hard it's working: more
+ * throttle is more grit and more of the exhaust's roar. `cut` drops it out
+ * for a moment (the ignition cut of a gearshift).
+ */
 export interface EngineVoice {
   set(freq: number, gain: number, brightness: number): void;
+  cut(seconds: number): void;
 }
 
 /** A filtered noise (tyres, rumble, rain); set its loudness every frame. */
@@ -89,36 +104,171 @@ export interface NoiseVoice {
   set(gain: number): void;
 }
 
-const SILENT = { set() {} };
+/** A tyre's squeal: a wavering tone over a hiss; set its loudness and how hard it's sliding (0…1) every frame. */
+export interface SquealVoice {
+  set(gain: number, slide: number): void;
+}
+
+const SILENT = { set() {}, cut() {} };
+
+/**
+ * One turn of the crankshaft of a six-cylinder engine as a waveform: the
+ * firing pulses (every third order of the crank's turn) strongest, the other
+ * orders weaker, which gives the note its rasp. Played at a third of the
+ * firing frequency.
+ */
+export const ENGINE_ORDERS = Array.from({ length: 36 }, (_, i) => {
+  const k = i + 1;
+  return (k % 3 === 0 ? 1 : k % 3 === 1 ? 0.3 : 0.18) / Math.pow(k, 0.75);
+});
+
+let engineWave: PeriodicWave | undefined;
+let driveCurve: Float32Array<ArrayBuffer> | undefined;
+
+/** A soft clip (tanh) for the engine's grit. */
+function softClip(): Float32Array<ArrayBuffer> {
+  if (!driveCurve) {
+    driveCurve = new Float32Array(1024);
+    for (let i = 0; i < driveCurve.length; i++) driveCurve[i] = Math.tanh((i / (driveCurve.length - 1)) * 4 - 2);
+  }
+  return driveCurve;
+}
 
 export function engineVoice(): EngineVoice {
   const c = audio();
-  if (!c || !master) return SILENT;
-  const saw = c.createOscillator();
-  saw.type = 'sawtooth';
-  const sq = c.createOscillator();
-  sq.type = 'square';
-  const sqGain = c.createGain();
-  sqGain.gain.value = 0.35;
+  if (!c || !master || !noiseBuffer) return SILENT;
+  engineWave ??= c.createPeriodicWave(new Float32Array([0, ...ENGINE_ORDERS]), new Float32Array(ENGINE_ORDERS.length + 1));
+  // two cylinder banks, a touch out of tune with each other: the note beats and thickens
+  const a = c.createOscillator();
+  const b = c.createOscillator();
+  a.setPeriodicWave(engineWave);
+  b.setPeriodicWave(engineWave);
+  const bGain = c.createGain();
+  bGain.gain.value = 0.55;
+  // a fast wobble in the pitch, so it never sounds like a test tone
+  const jitter = c.createOscillator();
+  jitter.type = 'triangle';
+  jitter.frequency.value = 23;
+  const jitterDepth = c.createGain();
+  jitterDepth.gain.value = 6;
+  jitter.connect(jitterDepth);
+  jitterDepth.connect(a.detune);
+  jitterDepth.connect(b.detune);
+  // grit: driven harder into a soft clip on the throttle
+  const drive = c.createGain();
+  drive.gain.value = 1;
+  const shaper = c.createWaveShaper();
+  shaper.curve = softClip();
+  shaper.oversample = '2x';
   const filter = c.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.Q.value = 4;
+  filter.Q.value = 1.2;
+  // the exhaust's breath: noise around the note's second harmonic
+  const breath = c.createBufferSource();
+  breath.buffer = noiseBuffer;
+  breath.loop = true;
+  const breathBand = c.createBiquadFilter();
+  breathBand.type = 'bandpass';
+  breathBand.Q.value = 1.5;
+  const breathGain = c.createGain();
+  breathGain.gain.value = 0;
   const out = c.createGain();
   out.gain.value = 0;
-  saw.connect(filter);
-  sq.connect(sqGain).connect(filter);
-  filter.connect(out).connect(master);
-  saw.start();
-  sq.start();
+  const gate = c.createGain();
+  a.connect(drive);
+  b.connect(bGain).connect(drive);
+  drive.connect(shaper).connect(filter).connect(out);
+  breath.connect(breathBand).connect(breathGain).connect(out);
+  out.connect(gate).connect(master);
+  for (const o of [a, b, jitter]) o.start();
+  breath.start(0, Math.random() * 2);
   return {
     set(freq, gain, brightness) {
       const t = c.currentTime;
-      saw.frequency.setTargetAtTime(freq, t, 0.03);
-      sq.frequency.setTargetAtTime(freq / 2, t, 0.03);
-      filter.frequency.setTargetAtTime(400 + brightness * 2600, t, 0.05);
-      out.gain.setTargetAtTime(gain, t, 0.05);
+      const crank = freq / 3;
+      a.frequency.setTargetAtTime(crank, t, 0.025);
+      b.frequency.setTargetAtTime(crank * 1.006, t, 0.025);
+      drive.gain.setTargetAtTime(0.6 + brightness * 2.4, t, 0.05);
+      filter.frequency.setTargetAtTime(Math.min(9000, freq * (2 + brightness * 7)), t, 0.04);
+      breathBand.frequency.setTargetAtTime(freq * 2, t, 0.04);
+      breathGain.gain.setTargetAtTime(0.25 + brightness * 0.9, t, 0.05);
+      out.gain.setTargetAtTime(gain * 0.55, t, 0.05);
+    },
+    cut(seconds) {
+      const t = c.currentTime;
+      gate.gain.cancelScheduledValues(t);
+      gate.gain.setValueAtTime(gate.gain.value, t);
+      gate.gain.linearRampToValueAtTime(0.25, t + 0.012);
+      gate.gain.setValueAtTime(0.25, t + seconds);
+      gate.gain.linearRampToValueAtTime(1, t + seconds + 0.03);
     },
   };
+}
+
+export function squealVoice(): SquealVoice {
+  const c = audio();
+  if (!c || !master || !noiseBuffer) return SILENT;
+  const tone = c.createOscillator();
+  tone.type = 'triangle';
+  tone.frequency.value = 1050;
+  // the rubber stick-slipping: a wobble in the pitch
+  const wobble = c.createOscillator();
+  wobble.frequency.value = 11;
+  const wobbleDepth = c.createGain();
+  wobbleDepth.gain.value = 70;
+  wobble.connect(wobbleDepth).connect(tone.frequency);
+  const toneGain = c.createGain();
+  toneGain.gain.value = 0.5;
+  const hiss = c.createBufferSource();
+  hiss.buffer = noiseBuffer;
+  hiss.loop = true;
+  const band = c.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.value = 2200;
+  band.Q.value = 3;
+  const out = c.createGain();
+  out.gain.value = 0;
+  tone.connect(toneGain).connect(out);
+  hiss.connect(band).connect(out);
+  out.connect(master);
+  tone.start();
+  wobble.start();
+  hiss.start(0, Math.random() * 2);
+  return {
+    set(gain, slide) {
+      const t = c.currentTime;
+      tone.frequency.setTargetAtTime(900 + slide * 350, t, 0.08);
+      out.gain.setTargetAtTime(gain, t, 0.04);
+    },
+  };
+}
+
+/** An exhaust pop or a gearshift's crack: a very short burst of band-passed noise over a low click, `strength` 0…1. */
+export function pop(strength: number, freq = 900): void {
+  const c = audio();
+  if (!c || !master || !noiseBuffer || c.state !== 'running' || strength <= 0) return;
+  const t = c.currentTime;
+  const noise = c.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = freq;
+  bp.Q.value = 1.2;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.3 * strength, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  noise.connect(bp).connect(g).connect(master);
+  noise.start(t, Math.random() * 1.9);
+  noise.stop(t + 0.08);
+  const click = c.createOscillator();
+  click.frequency.setValueAtTime(180, t);
+  click.frequency.exponentialRampToValueAtTime(60, t + 0.04);
+  const cg = c.createGain();
+  cg.gain.setValueAtTime(0.25 * strength, t);
+  cg.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  click.connect(cg).connect(master);
+  click.start(t);
+  click.stop(t + 0.07);
 }
 
 export function noiseVoice(type: BiquadFilterType, freq: number, q = 1): NoiseVoice {
