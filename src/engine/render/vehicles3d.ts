@@ -99,6 +99,8 @@ export interface CarMesh extends THREE.Group {
     paint: THREE.MeshLambertMaterial[];
     /** the coloured band round each tyre's outer edge, marking its compound: set its colour */
     tyreMark: THREE.MeshBasicMaterial;
+    /** the red rain light at the back, for wet races: off (hidden) until shown */
+    rainLight: THREE.Mesh;
   };
 }
 
@@ -192,6 +194,12 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     }
   }
 
-  car.userData = { paint, tyreMark };
+  // the rain light: a red lamp at the back, under the rear wing (unlit, so it glows; the bloom picks it up)
+  const rainLight = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2, 1), new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false }));
+  rainLight.position.set(0, 4.2, L / 2 - 0.2);
+  rainLight.visible = false;
+  car.add(rainLight);
+
+  car.userData = { paint, tyreMark, rainLight };
   return car;
 }
