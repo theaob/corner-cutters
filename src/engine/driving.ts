@@ -214,6 +214,10 @@ export interface Car {
   vz: number;
   /** off the ground after a ramp or crest: no steering or grip until it lands */
   airborne: boolean;
+  /** the tyres' share of their grip and turn (1 = new; worn tyres slide more and turn less); unset = 1 */
+  tyreGrip?: number;
+  /** the share of its top speed the car can reach (worn tyres can't put the power down); unset = 1 */
+  speedScale?: number;
 }
 
 export type CarCondition = 'ok' | 'smoking' | 'burning' | 'wrecked';
@@ -344,7 +348,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   const rough = onRough ? cls.offRoad : 1;
   // a damaged car loses power and downforce: its top speed falls with its health
   const hurt = p.damageSlow * (1 - car.health / cls.health);
-  const top = cls.topSpeed * rough * (1 - hurt);
+  const top = cls.topSpeed * rough * (1 - hurt) * (car.speedScale ?? 1);
   // a speed limiter caps what the stick asks for (it doesn't shrink the scale the stick works on)
   const limit = input.limit ?? Infinity;
   // brakes work as well anywhere
@@ -379,7 +383,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
       diff = angleDiff(target, car.heading);
     }
     const turnScale = Math.min(1, Math.max(0.35, Math.abs(fwd) / (top * 0.3)));
-    const turn = cls.turnRate * dt * turnScale * (handbrake ? p.handbrakeTurn : 1);
+    const turn = cls.turnRate * (car.tyreGrip ?? 1) * dt * turnScale * (handbrake ? p.handbrakeTurn : 1);
     const next = car.heading + Math.max(-turn, Math.min(turn, diff));
     // a long body can't swing its nose or tail into a wall
     if (!bodyBlocked(grid, car, next) || bodyBlocked(grid, car, car.heading)) car.heading = next;
@@ -421,7 +425,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
     fwd = Math.max(-cls.topSpeed * 0.6, Math.min(cls.topSpeed * 1.25, fwd));
 
     const gripShare = (0.5 + 0.5 * rough) * (handbrake ? p.handbrakeGrip : 1) * (car.wrecked ? 3 : 1);
-    const grip = cls.grip * gripShare;
+    const grip = cls.grip * (car.tyreGrip ?? 1) * gripShare;
     // the slide fades as the tyres bite, but they can only push so hard sideways
     const bite = side * (1 - Math.exp(-grip * dt));
     // (no limit stays no limit: Infinity × a zero step would be NaN)

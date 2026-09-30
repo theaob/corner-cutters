@@ -125,14 +125,14 @@ as now).
    where the game's name becomes a mechanic.
 3. **Qualifying (short):** one flying lap sets your grid slot; skippable. Today the player is
    always mid-grid.
-4. **Tyres and pit stops:** pit stops are **in the game now**, for repairing damage (see
-   `f1/pits.ts`): every circuit has a pit lane with a box per team, the car drives itself
-   through once it turns in, and a stop costs about 7 s. Tyres come with the Grand Prix
-   races (M6); sprints stay 1–3 laps with no tyre model. Two compounds (soft: fast, wears quickly; hard: slower, lasts), with grip
-   falling off as they wear, shown as a bar next to the health blocks. One pit stop: enter
-   the pit lane, the car drives itself through at a speed limit, the stop takes a fixed
-   time, and you pick the next compound. The AI chooses when to stop from its tyre wear and
-   the gap behind, and some AI cars gamble on a different strategy.
+4. **Tyres and pit stops:** both **in the game now** (`f1/pits.ts`, `f1/tyres.ts`): every
+   circuit has a pit lane with a box per team, the car drives itself through once it turns
+   in, and a stop fits new tyres and repairs damage for about 7 s. Tyres wear with speed,
+   faster sliding and off the track, and lose grip and speed, sharply past a cliff; a set
+   lasts about two laps at its best. Races default to 5 laps: no stop pays in 3 laps, one in 5,
+   two in 8. The AI (and the BOX, BOX call) plans the stop from wear, damage and laps left.
+   Still to come: two compounds (soft: fast, wears quickly; hard: slower, lasts), picked at
+   the stop, and AI cars gambling on different strategies.
 
    Every new circuit needs a pit lane in its layout data (`pit` in `layouts.ts`) along a
    straight long enough for five boxes; `tests/pits.test.ts` checks it.
@@ -341,7 +341,8 @@ Everywhere:
 
 The goal: longer races with strategy, once players have mastered the sprints.
 
-- [ ] Tyre model: two compounds, wear, grip falling off; tyre bar in the HUD
+- [x] Tyre model: wear, grip and speed falling off past a cliff; tyre bar in the HUD (done early)
+- [ ] Two compounds (soft and hard), picked at a stop
 - [x] Pit lane: entry and exit, speed limit, the car drives itself through, repairs (done early, for damage)
 - [ ] Pick the next compound at a stop; the stop time covers tyres as well as repairs
 - [ ] AI strategy: when to stop and which compound, from wear and gaps; some AI cars take a

@@ -3,6 +3,7 @@ import { applyDamage, carClass, newCar, speedOf } from '../src/engine/driving';
 import { HALF_WIDTH, TILE, buildCircuit, type Circuit } from '../src/f1/circuit';
 import { LAYOUTS, SILVER_HEATH, type CircuitLayout } from '../src/f1/layouts';
 import { PIT, entersPit, stopTime, wantsPit } from '../src/f1/pits';
+import { freshTyres } from '../src/f1/tyres';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, nearestSample } from '../src/f1/racing';
 import { newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
@@ -85,15 +86,15 @@ describe('the pit entry', () => {
 describe('when to stop', () => {
   const car = newCar(f1, 0, 0);
   it('never for a healthy car, or with no laps left', () => {
-    expect(wantsPit(car, 5, 25, RACE_HANDLING.damageSlow)).toBe(false);
+    expect(wantsPit(car, freshTyres(), 5, 25, RACE_HANDLING.damageSlow, 8000)).toBe(false);
     car.health = car.cls.health * 0.4;
-    expect(wantsPit(car, 0.6, 25, RACE_HANDLING.damageSlow)).toBe(false);
+    expect(wantsPit(car, freshTyres(), 0.6, 25, RACE_HANDLING.damageSlow, 8000)).toBe(false);
   });
   it('for a badly damaged car with laps to go, when the repair saves more than the stop costs', () => {
     car.health = car.cls.health * 0.4;
-    expect(wantsPit(car, 2, 25, RACE_HANDLING.damageSlow)).toBe(true);
+    expect(wantsPit(car, freshTyres(), 2, 25, RACE_HANDLING.damageSlow, 8000)).toBe(true);
     car.health = car.cls.health * 0.85;
-    expect(wantsPit(car, 2, 25, RACE_HANDLING.damageSlow)).toBe(false);
+    expect(wantsPit(car, freshTyres(), 2, 25, RACE_HANDLING.damageSlow, 8000)).toBe(false);
   });
   it('takes longer the more there is to repair', () => {
     car.health = car.cls.health;

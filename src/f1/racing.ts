@@ -302,8 +302,11 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const dx = tx - car.x;
   const dy = ty - car.y;
   const d = Math.hypot(dx, dy) || 1;
-  // the line's speed a little ahead (it already includes braking for what's beyond)
-  const want = Math.min(track.samples[(idx + 2) % n].speed * ai.pace, follow, orders.limit ?? Infinity);
+  // the line's speed a little ahead (it already includes braking for what's beyond); on worn tyres
+  // the car turns less, so it takes the bends (and the braking into them) that much slower
+  const line = track.samples[(idx + 2) % n].speed;
+  const cornering = line < car.cls.topSpeed - 1 ? car.tyreGrip ?? 1 : 1;
+  const want = Math.min(line * ai.pace * cornering, follow, orders.limit ?? Infinity);
   const mag = Math.max(0.05, Math.min(1, want / car.cls.topSpeed));
   return { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 12, limit: orders.limit };
 }
