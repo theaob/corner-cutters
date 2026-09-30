@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEAMS, TEAMS_PER_RACE, secondCars, teamById, teamGrid } from '../src/f1/teams';
+import { TEAMS, TEAMS_PER_RACE, driverSeats, teamById, teamGrid } from '../src/f1/teams';
 
 /** A repeatable random sequence. */
 const seeded = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
@@ -30,13 +30,24 @@ describe('teams', () => {
     expect(c[yours.id]).toBe(2);
   });
 
-  it('mark one car of each pair as the second (the green T-camera), so teammates tell apart', () => {
-    const grid = teamGrid(TEAMS[2], 10, 5, seeded(11));
-    const seconds = secondCars(grid);
-    for (const t of new Set(grid)) {
-      const marks = grid.flatMap((g, i) => (g === t ? [seconds[i]] : []));
-      expect(marks.sort()).toEqual([false, true]);
+  it('seat each pair as the first and second driver (the second has the green T-camera), you in your team\'s first seat', () => {
+    for (const seed of [11, 3, 7]) {
+      const grid = teamGrid(TEAMS[2], 10, 5, seeded(seed));
+      const seats = driverSeats(grid, 5);
+      expect(seats[5]).toBe(0);
+      for (const t of new Set(grid)) {
+        const marks = grid.flatMap((g, i) => (g === t ? [seats[i]] : []));
+        expect(marks.sort()).toEqual([0, 1]);
+      }
     }
+  });
+
+  it('each have two drivers with their own three-letter codes, 22 in all', () => {
+    const codes = TEAMS.flatMap((t) => t.drivers);
+    expect(codes).toHaveLength(TEAMS.length * 2);
+    for (const c of codes) expect(c).toMatch(/^[A-Z]{3}$/);
+    expect(new Set(codes).size).toBe(codes.length);
+    expect(teamById('milk-energy')?.drivers).toEqual(['VER', 'HAD']);
   });
 
   it('draw different rivals from race to race', () => {
