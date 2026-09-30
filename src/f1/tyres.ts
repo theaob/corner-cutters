@@ -4,9 +4,44 @@
 // they're nearly gone (the cliff). A pit stop fits a fresh set. Tuned so a
 // set lasts about two laps before the cliff: a 3-lap race is best run without
 // stopping, a 5-lap race with one stop, and a slide-happy driver stops sooner.
+//
+// Three compounds, each at its best in its own weather: slicks on a dry track,
+// intermediates on a damp one, full wets in the rain. The wrong tyre for the
+// track grips less, is slower, and (a wet tyre on a dry track) wears out fast;
+// a wet track is slower than a dry one even on the right tyres. The crew fits
+// the right compound for the weather at the start and at every stop.
 // Engine-free and unit-tested.
 
 import { speedOf, type Car, type StepEvents } from '../engine/driving';
+import type { WeatherId } from './weather';
+
+export type Compound = 'slick' | 'inter' | 'wet';
+
+/** How a compound does on a track: its share of grip and of top speed, and how fast it wears (× a slick's in the dry). */
+export interface Fit {
+  grip: number;
+  speed: number;
+  wear: number;
+}
+
+/** Each compound's name, its colour (as F1 marks them: yellow slicks, green intermediates, blue wets), and how it does in each weather. */
+export const COMPOUNDS: Record<Compound, { name: string; short: string; color: string; on: Record<WeatherId, Fit> }> = {
+  slick: {
+    name: 'SLICKS', short: 'SLK', color: '#ffd21f',
+    on: { dry: { grip: 1, speed: 1, wear: 1 }, damp: { grip: 0.7, speed: 0.88, wear: 0.8 }, wet: { grip: 0.5, speed: 0.78, wear: 0.6 } },
+  },
+  inter: {
+    name: 'INTERMEDIATES', short: 'INT', color: '#3ccf4e',
+    on: { dry: { grip: 0.85, speed: 0.93, wear: 2.2 }, damp: { grip: 0.9, speed: 0.95, wear: 1 }, wet: { grip: 0.75, speed: 0.87, wear: 0.8 } },
+  },
+  wet: {
+    name: 'FULL WETS', short: 'WET', color: '#2f8bff',
+    on: { dry: { grip: 0.75, speed: 0.86, wear: 3.5 }, damp: { grip: 0.8, speed: 0.9, wear: 1.6 }, wet: { grip: 0.85, speed: 0.9, wear: 1 } },
+  },
+};
+
+/** The compound for a weather: the one that's quickest there. */
+export const tyreFor = (weather: WeatherId): Compound => (weather === 'wet' ? 'wet' : weather === 'damp' ? 'inter' : 'slick');
 
 export const TYRES = {
   /** wear per second at top speed, driving cleanly */
@@ -32,13 +67,14 @@ export const TYRES = {
 
 /** A car's set of tyres. */
 export interface TyreSet {
+  compound: Compound;
   /** 0 = new … 1 = gone */
   wear: number;
   /** px driven on this set */
   driven: number;
 }
 
-export const freshTyres = (): TyreSet => ({ wear: 0, driven: 0 });
+export const freshTyres = (compound: Compound = 'slick'): TyreSet => ({ compound, wear: 0, driven: 0 });
 
 /** How far over the cliff `wear` is: 0 before it, 1 with the tyres gone. */
 const overCliff = (wear: number) => Math.max(0, (wear - TYRES.cliff) / (1 - TYRES.cliff));
@@ -49,23 +85,24 @@ export const tyreGrip = (wear: number) => 1 - TYRES.gripLoss * wear - TYRES.clif
 /** The share of top speed left at `wear`. */
 export const tyreSpeed = (wear: number) => 1 - TYRES.speedLoss * wear - TYRES.cliffSpeedLoss * overCliff(wear);
 
-/** Wear the tyres for one driving step of `car` (with that step's events), and put their state on the car. */
-export function wearTyres(set: TyreSet, car: Car, events: StepEvents, dt: number): void {
+/** Wear the tyres for one driving step of `car` (with that step's events) in `weather`, and put their state on the car. */
+export function wearTyres(set: TyreSet, car: Car, events: StepEvents, dt: number, weather: WeatherId = 'dry'): void {
   if (!car.airborne && !car.wrecked) {
     const v = speedOf(car);
     const f = { x: Math.sin(car.heading), y: -Math.cos(car.heading) };
     const slide = Math.abs(car.vx * -f.y + car.vy * f.x);
     const rate = TYRES.base * Math.min(1, v / car.cls.topSpeed) + TYRES.slide * Math.min(1, slide / TYRES.slideFull) + (events.onRough && v > 20 ? TYRES.rough : 0);
-    set.wear = Math.min(1, set.wear + rate * dt);
+    set.wear = Math.min(1, set.wear + rate * COMPOUNDS[set.compound].on[weather].wear * dt);
     set.driven += v * dt;
   }
-  fitTyres(set, car);
+  fitTyres(set, car, weather);
 }
 
-/** Put the set's grip and speed on the car. */
-export function fitTyres(set: TyreSet, car: Car): void {
-  car.tyreGrip = tyreGrip(set.wear);
-  car.speedScale = tyreSpeed(set.wear);
+/** Put the set's grip and speed in `weather` on the car. */
+export function fitTyres(set: TyreSet, car: Car, weather: WeatherId = 'dry'): void {
+  const fit = COMPOUNDS[set.compound].on[weather];
+  car.tyreGrip = tyreGrip(set.wear) * fit.grip;
+  car.speedScale = tyreSpeed(set.wear) * fit.speed;
 }
 
 /** Seconds a lap costs over one on new tyres, at `wear` through it (from the lost speed). */

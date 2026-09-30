@@ -184,6 +184,11 @@ export class Particles {
     this.spawn(x, z, base + 10, dark ? 0x2a2830 : 0x8a8894, 1.4, 6, 14, false);
   }
 
+  /** Spray thrown up off a wet track: pale, low and quickly gone. */
+  spray(x: number, z: number, base = 0): void {
+    this.spawn(x, z, base + 3, Math.random() < 0.5 ? 0xd8dee8 : 0xb8c0cc, 0.45, 9, 5, false);
+  }
+
   flame(x: number, z: number, base = 0): void {
     this.spawn(x, z, base + 13, Math.random() < 0.5 ? 0xff7a1a : 0xffc23a, 0.5, 10, 24, true);
   }

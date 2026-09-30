@@ -48,8 +48,8 @@ describe('tyres', () => {
   });
 
   it('measure their wear per lap once a set has done half a lap', () => {
-    expect(wearPerLap({ wear: 0.1, driven: 1000 }, 8000)).toBe(TYRES.lapWear);
-    expect(wearPerLap({ wear: 0.6, driven: 16000 }, 8000)).toBeCloseTo(0.3);
+    expect(wearPerLap({ compound: 'slick', wear: 0.1, driven: 1000 }, 8000)).toBe(TYRES.lapWear);
+    expect(wearPerLap({ compound: 'slick', wear: 0.6, driven: 16000 }, 8000)).toBeCloseTo(0.3);
   });
 });
 

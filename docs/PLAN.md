@@ -136,8 +136,10 @@ as now).
 
    Every new circuit needs a pit lane in its layout data (`pit` in `layouts.ts`) along a
    straight long enough for five boxes; `tests/pits.test.ts` checks it.
-5. **Weather:** wet sections with lower grip and spray. Later milestone; touches the look and
-   the handling.
+5. **Weather:** **in the game now** (`f1/weather.ts`), picked before a race: dry, damp or wet,
+   with slicks, intermediates and full wets (yellow, green and blue bands on the tyres), rain,
+   spray and an overcast look. Still to come: weather that changes during a race, so choosing
+   when to switch tyres becomes the strategy, and the player picking tyres at a stop.
 
 ### Feel and presentation
 
@@ -294,7 +296,8 @@ The goal: a full first season.
 - [ ] Harbour street circuit (tight, walls)
 - [ ] Mountain circuit (elevation, crests, jumps)
 - [ ] Night desert circuit (straights, slipstream) with a night variant of `render/daylight.ts`
-- [ ] Rain/forest circuit with wet-grip sections and spray (weather)
+- [x] Weather: dry, damp and wet, with three tyre compounds, rain and spray (done early)
+- [ ] Weather that changes during a race; the player picking tyres at a stop
 - [ ] Start-of-race grid pan; 10-second replay after the flag
 - [ ] Music: a race track per circuit (or per pair of circuits), stings for fastest lap / podium / title
 - [ ] A pit lane in every new circuit's layout data (repair stops already use it)
