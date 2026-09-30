@@ -85,6 +85,8 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
 
 export interface MenuChoice {
   mode: GameMode;
+  /** the controls lap again, from the settings, instead of a race */
+  controlsLap?: boolean;
   layout: CircuitLayout;
   team: Team;
   difficulty: Difficulty;
@@ -215,7 +217,7 @@ export function chooseCircuit(
   let view: 'menu' | 'settings' = 'menu';
   /** the button a press started on: lifting on the same button picks it */
   let armed: number | undefined;
-  let finish: (l: CircuitLayout) => void = () => {};
+  let finish: (l: CircuitLayout, controlsLap?: boolean) => void = () => {};
 
   const modeRow = optionRow('MODE', MODES, MODES.find((m) => m.id === mode) ?? MODES[0], (m) => ({ name: m.name, about: m.about }));
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
@@ -260,6 +262,8 @@ export function chooseCircuit(
   };
   const settingsButton = menuButton('SETTINGS', openSettings);
   const doneButton = menuButton('DONE', closeSettings);
+  // the controls lap again (a new player gets it on first launch)
+  const controlsButton = menuButton('CONTROLS LAP', () => finish(layouts[0], true));
 
   const records = loadRecords();
   const buttons = layouts.map((layout, i) => {
@@ -308,7 +312,7 @@ export function chooseCircuit(
   });
   const tab = framed() ? ownTabButton() : undefined;
   const menuParts: HTMLElement[] = [hint, list, ...rows.map((r) => r.el), settingsButton, ...(tab ? [tab] : [])];
-  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton];
+  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), controlsButton, doneButton];
   const show = () => {
     for (const el of menuParts) el.style.display = view === 'menu' ? '' : 'none';
     for (const el of settingsParts) el.style.display = view === 'settings' ? '' : 'none';
@@ -316,7 +320,8 @@ export function chooseCircuit(
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'menu' && focus === layouts.length + k));
     settingsButton.classList.toggle('focused', view === 'menu' && focus === layouts.length + rows.length);
     settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
-    doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
+    controlsButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
+    doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length + 1);
   };
   // a tap on a row focuses it too
   rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
@@ -348,10 +353,10 @@ export function chooseCircuit(
       return edge;
     };
     let done = false;
-    finish = (layout) => {
+    finish = (layout, controlsLap = false) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
-      if (!open.has(layout.id) && modeRow.value().id !== 'championship') {
+      if (!controlsLap && !open.has(layout.id) && modeRow.value().id !== 'championship') {
         menuTick();
         hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
         return;
@@ -359,7 +364,7 @@ export function chooseCircuit(
       done = true;
       menuPick();
       menu.remove();
-      resolve({ mode: modeRow.value().id, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() });
+      resolve({ mode: modeRow.value().id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;
@@ -372,14 +377,15 @@ export function chooseCircuit(
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (view === 'settings') {
         // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back
-        const places = settingsRows.length + 1;
+        const places = settingsRows.length + 2;
         if (move) {
           focus = (focus + move + places) % places;
           show();
         }
         const row = settingsRows[focus];
         if (row && (left || right)) row.step(right ? 1 : -1);
-        if (a || start) closeSettings();
+        if ((a || start) && focus === settingsRows.length) finish(layouts[0], true);
+        else if (a || start) closeSettings();
       } else {
         const places = layouts.length + rows.length + 1;
         if (move) {
