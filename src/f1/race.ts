@@ -30,6 +30,7 @@ import { defaults } from '../engine/tuning';
 import { TILE, buildCircuit } from './circuit';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
+import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
 import { F1_TUNING } from './tuning';
@@ -108,6 +109,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     background: 'rgba(21,20,31,.75)', color: '#9d9ab8', font: '12px Silkscreen, monospace', whiteSpace: 'pre',
   });
   const tyreLine = document.createElement('span');
+  // the speed, frame rate and picture quality, small and dim under the rest
+  const statsLine = document.createElement('span');
+  Object.assign(statsLine.style, { color: '#6c6a88', fontSize: '10px' });
+  // your position, flashed big when it changes: green gaining a place, red losing one
+  const posFlash = document.createElement('div');
+  Object.assign(posFlash.style, {
+    position: 'absolute', left: '0', right: '0', top: '21%', zIndex: '2', textAlign: 'center', pointerEvents: 'none',
+    font: '26px Silkscreen, monospace', textShadow: '0 2px 0 #1b1b26', opacity: '0', transition: 'opacity .5s',
+  });
   const banner = document.createElement('div');
   style(banner, {
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
@@ -196,10 +206,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
     rainCtx.stroke();
   };
-  host.append(rain, readout, banner, results, mini, teamCard, pauseScreen);
+  host.append(rain, posFlash, readout, banner, results, mini, teamCard, pauseScreen);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
+  /** the HUD's own state: gap timing, your last position and its flash, and the race's fastest lap so far (set up by startRace) */
+  let hudState: { gaps: GapTimer; lastPos: number; flashUntil: number; lapsSeen: number[]; fastest?: { time: number; who: number } } = {
+    gaps: newGapTimer(0), lastPos: 0, flashUntil: 0, lapsSeen: [],
+  };
   let looks: Look[] = [];
   /** your race is over (finished, or out) and the results are coming */
   let done = false;
@@ -257,6 +271,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     });
     // five lights, one every 0.6 s, then out after a short random wait
     race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7, circuit.pit, weather.id);
+    hudState = { gaps: newGapTimer(total), lastPos: 0, flashUntil: 0, lapsSeen: new Array(total).fill(0), fastest: undefined };
+    posFlash.style.opacity = '0';
     done = false;
     saved = { laps: 0, race: false, newLap: false, newRace: false };
     notice = { text: '', color: '', until: 0 };
@@ -348,10 +364,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
             : `+${(p.finished + p.penalty - winner).toFixed(2)}`
           : `${p.lap}/${race.laps} LAPS`;
       const best = p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–';
+      const fastest = hudState.fastest?.who === i;
       const notes = [p.penalty ? `+${p.penalty}S` : '', e.stops ? `${e.stops}P` : ''].filter(Boolean).join(' ');
       const row = document.createElement('tr');
       if (i === you) row.style.color = '#f2c14e';
       row.append(cell('td', `${pos + 1}`, true), cell('td', looks[i].name), cell('td', looks[i].team.code), cell('td', time, true), cell('td', best, true), cell('td', notes));
+      // the race's fastest lap in purple
+      if (fastest) (row.children[4] as HTMLElement).style.color = '#b36bff';
       table.append(row);
     });
     const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
@@ -453,6 +472,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       else if (e.kind === 'pit-out' && e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
     }
+    // gaps at the timing points, and the race's fastest lap (announced; purple in the results)
+    if (race.phase === 'racing') stepGaps(hudState.gaps, race.entrants.map((e) => e.progress), track, race.clock);
+    race.entrants.forEach((e, i) => {
+      const count = e.progress.lapTimes.length;
+      if (count <= hudState.lapsSeen[i]) return;
+      const lap = e.progress.lapTimes[count - 1];
+      hudState.lapsSeen[i] = count;
+      if (hudState.fastest && lap >= hudState.fastest.time) return;
+      const first = !hudState.fastest;
+      hudState.fastest = { time: lap, who: i };
+      // (not for the first lap anyone completes: that's always the fastest so far)
+      if (!first && race.clock >= notice.until) announce(`FASTEST LAP · ${looks[i].name} ${fmt(lap)}`, '#b36bff', 2.5);
+    });
     // your records: a new lap as soon as it's done (a record announced if it beats one), the race at your flag
     const mine = race.entrants[you].progress;
     if (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race)) {
@@ -510,6 +542,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const showNow = p.finished !== undefined ? clock > p.finished + 1.5 : others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
     hud.setPosition(`P${pos}/${race.entrants.length}`);
+    // a place gained or lost (not while the lights are on, nor after your flag)
+    if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
+      const up = pos < hudState.lastPos;
+      posFlash.textContent = `P${pos} ${up ? '▲' : '▼'}`;
+      posFlash.style.color = up ? '#5fe0d0' : '#d8323c';
+      posFlash.style.opacity = '1';
+      hudState.flashUntil = clock + 1.2;
+    }
+    if (clock > hudState.flashUntil) posFlash.style.opacity = '0';
+    hudState.lastPos = pos;
     hud.setLap(p.retired ? 'OUT' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // the banner: start lights, GO!, then the most urgent message
@@ -544,11 +586,22 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const tyreBlocks = Math.ceil(left * 5);
     const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
     const limiter = me.pit ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
-    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}\nCAR  ${car}${limiter}\n`;
+    // the gaps to the cars either side of you (by the timing points), while you're racing
+    const gapLine = (other: number | undefined, mark: string) => {
+      if (other === undefined || done) return '';
+      const gap = mark === '▲' ? gapBetween(hudState.gaps, other, you) : gapBetween(hudState.gaps, you, other);
+      // (just after a pass the last shared timing point can put the gap the wrong way round: 0 then)
+      return `\n${mark} ${looks[other].name.padEnd(6)}${gap === undefined ? '–' : `${mark === '▲' ? '+' : '−'}${Math.max(0, gap).toFixed(2)}`}`;
+    };
+    const ahead = pos > 1 ? order[pos - 2] : undefined;
+    const behindCar = order[pos];
+    const behind = behindCar !== undefined && running(race.entrants[behindCar]) && !race.entrants[behindCar].car.wrecked ? behindCar : undefined;
+    readout.textContent = `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}${limiter}\n`;
     // the tyre line in its compound's colour
-    tyreLine.textContent = `TYRE ${tyres}`;
+    tyreLine.textContent = `TYRE ${tyres}\n`;
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
-    readout.append(tyreLine);
+    statsLine.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}`;
+    readout.append(tyreLine, statsLine);
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
