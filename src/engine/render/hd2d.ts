@@ -89,6 +89,13 @@ export class Hd2dPipeline {
     this.scenePass.scene = scene;
   }
 
+  /** Free the render targets and passes (the view is closing). */
+  dispose(): void {
+    this.bloom.dispose();
+    for (const p of this.blurPasses) p.dispose();
+    this.composer.dispose();
+  }
+
   setSize(w: number, h: number): void {
     this.composer.setSize(w, h);
     for (const pass of this.blurPasses) pass.uniforms.res.value.set(w, h);

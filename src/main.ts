@@ -12,7 +12,7 @@ import { playMusic } from './engine/music';
 import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
-import { LAYOUTS, layoutById } from './f1/layouts';
+import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { chooseCircuit } from './f1/circuitSelect';
 import { TEAMS, teamById } from './f1/teams';
 import { NORMAL, difficultyById } from './f1/difficulty';
@@ -108,40 +108,75 @@ const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
 
+/** The screen showing now (the menu or a race): closed before the next one opens. */
+let current: { close(): void } | undefined;
+/** Counts screen changes: a screen that finishes opening after a newer change is closed at once. */
+let routeId = 0;
+/** The TUNE button (laps, grid, AI pace, camera), in every build, mounted with the first race; values are kept on the device. */
+let tuning: ReturnType<typeof mountTuning<typeof F1_TUNING>> | undefined;
+
 /**
- * ?circuit=<id> races there; otherwise the circuit menu comes first. Picking
- * one (or SELECT during a race) moves between the two by address, so the
- * browser's back button works and the race starts from a clean page.
+ * Show the screen the address asks for: ?circuit=<id> races there; otherwise
+ * the circuit menu. Moving between them changes the address (so the browser's
+ * back button works) without loading the page again: the screen before is
+ * closed and the next one opened in its place.
  */
-async function start(): Promise<void> {
-  const fit = sizeScreen();
+async function route(): Promise<void> {
+  const id = ++routeId;
+  current?.close();
+  current = undefined;
+  // (nothing held on one screen carries over to the next)
+  controls.clearAll();
+  releaseDeck(deck);
   const layout = layoutById(new URLSearchParams(window.location.search).get('circuit'));
-  if (!layout) {
-    // the menu: all touch, no deck; the screen fills the column
-    document.documentElement.classList.add('menu');
-    const fillScreen = () => {
-      screen.style.width = '100%';
-      screen.style.height = '100%';
-    };
-    fillScreen();
-    onResize = fillScreen;
-    // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
-    playMusic(THEME_MUSIC);
-    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying());
-    save('choices', 'circuit', picked.layout.id);
-    save('choices', 'team', picked.team.id);
-    save('choices', 'difficulty', picked.difficulty.id);
-    save('choices', 'weather', picked.weather.id);
-    save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
-    window.location.assign(withCircuit(picked.layout.id));
+  if (!layout) await showMenu(id);
+  else await showRace(id, layout);
+}
+
+/** Go to `url` (this page with other flags) and show its screen. */
+function navigate(url: string): void {
+  history.pushState(null, '', url);
+  void route();
+}
+window.addEventListener('popstate', () => void route());
+
+async function showMenu(id: number): Promise<void> {
+  // the menu: all touch, no deck; the screen fills the column
+  document.documentElement.classList.add('menu');
+  const fillScreen = () => {
+    screen.style.width = '100%';
+    screen.style.height = '100%';
+  };
+  fillScreen();
+  onResize = fillScreen;
+  // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
+  playMusic(THEME_MUSIC);
+  const closed = new AbortController();
+  current = { close: () => closed.abort() };
+  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), closed.signal);
+  if (id !== routeId) return;
+  save('choices', 'circuit', picked.layout.id);
+  save('choices', 'team', picked.team.id);
+  save('choices', 'difficulty', picked.difficulty.id);
+  save('choices', 'weather', picked.weather.id);
+  save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
+  navigate(withCircuit(picked.layout.id));
+}
+
+async function showRace(id: number, layout: CircuitLayout): Promise<void> {
+  document.documentElement.classList.remove('menu');
+  const fit = sizeScreen();
+  tuning ??= mountTuning(screen, 'f1', F1_TUNING);
+  const { raceOn } = await import('./f1/race');
+  if (id !== routeId) return;
+  const quit = () => navigate(withCircuit(null));
+  const view: StandaloneView = await raceOn(layout, quit, { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying() })({ host: screen, services, tuning, fit });
+  if (id !== routeId) {
+    view.dispose();
     return;
   }
-  // the TUNE button (laps, grid, AI pace, camera), in every build; values are kept on the device
-  const tuning = mountTuning(screen, 'f1', F1_TUNING);
-  const { raceOn } = await import('./f1/race');
-  const quit = () => window.location.assign(withCircuit(null));
-  const view: StandaloneView = await raceOn(layout, quit, savedTeam(), savedDifficulty(), savedWeather(), savedQualifying())({ host: screen, services, tuning, fit });
+  current = { close: () => view.dispose() };
   onResize = () => view.resize(sizeScreen());
 }
 
-void start();
+void route();

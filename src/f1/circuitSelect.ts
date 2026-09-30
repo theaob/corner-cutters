@@ -180,6 +180,8 @@ export function chooseCircuit(
   difficulty: Difficulty = NORMAL,
   weather: Weather = DRY,
   qualifying = false,
+  /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
+  closed?: AbortSignal,
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
@@ -336,6 +338,10 @@ export function chooseCircuit(
       menu.remove();
       resolve({ layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() });
     };
+    closed?.addEventListener('abort', () => {
+      done = true;
+      menu.remove();
+    });
     const tick = () => {
       if (done) return;
       // poll every button each frame, so a press is never counted late
