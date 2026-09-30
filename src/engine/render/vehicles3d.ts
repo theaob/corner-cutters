@@ -22,6 +22,8 @@ export interface CarLook {
    * green on its second, so teammates tell apart (carbon when unset)
    */
   tcam?: string;
+  /** the driver's helmet: plain white unless set; 'gold' is shiny metallic gold (the player's) */
+  helmet?: string | 'gold';
 }
 
 /**
@@ -153,7 +155,12 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   box(2.6, 2.4, 3, 7.6, 2.6, [body, body, body, dark, body, carbon]);
   const tcam = look.tcam ? new THREE.MeshBasicMaterial({ color: look.tcam, toneMapped: false }) : carbon;
   box(4.2, 1, 1.6, 9.3, 2.4, [tcam, tcam, tcam, dark, tcam, tcam]);
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 8), mat('#f2c14e'));
+  // (the gold one shines: a bright highlight where the sun catches it, and a warm glow of its own)
+  const helmetMat =
+    look.helmet === 'gold'
+      ? new THREE.MeshPhongMaterial({ color: 0xf5b82e, specular: 0xfff4c8, shininess: 90, emissive: 0x4a3000 })
+      : mat(look.helmet ?? '#e8e8ee');
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 12, 10), helmetMat);
   helmet.position.set(0, 7.2, 0.5);
   helmet.castShadow = true;
   car.add(helmet);

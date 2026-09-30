@@ -268,7 +268,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       const slot = circuit.slots[i];
       const livery = teams[i];
       // teammates: the team's second car has the bright green T-camera
-      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seats[i] === 1 ? TCAM_GREEN : undefined });
+      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seats[i] === 1 ? TCAM_GREEN : undefined, helmet: i === you ? 'gold' : undefined });
       world.scene.add(mesh);
       // each AI car driven by its team's driver in that seat
       looks.push({ name: i === you ? 'YOU' : livery.drivers[seats[i]], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
