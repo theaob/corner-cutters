@@ -214,8 +214,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   let done = false;
   let you = 0;
   const safetyCar = createSafetyCarMesh();
-  // your car's marker, so it stands out in the field: a gold arrow bobbing above it and a gold ring on the
-  // ground round it (unlit, so they stay bright in shade and in the rain)
+  // your car's marker on the grid, so you can find it before the start: a gold arrow bobbing above it and a
+  // gold ring on the ground round it (unlit, so they stay bright in shade and in the rain); gone at lights out
   const youMarker = new THREE.Group();
   const markerGold = new THREE.MeshBasicMaterial({ color: 0xf2c14e, toneMapped: false });
   const youArrow = new THREE.Mesh(new THREE.ConeGeometry(7, 12, 4).rotateX(Math.PI), markerGold);
@@ -535,10 +535,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);
       }
     });
-    // your marker follows your car (gone once your car is cleared off the track)
+    // your marker, on the grid while the lights are on
     {
       const mine = race.entrants[you];
-      youMarker.visible = running(mine);
+      youMarker.visible = race.phase === 'lights' && running(mine);
       youMarker.position.set(mine.car.x, mine.car.z, mine.car.y);
       const t = performance.now() / 1000;
       youArrow.position.y = 34 + Math.sin(t * 4) * 3;
