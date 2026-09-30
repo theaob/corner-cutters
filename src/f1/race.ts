@@ -67,11 +67,22 @@ interface Look {
 }
 
 
+/** How a race weekend is set up. */
+export interface RaceOptions {
+  /** the team you drive for */
+  team?: Team;
+  difficulty?: Difficulty;
+  weather?: Weather;
+  /** a qualifying lap first, to set your grid slot */
+  qualifying?: boolean;
+}
+
 /**
- * The race on `layout`, driven for `team` at `difficulty` in `weather`, after a qualifying lap that sets your grid slot if
- * `qualifying`; `onQuit` runs when the player presses and releases SELECT.
+ * The race on `layout` with `options` (your team, the difficulty, the weather, and whether you qualify first);
+ * `onQuit` runs when the player leaves (SELECT, or CIRCUITS on the pause screen).
  */
-export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0], difficulty: Difficulty = NORMAL, weather: Weather = DRY, qualifying = false): MountStandalone => async ({ host, services, tuning, fit }) => {
+export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
+  const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false } = options;
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
@@ -700,12 +711,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     pauseHint,
   );
   // leaving the app or the tab pauses the race; so do Esc and P on a keyboard
-  document.addEventListener('visibilitychange', () => {
+  const onHidden = () => {
     if (document.hidden && !done) setPaused(true);
-  });
-  window.addEventListener('keydown', (e) => {
+  };
+  const onKey = (e: KeyboardEvent) => {
     if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat && !(e.target instanceof HTMLInputElement) && !done) setPaused(!paused);
-  });
+  };
+  document.addEventListener('visibilitychange', onHidden);
+  window.addEventListener('keydown', onKey);
 
   // ---------------------------------------------------------------- loop
   const focus = new THREE.Vector3(race.entrants[you].car.x, 0, race.entrants[you].car.y);
@@ -717,7 +730,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   hud.setLabel('a', aLabel());
   hud.setLabel('b', 'DRIFT');
 
+  /** the view has been closed: the loop stops */
+  let closed = false;
   const tick = (now: number) => {
+    if (closed) return;
     // (the first frame's timestamp can be a touch before mount time)
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
@@ -1090,5 +1106,28 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   };
   requestAnimationFrame(tick);
 
-  return { resize };
+  const dispose = () => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('visibilitychange', onHidden);
+    window.removeEventListener('keydown', onKey);
+    setAudioPaused(false);
+    sounds.dispose();
+    // everything on the GPU: the scene's meshes, materials and textures, the post passes, the context itself
+    world.scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      mesh.geometry?.dispose();
+      for (const m of [mesh.material ?? []].flat() as THREE.Material[]) {
+        for (const v of Object.values(m)) if (v instanceof THREE.Texture) v.dispose();
+        m.dispose();
+      }
+    });
+    post.dispose();
+    renderer.dispose();
+    renderer.forceContextLoss();
+    renderer.domElement.remove();
+    for (const el of [rain, readout, banner, results, mini, teamCard, pauseScreen, flagOverlay]) el.remove();
+    delete (window as { __cc?: unknown }).__cc;
+  };
+  return { resize, dispose };
 };

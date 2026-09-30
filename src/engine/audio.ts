@@ -105,19 +105,38 @@ export function setAudioPaused(paused: boolean): void {
 export interface EngineVoice {
   set(freq: number, gain: number, brightness: number): void;
   cut(seconds: number): void;
+  /** Fade out and stop for good (the voice is done with: its view is closing). */
+  stop(): void;
 }
 
 /** A filtered noise (tyres, rumble, rain); set its loudness every frame. */
 export interface NoiseVoice {
   set(gain: number): void;
+  stop(): void;
 }
 
 /** A tyre's squeal: a wavering tone over a hiss; set its loudness and how hard it's sliding (0…1) every frame. */
 export interface SquealVoice {
   set(gain: number, slide: number): void;
+  stop(): void;
 }
 
-const SILENT = { set() {}, cut() {} };
+const SILENT = { set() {}, cut() {}, stop() {} };
+
+/** Fade `out` to silence, then stop `sources` and cut `out` loose (a voice done with). */
+function retire(c: AudioContext, out: GainNode, sources: AudioScheduledSourceNode[]): void {
+  const t = c.currentTime;
+  out.gain.cancelScheduledValues(t);
+  out.gain.setTargetAtTime(0, t, 0.02);
+  for (const s of sources) {
+    try {
+      s.stop(t + 0.15);
+    } catch {
+      // already stopped
+    }
+  }
+  setTimeout(() => out.disconnect(), 250);
+}
 
 /**
  * One turn of the crankshaft of a six-cylinder engine as a waveform: the
@@ -210,6 +229,7 @@ export function engineVoice(): EngineVoice {
       gate.gain.setValueAtTime(0.25, t + seconds);
       gate.gain.linearRampToValueAtTime(1, t + seconds + 0.03);
     },
+    stop: () => retire(c, out, [a, b, jitter, breath]),
   };
 }
 
@@ -248,6 +268,7 @@ export function squealVoice(): SquealVoice {
       tone.frequency.setTargetAtTime(900 + slide * 350, t, 0.08);
       out.gain.setTargetAtTime(gain, t, 0.04);
     },
+    stop: () => retire(c, out, [tone, wobble, hiss]),
   };
 }
 
@@ -297,6 +318,7 @@ export function noiseVoice(type: BiquadFilterType, freq: number, q = 1): NoiseVo
     set(gain) {
       out.gain.setTargetAtTime(gain, c.currentTime, 0.04);
     },
+    stop: () => retire(c, out, [src]),
   };
 }
 

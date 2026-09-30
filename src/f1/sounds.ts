@@ -127,6 +127,11 @@ export class RaceSounds {
     this.wind.set(0);
   }
 
+  /** Silence and stop every voice for good (the race view is closing). */
+  dispose(): void {
+    for (const v of [this.engine, this.rival, this.tyres, this.rumble, this.kerb, this.rain, this.wind]) v.stop();
+  }
+
   /** A hit: `strength` 0…1. */
   hit(strength: number): void {
     thump(strength);

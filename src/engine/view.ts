@@ -8,6 +8,8 @@ import type { ParamSpec, Values } from './tuning';
 /** What a mounted view exposes back to the page. */
 export interface StandaloneView {
   resize(fit: ScreenFit): void;
+  /** Close the view: stop its loop and sounds, and take everything it added off the page (the next screen follows). */
+  dispose(): void;
 }
 export type MountStandalone = (args: {
   host: HTMLElement;
