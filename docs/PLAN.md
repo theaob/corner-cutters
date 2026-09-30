@@ -21,7 +21,7 @@ What's built and working (`src/`, about 4,300 lines, 12 test files):
 | Controls | Analogue thumbstick (point where to go, push for throttle, B drifts), touch deck, keyboard (`engine/controls.ts`, `engine/deck.ts`) |
 | Look | HD-2D pipeline (tilt-shift blur, bloom), three quality levels with an automatic governor (`engine/render/`) |
 | Menus | Touch circuit menu with a TEAM row; TUNE panel for laps, grid, AI pace, camera (`f1/circuitSelect.ts`, `engine/tuning.ts`) |
-| Shipping | CI tests + builds every push and publishes to itch.io; Android APK via Capacitor (paused) |
+| Shipping | CI tests + builds every push and publishes to itch.io; Android APK via Capacitor, built on every push and uploaded to itch.io |
 
 What's missing for it to feel like a game rather than a tech demo:
 
@@ -304,7 +304,8 @@ The goal: version 1.0 on Google Play and itch.io.
 
 Google Play:
 - [ ] Google Play developer account and app created in the Play Console
-- [ ] Resume the Android workflow on push; build an **AAB** (Play's upload format) as well as the APK
+- [x] Resume the Android workflow on push (done: it builds on every push and uploads the APK to itch.io)
+- [ ] Build an **AAB** (Play's upload format) as well as the APK
 - [ ] Release **upload key** in the repo's secrets, and Play App Signing turned on (Google holds
       the app signing key). The sideloaded APK signed with the repo key can't update to the
       Play version: say so on the itch.io page.
