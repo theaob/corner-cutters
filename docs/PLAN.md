@@ -17,7 +17,7 @@ What's built and working (`src/`, about 4,300 lines, 12 test files):
 | Pit stops | A pit lane on every circuit; a stop repairs damage; the car drives itself through once committed; the AI and a "BOX, BOX" call decide from the damage and laps left (`f1/pits.ts`) |
 | AI | Follows a precomputed racing line at a per-driver pace and lane, moves over for slower cars, holds station under the safety car (`aiInput`) |
 | Circuits | Crescent Park (~24 s lap) and Silver Heath (~27 s), built from a centreline + elevation profile (`f1/layouts.ts`, `f1/circuit.ts`) |
-| Teams | Eleven look-alike teams with liveries, patterns and logos; five teams of two per race (`f1/teams.ts`, `f1/logos.ts`) |
+| Teams | Eleven look-alike teams with liveries, patterns and logos; five teams of two per race (`f1/teams.ts`, `f1/logos.ts`). Cosmetic only: every team's car is the same |
 | Controls | Two schemes (analogue stick, pedals), touch deck, keyboard (`engine/controls.ts`, `engine/deck.ts`) |
 | Look | HD-2D pipeline (tilt-shift blur, bloom), three quality levels with an automatic governor (`engine/render/`) |
 | Menus | Touch circuit menu with TEAM and CONTROLS rows; TUNE panel for laps, grid, AI pace, camera (`f1/circuitSelect.ts`, `engine/tuning.ts`) |
@@ -53,7 +53,7 @@ Every feature below is judged against these. If it doesn't serve one of them, it
 3. **Risk you choose.** The name is the design: kerbs, run-off, contact and damage make
    aggression pay off *sometimes*. The safety car and penalties are the price.
 4. **One more race.** Short loops that reward coming back: a record to beat, a
-   championship round to finish, a team to unlock.
+   championship round to finish, a circuit to unlock.
 
 ### Core loop
 
@@ -69,7 +69,7 @@ pick circuit + team ─▶ race (1–3 laps) ─▶ results: position, best lap,
 |---|---|---|
 | **Quick Race** | Today's race: any circuit, any team, grid size and laps from settings | The fastest route into the game |
 | **Time Trial** | Alone on track, against your best-lap ghost; sector splits | Pure driving mastery; cheap to build on the existing sim; teaches the circuits |
-| **Championship** | A season of rounds across the circuits, points per finish, standings between races, team standings | The long-term "one more race" loop |
+| **Championship** | A season of rounds across the circuits, points per finish, drivers' standings between races | The long-term "one more race" loop |
 | **Grand Prix** *(later, M6)* | Longer races (8–15 laps, about 4–7 minutes) with tyre wear and a pit stop; also a Championship length option | The step up once the sprints are mastered; brings strategy in |
 | **Daily Challenge** *(later)* | One seeded circuit + conditions per day, one best result kept | Gives a reason to open the game daily; seeds make it fair without a server |
 
@@ -167,10 +167,18 @@ as now).
 
 - Saved per circuit: best lap, best race time, wins, podiums (local storage, `cc:` prefix,
   through `engine/storage.ts`).
-- Championship save: current round, points per driver and team, so a season can be finished
-  over several sessions.
+- Championship save: current round and points per driver, so a season can be finished over
+  several sessions.
 - **Unlocks, light touch:** new circuits unlock by finishing a championship round there; all
   teams stay available from the start (they're cosmetic; locking them adds nothing).
+
+### Teams: cosmetic for now
+
+Picking a team today changes only the look: livery, logo, your teammate's colours and which
+pit box you use. That's deliberate for now, and nothing before 1.0 builds on it: no team
+standings, no team unlocks, no differences between the cars. Teams could matter later (see
+*Later: teams that matter* in the milestones), but only once the core races, modes and
+release are done.
 - A save-format version number from the first change, so later versions can migrate old saves.
 
 ### Onboarding
@@ -232,7 +240,7 @@ New pieces:
 | Tyres and pits | `src/f1/tyres.ts`, `src/f1/pits.ts` | Engine-free rules with headless tests, like `raceControl.ts`; pit lane geometry in `layouts.ts` |
 | Pause | `src/f1/race.ts` + `main.ts` | Pause on `visibilitychange`, on Android's app pause, and from a PAUSE button; the sim clock stops |
 | Fixed-step sim | `f1/raceControl.ts` | Step the race at a fixed 1/120 s and render interpolated; needed for ghosts and replays to be reproducible, and makes tests match the game exactly |
-| Seeded randomness | `src/engine/random.ts` | One seeded RNG for lights-out, team draw and AI mistakes; needed for Daily Challenge and replays |
+| Seeded randomness | `src/engine/random.ts` | One seeded RNG for lights-out, the draw of rival teams and AI mistakes; needed for Daily Challenge and replays |
 | Ghost / replay | `src/f1/ghost.ts` | Record the player's inputs (or sampled positions) per lap; store the best one per circuit |
 
 Performance budget (keep the phone at 60 fps on the "medium" quality level): the audio and
@@ -275,7 +283,7 @@ The goal: a reason to come back tomorrow.
 
 - [ ] In-page screen stack replacing the page-reload flow; mode select on the menu
 - [ ] Time Trial with best-lap ghost and sector splits
-- [ ] Championship: season of rounds, points, driver and team standings, resumable save
+- [ ] Championship: season of rounds, points, drivers' standings, resumable save
 - [ ] Circuit unlocks through the championship
 - [ ] First-launch controls lap (onboarding)
 
@@ -342,6 +350,21 @@ The goal: longer races with strategy, once players have mastered the sprints.
 - [ ] Headless tests: a whole Grand Prix with stops runs in a test; strategies are balanced
       (no single strategy always wins)
 - [ ] Music: a "final laps" track
+
+### Later: teams that matter (after 1.0, to be decided)
+
+Teams are cosmetic until then. Ideas for when they become a mechanic, roughly from least to
+most work:
+
+- [ ] Constructors' standings in Championship (both cars' points)
+- [ ] Your teammate races for the team: it doesn't fight you for position, and lets you by
+      when it's slower on the day
+- [ ] Small differences between the cars (for example top speed against cornering), shown on
+      the TEAM row, so the choice of team is a choice of car
+- [ ] Pit crews of different speeds
+- [ ] A career: start at a backmarker team and earn a seat at a better one with your results
+
+Each of these needs balance tests (no team should always win) before it ships.
 
 ### Later: iOS / App Store (decided at the end)
 
