@@ -1,0 +1,41 @@
+// How hard a race is: how much a crash costs (the damage from hitting a wall,
+// landing hard or contact, and how much a damaged car slows), and how quick
+// and closely matched the AI field is. It applies to every car alike, so on
+// HARD the AI pays for its crashes too.
+
+import type { HandlingParams } from '../engine/driving';
+import { RACE_HANDLING } from './racing';
+
+export type DifficultyId = 'easy' | 'normal' | 'hard';
+
+export interface Difficulty {
+  id: DifficultyId;
+  name: string;
+  /** a line about it, for the menu */
+  about: string;
+  /** the AI's pace, as a share of the racing line's speed (the quickest AI car) */
+  aiPace: number;
+  /** how much slower the last AI car on the grid is than the first, as a share of its pace */
+  aiSpread: number;
+  /** damage per px/s of impact above the crash threshold (walls, landings, contact) */
+  crashDamage: number;
+  /** share of top speed a car has lost by the time its health runs out */
+  damageSlow: number;
+}
+
+export const DIFFICULTIES: Difficulty[] = [
+  { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15 },
+  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.94, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3 },
+  { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 1, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4 },
+];
+
+export const NORMAL = DIFFICULTIES[1];
+
+/** The difficulty with this id, or undefined. */
+export const difficultyById = (id: string | null | undefined) => DIFFICULTIES.find((d) => d.id === id);
+
+/** The race's driving rules at this difficulty. */
+export const handlingFor = (d: Difficulty): HandlingParams => ({ ...RACE_HANDLING, crashDamage: d.crashDamage, damageSlow: d.damageSlow });
+
+/** The pace of the AI car in grid slot `i` of `total` (slower down the grid), times the TUNE panel's adjustment. */
+export const aiPaceFor = (d: Difficulty, i: number, total: number, adjust = 1) => d.aiPace * adjust * (1 - (i / total) * d.aiSpread);

@@ -10,6 +10,7 @@ import type { CircuitLayout } from './layouts';
 import { TEAMS, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime, loadRecords } from './records';
+import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -72,6 +73,7 @@ function ownTabButton(): HTMLButtonElement {
 export interface MenuChoice {
   layout: CircuitLayout;
   team: Team;
+  difficulty: Difficulty;
 }
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
@@ -148,6 +150,7 @@ export function chooseCircuit(
   layouts: CircuitLayout[],
   initial?: CircuitLayout,
   team: Team = TEAMS[0],
+  difficulty: Difficulty = NORMAL,
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
@@ -161,14 +164,15 @@ export function chooseCircuit(
 
   /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
-  /** where up/down is: a circuit (0…), then the team row */
+  /** where up/down is: a circuit (0…), then the team row, then the difficulty row */
   let focus = selected;
   /** the button a press started on: lifting on the same button picks it */
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
 
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
-  const rows = [teamRow];
+  const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
+  const rows = [teamRow, difficultyRow];
 
   const records = loadRecords();
   const buttons = layouts.map((layout, i) => {
@@ -247,7 +251,7 @@ export function chooseCircuit(
       if (done) return;
       done = true;
       menu.remove();
-      resolve({ layout, team: teamRow.value() });
+      resolve({ layout, team: teamRow.value(), difficulty: difficultyRow.value() });
     };
     const places = layouts.length + rows.length;
     const tick = () => {
