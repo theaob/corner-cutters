@@ -31,6 +31,14 @@ export const PIT = {
   commit: 52,
   /** px/s² a car brakes at into its box */
   decel: 300,
+  /** after the race: seconds a car sits in its box before the crew pushes it back into the garage, and seconds the push takes */
+  garageWait: 0.6,
+  garagePush: 2.2,
+  /** px along from the garage's middle where a team's first and second car home end up, side by side */
+  garageSlots: [10, -10] as const,
+  /** after the race: px past the start line of the top three's parking spots (P1, P2, P3), and px out from the centreline on the pit side */
+  podium: [170, 115, 60] as const,
+  podiumAcross: 30,
 };
 
 /** Where a circuit's pit lane is: px along the lap from the start line (negative = before it), and which side. */
@@ -66,6 +74,8 @@ export interface PitLane {
   wallTo: number;
   /** px along the lane of each box */
   boxes: number[];
+  /** after the race: the top three's parking spots on the main straight (P1 furthest on), as a track sample and px to the right of it */
+  podium: { idx: number; lane: number }[];
 }
 
 const ease = (t: number) => (1 - Math.cos(Math.max(0, Math.min(1, t)) * Math.PI)) * 0.5;
@@ -102,7 +112,9 @@ export function buildPitLane(track: Track, spec: PitSpec): PitLane {
   const gap = Math.min(PIT.boxSpacing, (s1 - s0) / Math.max(1, PIT.boxes - 1));
   const mid = (s0 + s1) / 2;
   const boxes = Array.from({ length: PIT.boxes }, (_, b) => mid + (b - (PIT.boxes - 1) / 2) * gap);
-  return { side: spec.side, points, length: s, entry, exit: wrap(entry + count - 1, n), wallFrom, wallTo, boxes };
+  // the podium spots: on the pit side of the main straight, just past the line, clear of the cool-down lane on the other side
+  const podium = PIT.podium.map((d) => ({ idx: wrap(Math.round(d / track.spacing), n), lane: PIT.podiumAcross * spec.side }));
+  return { side: spec.side, points, length: s, entry, exit: wrap(entry + count - 1, n), wallFrom, wallTo, boxes, podium };
 }
 
 /** Whether track sample `idx` is between `from` and `to` (inclusive), going the way of the race. */
@@ -126,8 +138,8 @@ export function nearestLanePoint(pit: PitLane, x: number, y: number, hint?: numb
 
 /** A car's way through the pit lane. */
 export interface PitStop {
-  /** 'in': down the lane to its box; 'stopped': being repaired; 'out': on to the exit */
-  phase: 'in' | 'stopped' | 'out';
+  /** 'in': down the lane to its box; 'stopped': being repaired; 'out': on to the exit; after the race, 'garage': pushed back into (and then in) the garage */
+  phase: 'in' | 'stopped' | 'out' | 'garage';
   /** the lane point it's nearest */
   at: number;
   /** the box it stops at (an index into the lane's boxes) */
@@ -136,6 +148,10 @@ export interface PitStop {
   left: number;
   /** seconds the stop takes in all */
   time: number;
+  /** after the race: the car's way home, to its box and back into its garage (no stop, no repairs), to end up this many px along from the garage's middle */
+  home?: number;
+  /** pushed into the garage: where it stopped in the box, and seconds of the push done */
+  push?: { x: number; y: number; heading: number; done: number };
 }
 
 /** Seconds a stop takes for `car`: the fixed part, and the repair its damage needs. */
@@ -147,9 +163,37 @@ export function entersPit(pit: PitLane, track: Track, car: Car, idx: number): bo
   return lateralOffset(track, idx, car.x, car.y) * pit.side > PIT.commit;
 }
 
-/** A pit stop starting at the entry, heading for `box`. */
-export function newPitStop(pit: PitLane, car: Car, box: number): PitStop {
-  return { phase: 'in', at: nearestLanePoint(pit, car.x, car.y), box: Math.max(0, Math.min(pit.boxes.length - 1, box)), left: 0, time: 0 };
+/** A pit stop starting at the entry, heading for `box`; with `home`, the car's way back to its garage after the race (to end up `home` px along from its middle). */
+export function newPitStop(pit: PitLane, car: Car, box: number, home?: number): PitStop {
+  return { phase: 'in', at: nearestLanePoint(pit, car.x, car.y), box: Math.max(0, Math.min(pit.boxes.length - 1, box)), left: 0, time: 0, home };
+}
+
+/** px across the lane (+ = away from the track) of the middle of the garages behind it (just past its outer edge) */
+export const GARAGE_ACROSS = 50;
+
+/**
+ * Where a car that's home after the race is, `done` s into the crew's push back
+ * into its garage: it rolls backwards from its box, turning to face out, and
+ * ends up inside, nose to the door. Moves the car there, stopped.
+ */
+export function pushIntoGarage(pit: PitLane, stop: PitStop, car: Car): void {
+  const push = stop.push!;
+  const q = pit.points.find((p) => p.s >= pit.boxes[stop.box]) ?? pit.points[pit.points.length - 1];
+  const across = GARAGE_ACROSS * pit.side;
+  const along = stop.home ?? 0;
+  const to = {
+    x: q.x + Math.cos(q.dir) * across + Math.sin(q.dir) * along,
+    y: q.y + Math.sin(q.dir) * across - Math.cos(q.dir) * along,
+    heading: q.dir - (pit.side * Math.PI) / 2,
+  };
+  const t = ease(push.done / PIT.garagePush);
+  // the turn first, then the roll back
+  const turn = ease(Math.min(1, (push.done / PIT.garagePush) * 1.6));
+  const d = Math.atan2(Math.sin(to.heading - push.heading), Math.cos(to.heading - push.heading));
+  car.x = push.x + (to.x - push.x) * t;
+  car.y = push.y + (to.y - push.y) * t;
+  car.heading = push.heading + d * turn;
+  car.vx = car.vy = 0;
 }
 
 /**
@@ -171,7 +215,7 @@ function laneTarget(pit: PitLane, stop: PitStop, s: number): number {
   const box = pit.boxes[stop.box];
   if (stop.phase === 'out' && s > box + 40) return PIT.fastLane;
   if (stop.phase === 'stopped') return PIT.boxLane;
-  // swing over into the box over the last few car lengths before it, and back out after
+  // swing over into the box over the last few car lengths before it (more gently to park), and back out after
   const t = stop.phase === 'in' ? 1 - (box - s) / 60 : 1 - (s - box) / 40;
   return PIT.fastLane + (PIT.boxLane - PIT.fastLane) * ease(t);
 }
@@ -188,6 +232,24 @@ export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt
   const v = speedOf(car);
   const box = pit.boxes[stop.box];
   let stopped = false;
+  if (stop.home !== undefined && stop.phase === 'in' && here.s >= box - 6 && v < 8) {
+    // home after the race: a moment in the box, then the crew push it back into the garage
+    stop.phase = 'stopped';
+    stop.time = stop.left = PIT.garageWait;
+  }
+  if (stop.home !== undefined && stop.phase === 'stopped') {
+    stop.left -= dt;
+    if (stop.left <= 0) {
+      stop.phase = 'garage';
+      stop.push = { x: car.x, y: car.y, heading: car.heading, done: 0 };
+    }
+    return { input: { handbrake: true, brake: true }, done: false, stopped };
+  }
+  if (stop.phase === 'garage') {
+    stop.push!.done = Math.min(PIT.garagePush, stop.push!.done + dt);
+    pushIntoGarage(pit, stop, car);
+    return { input: { handbrake: true, brake: true }, done: false, stopped };
+  }
   if (stop.phase === 'in' && here.s >= box - 6 && v < 8) {
     stop.phase = 'stopped';
     stop.time = stop.left = stopTime(car);
