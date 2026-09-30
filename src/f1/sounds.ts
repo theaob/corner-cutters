@@ -147,6 +147,14 @@ export class RaceSounds {
     [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.22, 0.18, 'triangle', i * 0.12));
   }
 
+  /** Your last lap: two strikes of a bell. */
+  finalLap(): void {
+    for (const at of [0, 0.28]) {
+      beep(1568, 0.5, 0.14, 'sine', at);
+      beep(3136, 0.25, 0.05, 'sine', at);
+    }
+  }
+
   /** A new lap record (or the race's fastest lap). */
   record(): void {
     beep(988, 0.12, 0.16, 'triangle');
