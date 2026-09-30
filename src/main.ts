@@ -2,7 +2,7 @@ import { type StandaloneView } from './engine/view';
 import { mountTuning } from './engine/tuning';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
-import { Hud, bindDeck, releaseDeck } from './engine/deck';
+import { Hud, bindDeck, releaseDeck, setStickSide, stickSide } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
 import { storeKey, useStore } from './engine/storage';
@@ -51,6 +51,7 @@ const controls = new Controls();
 bindKeyboard(controls);
 bindGamepad(controls);
 bindDeck(deck, controls);
+setStickSide(deck, stickSide());
 guardInput(controls, () => releaseDeck(deck));
 const services: Services = { controls, hud: new Hud(deck) };
 // ?inputlog lists the input events the page receives, for debugging controls on a device

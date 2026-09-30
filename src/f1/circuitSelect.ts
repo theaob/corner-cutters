@@ -4,7 +4,8 @@
 // change it. On a keyboard, up/down moves, left/right changes a row, Enter races.
 
 import type { Button } from '../engine/controls';
-import { holdTouches } from '../engine/deck';
+import { holdTouches, setStickSide, stickSide, type StickSide } from '../engine/deck';
+import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
 import { TEAMS, type Team } from './teams';
@@ -98,7 +99,9 @@ export function rowGesture(dx: number, at: number): -1 | 0 | 1 {
  * A row of options under the circuits: its label and the current value (with a
  * line about it and, for a team, its colours), switched with left/right or a tap.
  */
-function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { name: string; about: string; colors?: string[]; icon?: Element }) {
+function optionRow<T>(
+  label: string, values: T[], start: T, show: (v: T) => { name: string; about: string; colors?: string[]; icon?: Element }, onChange?: (v: T) => void,
+) {
   const el = document.createElement('button');
   el.className = 'option-row';
   let i = Math.max(0, values.indexOf(start));
@@ -126,6 +129,7 @@ function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { na
   const step = (by: number) => {
     i = (i + by + values.length) % values.length;
     render();
+    onChange?.(values[i]);
   };
   // swipe it, or tap its sides (the row keeps the finger's events: touch captures to it)
   let startX: number | undefined;
@@ -140,6 +144,21 @@ function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { na
   });
   render();
   return { el, step, value: () => values[i] };
+}
+
+/** A menu button, picked on the press's release (not 'click': in a cross-origin frame on a phone a tap's click can go astray). */
+function menuButton(text: string, onPick: () => void): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.className = 'menu-button';
+  b.textContent = text;
+  let armed = false;
+  b.addEventListener('pointerdown', () => (armed = true));
+  b.addEventListener('pointerleave', () => (armed = false));
+  b.addEventListener('pointerup', () => {
+    if (armed) onPick();
+    armed = false;
+  });
+  return b;
 }
 
 /**
@@ -167,16 +186,44 @@ export function chooseCircuit(
 
   /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
-  /** where up/down is: a circuit (0…), then the team, difficulty and weather rows */
+  /** where up/down is: on the menu a circuit (0…), then the team and weather rows, then SETTINGS; in the settings, a row, then DONE */
   let focus = selected;
+  /** the menu, or the settings screen over it */
+  let view: 'menu' | 'settings' = 'menu';
   /** the button a press started on: lifting on the same button picks it */
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
 
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
-  const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
-  const rows = [teamRow, difficultyRow, weatherRow];
+  const rows = [teamRow, weatherRow];
+
+  // the settings screen: difficulty, which side the thumbstick sits on, vibration
+  const deck = document.getElementById('deck');
+  const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
+  const sides: StickSide[] = ['left', 'right'];
+  const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'thumbstick left · A and B right' : 'thumbstick right · A and B left' }), (side) => {
+    if (deck) setStickSide(deck, side);
+  });
+  const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
+    setVibration(on);
+    vibrate(40);
+  });
+  const settingsRows = [difficultyRow, stickRow, vibrationRow];
+  const settingsTitle = document.createElement('h2');
+  settingsTitle.textContent = 'SETTINGS';
+  const openSettings = () => {
+    view = 'settings';
+    focus = 0;
+    show();
+  };
+  const closeSettings = () => {
+    view = 'menu';
+    focus = layouts.length + rows.length;
+    show();
+  };
+  const settingsButton = menuButton('SETTINGS', openSettings);
+  const doneButton = menuButton('DONE', closeSettings);
 
   const records = loadRecords();
   const buttons = layouts.map((layout, i) => {
@@ -221,20 +268,32 @@ export function chooseCircuit(
     list.append(li);
     return b;
   });
+  const tab = framed() ? ownTabButton() : undefined;
+  const menuParts: HTMLElement[] = [hint, list, ...rows.map((r) => r.el), settingsButton, ...(tab ? [tab] : [])];
+  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton];
   const show = () => {
+    for (const el of menuParts) el.style.display = view === 'menu' ? '' : 'none';
+    for (const el of settingsParts) el.style.display = view === 'settings' ? '' : 'none';
     buttons.forEach((b, i) => b.classList.toggle('selected', i === selected));
-    rows.forEach((r, k) => r.el.classList.toggle('focused', focus === layouts.length + k));
+    rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'menu' && focus === layouts.length + k));
+    settingsButton.classList.toggle('focused', view === 'menu' && focus === layouts.length + rows.length);
+    settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
+    doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
   };
   // a tap on a row focuses it too
   rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
     focus = layouts.length + k;
     show();
   }));
-  show();
-  menu.append(...rows.map((r) => r.el));
+  settingsRows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
+    focus = k;
+    show();
+  }));
+  menu.append(...rows.map((r) => r.el), settingsButton, ...settingsParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
-  if (framed()) menu.append(ownTabButton());
+  if (tab) menu.append(tab);
+  show();
   holdTouches(menu);
   host.append(menu);
   hud.setPosition('');
@@ -257,21 +316,34 @@ export function chooseCircuit(
       menu.remove();
       resolve({ layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value() });
     };
-    const places = layouts.length + rows.length;
     const tick = () => {
       if (done) return;
       // poll every button each frame, so a press is never counted late
       const [down, right, up, left, a, start] = (['down', 'right', 'up', 'left', 'a', 'start'] as const).map(pressed);
       const move = (down ? 1 : 0) - (up ? 1 : 0);
-      if (move) {
-        focus = (focus + move + places) % places;
-        if (focus < layouts.length) selected = focus;
-        show();
+      if (view === 'settings') {
+        // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back
+        const places = settingsRows.length + 1;
+        if (move) {
+          focus = (focus + move + places) % places;
+          show();
+        }
+        const row = settingsRows[focus];
+        if (row && (left || right)) row.step(right ? 1 : -1);
+        if (a || start) closeSettings();
+      } else {
+        const places = layouts.length + rows.length + 1;
+        if (move) {
+          focus = (focus + move + places) % places;
+          if (focus < layouts.length) selected = focus;
+          show();
+        }
+        const row = rows[focus - layouts.length];
+        if (row && (left || right)) row.step(right ? 1 : -1);
+        if ((a || start) && focus === layouts.length + rows.length) openSettings();
+        else if (a || start) finish(layouts[selected]);
       }
-      const row = rows[focus - layouts.length];
-      if (row && (left || right)) row.step(right ? 1 : -1);
-      if (a || start) finish(layouts[selected]);
-      else requestAnimationFrame(tick);
+      if (!done) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   });
