@@ -15,6 +15,7 @@ import { NORMAL, aiCraftFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, t
 import { styleOf } from './drivers';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
+import { LIMITS } from './trackLimits';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
@@ -127,6 +128,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   // the slipstream: TOW and a bar that fills as it builds, in cyan, while you're in a car's wake
   const towLine = document.createElement('span');
   towLine.style.color = '#5fe0d0';
+  // track limits: your strikes, amber while they're warnings, red once they cost you
+  const limitsLine = document.createElement('span');
   // the speed, frame rate and picture quality, small and dim under the rest
   const statsLine = document.createElement('span');
   Object.assign(statsLine.style, { color: '#6c6a88', fontSize: '10px' });
@@ -430,7 +433,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         paused: () => paused,
         order: () => raceOrder(race).map((i) => looks[i].name),
         you: () => ({ ...race.entrants[you].progress, tow: race.entrants[you].tow, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
-        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind, craft: e.ai?.craft, mistakes: e.ai?.mistakes, dice: !!e.ai?.rng })),
+        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, strikes: e.limits.strikes, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind, craft: e.ai?.craft, mistakes: e.ai?.mistakes, dice: !!e.ai?.rng })),
         safetyCar: () => !!race.sc,
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
@@ -451,6 +454,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
           ranked.forEach((i, k) => (race.entrants[i].progress = { ...race.entrants[i].progress, finished: race.clock + k * 0.5 }));
         },
         inLap: () => race.entrants.map((e, i) => ({ name: looks[i].name, to: e.inLap?.to, parked: !!e.inLap?.parked, pit: e.pit?.phase })),
+        /** put your car on the inside of marked corner `k` (off the track, at its apex), for trying out track limits */
+        cut: (k = 0) => {
+          const me = race.entrants[you];
+          const corner = race.corners[k % race.corners.length];
+          const s = track.samples[corner.apex];
+          const lat = (HALF_WIDTH + 16) * corner.side;
+          Object.assign(me.car, { x: s.x + Math.cos(s.dir) * lat, y: s.y + Math.sin(s.dir) * lat, heading: s.dir, vx: Math.sin(s.dir) * 120, vy: -Math.cos(s.dir) * 120 });
+          me.progress = { ...me.progress, idx: corner.apex };
+        },
         /** damage your car by `share` of its health and put it in the pit entry, turning in, for trying out a stop */
         toPits: (share = 0.5) => {
           const me = race.entrants[you];
@@ -674,6 +686,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       else if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
       else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER SC · +${e.seconds} S`, '#d8323c', 3);
+      else if (e.kind === 'track-limits' && e.who === you) {
+        announce(e.seconds ? `TRACK LIMITS · +${e.seconds} S` : `TRACK LIMITS · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
+        sounds.trackLimits(e.seconds > 0);
+      }
       else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
       else if (e.kind === 'pit-out' && e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
@@ -861,7 +877,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
     statsLine.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}`;
     towLine.textContent = me.tow > 0.1 && !done ? `TOW  ${'▶'.repeat(Math.ceil(me.tow * 5))}\n` : '';
-    readout.append(towLine, tyreLine, statsLine);
+    const strikes = me.limits.strikes;
+    limitsLine.textContent = strikes ? `LIMITS ${strikes > LIMITS.warnings ? `+${(strikes - LIMITS.warnings) * LIMITS.penalty}S` : `${strikes}/${LIMITS.warnings}`}\n` : '';
+    limitsLine.style.color = strikes > LIMITS.warnings ? '#d8323c' : '#f2c14e';
+    readout.append(towLine, tyreLine, limitsLine, statsLine);
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;

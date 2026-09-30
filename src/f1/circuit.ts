@@ -11,6 +11,8 @@ export const TILE = 16;
 export const HALF_WIDTH = 44;
 /** px of run-off (grass or gravel) beyond the track edge before the barriers */
 export const RUNOFF = 72;
+/** |curvature| (1/px) from which a bend is tight: kerbed, with gravel on the outside, and a marked corner for track limits */
+export const TIGHT = 1 / 260;
 
 /** Height (px) at a share of the lap, eased between the profile's points. */
 function elevationAt(profile: [number, number][], share: number): number {
@@ -131,7 +133,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         cells.push('wall');
         continue;
       }
-      const tight = Math.abs(p.curve) > 1 / 260;
+      const tight = Math.abs(p.curve) > TIGHT;
       if (d <= HALF_WIDTH - 6) cells.push('track');
       else if (d <= HALF_WIDTH + 4) cells.push(tight ? 'kerb' : 'track');
       else {

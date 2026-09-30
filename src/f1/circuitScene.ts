@@ -1,5 +1,6 @@
 // A circuit in 3D: grass and gravel run-off, a smooth painted track with
-// white edge lines and red-and-white kerbs, the start line and grid boxes, all
+// white edge lines and red-and-white kerbs, yellow track-limit strips inside
+// the marked corners, the start line and grid boxes, all
 // draped over the circuit's heights; tyre walls round the outside and
 // grandstands along the main straight; the pit lane beside it, with its
 // wall, box markings and garages.
@@ -11,7 +12,8 @@ import { addDaylight, type Daylight } from '../engine/render/daylight';
 import { groundAt } from '../engine/sim';
 import type { Pt } from './racing';
 import { GARAGE_ACROSS, PIT } from './pits';
-import { HALF_WIDTH, LANE_IN, LANE_OUT, TILE as T, type Circuit } from './circuit';
+import { HALF_WIDTH, LANE_IN, LANE_OUT, TIGHT, TILE as T, type Circuit } from './circuit';
+import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 
 export interface CircuitScene extends Daylight {
@@ -116,10 +118,24 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   for (const side of [-1, 1]) {
     const edge = offset(side * (HALF_WIDTH - 4));
     for (let i = 0; i < pts.length; i++) {
-      if (Math.abs(pts[i].curve) < 1 / 260) continue;
+      if (Math.abs(pts[i].curve) < TIGHT) continue;
       const a = edge[i];
       const b = edge[(i + 1) % pts.length];
       x.strokeStyle = Math.floor(i / 1) % 2 === 0 ? '#d8323c' : '#f4f4f8';
+      x.beginPath();
+      x.moveTo(a.x, a.y);
+      x.lineTo(b.x, b.y);
+      x.stroke();
+    }
+  }
+  // track limits: a yellow-and-black strip round each marked corner's apex, just off the inside edge (past it is a cut)
+  x.lineWidth = 4;
+  for (const k of markCorners(track)) {
+    const edge = offset(k.side * (HALF_WIDTH + 6));
+    for (let j = -5; j < 5; j++) {
+      const a = edge[(k.apex + j + pts.length) % pts.length];
+      const b = edge[(k.apex + j + 1 + pts.length) % pts.length];
+      x.strokeStyle = (j + 5) % 2 === 0 ? '#f2c14e' : '#1b1b26';
       x.beginPath();
       x.moveTo(a.x, a.y);
       x.lineTo(b.x, b.y);

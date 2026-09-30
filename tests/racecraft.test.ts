@@ -229,7 +229,8 @@ describe.each(LAYOUTS)('races at $name with mixed grids', (layout) => {
         kinds.push(...stepRace(race, dt).race.map((e) => e.kind));
         if (race.clock < SETTLE) start = order(race);
       }
-      expect(kinds.filter((k) => k === 'wreck' || k === 'safety-car')).toEqual([]);
+      // (and it keeps inside the track limits)
+      expect(kinds.filter((k) => k === 'wreck' || k === 'safety-car' || k === 'track-limits')).toEqual([]);
       expect(race.entrants.every((e) => running(e) && e.progress.finished !== undefined)).toBe(true);
       order(race).forEach((i, p) => (gained += Math.max(0, start.indexOf(i) - p)));
     }
