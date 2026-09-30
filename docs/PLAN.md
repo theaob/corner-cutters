@@ -285,8 +285,8 @@ The goal: races are won by overtaking, not just by surviving the start.
 
 The goal: a reason to come back tomorrow.
 
-- [ ] In-page screen stack replacing the page-reload flow; mode select on the menu
-- [ ] Time Trial with best-lap ghost and sector splits
+- [x] In-page screen stack replacing the page-reload flow (`main.ts` routes in the page; views close cleanly: loop, sounds, GPU, overlays); mode select on the menu (MODE: QUICK RACE, TIME TRIAL, CHAMPIONSHIP)
+- [x] Time Trial with best-lap ghost and sector splits (`f1/timeTrial.ts`): flying laps on your own on fresh tyres, a cut deletes the lap; your record lap per circuit and weather kept as a ghost (20 frames a second) that drives beside you, a live GAP to it, splits at each sector (purple: quicker than your record, green: than your session's best, amber: slower)
 - [ ] Championship: season of rounds, points, drivers' standings, resumable save
 - [ ] Circuit unlocks through the championship
 - [ ] First-launch controls lap (onboarding)

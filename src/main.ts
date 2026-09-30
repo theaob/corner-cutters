@@ -13,7 +13,7 @@ import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
-import { chooseCircuit } from './f1/circuitSelect';
+import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { TEAMS, teamById } from './f1/teams';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, weatherById } from './f1/weather';
@@ -90,11 +90,13 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement)) switchLayout();
 });
 
-/** This page's address with ?circuit set to `id`, or removed (null); other flags (?tune, ?debug…) stay. */
-function withCircuit(id: string | null): string {
+/** This page's address with ?circuit set to `id` (and ?mode to a mode other than a race), or both removed (null); other flags (?tune, ?debug…) stay. */
+function withCircuit(id: string | null, mode: GameMode = 'race'): string {
   const url = new URL(window.location.href);
   if (id) url.searchParams.set('circuit', id);
   else url.searchParams.delete('circuit');
+  if (id && mode !== 'race') url.searchParams.set('mode', mode);
+  else url.searchParams.delete('mode');
   return url.href;
 }
 
@@ -107,6 +109,7 @@ const savedTeam = () => teamById(choice('team')) ?? TEAMS[0];
 const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
+const savedMode = (): GameMode => (choice('mode') === 'timetrial' ? 'timetrial' : 'race');
 
 /** The screen showing now (the menu or a race): closed before the next one opens. */
 let current: { close(): void } | undefined;
@@ -116,7 +119,7 @@ let routeId = 0;
 let tuning: ReturnType<typeof mountTuning<typeof F1_TUNING>> | undefined;
 
 /**
- * Show the screen the address asks for: ?circuit=<id> races there; otherwise
+ * Show the screen the address asks for: ?circuit=<id> races there (?mode=timetrial: a Time Trial there); otherwise
  * the circuit menu. Moving between them changes the address (so the browser's
  * back button works) without loading the page again: the screen before is
  * closed and the next one opened in its place.
@@ -153,14 +156,15 @@ async function showMenu(id: number): Promise<void> {
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
-  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), closed.signal);
+  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), closed.signal);
   if (id !== routeId) return;
   save('choices', 'circuit', picked.layout.id);
   save('choices', 'team', picked.team.id);
   save('choices', 'difficulty', picked.difficulty.id);
   save('choices', 'weather', picked.weather.id);
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
-  navigate(withCircuit(picked.layout.id));
+  save('choices', 'mode', picked.mode);
+  navigate(withCircuit(picked.layout.id, picked.mode));
 }
 
 async function showRace(id: number, layout: CircuitLayout): Promise<void> {
@@ -170,7 +174,8 @@ async function showRace(id: number, layout: CircuitLayout): Promise<void> {
   const { raceOn } = await import('./f1/race');
   if (id !== routeId) return;
   const quit = () => navigate(withCircuit(null));
-  const view: StandaloneView = await raceOn(layout, quit, { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying() })({ host: screen, services, tuning, fit });
+  const mode: GameMode = new URLSearchParams(window.location.search).get('mode') === 'timetrial' ? 'timetrial' : 'race';
+  const view: StandaloneView = await raceOn(layout, quit, { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), mode })({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();
     return;
