@@ -22,8 +22,19 @@ describe.each(LAYOUTS)('qualifying at $name', (layout) => {
     me.ai = { lane: 0, pace: 1 };
     for (let t = 0; t < 120 && !me.progress.lapTimes.length; t += SIM_DT) stepRace(q, SIM_DT);
     expect(me.progress.lapTimes.length).toBe(1);
-    // started rolling just before the line: timed from it, so a flying lap
+    // timed from the line, not from the standing start: a flying lap
     expect(me.progress.lapTimes[0]).toBeLessThan(q.clock);
+  });
+  it('starts standing on a straight, a few seconds before the line (time to get your bearings)', () => {
+    const q = newQualifying(c.track, c.grid, RACE_HANDLING, 'dry');
+    const me = q.entrants[0];
+    expect(Math.hypot(me.car.vx, me.car.vy)).toBe(0);
+    expect(Math.abs(c.track.samples[me.progress.idx].curve)).toBeLessThan(1 / 500);
+    // (flat out on the AI's line: the quickest anyone gets there)
+    me.ai = { lane: 0, pace: 1 };
+    for (let t = 0; t < 20 && me.progress.lapStart === undefined; t += SIM_DT) stepRace(q, SIM_DT);
+    expect(q.clock).toBeGreaterThan(4);
+    expect(q.clock).toBeLessThan(7);
   });
   it("sets the AI's times off a reference lap, scaled by pace", () => {
     const ref = referenceLap(c.track, c.grid, RACE_HANDLING, 'dry');
