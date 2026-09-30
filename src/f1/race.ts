@@ -17,6 +17,7 @@ import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
+import { createChequeredFlag } from './flag3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
@@ -214,7 +215,31 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
     rainCtx.stroke();
   };
-  host.append(rain, readout, banner, results, mini, teamCard, pauseScreen);
+  // your chequered flag: a big waving one over the picture for a few seconds as you cross the line
+  const flagOverlay = document.createElement('canvas');
+  flagOverlay.width = 168;
+  flagOverlay.height = 112;
+  style(flagOverlay, { position: 'absolute', left: '50%', top: 'calc(30% + 34px)', transform: 'translateX(-50%)', width: '168px', height: '112px', zIndex: '3', pointerEvents: 'none', display: 'none', imageRendering: 'pixelated' });
+  const flagCtx = flagOverlay.getContext('2d')!;
+  /** Draw the waving flag at `t` s: a pole, and 8 × 5 squares, each column lifted and shaded by a wave running along it. */
+  const drawFlag = (t: number) => {
+    flagCtx.clearRect(0, 0, 168, 112);
+    flagCtx.fillStyle = '#c9ccd4';
+    flagCtx.fillRect(8, 6, 4, 104);
+    const cell = 18;
+    for (let c = 0; c < 8; c++) {
+      const phase = c * 0.8 - t * 9;
+      const lift = Math.sin(phase) * 5 * ((c + 1) / 8);
+      const light = 0.78 + 0.22 * Math.cos(phase);
+      for (let r = 0; r < 5; r++) {
+        const white = (c + r) % 2 === 0;
+        const v = Math.round((white ? 244 : 21) * light);
+        flagCtx.fillStyle = `rgb(${v},${v},${white ? Math.round(248 * light) : Math.round(31 * light)})`;
+        flagCtx.fillRect(12 + c * cell, 8 + r * cell + lift, cell, cell);
+      }
+    }
+  };
+  host.append(rain, readout, banner, results, mini, teamCard, pauseScreen, flagOverlay);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
@@ -242,6 +267,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   youRing.position.y = 0.8;
   youMarker.add(youArrow, youRing);
   world.scene.add(youMarker);
+  // the chequered flag, on the pit wall at the line, flying out over the track: out once the winner has crossed it
+  const chequered = createChequeredFlag();
+  {
+    const s0 = track.samples[0];
+    const lat = circuit.pit.side * 58;
+    const fx = s0.x + Math.cos(s0.dir) * lat;
+    const fy = s0.y + Math.sin(s0.dir) * lat;
+    chequered.group.position.set(fx, groundAt(grid, fx, fy).h, fy);
+    // (the cloth flies toward the flag's +x: the right of the way of the race, so turned round when the pole's on the right)
+    chequered.group.rotation.y = -s0.dir + (circuit.pit.side > 0 ? Math.PI : 0);
+    chequered.group.visible = false;
+    world.scene.add(chequered.group);
+  }
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
@@ -267,7 +305,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   // the race's sounds (silent until the first tap or key: browsers require one)
   const sounds = new RaceSounds(weather.rain);
   /** start lights lit so far (a beep for each), and whether your flag has been sounded */
-  let soundState = { lights: 0, flag: false };
+  let soundState = { lights: 0, flag: false, finalLap: false };
   const setPaused = (on: boolean) => {
     if (on === paused) return;
     paused = on;
@@ -301,7 +339,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     resetClock(simClock);
     before = undefined;
     frameEvents = [];
-    soundState = { lights: 0, flag: false };
+    soundState = { lights: 0, flag: false, finalLap: false };
     playMusic(RACE_MUSIC);
     for (const l of looks) world.scene.remove(l.mesh);
     world.scene.remove(safetyCar.group);
@@ -704,6 +742,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       done = true;
       hud.setLabel('a', 'SKIP');
     }
+    // your last lap: called, with a bell, as you start it
+    if (race.phase === 'racing' && p.lapStart !== undefined && p.finished === undefined && !p.retired && p.lap === laps - 1 && !soundState.finalLap) {
+      soundState.finalLap = true;
+      announce('FINAL LAP', '#f4f4f8', 3);
+      sounds.finalLap();
+    }
+    // the chequered flag: out at the line from the winner's finish, and big over the picture for a few seconds at yours
+    const flagOut = race.entrants.some((e) => e.progress.finished !== undefined);
+    chequered.group.visible = flagOut;
+    if (flagOut) chequered.update(performance.now() / 1000);
+    const yourFlag = p.finished !== undefined && clock < p.finished + 3.5 && !podium && results.style.display !== 'block';
+    flagOverlay.style.display = yourFlag ? 'block' : 'none';
+    if (yourFlag) drawFlag(performance.now() / 1000);
     if (p.finished !== undefined && !soundState.flag) {
       soundState.flag = true;
       sounds.flag();
@@ -726,7 +777,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
     if (clock > hudState.flashUntil) hud.setPositionChange(undefined);
     hudState.lastPos = pos;
-    hud.setLap(p.retired ? 'OUT' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // the banner: start lights, GO!, then the most urgent message
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';

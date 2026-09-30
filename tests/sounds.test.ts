@@ -59,6 +59,7 @@ describe('the race sounds without Web Audio (tests, old browsers)', () => {
       s.light();
       s.go();
       s.flag();
+      s.finalLap();
       s.record();
       s.quiet();
     }).not.toThrow();
