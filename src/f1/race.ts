@@ -11,7 +11,7 @@ import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../eng
 import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
 import { keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
-import { NORMAL, aiPaceFor, handlingFor, type Difficulty } from './difficulty';
+import { NORMAL, aiCraftFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
@@ -304,6 +304,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // each car's seat in its team: you take your team's first, your teammate its second
     const seats = driverSeats(teams, you);
     looks = [];
+    const ranks = paceRanks(total, rng);
     const field = Array.from({ length: total }, (_, i) => {
       const slot = circuit.slots[i];
       const livery = teams[i];
@@ -312,8 +313,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       world.scene.add(mesh);
       // each AI car driven by its team's driver in that seat
       looks.push({ name: i === you ? 'YOU' : livery.drivers[seats[i]], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
-      // AI drivers differ a little in pace and line; a quicker car starts further up the grid
-      const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(difficulty, i, total, t.aiPaceAdjust) };
+      // AI drivers differ in pace, line and racecraft; the quicker cars start mostly further up the grid, but not always
+      const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(difficulty, ranks[i], total, t.aiPaceAdjust), craft: aiCraftFor(difficulty, rng) };
       // each team its own box in the pit lane
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai, box: [...new Set(teams)].indexOf(livery) };
     });
@@ -351,7 +352,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         paused: () => paused,
         order: () => raceOrder(race).map((i) => looks[i].name),
         you: () => ({ ...race.entrants[you].progress, tow: race.entrants[you].tow, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
-        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase })),
+        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind })),
         safetyCar: () => !!race.sc,
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */

@@ -284,7 +284,8 @@ export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt
     const along = dx * fx + dy * fy;
     if (along <= 0 || along > 60) continue;
     const theirs = ((o.x - here.x) * Math.cos(here.dir) + (o.y - here.y) * Math.sin(here.dir)) * pit.side;
-    if (Math.abs(theirs - mine) > 12) continue;
+    // (a car swinging into or out of a box, part way across, is in the way too; one stopped in a box isn't)
+    if (Math.abs(theirs - mine) > 17) continue;
     want = Math.min(want, along < 34 ? 0 : speedOf(o));
   }
   const dx = tx - car.x;

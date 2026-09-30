@@ -38,6 +38,9 @@ export const SAFETY_CAR = {
   penalty: 5,
 };
 
+/** Seconds after lights out before the AI makes passing and defending moves: the pack sorts itself out first. */
+export const SETTLE = 15;
+
 /** Seconds a wreck stays on track before the marshals clear it and the car retires. */
 export const CLEAR_AFTER = 2.5;
 /** Seconds of the start lights before the earliest lights-out. */
@@ -332,7 +335,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     if (!racing) input = { handbrake: true, brake: true };
     else if (lap && typeof lap.to === 'number' && pit) input = podiumInput(race, e, lap.to, others);
     else if (e.progress.finished !== undefined) input = { ...coolDownInput(e.car, track, e.progress.idx, others), limit: orders.limit };
-    else if (e.ai) input = aiInput(e.car, track, e.progress.idx, e.ai, others, orders, towBoost(e.tow));
+    // (no passing or defending moves while the pack is still bunched from the start)
+    else if (e.ai) input = aiInput(e.car, track, e.progress.idx, e.ai, others, race.clock < SETTLE ? { ...orders, noOvertaking: true } : orders, towBoost(e.tow));
     // the player's limiter: right behind the safety car, its speed; alongside or just past it, slower, to drop back
     else input = { ...player(e), limit: playerLimit(e) };
     return stepCar(e.car, input, p, dt, grid);

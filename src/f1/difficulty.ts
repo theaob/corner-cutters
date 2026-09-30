@@ -1,7 +1,8 @@
 // How hard a race is: how much a crash costs (the damage from hitting a wall,
 // landing hard or contact, and how much a damaged car slows), and how quick
 // and closely matched the AI field is. It applies to every car alike, so on
-// HARD the AI pays for its crashes too.
+// HARD the AI pays for its crashes too. Its racecraft (how boldly the AI passes
+// and how hard it defends: racing.ts) rises with it.
 
 import type { HandlingParams } from '../engine/driving';
 import { RACE_HANDLING } from './racing';
@@ -21,12 +22,14 @@ export interface Difficulty {
   crashDamage: number;
   /** share of top speed a car has lost by the time its health runs out */
   damageSlow: number;
+  /** the AI's racecraft, 0…1 (each driver a little either side): how boldly it passes, and how hard it defends */
+  aiCraft: number;
 }
 
 export const DIFFICULTIES: Difficulty[] = [
-  { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15 },
-  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.94, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3 },
-  { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 1, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4 },
+  { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15, aiCraft: 0.3 },
+  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.94, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3, aiCraft: 0.6 },
+  { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 1, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4, aiCraft: 0.9 },
 ];
 
 export const NORMAL = DIFFICULTIES[1];
@@ -37,5 +40,21 @@ export const difficultyById = (id: string | null | undefined) => DIFFICULTIES.fi
 /** The race's driving rules at this difficulty. */
 export const handlingFor = (d: Difficulty): HandlingParams => ({ ...RACE_HANDLING, crashDamage: d.crashDamage, damageSlow: d.damageSlow });
 
-/** The pace of the AI car in grid slot `i` of `total` (slower down the grid), times the TUNE panel's adjustment. */
+/** An AI driver's racecraft at this difficulty: its own, drawn from `rng`, within 0.15 either side. */
+export const aiCraftFor = (d: Difficulty, rng: () => number) => Math.max(0, Math.min(1, d.aiCraft + (rng() * 2 - 1) * 0.15));
+
+/**
+ * Each grid slot's pace rank (0 = the quickest car): mostly in grid order, but
+ * each car moved up to `mix` places either way (drawn from `rng`), as a grid
+ * after qualifying with its mistakes: some quicker cars start behind slower
+ * ones and have to race past.
+ */
+export function paceRanks(total: number, rng: () => number, mix = 3): number[] {
+  const keyed = Array.from({ length: total }, (_, i) => ({ i, k: i + (rng() * 2 - 1) * mix }));
+  const ranks = new Array<number>(total);
+  keyed.sort((a, b) => a.k - b.k).forEach((c, r) => (ranks[c.i] = r));
+  return ranks;
+}
+
+/** The pace of the AI car of pace rank `i` of `total` (0 the quickest), times the TUNE panel's adjustment. */
 export const aiPaceFor = (d: Difficulty, i: number, total: number, adjust = 1) => d.aiPace * adjust * (1 - (i / total) * d.aiSpread);
