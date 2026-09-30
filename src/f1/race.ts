@@ -18,6 +18,7 @@ import { COMPOUNDS } from './tyres';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
+import { createCeremony } from './podium3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
@@ -31,7 +32,7 @@ import type { ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
 import { defaults } from '../engine/tuning';
-import { TILE, buildCircuit } from './circuit';
+import { HALF_WIDTH, TILE, buildCircuit } from './circuit';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
 import { RaceSounds } from './sounds';
@@ -46,8 +47,10 @@ import { F1_TUNING } from './tuning';
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
-/** Seconds the top three are shown in their spots, after skipping the in-lap, before the results. */
-const PODIUM_HOLD = 3;
+/** Seconds of the champagne ceremony before the results (A shows them at once). */
+const PODIUM_HOLD = 7;
+/** How much closer the camera comes for the ceremony. */
+const CEREMONY_ZOOM = 2.6;
 
 /** The T-camera colour marking a team's second car. */
 const TCAM_GREEN = '#39ff14';
@@ -280,6 +283,20 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     chequered.group.visible = false;
     world.scene.add(chequered.group);
   }
+  // the champagne ceremony: a podium on the run-off across the straight from the top three's spots
+  const ceremony = createCeremony();
+  {
+    const at = track.samples[circuit.pit.podium[1].idx];
+    const lat = -circuit.pit.side * (HALF_WIDTH + 34);
+    const cx = at.x + Math.cos(at.dir) * lat;
+    const cy = at.y + Math.sin(at.dir) * lat;
+    const h = groundAt(grid, cx, cy).h;
+    ceremony.group.position.set(cx, h, cy);
+    // (facing the camera, which always looks from the south: the backboard behind the drivers)
+    ceremony.group.rotation.y = 0;
+    ceremony.group.visible = false;
+    world.scene.add(ceremony.group);
+  }
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
@@ -331,6 +348,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   // each race's random draws (its rival teams, the start-light wait) come from its seed: ?seed=<n> repeats a race exactly
   const seedParam = Number(new URLSearchParams(window.location.search).get('seed'));
   let seed = 0;
+
+  /** The champagne ceremony: the race finished at once (the rest at their pace, everyone put where their in-lap ends), and
+   * the top three on the podium, spraying champagne, till the results. */
+  const startCeremony = () => {
+    podium = { top: skipToParked(race), time: 0 };
+    before = undefined;
+    hudState.flashUntil = 0;
+    ceremony.setDrivers(podium.top.map((i) => ({ body: looks[i].team.body, trim: looks[i].team.trim, helmet: i === you ? '#f2c14e' : '#f4f4f8' })));
+  };
 
   const startRace = () => {
     setPaused(false);
@@ -556,13 +582,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // A pauses and resumes (not once the race is over: the results are up)
     const aPressed = pressed('a');
     if (aPressed && !done) setPaused(!paused);
-    // after your flag (or once you're out), A skips the in-lap: straight to the top three in their spots, then the results
+    // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
     else if (aPressed && done && results.style.display !== 'block') {
-      if (!podium) {
-        podium = { top: skipToParked(race), time: 0 };
-        before = undefined;
-        hudState.flashUntil = 0;
-      } else podium.time = PODIUM_HOLD;
+      if (!podium) startCeremony();
+      else podium.time = PODIUM_HOLD;
     }
     // SELECT goes back to the circuits once it's let go: leaving the page with a finger still down
     // can leave the next page deaf to touch on a phone (in itch.io's frame the lifting finger's
@@ -763,10 +786,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
     // the results come up once you're parked after your in-lap (or at A), or once the rest have finished if you're out
     const others = race.entrants.filter((e) => e !== me && running(e));
-    if (podium) podium.time += dt;
+    // parked after your in-lap: on to the ceremony
+    if (!podium && p.finished !== undefined && me.inLap?.parked) startCeremony();
+    ceremony.group.visible = !!podium && results.style.display !== 'block';
+    if (podium) {
+      podium.time += dt;
+      ceremony.update(podium.time, dt);
+    }
     // the winners drive into their spots to a march: from the moment the winner turns for its spot (or the in-lap is skipped)
     if (podium || race.entrants.some((e) => e.inLap?.to === 0)) playMusic(PODIUM_MUSIC, 1);
-    const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished !== undefined ? !!me.inLap?.parked : others.every((e) => e.progress.finished !== undefined);
+    const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished === undefined && others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
     hud.setPosition(`P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
@@ -858,14 +887,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
     const c = me.car;
     const drawn = pose(c, you, alpha);
-    if (podium && podium.top.length) {
-      const cars = podium.top.map((i) => race.entrants[i].car);
-      target.set(cars.reduce((a, o) => a + o.x, 0) / cars.length, cars[0].z * 0.5, cars.reduce((a, o) => a + o.y, 0) / cars.length);
+    if (podium) {
+      // on the ceremony, close in
+      target.copy(ceremony.focus);
+      ceremony.group.localToWorld(target);
       if (podium.time <= dt) focus.copy(target);
     } else target.set(drawn.x + (c.vx / c.cls.topSpeed) * t.lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * t.lead);
     focus.lerp(target, 1 - Math.exp(-dt * 6));
     const pitch = deg(LOOK.pitch);
-    const dist = viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / t.zoom;
+    const dist = viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : 1));
     camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
     camera.lookAt(focus.x, focus.y, focus.z);
     world.followSun(focus);
