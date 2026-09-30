@@ -17,6 +17,7 @@ import { DRY, type Weather } from './weather';
 import { COMPOUNDS, fitTyres } from './tyres';
 import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
+import { roundSeed, teamOf, type Season } from './championship';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
@@ -78,6 +79,11 @@ export interface RaceOptions {
   qualifying?: boolean;
   /** a race weekend, or a Time Trial: flying laps on your own against your best lap's ghost */
   mode?: 'race' | 'timetrial';
+  /**
+   * a round of a Championship: the season (its field, all season), and where the result goes once you've seen the
+   * results: the drivers (the season's indexes) in finishing order, and those who didn't finish
+   */
+  championship?: { season: Season; onDone(finish: number[], out: Set<number>): void };
 }
 
 /**
@@ -85,7 +91,7 @@ export interface RaceOptions {
  * `onQuit` runs when the player leaves (SELECT, or CIRCUITS on the pause screen).
  */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
-  const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race' } = options;
+  const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
@@ -400,11 +406,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    */
   const drawWeekend = () => {
     const rng = seededRandom(seed);
-    const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
-    const youDriver = Math.floor(total / 2);
-    const teams = teamGrid(team, total, youDriver, rng);
+    // (a Championship round: the season's field, its teams and each driver's pace all season)
+    const season = championship?.season;
+    const total = season ? season.drivers.length : Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
+    const youDriver = season ? season.you : Math.floor(total / 2);
+    const teams = season ? season.drivers.map(teamOf) : teamGrid(team, total, youDriver, rng);
     const seats = driverSeats(teams, youDriver);
-    const ranks = paceRanks(total, rng);
+    const ranks = season ? season.drivers.map((d) => d.rank) : paceRanks(total, rng);
     const boxes = [...new Set(teams)];
     const drivers = teams.map((livery, k) => {
       // AI drivers differ in pace, line and racecraft (the difficulty's, and their style's aggression), and make
@@ -449,6 +457,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /** the grid the race started from (drivers by slot; none: everyone in their own), for restarting it */
   let raceGrid: number[] | undefined;
+  /** the race's entrants' drivers (entrant i is driver raceDrivers[i]) */
+  let raceDrivers: number[] = [];
   /** The race, from the grid qualifying set (drivers by slot, pole first), or everyone in their own slot. */
   const startRace = (gridSlots?: number[]) => {
     session = 'race';
@@ -458,6 +468,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     resetSession();
     const w = drawWeekend();
     const slots = gridSlots ?? w.drivers.map((_, k) => k);
+    raceDrivers = slots;
     you = slots.indexOf(w.youDriver);
     looks = slots.map((k) => addLook(w.drivers[k].livery, w.drivers[k].seat, k === w.youDriver));
     const field = slots.map((k, i) => {
@@ -522,7 +533,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /** A new weekend: a new seed (unless ?seed= gave one), then qualifying if it's on, or straight to the race. */
   const newWeekend = () => {
-    seed = Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
+    seed = championship ? roundSeed(championship.season, championship.season.round) : Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
     reference = undefined;
     if (mode === 'timetrial') startTimeTrial();
     else if (qualifying) startQualifying();
@@ -668,13 +679,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return d;
     };
     results.replaceChildren(
-      line(`CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
+      line(championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
       table,
       line('P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
       line(`BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}${saved.newRace ? ' · NEW!' : ''}`, { color: saved.newRace ? '#f2c14e' : '#f4f2fa' }),
-      line(qualifying ? 'START to race again from the same grid' : 'START to race again', { marginTop: '8px' }),
-      line('SELECT for circuits'),
+      ...(championship
+        ? [line('A or START to the standings', { marginTop: '8px' }), line('SELECT to leave the round (not counted)')]
+        : [line(qualifying ? 'START to race again from the same grid' : 'START to race again', { marginTop: '8px' }), line('SELECT for circuits')]),
     );
     results.style.display = 'block';
   };
@@ -750,6 +762,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('keydown', onKey);
+
+  /** A Championship round's result to the season: the drivers in finishing order, and the ones who didn't finish. */
+  let roundDone = false;
+  const finishRound = () => {
+    if (!championship || roundDone) return;
+    roundDone = true;
+    const ranked = raceOrder(race);
+    const out = new Set(ranked.filter((i) => race.entrants[i].progress.retired).map((i) => raceDrivers[i]));
+    championship.onDone(ranked.map((i) => raceDrivers[i]), out);
+  };
 
   // ---------------------------------------------------------------- time trial
   const SPLIT_COLOR: Record<SplitMark, string> = { record: '#b36bff', better: '#5fe0d0', worse: '#f2c14e' };
@@ -839,8 +861,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // A pauses and resumes (not once the race is over: the results are up); in qualifying it skips it, or once it's
     // over goes to the grid
     const aPressed = pressed('a');
-    if (quali?.over && (aPressed || startPressed)) startRace(quali.over.grid);
-    else if (startPressed) restart();
+    // a Championship round, over: on to the standings with the result, once you've seen the results (and a finished
+    // round can't be restarted)
+    if (championship && done && (aPressed || startPressed) && results.style.display === 'block') finishRound();
+    else if (quali?.over && (aPressed || startPressed)) startRace(quali.over.grid);
+    else if (startPressed && !(championship && done)) restart();
     else if (aPressed && session === 'qualifying') startRace();
     else if (aPressed && !done) setPaused(!paused);
     // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
@@ -1114,7 +1139,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const stop = me.pit;
       const [text, color] =
         podium && results.style.display !== 'block' ? [podium.top.map((i, k) => `P${k + 1} ${looks[i].name}`).join(' · '), '#f2c14e']
-        : me.car.wrecked || p.retired ? ['DNF · START to restart', '#d8323c']
+        : me.car.wrecked || p.retired ? [championship ? 'DNF' : 'DNF · START to restart', '#d8323c']
         : done && p.finished !== undefined && results.style.display !== 'block' ? inLapBanner(me.inLap?.to, order.indexOf(you))
         : done ? ['', '']
         : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']
