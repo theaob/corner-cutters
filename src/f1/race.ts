@@ -97,6 +97,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     viewW = f.width;
     viewH = f.height;
     camera.aspect = viewW / f.height;
+    // (without this the camera keeps its first shape, and a wider screen stretches the picture)
+    camera.updateProjectionMatrix();
     applySize();
   };
   resize(fit);
