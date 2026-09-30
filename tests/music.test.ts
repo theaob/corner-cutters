@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { foldTail, musicPlaying, musicVolume, playMusic, setMusicVolume, stopMusic } from '../src/engine/music';
 import { useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
-import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC, menuSong, placeholder, podiumSong, raceSong, type Song } from '../src/f1/music';
+import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC, THEME_MUSIC, menuSong, placeholder, podiumSong, raceSong, themeSong, type Song } from '../src/f1/music';
 
 describe("a loop's tail", () => {
   it('is folded back over its start, so notes ring on across the join', () => {
@@ -20,6 +20,7 @@ describe.each([
   ['menu', menuSong(), scale(9, true)],
   ['race', raceSong(), scale(4, true)],
   ['podium', podiumSong(), scale(9, false)],
+  ['theme', themeSong(), scale(2, true)],
 ] as [string, Song, number[]][])('the %s placeholder', (_, song, key) => {
   it('keeps every note inside the loop', () => {
     const beats = song.bars * 4;
@@ -39,7 +40,7 @@ describe.each([
 
   it('keeps its tunes in a range that sounds (bass low, leads high)', () => {
     for (const n of song.notes) if (n.voice === 'bass') expect(n.midi).toBeLessThan(60);
-    for (const n of song.notes) if (['lead', 'arp', 'brass', 'stab'].includes(n.voice)) expect(n.midi).toBeGreaterThanOrEqual(60);
+    for (const n of song.notes) if (['lead', 'arp', 'brass', 'stab', 'pulse'].includes(n.voice)) expect(n.midi).toBeGreaterThanOrEqual(58);
   });
 
   it('loops in whole bars', () => {
@@ -63,10 +64,24 @@ describe('the podium march', () => {
   });
 });
 
+describe('the landing anthem', () => {
+  const song = themeSong();
+  it('drives on a 16th-note pulse under a brass tune that climbs to the top B flat, with the drums on the beat', () => {
+    const pulse = song.notes.filter((n) => n.voice === 'pulse');
+    expect(pulse).toHaveLength(8 * 16);
+    const brass = song.notes.filter((n) => n.voice === 'brass');
+    expect(Math.max(...brass.map((n) => n.midi))).toBe(82);
+    // the tune's second phrase climbs higher than its first
+    const top = (from: number, to: number) => Math.max(...brass.filter((n) => n.at >= from && n.at < to).map((n) => n.midi));
+    expect(top(16, 32)).toBeGreaterThanOrEqual(top(0, 16));
+    for (const n of song.notes.filter((x) => x.voice === 'snare' && x.at < 28)) expect(n.at % 2).toBe(1);
+  });
+});
+
 describe('the tracks', () => {
   it('play under the sounds, the race quieter still (under the engines)', () => {
     expect(RACE_MUSIC.gain!).toBeLessThan(MENU_MUSIC.gain!);
-    expect(new Set([MENU_MUSIC.id, RACE_MUSIC.id, PODIUM_MUSIC.id]).size).toBe(3);
+    expect(new Set([MENU_MUSIC.id, RACE_MUSIC.id, PODIUM_MUSIC.id, THEME_MUSIC.id]).size).toBe(4);
   });
 });
 

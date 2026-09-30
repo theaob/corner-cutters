@@ -6,6 +6,9 @@
 //   menu  A minor, 96 bpm, 8 bars: arpeggios over Am F C G, a soft pad, a walking bass
 //   race  E minor, 150 bpm, 8 bars: a driving octave bass, drums, a lead riff over Em C G D
 //         (under the engines: it plays quieter)
+//   theme D minor, 124 bpm, 8 bars: the landing (menu) screen's anthem, cinematic racing TV theme in
+//         style (an original tune): a 16th-note synth pulse, a heroic brass tune climbing over
+//         Dm Bb F C | Dm Bb Gm A, string pads, a pumping octave bass, big drums and cymbals
 //   podium  A major, 120 bpm, 8 bars: a triumphal march in the manner of a bullring parade (the
 //         spirit of Bizet's "Les Toréadors"; an original tune): dotted brass fanfares in thirds,
 //         an oom-pah tuba and chords, a marching snare with a roll back into the top, cymbals on the
@@ -15,7 +18,7 @@
 
 import type { Placeholder, Track } from '../engine/music';
 
-export type Voice = 'lead' | 'arp' | 'pad' | 'bass' | 'kick' | 'snare' | 'hat' | 'brass' | 'stab' | 'crash';
+export type Voice = 'lead' | 'arp' | 'pad' | 'bass' | 'kick' | 'snare' | 'hat' | 'brass' | 'stab' | 'crash' | 'pulse';
 
 export interface Note {
   /** start and length, in beats */
@@ -84,6 +87,44 @@ export function raceSong(): Song {
     notes.push({ at: bar + BEATS + 3, len: 0.9, midi: r, voice: 'lead', vel: 0.5 });
   });
   return { bpm: 150, bars: 8, notes };
+}
+
+/** The landing screen's anthem: D minor, over Dm Bb F C | Dm Bb Gm A (the A pulling back to the top). */
+export function themeSong(): Song {
+  const notes: Note[] = [];
+  const A4 = 69, Bb4 = 70, C5 = 72, Cs5 = 73, D5 = 74, E5 = 76, F5 = 77, G5 = 79, A5 = 81, Bb5 = 82;
+  // the chords (from the octave below middle C) and the bass's roots
+  const chords: number[][] = [[50, 53, 57], [46, 50, 53], [53, 57, 60], [48, 52, 55], [50, 53, 57], [46, 50, 53], [55, 58, 62], [57, 61, 64]];
+  // the tune, bar by bar: [beat, beats, midi]; a rising call in the first phrase, an answer that climbs higher in the second
+  const tune: [number, number, number][][] = [
+    [[0, 1.5, D5], [1.5, 0.5, A4], [2, 1, D5], [3, 1, F5]],
+    [[0, 1.5, F5], [1.5, 0.5, E5], [2, 1, D5], [3, 1, Bb5]],
+    [[0, 2, A5], [2, 1, G5], [3, 1, F5]],
+    [[0, 3, E5], [3, 1, C5]],
+    [[0, 1.5, D5], [1.5, 0.5, A4], [2, 1, D5], [3, 1, F5]],
+    [[0, 1.5, G5], [1.5, 0.5, F5], [2, 1, D5], [3, 1, Bb4]],
+    [[0, 2, Bb5], [2, 1, A5], [3, 1, G5]],
+    [[0, 2, A5], [2, 1, E5], [3, 1, Cs5]],
+  ];
+  tune.forEach((bar, k) => bar.forEach(([at, len, midi]) => notes.push({ at: k * BEATS + at, len: len * 0.92, midi, voice: 'brass', vel: len >= 1 ? 0.75 : 0.6 })));
+  chords.forEach((c, k) => {
+    const bar = k * BEATS;
+    // the pulse: 16ths over the chord (root, fifth, octave, fifth), accents on the beat
+    const [r, , fifth] = c;
+    for (let i = 0; i < 16; i++) notes.push({ at: bar + i / 4, len: 0.2, midi: [r, fifth, r + 12, fifth][i % 4] + 12, voice: 'pulse', vel: i % 4 === 0 ? 0.7 : 0.45 });
+    // strings: the chord held
+    for (const m of c) notes.push({ at: bar, len: BEATS, midi: m + 12, voice: 'pad', vel: 0.45 });
+    // the bass: octaves in eighths
+    for (let i = 0; i < 8; i++) notes.push({ at: bar + i / 2, len: 0.4, midi: r - 12 + (i % 2 ? 12 : 0), voice: 'bass', vel: i % 2 ? 0.55 : 0.8 });
+    // drums: a big kick on 1 and 3 (and the and of 4 driving into the next bar), the snare on 2 and 4, hats in eighths
+    for (const t of [0, 2, 3.5]) notes.push({ at: bar + t, len: 0.2, midi: 0, voice: 'kick', vel: t === 3.5 ? 0.6 : 0.95 });
+    for (const t of [1, 3]) notes.push({ at: bar + t, len: 0.2, midi: 0, voice: 'snare', vel: 0.75 });
+    for (let i = 0; i < 8; i++) notes.push({ at: bar + i / 2, len: 0.05, midi: 0, voice: 'hat', vel: i % 2 ? 0.2 : 0.3 });
+  });
+  for (const bar of [0, 4]) notes.push({ at: bar * BEATS, len: 1, midi: 0, voice: 'crash', vel: 0.65 });
+  // a snare fill into the top
+  for (let i = 0; i < 4; i++) notes.push({ at: 7 * BEATS + 3 + i / 4, len: 0.1, midi: 0, voice: 'snare', vel: 0.45 + i * 0.1 });
+  return { bpm: 124, bars: 8, notes };
 }
 
 /** A major's scale (pitch classes), for the brass's second part a third below the tune. */
@@ -276,6 +317,11 @@ function voice(ctx: BaseAudioContext, out: AudioNode, n: Note, t: number, len: n
       tone('square', hz(n.midi), 0.05, 0.05, 2200);
       tone('triangle', hz(n.midi), 0.08, 0.06);
       break;
+    case 'pulse':
+      // a short, bright synth pulse
+      tone('square', hz(n.midi), 0.09, 0.04, 2600);
+      tone('sawtooth', hz(n.midi), 0.05, 0.04, 1800, 6);
+      break;
     case 'crash':
       hit('highpass', 5000, 0.45, 1.4);
       hit('bandpass', 9000, 0.2, 0.9);
@@ -299,4 +345,5 @@ export function placeholder(song: Song): Placeholder {
 
 export const MENU_MUSIC: Track = { id: 'menu', placeholder: placeholder(menuSong()), gain: 0.8 };
 export const RACE_MUSIC: Track = { id: 'race', placeholder: placeholder(raceSong()), gain: 0.45 };
+export const THEME_MUSIC: Track = { id: 'theme', placeholder: placeholder(themeSong()), gain: 0.8 };
 export const PODIUM_MUSIC: Track = { id: 'podium', placeholder: placeholder(podiumSong()), gain: 0.95 };
