@@ -3,6 +3,7 @@
 //   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right'), layout ('handheld'/'desktop')
 //   choices   the menu's last mode ('race'/'timetrial'), circuit, team, difficulty and weather (by id), and qualifying ('on'/'off')
 //   ghosts    your best Time Trial lap on each circuit (and weather), to race as a ghost (timeTrial.ts)
+//   championship  season: the Championship season in progress (or just over) (championship.ts)
 //   records   circuits: best race lap, best qualifying lap and best race times per circuit (records.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //

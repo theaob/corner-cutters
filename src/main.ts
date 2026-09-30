@@ -14,6 +14,10 @@ import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
+import { showChampionship } from './f1/screens/championship';
+import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, teamOf } from './f1/championship';
+import { newSeed } from './engine/rng';
+import type { RaceOptions } from './f1/race';
 import { TEAMS, teamById } from './f1/teams';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, weatherById } from './f1/weather';
@@ -90,12 +94,12 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement)) switchLayout();
 });
 
-/** This page's address with ?circuit set to `id` (and ?mode to a mode other than a race), or both removed (null); other flags (?tune, ?debug…) stay. */
+/** This page's address with ?circuit set to `id` (or removed: null) and ?mode to a mode other than a race (or removed); other flags (?tune, ?debug…) stay. */
 function withCircuit(id: string | null, mode: GameMode = 'race'): string {
   const url = new URL(window.location.href);
   if (id) url.searchParams.set('circuit', id);
   else url.searchParams.delete('circuit');
-  if (id && mode !== 'race') url.searchParams.set('mode', mode);
+  if (mode !== 'race') url.searchParams.set('mode', mode);
   else url.searchParams.delete('mode');
   return url.href;
 }
@@ -109,7 +113,8 @@ const savedTeam = () => teamById(choice('team')) ?? TEAMS[0];
 const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
-const savedMode = (): GameMode => (choice('mode') === 'timetrial' ? 'timetrial' : 'race');
+const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'championship' ? v : 'race');
+const savedMode = (): GameMode => asMode(choice('mode'));
 
 /** The screen showing now (the menu or a race): closed before the next one opens. */
 let current: { close(): void } | undefined;
@@ -119,7 +124,8 @@ let routeId = 0;
 let tuning: ReturnType<typeof mountTuning<typeof F1_TUNING>> | undefined;
 
 /**
- * Show the screen the address asks for: ?circuit=<id> races there (?mode=timetrial: a Time Trial there); otherwise
+ * Show the screen the address asks for: ?circuit=<id> races there (?mode=timetrial: a Time Trial there;
+ * ?mode=championship: the season's round there), ?mode=championship alone the Championship screen; otherwise
  * the circuit menu. Moving between them changes the address (so the browser's
  * back button works) without loading the page again: the screen before is
  * closed and the next one opened in its place.
@@ -131,9 +137,12 @@ async function route(): Promise<void> {
   // (nothing held on one screen carries over to the next)
   controls.clearAll();
   releaseDeck(deck);
-  const layout = layoutById(new URLSearchParams(window.location.search).get('circuit'));
-  if (!layout) await showMenu(id);
-  else await showRace(id, layout);
+  const params = new URLSearchParams(window.location.search);
+  const layout = layoutById(params.get('circuit'));
+  const mode = asMode(params.get('mode'));
+  if (mode === 'championship' && !layout) await showSeason(id);
+  else if (!layout) await showMenu(id);
+  else await showRace(id, layout, mode);
 }
 
 /** Go to `url` (this page with other flags) and show its screen. */
@@ -145,13 +154,7 @@ window.addEventListener('popstate', () => void route());
 
 async function showMenu(id: number): Promise<void> {
   // the menu: all touch, no deck; the screen fills the column
-  document.documentElement.classList.add('menu');
-  const fillScreen = () => {
-    screen.style.width = '100%';
-    screen.style.height = '100%';
-  };
-  fillScreen();
-  onResize = fillScreen;
+  menuScreen();
   // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
@@ -164,18 +167,66 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'weather', picked.weather.id);
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
   save('choices', 'mode', picked.mode);
-  navigate(withCircuit(picked.layout.id, picked.mode));
+  // (a Championship picks its own circuits: to its screen)
+  navigate(withCircuit(picked.mode === 'championship' ? null : picked.layout.id, picked.mode));
 }
 
-async function showRace(id: number, layout: CircuitLayout): Promise<void> {
+/** The screen fills the column (the menus: all touch, no deck). */
+function menuScreen(): void {
+  document.documentElement.classList.add('menu');
+  const fillScreen = () => {
+    screen.style.width = '100%';
+    screen.style.height = '100%';
+  };
+  fillScreen();
+  onResize = fillScreen;
+}
+
+/** The Championship screen: the season so far and the way on (the next round, a new season, or back to the menu). */
+async function showSeason(id: number): Promise<void> {
+  menuScreen();
+  playMusic(THEME_MUSIC);
+  const closed = new AbortController();
+  current = { close: () => closed.abort() };
+  const season = loadSeason();
+  const action = await showChampionship(screen, services, season, closed.signal);
+  if (id !== routeId) return;
+  if (action === 'race' && season) navigate(withCircuit(season.rounds[season.round], 'championship'));
+  else if (action === 'new') {
+    // a new season with the menu's team, difficulty, weather and qualifying: a round on every circuit
+    saveSeason(newSeason({ seed: newSeed(), team: savedTeam(), difficulty: savedDifficulty().id, weather: savedWeather().id, qualifying: savedQualifying(), rounds: LAYOUTS.map((l) => l.id), total: 10 }));
+    void route();
+  } else navigate(withCircuit(null));
+}
+
+async function showRace(id: number, layout: CircuitLayout, mode: GameMode): Promise<void> {
+  // a Championship round: the season's next round (any other circuit: back to its screen)
+  const season = mode === 'championship' ? loadSeason() : undefined;
+  if (mode === 'championship' && (!season || seasonOver(season) || season.rounds[season.round] !== layout.id)) {
+    history.replaceState(null, '', withCircuit(null, 'championship'));
+    return route();
+  }
   document.documentElement.classList.remove('menu');
   const fit = sizeScreen();
   tuning ??= mountTuning(screen, 'f1', F1_TUNING);
   const { raceOn } = await import('./f1/race');
   if (id !== routeId) return;
-  const quit = () => navigate(withCircuit(null));
-  const mode: GameMode = new URLSearchParams(window.location.search).get('mode') === 'timetrial' ? 'timetrial' : 'race';
-  const view: StandaloneView = await raceOn(layout, quit, { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), mode })({ host: screen, services, tuning, fit });
+  const toSeason = () => navigate(withCircuit(null, 'championship'));
+  const quit = season ? toSeason : () => navigate(withCircuit(null));
+  const options: RaceOptions = season
+    ? {
+        team: teamOf(season.drivers[season.you]), difficulty: difficultyById(season.difficulty) ?? NORMAL, weather: weatherById(season.weather) ?? DRY, qualifying: season.qualifying,
+        championship: {
+          season,
+          onDone: (finish, out) => {
+            recordRound(season, finish, out);
+            saveSeason(season);
+            toSeason();
+          },
+        },
+      }
+    : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), mode: mode === 'timetrial' ? 'timetrial' : 'race' };
+  const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();
     return;

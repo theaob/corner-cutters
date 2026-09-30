@@ -75,11 +75,12 @@ function ownTabButton(): HTMLButtonElement {
 }
 
 /** What the menu comes back with. */
-/** What to play: a race weekend, or a Time Trial (flying laps against your ghost). */
-export type GameMode = 'race' | 'timetrial';
+/** What to play: a race weekend, a Time Trial (flying laps against your ghost), or a Championship season. */
+export type GameMode = 'race' | 'timetrial' | 'championship';
 export const MODES: { id: GameMode; name: string; about: string }[] = [
   { id: 'race', name: 'QUICK RACE', about: 'a race against the field' },
   { id: 'timetrial', name: 'TIME TRIAL', about: 'flying laps against your ghost' },
+  { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season: points and standings' },
 ];
 
 export interface MenuChoice {
@@ -161,7 +162,7 @@ function optionRow<T>(
 }
 
 /** A menu button, picked on the press's release (not 'click': in a cross-origin frame on a phone a tap's click can go astray). */
-function menuButton(text: string, onPick: () => void): HTMLButtonElement {
+export function menuButton(text: string, onPick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'menu-button';
   b.textContent = text;
