@@ -30,7 +30,7 @@ npm run dev        # http://localhost:5173
 - **Stick:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts.
 - **Pedals:** the stick's left/right turns the wheel (the car only turns while it rolls), B is the gas, A the brake (held once stopped, it reverses), and A+B together drift.
 
-The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM or CONTROLS row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, START restarts and SELECT goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
+The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM or CONTROLS row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, START restarts and SELECT (once let go) goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
 **TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead, and the pedals' steering; changes apply at once and are kept on the device (Reset puts the defaults back).
 

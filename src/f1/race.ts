@@ -44,7 +44,7 @@ interface Look {
 
 const fmt = (s?: number) => (s === undefined ? '–' : `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}`);
 
-/** The race on `layout`, driven with `scheme` for `team`; `onQuit` runs when the player presses SELECT. */
+/** The race on `layout`, driven with `scheme` for `team`; `onQuit` runs when the player presses and releases SELECT. */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: ControlScheme = 'stick', team: Team = TEAMS[0]): MountStandalone => async ({ host, services, tuning, fit }) => {
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
@@ -177,6 +177,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
   startRace();
 
   const seen = new Map<Button, number>();
+  /** SELECT was pressed: back to the circuits when it's released */
+  let quitting = false;
   const pressed = (b: Button) => {
     const n = controls.presses(b);
     const edge = n > (seen.get(b) ?? n);
@@ -238,7 +240,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     last = now;
     if (pressed('start')) startRace();
     pressed('a');
-    if (pressed('select')) onQuit();
+    // SELECT goes back to the circuits once it's let go: leaving the page with a finger still down
+    // can leave the next page deaf to touch on a phone (in itch.io's frame the lifting finger's
+    // events go to a page that's gone)
+    if (pressed('select')) quitting = true;
+    if (quitting && !controls.isDown('select')) {
+      quitting = false;
+      onQuit();
+    }
     // laps can be tuned live (TUNE), so the race picks up the current value
     race.laps = Math.round(t.laps);
     const laps = race.laps;
