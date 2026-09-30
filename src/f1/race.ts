@@ -386,7 +386,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const blocks = Math.ceil((me.car.health / me.car.cls.health) * 5);
     const car = me.car.wrecked ? 'WRECKED' : '■'.repeat(blocks) + '□'.repeat(5 - blocks);
     const limiter = me.pit ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
-    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nCAR  ${car}${limiter}`;
+    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nCAR  ${car}${limiter}`;
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;

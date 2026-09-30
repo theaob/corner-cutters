@@ -39,6 +39,34 @@ function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
   return c;
 }
 
+/** Whether the game is running inside another page's frame. */
+function framed(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true; // (a cross-origin top can refuse even the comparison)
+  }
+}
+
+/** A button that opens this page in a tab of its own (the same saves: it's the same site). */
+function ownTabButton(): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.className = 'own-tab';
+  b.textContent = 'SLOW HERE? PLAY IN ITS OWN TAB ↗';
+  // on the press's release, not 'click' (in a cross-origin frame on a phone a tap's click can go astray)
+  let armed = false;
+  b.addEventListener('pointerdown', () => (armed = true));
+  b.addEventListener('pointerleave', () => (armed = false));
+  b.addEventListener('pointerup', () => {
+    if (!armed) return;
+    armed = false;
+    const tab = window.open(window.location.href, '_blank');
+    if (tab) tab.opener = null;
+    else b.textContent = 'THE PAGE BLOCKED A NEW TAB';
+  });
+  return b;
+}
+
 /** What the menu comes back with. */
 export interface MenuChoice {
   layout: CircuitLayout;
@@ -186,6 +214,9 @@ export function chooseCircuit(
   }));
   show();
   menu.append(...rows.map((r) => r.el));
+  // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
+  // does, in a frame it doesn't count as played with): offer the game in a tab of its own
+  if (framed()) menu.append(ownTabButton());
   holdTouches(menu);
   host.append(menu);
   hud.setPosition('');

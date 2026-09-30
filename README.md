@@ -34,6 +34,8 @@ npm run dev        # http://localhost:5173
 
 The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, START restarts and SELECT (once let go) goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
+**Frame rate:** the readout at the top left shows the frames per second and the picture quality (HIGH, MEDIUM, LOW). When a phone can't keep up, the quality steps down; if even the lowest level is no quicker, the browser is holding the page to 30 fps (Low Power Mode, or Safari throttling a game embedded in another site's page, as on itch.io), so it goes back to where it started. Embedded like that, the menu offers **PLAY IN ITS OWN TAB**, which isn't throttled; saves carry over.
+
 **TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead; changes apply at once and are kept on the device (Reset puts the defaults back).
 
 **URL flags:** `?circuit=crescent-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3, `__cc.toPits()` damages your car and puts it in the pit entry), and `?desktop` / `?mobile` force a layout.
