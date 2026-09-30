@@ -9,6 +9,7 @@ import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
 import { TEAMS, type Team } from './teams';
 import { logoSvg } from './logos';
+import { formatTime, loadRecords } from './records';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -169,6 +170,7 @@ export function chooseCircuit(
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
   const rows = [teamRow];
 
+  const records = loadRecords();
   const buttons = layouts.map((layout, i) => {
     const li = document.createElement('li');
     const b = document.createElement('button');
@@ -178,6 +180,14 @@ export function chooseCircuit(
     about.textContent = layout.about;
     const text = document.createElement('div');
     text.append(name, about);
+    // your lap record here, once you have one
+    const best = records.circuits[layout.id]?.bestLap;
+    if (best !== undefined) {
+      const record = document.createElement('span');
+      record.className = 'record';
+      record.textContent = `LAP RECORD ${formatTime(best)}`;
+      text.append(record);
+    }
     b.append(outline(layout, 56), text);
     // picked on the pointer's press and release, not 'click': in a cross-origin frame on a phone
     // the click a tap turns into can land on the wrong button

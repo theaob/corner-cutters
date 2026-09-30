@@ -13,6 +13,7 @@ import { createSafetyCarMesh } from './safetyCar3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, secondCars, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
+import { formatTime as fmt, loadRecords, recordLap, recordRace, saveRecords } from './records';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -43,7 +44,6 @@ interface Look {
   color: string;
 }
 
-const fmt = (s?: number) => (s === undefined ? '–' : `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}`);
 
 /** The race on `layout`, driven for `team`; `onQuit` runs when the player presses and releases SELECT. */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0]): MountStandalone => async ({ host, services, tuning, fit }) => {
@@ -145,6 +145,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
+  // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
+  const records = loadRecords();
+  const rec = () => records.circuits[layout.id];
+  /** your laps saved so far this race, whether your finish is saved, and the records this race set */
+  let saved = { laps: 0, race: false, newLap: false, newRace: false };
 
   const startRace = () => {
     for (const l of looks) world.scene.remove(l.mesh);
@@ -171,6 +176,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // five lights, one every 0.6 s, then out after a short random wait
     race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7, circuit.pit);
     done = false;
+    saved = { laps: 0, race: false, newLap: false, newRace: false };
     notice = { text: '', color: '', until: 0 };
     skids.clear();
     particles.clear();
@@ -203,6 +209,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
         /** show the results table as the race stands, for checking its layout */
         results: () => showResults(raceOrder(race)),
+        records: () => records,
         /** damage your car by `share` of its health and put it in the pit entry, turning in, for trying out a stop */
         toPits: (share = 0.5) => {
           const me = race.entrants[you];
@@ -275,6 +282,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       line('CHEQUERED FLAG', { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
       table,
       line('P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
+      line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
+      line(`BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}${saved.newRace ? ' · NEW!' : ''}`, { color: saved.newRace ? '#f2c14e' : '#f4f2fa' }),
       line('START to race again', { marginTop: '8px' }),
       line('SELECT for circuits'),
     );
@@ -320,6 +329,23 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
       else if (e.kind === 'pit-out' && e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
+    }
+    // your records: a new lap as soon as it's done (a record announced if it beats one), the race at your flag
+    const mine = race.entrants[you].progress;
+    if (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race)) {
+      for (const lap of mine.lapTimes.slice(saved.laps)) {
+        const had = rec()?.bestLap !== undefined;
+        if (recordLap(records, layout.id, lap)) {
+          saved.newLap = true;
+          if (had) announce(`NEW LAP RECORD ${fmt(lap)}`, '#f2c14e', 3);
+        }
+      }
+      saved.laps = mine.lapTimes.length;
+      if (mine.finished !== undefined && !saved.race) {
+        saved.race = true;
+        saved.newRace = recordRace(records, layout.id, race.laps, mine.finished + mine.penalty);
+      }
+      saveRecords(records);
     }
     race.entrants.forEach((e, i) => {
       if (!running(e)) return;
@@ -386,7 +412,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const blocks = Math.ceil((me.car.health / me.car.cls.health) * 5);
     const car = me.car.wrecked ? 'WRECKED' : '■'.repeat(blocks) + '□'.repeat(5 - blocks);
     const limiter = me.pit ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
-    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nCAR  ${car}${limiter}`;
+    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}\nCAR  ${car}${limiter}`;
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
