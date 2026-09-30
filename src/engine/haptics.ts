@@ -4,31 +4,20 @@
 
 import { Capacitor } from '@capacitor/core';
 import { Haptics } from '@capacitor/haptics';
-import { storeKey } from './storage';
+import { save, saved } from './save';
 
 let enabled: boolean | undefined;
-const KEY = () => storeKey('vibration');
 
 /** Whether vibration is on (it is unless the player turned it off). */
 export function vibrationOn(): boolean {
-  if (enabled === undefined) {
-    try {
-      enabled = localStorage.getItem(KEY()) !== 'off';
-    } catch {
-      enabled = true;
-    }
-  }
+  enabled ??= saved('settings', 'vibration') !== false;
   return enabled;
 }
 
 /** Turn vibration on or off, and remember it. */
 export function setVibration(on: boolean): void {
   enabled = on;
-  try {
-    localStorage.setItem(KEY(), on ? 'on' : 'off');
-  } catch {
-    // storage blocked: the choice lasts until the page closes
-  }
+  save('settings', 'vibration', on);
 }
 
 /** Vibrate for `ms` milliseconds, if vibration is on and the device can. */

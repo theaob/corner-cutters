@@ -3,28 +3,19 @@
 
 import { thumbstick, type Button, type Controls } from './controls';
 import { vibrate } from './haptics';
-import { storeKey } from './storage';
+import { save, saved } from './save';
 
 export type StickSide = 'left' | 'right';
-const STICK_KEY = () => storeKey('stick-side');
 
 /** Which side the thumbstick sits on (left unless the player moved it; kept on the device). */
 export function stickSide(): StickSide {
-  try {
-    return localStorage.getItem(STICK_KEY()) === 'right' ? 'right' : 'left';
-  } catch {
-    return 'left';
-  }
+  return saved('settings', 'stickSide') === 'right' ? 'right' : 'left';
 }
 
 /** Put the thumbstick on `side` (the A and B buttons go to the other), and remember it. */
 export function setStickSide(deck: HTMLElement, side: StickSide): void {
   deck.classList.toggle('stick-right', side === 'right');
-  try {
-    localStorage.setItem(STICK_KEY(), side);
-  } catch {
-    // storage blocked: the choice lasts until the page closes
-  }
+  save('settings', 'stickSide', side);
 }
 
 /** A tick under the finger on a button press (if vibration is on). */

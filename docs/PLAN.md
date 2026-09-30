@@ -265,7 +265,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 - [x] Difficulty levels on the menu (Easy / Normal / Hard): crash damage and AI pace
 - [x] Saved best lap and best race per circuit (per number of laps), shown on the menu, in the race and at the results ("NEW!")
 - [x] HUD: gap to the car ahead/behind; a flash on position change and fastest lap
-- [ ] Save format with a version number (`engine/save.ts`) and tests
+- [x] Save format with a version number (`engine/save.ts`, the game's in `f1/save.ts`), migrations and tests; the separate keys of before carried over
 - [x] Haptics: crashes, landings, grass and gravel, kerbs; on/off on the pause screen (Android app and Android browsers)
 - [x] After the flag, an in-lap: the top three park in numbered spots on the main straight, the rest are pushed back into their garages; the results come up once you're parked; A skips straight to the top three in their spots
 
