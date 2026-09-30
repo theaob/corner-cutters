@@ -360,7 +360,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   /** what A does while the session's running: skips qualifying, pauses the race */
   const aLabel = () => (session === 'qualifying' ? 'SKIP' : 'PAUSE');
   /** qualifying: your laps so far, this weekend's field, and once it's over, the grid it set (drivers by slot) and the times */
-  let quali: { lap: QualiLap; weekend: ReturnType<typeof drawWeekend>; over?: { grid: number[]; times: (number | undefined)[] } } | undefined;
+  let quali: { lap: QualiLap; weekend: ReturnType<typeof drawWeekend>; flying?: boolean; over?: { grid: number[]; times: (number | undefined)[] } } | undefined;
 
   /** The champagne ceremony: the race finished at once (the rest at their pace, everyone put where their in-lap ends), and
    * the top three on the podium, spraying champagne, till the results. */
@@ -787,6 +787,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       } else if (lap === 'void') announce('FLYING LAP · GO AGAIN', '#f2c14e', 2);
       else if (lap) endQualifying(lap.time);
       else if (race.entrants[you].car.wrecked) endQualifying(undefined);
+      else if (!quali.flying && race.entrants[you].progress.lapStart !== undefined) {
+        // over the line from the run-up: the clock's running
+        quali.flying = true;
+        announce('FLYING LAP', '#5fe0d0', 1.5);
+      }
     }
     // your car's vibration: crashes, landings, grass and gravel, kerbs
     {
@@ -984,6 +989,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         : p.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
         : clock < 1.2 && session === 'race' ? ['GO!', '#5fe0d0']
         : clock < notice.until ? [notice.text, notice.color]
+        : session === 'qualifying' && p.lapStart === undefined ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
         : sc ? ['SAFETY CAR', '#f2c14e']
         : ['', ''];
       banner.textContent = text;

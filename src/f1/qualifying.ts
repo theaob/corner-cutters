@@ -1,5 +1,6 @@
 // Qualifying: one flying lap, on your own, sets your place on the grid. You
-// start rolling a little before the line; the lap is timed from the line back
+// start standing on the straight before the line, with a few seconds to get
+// going (and your bearings) before it; the lap is timed from the line back
 // round to it. A cut across a marked corner (track limits) deletes the lap: the
 // next one is timed afresh. The AI's times come from a reference lap (one AI
 // car on the racing line, alone, on this track in this weather) scaled by each
@@ -15,38 +16,35 @@ import { newProgress, type RaceProgress, type Track } from './racing';
 import type { WeatherId } from './weather';
 
 export const QUALI = {
-  /** px before the line a flying lap starts, rolling */
-  runUp: 360,
-  /** share of the line's speed there it starts at */
-  rolling: 0.9,
+  /** px before the line a session starts, standing: about 5 s of driving to the line (on a straight on every circuit) */
+  runUp: 1200,
   /** an AI time's spread either way, as a share of it */
   spread: 0.008,
   /** laps of the session at most (it's over with your first good one) */
   laps: 99,
 };
 
-/** Put entrant `i` on a flying start: `QUALI.runUp` px before the line, rolling at the line's speed there; the session under way. */
+/** Put entrant `i` on the run-up to a flying lap: `QUALI.runUp` px before the line, standing; the session under way. */
 export function flyingStart(race: Race, i: number): void {
   const { track } = race;
   const n = track.samples.length;
   const idx = n - Math.round(QUALI.runUp / track.spacing);
   const s = track.samples[idx];
   const e = race.entrants[i];
-  const v = Math.min(s.speed, e.car.cls.topSpeed) * QUALI.rolling;
-  Object.assign(e.car, { x: s.x, y: s.y, heading: s.dir, vx: Math.sin(s.dir) * v, vy: -Math.cos(s.dir) * v });
+  Object.assign(e.car, { x: s.x, y: s.y, heading: s.dir, vx: 0, vy: 0 });
   e.progress = newProgress(idx);
   race.phase = 'racing';
   race.clock = 0;
 }
 
-/** A session on your own: just you (no pit stops), on a flying start. */
+/** A session on your own: just you (no pit stops), on the run-up to a flying lap. */
 export function newQualifying(track: Track, grid: Grid, handling: HandlingParams, weather: WeatherId, car = newCar(carClass('f1'), 0, 0, 0)): Race {
   const race = newRace(track, grid, handling, QUALI.laps, [{ car }], 0, undefined, weather);
   flyingStart(race, 0);
   return race;
 }
 
-/** The reference lap (s): one AI car, flat out on the racing line on its own, from a flying start. */
+/** The reference lap (s): one AI car, flat out on the racing line on its own, a flying lap. */
 export function referenceLap(track: Track, grid: Grid, handling: HandlingParams, weather: WeatherId): number {
   const race = newRace(track, grid, handling, QUALI.laps, [{ car: newCar(carClass('f1'), 0, 0, 0), ai: { lane: 0, pace: 1 } }], 0, undefined, weather);
   flyingStart(race, 0);
