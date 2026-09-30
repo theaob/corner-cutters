@@ -97,7 +97,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 /** This page's address with ?circuit set to `id` (or removed: null) and ?mode to a mode other than a race (or removed); other flags (?tune, ?debug…) stay. */
-function withCircuit(id: string | null, mode: GameMode = 'race'): string {
+function withCircuit(id: string | null, mode: GameMode | 'tutorial' = 'race'): string {
   const url = new URL(window.location.href);
   if (id) url.searchParams.set('circuit', id);
   else url.searchParams.delete('circuit');
@@ -142,7 +142,13 @@ async function route(): Promise<void> {
   const params = new URLSearchParams(window.location.search);
   const layout = layoutById(params.get('circuit'));
   const mode = asMode(params.get('mode'));
-  if (mode === 'championship' && !layout) await showSeason(id);
+  // a new player: the controls lap first, on the first circuit
+  if (!layout && mode !== 'championship' && needsControlsLap()) {
+    history.replaceState(null, '', withCircuit(LAYOUTS[0].id, 'tutorial'));
+    return route();
+  }
+  if (params.get('mode') === 'tutorial' && layout) await showRace(id, layout, 'tutorial');
+  else if (mode === 'championship' && !layout) await showSeason(id);
   else if (!layout) await showMenu(id);
   else await showRace(id, layout, mode);
 }
@@ -169,6 +175,7 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'weather', picked.weather.id);
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
   save('choices', 'mode', picked.mode);
+  if (picked.controlsLap) return navigate(withCircuit(LAYOUTS[0].id, 'tutorial'));
   // (a Championship picks its own circuits: to its screen)
   navigate(withCircuit(picked.mode === 'championship' ? null : picked.layout.id, picked.mode));
 }
@@ -186,6 +193,8 @@ function menuScreen(): void {
 
 /** The circuits open for a Quick Race or a Time Trial now. */
 const openNow = () => openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits));
+/** A new player: never done (or skipped) the controls lap, and nothing played yet (no records, no season, nothing unlocked). */
+const needsControlsLap = () => saved('progress', 'onboarded') !== true && !Object.keys(loadRecords().circuits).length && !loadSeason() && !savedUnlocks().length;
 /** A circuit the Championship just unlocked (said on its screen once). */
 let justUnlocked: string | undefined;
 
@@ -207,7 +216,7 @@ async function showSeason(id: number): Promise<void> {
   } else navigate(withCircuit(null));
 }
 
-async function showRace(id: number, layout: CircuitLayout, mode: GameMode): Promise<void> {
+async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial'): Promise<void> {
   // a Championship round: the season's next round (any other circuit: back to its screen)
   const season = mode === 'championship' ? loadSeason() : undefined;
   if (mode === 'championship' && (!season || seasonOver(season) || season.rounds[season.round] !== layout.id)) {
@@ -220,7 +229,15 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode): Prom
   const { raceOn } = await import('./f1/race');
   if (id !== routeId) return;
   const toSeason = () => navigate(withCircuit(null, 'championship'));
-  const quit = season ? toSeason : () => navigate(withCircuit(null));
+  const quit = season
+    ? toSeason
+    : mode === 'tutorial'
+      ? () => {
+          // (done or skipped: either way, not shown on its own again)
+          save('progress', 'onboarded', true);
+          navigate(withCircuit(null));
+        }
+      : () => navigate(withCircuit(null));
   const options: RaceOptions = season
     ? {
         team: teamOf(season.drivers[season.you]), difficulty: difficultyById(season.difficulty) ?? NORMAL, weather: weatherById(season.weather) ?? DRY, qualifying: season.qualifying,
@@ -239,7 +256,9 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode): Prom
           },
         },
       }
-    : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), mode: mode === 'timetrial' ? 'timetrial' : 'race' };
+    : mode === 'tutorial'
+      ? { team: savedTeam(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
+      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), mode: mode === 'timetrial' ? 'timetrial' : 'race' };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();
