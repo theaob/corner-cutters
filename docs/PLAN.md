@@ -260,7 +260,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 
 - [x] Pause: A pauses, auto-pause when the tab or app is hidden, resume/restart/circuits screen
 - [x] Sound effects: engine note (V6 orders, gearshift cuts, overrun pops, a rival's Doppler), tyre squeal, impacts, lights beeps, flag; volume, remembered (synthesised, no files)
-- [ ] Music playback (`engine/music.ts`) with a placeholder loop, so the composed tracks can be dropped in
+- [x] Music playback (`engine/music.ts`): looping, crossfades, loop points, its own volume setting; synthesised placeholder loops (`f1/music.ts`), so the composed tracks can be dropped in
 - [ ] Music: menu theme and a first race loop
 - [x] Difficulty levels on the menu (Easy / Normal / Hard): crash damage and AI pace
 - [x] Saved best lap and best race per circuit (per number of laps), shown on the menu, in the race and at the results ("NEW!")

@@ -32,6 +32,8 @@ import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
 import { RaceSounds } from './sounds';
 import { setAudioPaused } from '../engine/audio';
+import { musicPlaying, playMusic } from '../engine/music';
+import { MENU_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
@@ -268,6 +270,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   const startRace = () => {
     setPaused(false);
     soundState = { lights: 0, flag: false };
+    playMusic(RACE_MUSIC);
     for (const l of looks) world.scene.remove(l.mesh);
     world.scene.remove(safetyCar.group);
     const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
@@ -332,6 +335,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         /** show the results table as the race stands, for checking its layout */
         results: () => showResults(raceOrder(race)),
         records: () => records,
+        /** the music track playing (or loading) */
+        music: () => musicPlaying(),
         /** wave the chequered flag for everyone now, in race order (you in `place`, 1 = the winner, if given), for watching the in-lap and the parking */
         flag: (place?: number) => {
           const ranked = raceOrder(race).filter((i) => i !== you);
@@ -630,6 +635,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     if (p.finished !== undefined && !soundState.flag) {
       soundState.flag = true;
       sounds.flag();
+      // the race's music gives way to the menu's, for the in-lap and the results
+      playMusic(MENU_MUSIC, 3);
     }
     // the results come up once you're parked after your in-lap (or at A), or once the rest have finished if you're out
     const others = race.entrants.filter((e) => e !== me && running(e));

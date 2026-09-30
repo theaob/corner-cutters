@@ -14,6 +14,10 @@ export const VOLUMES = [0, 0.35, 0.7, 1] as const;
 
 let ctx: AudioContext | undefined;
 let master: GainNode | undefined;
+/** the limiter everything plays through: the sounds, and the music (music.ts) */
+let output: AudioNode | undefined;
+/** the game has paused (its pause screen): stays silent when the page comes back */
+let gamePaused = false;
 let noiseBuffer: AudioBuffer | undefined;
 let volume: number | undefined;
 
@@ -31,6 +35,12 @@ export function setSoundVolume(v: number): void {
   volume = Math.max(0, Math.min(1, v));
   if (master && ctx) master.gain.setTargetAtTime(volume, ctx.currentTime, 0.05);
   save('settings', 'sound', volume);
+}
+
+/** The audio context and the output to play into (through the limiter); undefined without Web Audio. */
+export function audioOut(): { ctx: AudioContext; out: AudioNode } | undefined {
+  const c = audio();
+  return c && output ? { ctx: c, out: output } : undefined;
 }
 
 /** The audio context, made (and resumed) on demand; undefined without Web Audio. */
@@ -54,6 +64,12 @@ function audio(): AudioContext | undefined {
     limiter.attack.value = 0.003;
     limiter.release.value = 0.15;
     master.connect(limiter).connect(ctx.destination);
+    output = limiter;
+    // the page hidden (another tab, the app in the background): silent, on every screen, until it's back
+    globalThis.document?.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') void ctx?.suspend().catch(() => {});
+      else if (!gamePaused) void ctx?.resume().catch(() => {});
+    });
     // two seconds of white noise, looped by the noise voices
     noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
@@ -66,7 +82,7 @@ function audio(): AudioContext | undefined {
 export function unlockAudio(target: Window = window): void {
   const resume = () => {
     const c = audio();
-    if (c && c.state !== 'running') void c.resume().catch(() => {});
+    if (c && c.state !== 'running' && !gamePaused) void c.resume().catch(() => {});
   };
   target.addEventListener('pointerdown', resume, { capture: true });
   target.addEventListener('keydown', resume, { capture: true });
@@ -74,6 +90,7 @@ export function unlockAudio(target: Window = window): void {
 
 /** Silence everything (a pause, the app in the background), or bring it back. */
 export function setAudioPaused(paused: boolean): void {
+  gamePaused = paused;
   if (!ctx) return;
   if (paused) void ctx.suspend().catch(() => {});
   else void ctx.resume().catch(() => {});

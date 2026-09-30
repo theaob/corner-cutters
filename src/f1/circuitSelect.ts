@@ -7,6 +7,7 @@ import type { Button } from '../engine/controls';
 import { holdTouches, setStickSide, stickSide, type StickSide } from '../engine/deck';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
+import { musicVolume, setMusicVolume } from '../engine/music';
 import { menuPick, menuTick } from './sounds';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
@@ -201,7 +202,7 @@ export function chooseCircuit(
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
   const rows = [teamRow, weatherRow];
 
-  // the settings screen: difficulty, which side the thumbstick sits on, vibration
+  // the settings screen: difficulty, which side the thumbstick sits on, vibration, sound and music volumes
   const deck = document.getElementById('deck');
   const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
   const sides: StickSide[] = ['left', 'right'];
@@ -217,7 +218,11 @@ export function chooseCircuit(
   const soundRow = optionRow('SOUND', [...VOLUMES], volumeNow, (v) => ({ name: ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])], about: v ? 'engines, tyres, crashes, lights' : 'silence' }), (v) => {
     setSoundVolume(v);
   });
-  const settingsRows = [difficultyRow, stickRow, vibrationRow, soundRow];
+  const musicNow = VOLUMES.reduce((a, b) => (Math.abs(b - musicVolume()) < Math.abs(a - musicVolume()) ? b : a));
+  const musicRow = optionRow('MUSIC', [...VOLUMES], musicNow, (v) => ({ name: ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])], about: v ? 'menu and race tracks' : 'silence' }), (v) => {
+    setMusicVolume(v);
+  });
+  const settingsRows = [difficultyRow, stickRow, vibrationRow, soundRow, musicRow];
   const settingsTitle = document.createElement('h2');
   settingsTitle.textContent = 'SETTINGS';
   const openSettings = () => {
