@@ -6,9 +6,9 @@
 
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
-import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf } from '../engine/driving';
+import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car } from '../engine/driving';
 import { groundAt } from '../engine/sim';
-import { lineCornerSpeed, lineDecel, playerInput, type AiDriver } from './racing';
+import { keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiPaceFor, handlingFor, type Difficulty } from './difficulty';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
@@ -454,8 +454,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
 
     // the race: everyone drives, the rules run
     const pad = { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') };
+    // the device you last used decides how you drive: the touch thumbstick points where to go; keys and a
+    // gamepad drive the car itself (up or the right trigger is gas, down or the left trigger the brake)
+    const source = controls.lastSource();
+    const drive = source === 'gamepad' ? controls.drive('gamepad') : undefined;
+    const driveInput = (car: Car) =>
+      drive ? wheelInput({ ...drive, drift: pad.b }, car)
+      : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
+      : playerInput(pad);
     const healthBefore = race.entrants[you].car.health;
-    const step = stepRace(race, dt, () => playerInput(pad));
+    const step = stepRace(race, dt, (e) => driveInput(e.car));
     // your car's vibration: crashes, landings, grass and gravel, kerbs
     {
       const me = race.entrants[you];

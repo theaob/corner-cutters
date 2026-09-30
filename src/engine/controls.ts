@@ -1,9 +1,19 @@
-// Virtual handheld buttons, fed by the keyboard and the on-screen deck.
-// Each input source keeps its own set of held buttons, so releasing a key
-// doesn't cancel a button still held on the touch deck (and vice versa).
+// Virtual handheld buttons, fed by the keyboard, a gamepad and the on-screen
+// deck. Each input source keeps its own set of held buttons, so releasing a key
+// doesn't cancel a button still held on the touch deck (and vice versa). A
+// gamepad also gives analogue driving (steering, gas, brake), and the controls
+// remember which source was used last, so a game can drive the car the way
+// that device suits.
 
 export type Button = 'up' | 'down' | 'left' | 'right' | 'a' | 'b' | 'start' | 'select';
 export type Direction = 'up' | 'down' | 'left' | 'right';
+
+/** Analogue car-relative driving from a gamepad: steering −1 (left) … 1 (right), gas and brake 0…1. */
+export interface Drive {
+  turn: number;
+  gas: number;
+  brake: number;
+}
 
 export interface Stick {
   /** screen-space direction (y down); length 0…1 is how far the thumb is pushed */
@@ -15,15 +25,24 @@ export class Controls {
   private readonly held = new Map<string, Set<Button>>();
   private readonly pressCounts = new Map<Button, number>();
   private readonly sticks = new Map<string, Stick>();
+  private readonly drives = new Map<string, Drive>();
+  private last = '';
+
+  /** The source the player used last (e.g. 'keyboard', 'gamepad', 'touch-…'); '' before any. */
+  lastSource(): string {
+    return this.last;
+  }
 
   set(source: string, buttons: Iterable<Button>): void {
     const next = new Set(buttons);
     for (const b of next) if (!this.isDown(b)) this.countPress(b);
+    if (next.size) this.last = source;
     this.held.set(source, next);
   }
 
   press(source: string, button: Button, down: boolean): void {
     const set = this.held.get(source) ?? new Set<Button>();
+    if (down) this.last = source;
     if (down && !this.isDown(button)) this.countPress(button);
     if (down) set.add(button);
     else set.delete(button);
@@ -45,17 +64,36 @@ export class Controls {
   clear(source: string): void {
     this.held.delete(source);
     this.sticks.delete(source);
+    this.drives.delete(source);
   }
 
   /** Let go of everything from every source (the page lost focus or is being left). */
   clearAll(): void {
     this.held.clear();
     this.sticks.clear();
+    this.drives.clear();
   }
 
   /** Analogue position from a touch source (the thumbstick reports the thumb's exact offset). */
   setStick(source: string, stick: Stick): void {
+    if (stick.x || stick.y) this.last = source;
     this.sticks.set(source, stick);
+  }
+
+  /** Analogue driving from a gamepad. */
+  setDrive(source: string, drive: Drive): void {
+    if (drive.turn || drive.gas || drive.brake) this.last = source;
+    this.drives.set(source, drive);
+  }
+
+  /** The analogue driving from `source`, if it gives any. */
+  drive(source: string): Drive | undefined {
+    return this.drives.get(source);
+  }
+
+  /** Whether `button` is held on `source` in particular. */
+  isDownOn(source: string, button: Button): boolean {
+    return this.held.get(source)?.has(button) ?? false;
   }
 
   /** The analogue stick if a touch source is providing one; undefined for keyboard-only input. */
@@ -190,4 +228,47 @@ export function guardInput(controls: Controls, onRelease: () => void, target: Wi
   });
   target.focus();
   target.addEventListener('pointerdown', () => target.focus(), { capture: true });
+}
+
+/** A gamepad's buttons (in the standard layout) as the handheld's: A drifts (B), Start pauses (A), Y restarts (START), Back is SELECT, the d-pad moves. */
+const PAD_BUTTONS: [index: number, button: Button][] = [
+  [0, 'b'],
+  [9, 'a'],
+  [3, 'start'],
+  [8, 'select'],
+  [12, 'up'],
+  [13, 'down'],
+  [14, 'left'],
+  [15, 'right'],
+];
+
+/** Stick travel ignored around the centre (worn sticks don't rest at 0). */
+const PAD_DEAD_ZONE = 0.15;
+
+/** A gamepad's state as the handheld's buttons and analogue driving: the left stick steers, the right trigger is gas, the left the brake. */
+export function readGamepad(pad: { buttons: readonly { pressed: boolean; value: number }[]; axes: readonly number[] }): { buttons: Button[]; drive: Drive } {
+  const buttons = PAD_BUTTONS.filter(([i]) => pad.buttons[i]?.pressed).map(([, b]) => b);
+  const x = pad.axes[0] ?? 0;
+  const turn = Math.abs(x) < PAD_DEAD_ZONE ? 0 : Math.sign(x) * ((Math.abs(x) - PAD_DEAD_ZONE) / (1 - PAD_DEAD_ZONE));
+  return { buttons, drive: { turn, gas: pad.buttons[7]?.value ?? 0, brake: pad.buttons[6]?.value ?? 0 } };
+}
+
+/** Poll the first connected gamepad every frame, as the 'gamepad' source. */
+export function bindGamepad(controls: Controls, target: Window = window): void {
+  if (!target.navigator.getGamepads) return;
+  let had = false;
+  const poll = () => {
+    const pad = [...target.navigator.getGamepads()].find((p) => p && p.connected);
+    if (pad) {
+      const { buttons, drive } = readGamepad(pad);
+      controls.set('gamepad', buttons);
+      controls.setDrive('gamepad', drive);
+      had = true;
+    } else if (had) {
+      controls.clear('gamepad');
+      had = false;
+    }
+    target.requestAnimationFrame(poll);
+  };
+  target.requestAnimationFrame(poll);
 }

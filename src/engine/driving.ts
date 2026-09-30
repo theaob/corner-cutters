@@ -244,6 +244,12 @@ export interface DriveInput {
   brake?: boolean;
   /** px/s: a speed limiter the car won't pull beyond (e.g. under a safety car) */
   limit?: number;
+  /**
+   * Drive it like a car instead (in place of `steer`; for keys and gamepads): turn
+   * the wheel (−1 full left … 1 full right, relative to the car), press the gas
+   * (0…1), or reverse. Braking is `brake`, drifting is `handbrake`, as ever.
+   */
+  wheel?: { turn: number; gas: number; reverse: boolean };
 }
 
 export interface StepEvents {
@@ -370,9 +376,31 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   const mag = steer ? Math.min(1, Math.hypot(steer.x, steer.y)) : 0;
   const handbrake = !car.wrecked && grounded && input.handbrake;
   const braking = !car.wrecked && grounded && input.brake === true;
+  const wheel = car.wrecked || !grounded ? undefined : input.wheel;
 
   if (!grounded) {
     // keep fwd and side as they are
+  } else if (wheel) {
+    // like a car: the wheel turns it only while it rolls, and the other way round in reverse
+    const rolling = Math.min(1, Math.abs(fwd) / 30);
+    const turnScale = Math.min(1, Math.max(0.35, Math.abs(fwd) / (top * 0.3))) * rolling * (fwd < 0 ? -1 : 1);
+    const turn = Math.max(-1, Math.min(1, wheel.turn)) * cls.turnRate * (car.tyreGrip ?? 1) * dt * turnScale * (handbrake ? p.handbrakeTurn : 1);
+    const next = car.heading + turn;
+    if (!bodyBlocked(grid, car, next) || bodyBlocked(grid, car, car.heading)) car.heading = next;
+    const nf0 = forwardOf(car.heading);
+    const nr0 = rightOf(car.heading);
+    fwd = car.vx * nf0.x + car.vy * nf0.y;
+    side = car.vx * nr0.x + car.vy * nr0.y;
+    const gas = Math.max(0, Math.min(1, wheel.gas));
+    if (wheel.reverse) {
+      const want = -Math.min(top * 0.35, limit);
+      fwd = fwd > want ? Math.max(want, fwd - enginePull(cls, fwd) * dt) : toward(fwd, want, drag);
+    } else if (gas > 0) {
+      const want = Math.min(top * gas, limit);
+      fwd = fwd < want ? Math.min(want, fwd + enginePull(cls, fwd) * dt) : toward(fwd, want, drag);
+    } else {
+      fwd = toward(fwd, 0, drag);
+    }
   } else if (steer && mag > 0) {
     let target = Math.atan2(steer.x, -steer.y);
     let diff = angleDiff(target, car.heading);

@@ -3,6 +3,9 @@ import { DEFAULT_HANDLING, carClass, newCar, speedOf, stepCar } from '../src/eng
 import type { Grid } from '../src/engine/sim';
 import {
   aiInput,
+  keysWheel,
+  wheelInput,
+  WHEEL_LOCK,
   playerInput,
   buildTrack,
   nearestSample,
@@ -184,3 +187,23 @@ describe('the player\'s controls', () => {
   });
 });
 
+
+describe('driving with keys or a gamepad', () => {
+  const car = newCar(carClass('f1'), 0, 0); // facing north, stopped
+  it('steers the car itself: a key at full lock, a stick gentler near the centre', () => {
+    expect(wheelInput(keysWheel({ up: true, down: false, left: false, right: true }, false), car).wheel).toEqual({ turn: WHEEL_LOCK, gas: 1, reverse: false });
+    const half = wheelInput({ turn: 0.5, gas: 0, brake: 0, drift: false }, car).wheel!.turn;
+    expect(half).toBeLessThan(WHEEL_LOCK * 0.5);
+    expect(half).toBeGreaterThan(0);
+  });
+
+  it('brakes while rolling forwards, reverses once stopped, and drifts', () => {
+    const moving = newCar(carClass('f1'), 0, 0);
+    moving.vy = -150;
+    const down = keysWheel({ up: false, down: true, left: false, right: false }, true);
+    const braking = wheelInput(down, moving);
+    expect(braking.brake).toBe(true);
+    expect(braking.handbrake).toBe(true);
+    expect(wheelInput(down, car).wheel?.reverse).toBe(true);
+  });
+});
