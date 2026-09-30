@@ -240,6 +240,16 @@ export interface AiDriver {
   craft?: number;
   /** what it's doing about the cars round it (kept from step to step): passing a car on a side, or covering a side from one */
   move?: { kind: 'pass' | 'defend'; side: -1 | 1; car: Car };
+  /** its chance of a mistake going into each bend, and the dice for it (seeded: a race plays again the same); none without */
+  mistakes?: number;
+  rng?: () => number;
+  /** the mistake it's making in this bend, if any: braked too late (carrying too much speed in), or running wide */
+  slip?: 'late' | 'wide';
+  /** through a mistake: the slowest the line has been so far, and the sample where it passed that (then out of the bend) */
+  slipMin?: number;
+  slipApex?: number;
+  /** it was on a straight last step (for spotting a bend's start) */
+  wasStraight?: boolean;
 }
 
 /** The lateral offset (px, + = right of the centreline) of point (x, y) near sample i. */
@@ -322,6 +332,14 @@ export const RACECRAFT = {
   defendRange: 100,
   /** px a car alongside is left: a car's width and some */
   room: 22,
+  /** a mistake. Braking too late: into the bend at this share of the line's own speed, then past the apex, run wide and
+   * gather it up at `recover` of the pace for `recoverFor` px. Running wide: this far out, this slow, through the bend
+   * and `recoverFor` px out of it */
+  lockUp: 1.05,
+  recover: 0.55,
+  recoverFor: 170,
+  wide: 22,
+  wideSlow: 0.78,
 };
 
 /** px/s slower than a car alongside and ahead in a bend that a car giving way drops to */
@@ -366,6 +384,8 @@ function nextBend(track: Track, idx: number, px: number): number {
  *   not at all with little racecraft);
  * - a car alongside is left a car's width of room, rather than turned in on;
  *   side by side into a bend, the one a nose behind gives way;
+ * - now and then (its `mistakes` chance, into each bend) it gets a bend wrong:
+ *   brakes too late and carries too much speed in, or runs wide and slow;
  * - off the line in a bend, it takes the bend at the speed its radius there
  *   allows (tighter on the inside), not the line's;
  * - too close behind a car to get by, it holds that car's speed.
@@ -447,6 +467,33 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   }
   ai.move = move;
 
+  // mistakes: going into a bend (where the braking for it starts), now and then a driver gets it wrong, and pays
+  // for it through the bend (never while the pack is still bunched, or under the safety car)
+  // (a real braking bend: the line slows well below flat out within the next few car lengths)
+  const braking = () => {
+    let slowest = top;
+    for (let k = 0; k * track.spacing < 300; k += 2) slowest = Math.min(slowest, track.samples[(idx + k) % n].speed);
+    return slowest < 0.8 * top;
+  };
+  if (ai.wasStraight && !straight && racing && ai.rng && ai.mistakes && braking() && ai.rng() < ai.mistakes) {
+    ai.slip = ai.rng() < 0.5 ? 'late' : 'wide';
+    ai.slipMin = Infinity;
+    ai.slipApex = undefined;
+  }
+  // (past the apex once the line's speed rises well above the slowest it was; a mistake is over a way on from there)
+  let gathering = false;
+  if (ai.slip) {
+    if (ai.slipApex === undefined) {
+      ai.slipMin = Math.min(ai.slipMin ?? Infinity, line);
+      if (line > 1.15 * ai.slipMin) ai.slipApex = idx;
+    }
+    const past = ai.slipApex === undefined ? -1 : ((idx - ai.slipApex + n) % n) * track.spacing;
+    gathering = past >= 0 && past < R.recoverFor;
+    if (past >= R.recoverFor || (straight && ai.slipApex === undefined)) ai.slip = undefined;
+  }
+  if (!racing) ai.slip = undefined;
+  ai.wasStraight = straight;
+
   let lane = ai.lane;
   const passCar = move?.kind === 'pass' ? move.car : undefined;
   const passing = passCar ? seen.find((c) => c.o === passCar) : undefined;
@@ -454,10 +501,15 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   else if (move?.kind === 'defend') lane = move.side * R.cover * Math.min(1, (craft - R.defendFrom) / (1 - R.defendFrom) + 0.25);
   // wrecks are steered round, whatever the orders
   for (const c of seen) if (c.o.wrecked && c.along > 0 && c.along < 40 + v * 0.8 && Math.abs(c.across) < 18) lane = c.across > 0 ? mine - 26 : mine + 26;
+  // running wide (or gathering up a lock-up): out toward the edge on the outside of the bend
+  if ((ai.slip === 'wide' && (gathering || ai.slipApex === undefined)) || (ai.slip === 'late' && gathering)) lane -= Math.sign(nextBend(track, idx, 60 + v * 0.8) || here.curve || ai.slipMin || 1) * R.wide;
   lane = Math.max(-R.laneLimit, Math.min(R.laneLimit, lane));
   // moved off its usual line for a bend (passing, defending, giving room): its radius there sets the speed, tighter
   // on the inside (every car cuts the bends a little the same way; this is only for being moved over from that)
   if (!straight) free *= Math.min(1, Math.sqrt(Math.max(0.5, 1 - (lane - ai.lane) * nextBend(track, idx, 60 + v * 0.8))));
+  // a lock-up: into the bend too fast (it runs wide, or slides); running wide: off the pace through it
+  if (ai.slip === 'late') free = gathering ? free * R.recover : Math.min(top * boost, Math.max(free, line * cornering * R.lockUp));
+  else if (ai.slip === 'wide') free *= R.wideSlow;
 
   // too close to get by (a pack braking into a hairpin): don't drive into its gearbox. Watched across
   // nearly two car widths, so a car merging from the side counts too; pulled out to pass, only while overlapping it

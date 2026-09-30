@@ -11,7 +11,8 @@ import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../eng
 import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
 import { keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
-import { NORMAL, aiCraftFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
+import { NORMAL, aiCraftFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
+import { styleOf } from './drivers';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
@@ -225,6 +226,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   /** your race is over (finished, or out) and the results are coming */
   let done = false;
   /** the in-lap skipped (A): the top three in their spots, and seconds the camera has been on them (the results follow) */
+  let mistakeCount = 0;
   let podium: { top: number[]; time: number } | undefined;
   let you = 0;
   const safetyCar = createSafetyCarMesh();
@@ -243,6 +245,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
+  /** Whether car `i` is near yours (within about a screen's height). */
+  const near = (i: number) => {
+    const a = race.entrants[i].car;
+    const b = race.entrants[you].car;
+    return Math.hypot(a.x - b.x, a.y - b.y) < 360;
+  };
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
   const records = loadRecords();
   // (kept apart for each weather: a wet lap is slower)
@@ -313,8 +321,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       world.scene.add(mesh);
       // each AI car driven by its team's driver in that seat
       looks.push({ name: i === you ? 'YOU' : livery.drivers[seats[i]], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
-      // AI drivers differ in pace, line and racecraft; the quicker cars start mostly further up the grid, but not always
-      const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(difficulty, ranks[i], total, t.aiPaceAdjust), craft: aiCraftFor(difficulty, rng) };
+      // AI drivers differ in pace, line and racecraft (the difficulty's, and their style's aggression), and make
+      // mistakes now and then (fewer the more consistent their style), on their own dice from the race's seed; the
+      // quicker cars start mostly further up the grid, but not always
+      const style = styleOf(livery.drivers[seats[i]]);
+      const ai: AiDriver | undefined = i === you ? undefined : {
+        lane: ((i * 7) % 11) - 5, pace: aiPaceFor(difficulty, ranks[i], total, t.aiPaceAdjust), craft: aiCraftFor(difficulty, rng, style.aggression),
+        mistakes: aiMistakesFor(difficulty, style.consistency), rng: seededRandom(Math.floor(rng() * 4294967296)),
+      };
       // each team its own box in the pit lane
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai, box: [...new Set(teams)].indexOf(livery) };
     });
@@ -352,7 +366,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         paused: () => paused,
         order: () => raceOrder(race).map((i) => looks[i].name),
         you: () => ({ ...race.entrants[you].progress, tow: race.entrants[you].tow, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
-        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind })),
+        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind, craft: e.ai?.craft, mistakes: e.ai?.mistakes, dice: !!e.ai?.rng })),
         safetyCar: () => !!race.sc,
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
@@ -360,6 +374,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         /** show the results table as the race stands, for checking its layout */
         results: () => showResults(raceOrder(race)),
         records: () => records,
+        /** mistakes the AI has made this race */
+        mistakes: () => mistakeCount,
         /** this race's seed (?seed=<n> plays it again) */
         seed: () => seed,
         /** the music track playing (or loading) */
@@ -591,6 +607,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         });
       }
     }
+    mistakeCount += step.race.filter((e) => e.kind === 'mistake').length;
     for (const e of step.race) {
       if (e.kind === 'lights-out') sounds.go();
       else if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
@@ -599,6 +616,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
       else if (e.kind === 'pit-out' && e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
+      // a mistake by a car near you (on the screen, more or less): called out
+      else if (e.kind === 'mistake' && !done && race.clock >= notice.until && near(e.who)) announce(e.what === 'late' ? `LOCK-UP · ${looks[e.who].name}` : `${looks[e.who].name} RUNS WIDE`, '#9d9ab8', 1.5);
     }
     // the race's fastest lap (announced; purple in the results)
     race.entrants.forEach((e, i) => {

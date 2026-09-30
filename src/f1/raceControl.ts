@@ -85,7 +85,8 @@ export type RaceEvent =
   | { kind: 'penalty'; who: number; seconds: number }
   | { kind: 'pit-in'; who: number }
   | { kind: 'pit-stop'; who: number; seconds: number }
-  | { kind: 'pit-out'; who: number };
+  | { kind: 'pit-out'; who: number }
+  | { kind: 'mistake'; who: number; what: 'late' | 'wide' };
 
 export interface Race {
   track: Track;
@@ -336,7 +337,11 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     else if (lap && typeof lap.to === 'number' && pit) input = podiumInput(race, e, lap.to, others);
     else if (e.progress.finished !== undefined) input = { ...coolDownInput(e.car, track, e.progress.idx, others), limit: orders.limit };
     // (no passing or defending moves while the pack is still bunched from the start)
-    else if (e.ai) input = aiInput(e.car, track, e.progress.idx, e.ai, others, race.clock < SETTLE ? { ...orders, noOvertaking: true } : orders, towBoost(e.tow));
+    else if (e.ai) {
+      const slip = e.ai.slip;
+      input = aiInput(e.car, track, e.progress.idx, e.ai, others, race.clock < SETTLE ? { ...orders, noOvertaking: true } : orders, towBoost(e.tow));
+      if (e.ai.slip && e.ai.slip !== slip) out.push({ kind: 'mistake', who: i, what: e.ai.slip });
+    }
     // the player's limiter: right behind the safety car, its speed; alongside or just past it, slower, to drop back
     else input = { ...player(e), limit: playerLimit(e) };
     return stepCar(e.car, input, p, dt, grid);

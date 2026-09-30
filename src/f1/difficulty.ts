@@ -24,12 +24,14 @@ export interface Difficulty {
   damageSlow: number;
   /** the AI's racecraft, 0…1 (each driver a little either side): how boldly it passes, and how hard it defends */
   aiCraft: number;
+  /** the chance an AI driver makes a mistake going into a bend (a lock-up or a run wide), before its consistency */
+  aiMistakes: number;
 }
 
 export const DIFFICULTIES: Difficulty[] = [
-  { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15, aiCraft: 0.3 },
-  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.94, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3, aiCraft: 0.6 },
-  { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 1, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4, aiCraft: 0.9 },
+  { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15, aiCraft: 0.3, aiMistakes: 0.08 },
+  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.94, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3, aiCraft: 0.6, aiMistakes: 0.05 },
+  { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 1, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4, aiCraft: 0.9, aiMistakes: 0.025 },
 ];
 
 export const NORMAL = DIFFICULTIES[1];
@@ -40,8 +42,11 @@ export const difficultyById = (id: string | null | undefined) => DIFFICULTIES.fi
 /** The race's driving rules at this difficulty. */
 export const handlingFor = (d: Difficulty): HandlingParams => ({ ...RACE_HANDLING, crashDamage: d.crashDamage, damageSlow: d.damageSlow });
 
-/** An AI driver's racecraft at this difficulty: its own, drawn from `rng`, within 0.15 either side. */
-export const aiCraftFor = (d: Difficulty, rng: () => number) => Math.max(0, Math.min(1, d.aiCraft + (rng() * 2 - 1) * 0.15));
+/** An AI driver's racecraft at this difficulty: its own, drawn from `rng`, within 0.15 either side, plus its style's aggression. */
+export const aiCraftFor = (d: Difficulty, rng: () => number, aggression = 0) => Math.max(0, Math.min(1, d.aiCraft + aggression + (rng() * 2 - 1) * 0.15));
+
+/** An AI driver's chance of a mistake into each bend at this difficulty, for its style's consistency. */
+export const aiMistakesFor = (d: Difficulty, consistency = 0) => d.aiMistakes * (1 - 0.6 * consistency);
 
 /**
  * Each grid slot's pace rank (0 = the quickest car): mostly in grid order, but
