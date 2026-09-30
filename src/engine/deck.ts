@@ -2,14 +2,10 @@
 // Start/Select, and the status strip (race position, lap) plus A/B context labels.
 
 import { thumbstick, type Button, type Controls } from './controls';
+import { vibrate } from './haptics';
 
-function buzz(): void {
-  try {
-    navigator.vibrate?.(8);
-  } catch {
-    // not allowed here (some frames): no buzz
-  }
-}
+/** A tick under the finger on a button press (if vibration is on). */
+const buzz = () => vibrate(8);
 
 /**
  * Keep the browser's own touch gestures (scrolling, zooming, a tap turning into
