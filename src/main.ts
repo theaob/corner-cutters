@@ -98,7 +98,7 @@ function withCircuit(id: string | null): string {
   return url.href;
 }
 
-/** A menu choice saved last time, by id (null for none): the last circuit raced (highlighted first in the menu), and the team, difficulty and weather chosen there. */
+/** A menu choice saved last time, by id (null for none): the last circuit raced (highlighted first in the menu), and the team, difficulty, weather and qualifying chosen there. */
 const choice = (name: string): string | null => {
   const v = saved('choices', name);
   return typeof v === 'string' ? v : null;
@@ -106,6 +106,7 @@ const choice = (name: string): string | null => {
 const savedTeam = () => teamById(choice('team')) ?? TEAMS[0];
 const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
+const savedQualifying = () => choice('qualifying') === 'on';
 
 /**
  * ?circuit=<id> races there; otherwise the circuit menu comes first. Picking
@@ -126,11 +127,12 @@ async function start(): Promise<void> {
     onResize = fillScreen;
     // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
     playMusic(THEME_MUSIC);
-    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather());
+    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying());
     save('choices', 'circuit', picked.layout.id);
     save('choices', 'team', picked.team.id);
     save('choices', 'difficulty', picked.difficulty.id);
     save('choices', 'weather', picked.weather.id);
+    save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
     window.location.assign(withCircuit(picked.layout.id));
     return;
   }
@@ -138,7 +140,7 @@ async function start(): Promise<void> {
   const tuning = mountTuning(screen, 'f1', F1_TUNING);
   const { raceOn } = await import('./f1/race');
   const quit = () => window.location.assign(withCircuit(null));
-  const view: StandaloneView = await raceOn(layout, quit, savedTeam(), savedDifficulty(), savedWeather())({ host: screen, services, tuning, fit });
+  const view: StandaloneView = await raceOn(layout, quit, savedTeam(), savedDifficulty(), savedWeather(), savedQualifying())({ host: screen, services, tuning, fit });
   onResize = () => view.resize(sizeScreen());
 }
 

@@ -80,6 +80,8 @@ export interface MenuChoice {
   team: Team;
   difficulty: Difficulty;
   weather: Weather;
+  /** a qualifying lap before the race, to set your place on the grid */
+  qualifying: boolean;
 }
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
@@ -177,6 +179,7 @@ export function chooseCircuit(
   team: Team = TEAMS[0],
   difficulty: Difficulty = NORMAL,
   weather: Weather = DRY,
+  qualifying = false,
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
@@ -190,7 +193,7 @@ export function chooseCircuit(
 
   /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
-  /** where up/down is: on the menu a circuit (0…), then the team and weather rows, then SETTINGS; in the settings, a row, then DONE */
+  /** where up/down is: on the menu a circuit (0…), then the team, weather and qualifying rows, then SETTINGS; in the settings, a row, then DONE */
   let focus = selected;
   /** the menu, or the settings screen over it */
   let view: 'menu' | 'settings' = 'menu';
@@ -200,7 +203,8 @@ export function chooseCircuit(
 
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
-  const rows = [teamRow, weatherRow];
+  const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
+  const rows = [teamRow, weatherRow, qualifyingRow];
 
   // the settings screen: difficulty, which side the thumbstick sits on, vibration, sound and music volumes
   const deck = document.getElementById('deck');
@@ -330,7 +334,7 @@ export function chooseCircuit(
       done = true;
       menuPick();
       menu.remove();
-      resolve({ layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value() });
+      resolve({ layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() });
     };
     const tick = () => {
       if (done) return;

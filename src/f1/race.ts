@@ -16,6 +16,7 @@ import { styleOf } from './drivers';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS } from './tyres';
 import { LIMITS } from './trackLimits';
+import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
@@ -66,8 +67,11 @@ interface Look {
 }
 
 
-/** The race on `layout`, driven for `team` at `difficulty` in `weather`; `onQuit` runs when the player presses and releases SELECT. */
-export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0], difficulty: Difficulty = NORMAL, weather: Weather = DRY): MountStandalone => async ({ host, services, tuning, fit }) => {
+/**
+ * The race on `layout`, driven for `team` at `difficulty` in `weather`, after a qualifying lap that sets your grid slot if
+ * `qualifying`; `onQuit` runs when the player presses and releases SELECT.
+ */
+export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0], difficulty: Difficulty = NORMAL, weather: Weather = DRY, qualifying = false): MountStandalone => async ({ host, services, tuning, fit }) => {
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
@@ -331,7 +335,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     paused = on;
     setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
-    hud.setLabel('a', on ? 'RESUME' : 'PAUSE');
+    hud.setLabel('a', on ? 'RESUME' : aLabel());
     if (!on) {
       last = performance.now();
       settle = 2;
@@ -351,6 +355,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   // each race's random draws (its rival teams, the start-light wait) come from its seed: ?seed=<n> repeats a race exactly
   const seedParam = Number(new URLSearchParams(window.location.search).get('seed'));
   let seed = 0;
+  /** the session on track: qualifying (your flying lap, alone), or the race */
+  let session: 'qualifying' | 'race' = 'race';
+  /** what A does while the session's running: skips qualifying, pauses the race */
+  const aLabel = () => (session === 'qualifying' ? 'SKIP' : 'PAUSE');
+  /** qualifying: your laps so far, this weekend's field, and once it's over, the grid it set (drivers by slot) and the times */
+  let quali: { lap: QualiLap; weekend: ReturnType<typeof drawWeekend>; over?: { grid: number[]; times: (number | undefined)[] } } | undefined;
 
   /** The champagne ceremony: the race finished at once (the rest at their pace, everyone put where their in-lap ends), and
    * the top three on the podium, spraying champagne, till the results. */
@@ -361,10 +371,44 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     ceremony.setDrivers(podium.top.map((i) => ({ body: looks[i].team.body, trim: looks[i].team.trim, helmet: i === you ? '#f2c14e' : '#f4f4f8' })));
   };
 
-  const startRace = () => {
-    setPaused(false);
-    seed = Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
+  /**
+   * This weekend's field, drawn from its seed (so the same for the qualifying and the race after it): your team and four
+   * at random, two cars each, in their liveries; each car's seat in its team (you take your team's first, your teammate
+   * its second); each AI driver's pace, line, racecraft and dice; and the start lights' wait. Driver `k`'s grid slot is
+   * `k` unless qualifying sets another; you're `youDriver`, mid-grid.
+   */
+  const drawWeekend = () => {
     const rng = seededRandom(seed);
+    const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
+    const youDriver = Math.floor(total / 2);
+    const teams = teamGrid(team, total, youDriver, rng);
+    const seats = driverSeats(teams, youDriver);
+    const ranks = paceRanks(total, rng);
+    const boxes = [...new Set(teams)];
+    const drivers = teams.map((livery, k) => {
+      // AI drivers differ in pace, line and racecraft (the difficulty's, and their style's aggression), and make
+      // mistakes now and then (fewer the more consistent their style), on their own dice from the race's seed; the
+      // quicker cars start mostly further up the grid, but not always
+      const style = styleOf(livery.drivers[seats[k]]);
+      const ai: AiDriver | undefined = k === youDriver ? undefined : {
+        lane: ((k * 7) % 11) - 5, pace: aiPaceFor(difficulty, ranks[k], total, t.aiPaceAdjust), craft: aiCraftFor(difficulty, rng, style.aggression),
+        mistakes: aiMistakesFor(difficulty, style.consistency), rng: seededRandom(Math.floor(rng() * 4294967296)),
+      };
+      // each team its own box in the pit lane
+      return { livery, seat: seats[k], ai, box: boxes.indexOf(livery) };
+    });
+    // five lights, one every 0.6 s, then out after a short random wait
+    return { youDriver, drivers, lightsOut: 0.3 + rng() * 0.7 };
+  };
+  /** A car on the track in its team's livery (teammates: the team's second car has the bright green T-camera). */
+  const addLook = (livery: Team, seat: number, mine: boolean): Look => {
+    const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? 'gold' : undefined });
+    world.scene.add(mesh);
+    return { name: mine ? 'YOU' : livery.drivers[seat], team: livery, mesh, fx: new CarFx(mesh), color: livery.body };
+  };
+  /** Clear the track and the screen for a new session. */
+  const resetSession = () => {
+    setPaused(false);
     resetClock(simClock);
     before = undefined;
     frameEvents = [];
@@ -372,47 +416,71 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     playMusic(RACE_MUSIC);
     for (const l of looks) world.scene.remove(l.mesh);
     world.scene.remove(safetyCar.group);
-    const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
-    you = Math.floor(total / 2);
-    // your team and four drawn at random, two cars each, in their liveries
-    const teams = teamGrid(team, total, you, rng);
-    // each car's seat in its team: you take your team's first, your teammate its second
-    const seats = driverSeats(teams, you);
-    looks = [];
-    const ranks = paceRanks(total, rng);
-    const field = Array.from({ length: total }, (_, i) => {
-      const slot = circuit.slots[i];
-      const livery = teams[i];
-      // teammates: the team's second car has the bright green T-camera
-      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seats[i] === 1 ? TCAM_GREEN : undefined, helmet: i === you ? 'gold' : undefined });
-      world.scene.add(mesh);
-      // each AI car driven by its team's driver in that seat
-      looks.push({ name: i === you ? 'YOU' : livery.drivers[seats[i]], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
-      // AI drivers differ in pace, line and racecraft (the difficulty's, and their style's aggression), and make
-      // mistakes now and then (fewer the more consistent their style), on their own dice from the race's seed; the
-      // quicker cars start mostly further up the grid, but not always
-      const style = styleOf(livery.drivers[seats[i]]);
-      const ai: AiDriver | undefined = i === you ? undefined : {
-        lane: ((i * 7) % 11) - 5, pace: aiPaceFor(difficulty, ranks[i], total, t.aiPaceAdjust), craft: aiCraftFor(difficulty, rng, style.aggression),
-        mistakes: aiMistakesFor(difficulty, style.consistency), rng: seededRandom(Math.floor(rng() * 4294967296)),
-      };
-      // each team its own box in the pit lane
-      return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai, box: [...new Set(teams)].indexOf(livery) };
-    });
-    // five lights, one every 0.6 s, then out after a short random wait
-    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + rng() * 0.7, circuit.pit, weather.id);
-    hudState = { gaps: newGapTimer(total), lastPos: 0, flashUntil: 0, lapsSeen: new Array(total).fill(0), fastest: undefined };
     hud.setPositionChange(undefined);
     done = false;
     podium = undefined;
-    hud.setLabel('a', 'PAUSE');
     saved = { laps: 0, race: false, newLap: false, newRace: false };
     notice = { text: '', color: '', until: 0 };
     skids.clear();
     particles.clear();
     results.style.display = 'none';
   };
-  startRace();
+
+  /** The race, from the grid qualifying set (drivers by slot, pole first), or everyone in their own slot. */
+  const startRace = (gridSlots?: number[]) => {
+    session = 'race';
+    quali = undefined;
+    resetSession();
+    const w = drawWeekend();
+    const slots = gridSlots ?? w.drivers.map((_, k) => k);
+    you = slots.indexOf(w.youDriver);
+    looks = slots.map((k) => addLook(w.drivers[k].livery, w.drivers[k].seat, k === w.youDriver));
+    const field = slots.map((k, i) => {
+      const slot = circuit.slots[i];
+      return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai: w.drivers[k].ai, box: w.drivers[k].box };
+    });
+    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, w.lightsOut, circuit.pit, weather.id);
+    hudState = { gaps: newGapTimer(slots.length), lastPos: 0, flashUntil: 0, lapsSeen: new Array(slots.length).fill(0), fastest: undefined };
+    hud.setLabel('a', 'PAUSE');
+  };
+
+  /** Qualifying: you on your own, on a flying lap (A skips it: you start mid-grid). */
+  const startQualifying = () => {
+    session = 'qualifying';
+    resetSession();
+    const w = drawWeekend();
+    you = 0;
+    const d = w.drivers[w.youDriver];
+    looks = [addLook(d.livery, d.seat, true)];
+    race = newQualifying(track, grid, HANDLING, weather.id);
+    quali = { lap: newQualiLap(), weekend: w };
+    hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
+    hud.setLabel('a', 'SKIP');
+    announce('QUALIFYING · ONE FLYING LAP', '#f2c14e', 3);
+  };
+
+  /** A reference lap for the AI's qualifying times (worked out once: it's the same all weekend). */
+  let reference: number | undefined;
+  /** Qualifying's over: your time (none if you wrecked) against the AI's, and the grid they make, up until A. */
+  const endQualifying = (time: number | undefined) => {
+    if (!quali) return;
+    const w = quali.weekend;
+    reference ??= referenceLap(track, grid, HANDLING, weather.id);
+    const times = aiTimes(w.drivers.map((d) => d.ai?.pace), reference, seededRandom(seed + 1));
+    times[w.youDriver] = time;
+    quali.over = { grid: gridOrder(times), times };
+    hud.setLabel('a', 'RACE');
+    showQualifying();
+  };
+
+  /** A new weekend: a new seed (unless ?seed= gave one), then qualifying if it's on, or straight to the race. */
+  const newWeekend = () => {
+    seed = Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
+    reference = undefined;
+    if (qualifying) startQualifying();
+    else startRace();
+  };
+  newWeekend();
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
@@ -435,6 +503,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         you: () => ({ ...race.entrants[you].progress, tow: race.entrants[you].tow, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
         racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, strikes: e.limits.strikes, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind, craft: e.ai?.craft, mistakes: e.ai?.mistakes, dice: !!e.ai?.rng })),
         safetyCar: () => !!race.sc,
+        /** your car driven by the AI's line at `pace`, for trying out a session hands-off */
+        autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
+        /** the session (qualifying or race), and once qualifying's over, the grid it set (names, pole first) and your time */
+        session: () => session,
+        qualifying: () => quali?.over && { grid: quali.over.grid.map((k) => (k === quali!.weekend.youDriver ? 'YOU' : quali!.weekend.drivers[k].livery.drivers[quali!.weekend.drivers[k].seat])), you: quali.over.times[quali.weekend.youDriver] },
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
@@ -484,7 +557,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const me = race.entrants[you];
     const p = me.progress;
     const n = track.samples.length;
-    if (p.lapStart === undefined || p.finished !== undefined || !between(p.idx, circuit.pit.entry - 60, circuit.pit.entry + 4, n)) return false;
+    if (!race.pit || p.lapStart === undefined || p.finished !== undefined || !between(p.idx, circuit.pit.entry - 60, circuit.pit.entry + 4, n)) return false;
     return wantsPit(me.car, me.tyres, race.laps - p.lap - p.idx / n, planLapTime(race, me), HANDLING.damageSlow, track.length);
   };
 
@@ -551,6 +624,50 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     results.style.display = 'block';
   };
 
+  /** Qualifying's times as a table, in grid order: your row in gold; then A or START to go to the grid. */
+  const showQualifying = () => {
+    if (!quali?.over) return;
+    const { grid: slots, times } = quali.over;
+    const w = quali.weekend;
+    const pole = times[slots[0]];
+    const cell = (tag: 'td' | 'th', text: string, right = false) => {
+      const c = document.createElement(tag);
+      c.textContent = text;
+      Object.assign(c.style, { padding: '1px 3px', textAlign: right ? 'right' : 'left', fontWeight: 'normal', whiteSpace: 'nowrap' });
+      return c;
+    };
+    const table = document.createElement('table');
+    Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: 'inherit', color: 'inherit' });
+    const head = document.createElement('tr');
+    head.style.color = '#9d9ab8';
+    head.append(cell('th', '', true), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'GAP', true));
+    table.append(head);
+    slots.forEach((k, pos) => {
+      const d = w.drivers[k];
+      const time = times[k];
+      const row = document.createElement('tr');
+      if (k === w.youDriver) row.style.color = '#f2c14e';
+      const gap = time === undefined || pole === undefined ? '' : pos === 0 ? '' : `+${(time - pole).toFixed(3)}`;
+      row.append(cell('td', `${pos + 1}`, true), cell('td', k === w.youDriver ? 'YOU' : d.livery.drivers[d.seat]), cell('td', d.livery.code), cell('td', time === undefined ? 'NO TIME' : fmt(time), true), cell('td', gap, true));
+      table.append(row);
+    });
+    const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
+      const d = document.createElement('div');
+      d.textContent = text;
+      Object.assign(d.style, css);
+      return d;
+    };
+    const place = slots.indexOf(w.youDriver) + 1;
+    results.replaceChildren(
+      line(`QUALIFYING · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
+      table,
+      line(place === 1 ? 'POLE POSITION!' : `YOU START P${place}`, { color: '#f2c14e', marginTop: '8px' }),
+      line('A or START to the grid', { marginTop: '8px' }),
+      line('SELECT for circuits'),
+    );
+    results.style.display = 'block';
+  };
+
   // vibration on or off, from the pause screen (and remembered)
   const rumbleState = newRumble();
   const vibrationButton = pauseButton('', () => {
@@ -563,7 +680,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   pauseScreen.append(
     pauseTitle,
     pauseButton('RESUME', () => setPaused(false)),
-    pauseButton('RESTART', () => startRace()),
+    pauseButton('RESTART', () => newWeekend()),
     pauseButton('CIRCUITS', () => onQuit()),
     vibrationButton,
     pauseHint,
@@ -583,17 +700,21 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   let statTime = 0;
   let fps = 0;
   let miniTime = 0;
-  hud.setLabel('a', 'PAUSE');
+  hud.setLabel('a', aLabel());
   hud.setLabel('b', 'DRIFT');
 
   const tick = (now: number) => {
     // (the first frame's timestamp can be a touch before mount time)
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
-    if (pressed('start')) startRace();
-    // A pauses and resumes (not once the race is over: the results are up)
+    const startPressed = pressed('start');
+    // A pauses and resumes (not once the race is over: the results are up); in qualifying it skips it, or once it's
+    // over goes to the grid
     const aPressed = pressed('a');
-    if (aPressed && !done) setPaused(!paused);
+    if (quali?.over && (aPressed || startPressed)) startRace(quali.over.grid);
+    else if (startPressed) newWeekend();
+    else if (aPressed && session === 'qualifying') startRace();
+    else if (aPressed && !done) setPaused(!paused);
     // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
     else if (aPressed && done && results.style.display !== 'block') {
       if (!podium) startCeremony();
@@ -607,13 +728,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       quitting = false;
       onQuit();
     }
-    // paused: nothing moves, and the last frame stays on the screen
-    if (paused) {
+    // paused (or qualifying's times up): nothing moves, and the last frame stays on the screen
+    if (paused || quali?.over) {
       requestAnimationFrame(tick);
       return;
     }
     // laps can be tuned live (TUNE), so the race picks up the current value
-    race.laps = Math.round(t.laps);
+    if (session === 'race') race.laps = Math.round(t.laps);
     const laps = race.laps;
 
     // the race: everyone drives, the rules run
@@ -651,6 +772,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     if (steps === 0) frameEvents.forEach((ev, i) => cars[i] && Object.assign(cars[i], { skidding: ev.skidding, onRough: ev.onRough, airborne: ev.airborne }));
     frameEvents = cars;
     const step = { cars, race: raceEvents };
+    // qualifying: a cut deletes the lap you're on; a good lap (or a wreck) ends it
+    if (quali) {
+      const lap = judgeLap(quali.lap, race.entrants[you].progress, raceEvents.some((e) => e.kind === 'track-limits' && e.who === you));
+      if (lap === 'deleted') {
+        announce('LAP DELETED · TRACK LIMITS', '#d8323c', 3);
+        sounds.trackLimits(true);
+      } else if (lap === 'void') announce('FLYING LAP · GO AGAIN', '#f2c14e', 2);
+      else if (lap) endQualifying(lap.time);
+      else if (race.entrants[you].car.wrecked) endQualifying(undefined);
+    }
     // your car's vibration: crashes, landings, grass and gravel, kerbs
     {
       const me = race.entrants[you];
@@ -686,7 +817,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       else if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
       else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER SC · +${e.seconds} S`, '#d8323c', 3);
-      else if (e.kind === 'track-limits' && e.who === you) {
+      else if (e.kind === 'track-limits' && e.who === you && session === 'race') {
         announce(e.seconds ? `TRACK LIMITS · +${e.seconds} S` : `TRACK LIMITS · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
         sounds.trackLimits(e.seconds > 0);
       }
@@ -711,7 +842,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     });
     // your records: a new lap as soon as it's done (a record announced if it beats one), the race at your flag
     const mine = race.entrants[you].progress;
-    if (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race)) {
+    // (race laps only: a qualifying lap may have been deleted)
+    if (session === 'race' && (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race))) {
       for (const lap of mine.lapTimes.slice(saved.laps)) {
         const had = rec()?.bestLap !== undefined;
         if (recordLap(records, recordId, lap)) {
@@ -777,7 +909,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const pos = order.indexOf(you) + 1;
     const p = me.progress;
     const clock = race.clock;
-    if (!done && race.phase === 'racing' && (p.finished !== undefined || p.retired)) {
+    if (!done && session === 'race' && race.phase === 'racing' && (p.finished !== undefined || p.retired)) {
       done = true;
       hud.setLabel('a', 'SKIP');
     }
@@ -813,7 +945,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     if (podium || race.entrants.some((e) => e.inLap?.to === 0)) playMusic(PODIUM_MUSIC, 1);
     const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished === undefined && others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
-    hud.setPosition(`P${pos}/${race.entrants.length}`);
+    hud.setPosition(session === 'qualifying' ? 'QUALI' : `P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
     // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
@@ -822,7 +954,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
     if (clock > hudState.flashUntil) hud.setPositionChange(undefined);
     hudState.lastPos = pos;
-    hud.setLap(p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // the banner: start lights, GO!, then the most urgent message
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';
@@ -844,7 +976,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         : stop ? ['PIT LIMITER', '#f2c14e']
         : boxBox() ? [`BOX, BOX · PITS ${pitSide}`, '#f2c14e']
         : p.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
-        : clock < 1.2 ? ['GO!', '#5fe0d0']
+        : clock < 1.2 && session === 'race' ? ['GO!', '#5fe0d0']
         : clock < notice.until ? [notice.text, notice.color]
         : sc ? ['SAFETY CAR', '#f2c14e']
         : ['', ''];
@@ -878,7 +1010,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     statsLine.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}`;
     towLine.textContent = me.tow > 0.1 && !done ? `TOW  ${'▶'.repeat(Math.ceil(me.tow * 5))}\n` : '';
     const strikes = me.limits.strikes;
-    limitsLine.textContent = strikes ? `LIMITS ${strikes > LIMITS.warnings ? `+${(strikes - LIMITS.warnings) * LIMITS.penalty}S` : `${strikes}/${LIMITS.warnings}`}\n` : '';
+    limitsLine.textContent = strikes && session === 'race' ? `LIMITS ${strikes > LIMITS.warnings ? `+${(strikes - LIMITS.warnings) * LIMITS.penalty}S` : `${strikes}/${LIMITS.warnings}`}\n` : '';
     limitsLine.style.color = strikes > LIMITS.warnings ? '#d8323c' : '#f2c14e';
     readout.append(towLine, tyreLine, limitsLine, statsLine);
 
