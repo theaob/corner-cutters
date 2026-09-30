@@ -274,8 +274,8 @@ The goal: someone who opens the itch.io page plays three races in a row.
 The goal: races are won by overtaking, not just by surviving the start.
 
 - [x] Fixed-step sim and seeded RNG (prerequisite for M3's ghosts): 60 Hz steps drawn between for faster screens (`engine/fixedStep.ts`); each race's draws from its seed (`engine/rng.ts`, `?seed=`)
-- [ ] Slipstream
-- [ ] AI mistakes and defending, scaled by difficulty; named driver personalities
+- [x] Slipstream: up to +6% top speed in a car's wake, building over half a second and fading out of it (`f1/slipstream.ts`); TOW in the readout and a rush of air; the AI is towed too, taking the extra speed only with room to brake from it
+- [ ] AI overtaking, mistakes and defending, scaled by difficulty; named driver personalities. (Measured while adding the slipstream: the AI never passes another car today; a field ends in its grid order, in trains. A first try at pulling out to pass on the straights made passes but also contact into the first corner, so it wants its own work, with the start and braking zones in mind.)
 - [ ] Corner-cutting rule: marked corners, warnings, time penalties
 - [ ] Short qualifying lap that sets the grid (skippable, off by default in Quick Race)
 - [ ] Headless balance tests: per circuit and difficulty, a reference player lap vs. the AI

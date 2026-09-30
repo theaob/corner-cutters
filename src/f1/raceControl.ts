@@ -11,6 +11,7 @@ import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveIn
 import type { Grid } from '../engine/sim';
 import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
 import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
+import { stepTow, towBoost, towFrom } from './slipstream';
 import type { WeatherId } from './weather';
 import { aiInput, coolDownInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
 
@@ -57,6 +58,8 @@ export interface Entrant {
   stops: number;
   /** the set of tyres it's on */
   tyres: TyreSet;
+  /** how much it's being towed along in the slipstream of a car ahead, 0…1 */
+  tow: number;
   /** after its flag: px driven on its in-lap, and where it's going once it's back at the pits (a podium spot 0–2, or its garage) */
   inLap?: { driven: number; to?: 'garage' | number; parked?: boolean };
 }
@@ -110,7 +113,7 @@ export function newRace(
   track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver; box?: number }[], lightsOut = 0.5, pit?: PitLane,
   weather: WeatherId = 'dry',
 ): Race {
-  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tyres: freshTyres(tyreFor(weather)), progress: newProgress(track.samples.length - 4) }));
+  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, tyres: freshTyres(tyreFor(weather)), progress: newProgress(track.samples.length - 4) }));
   for (const e of entrants) fitTyres(e.tyres, e.car, weather);
   return { track, grid, pit, weather, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
 }
@@ -329,7 +332,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     if (!racing) input = { handbrake: true, brake: true };
     else if (lap && typeof lap.to === 'number' && pit) input = podiumInput(race, e, lap.to, others);
     else if (e.progress.finished !== undefined) input = { ...coolDownInput(e.car, track, e.progress.idx, others), limit: orders.limit };
-    else if (e.ai) input = aiInput(e.car, track, e.progress.idx, e.ai, others, orders);
+    else if (e.ai) input = aiInput(e.car, track, e.progress.idx, e.ai, others, orders, towBoost(e.tow));
     // the player's limiter: right behind the safety car, its speed; alongside or just past it, slower, to drop back
     else input = { ...player(e), limit: playerLimit(e) };
     return stepCar(e.car, input, p, dt, grid);
@@ -337,6 +340,14 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   // the tyres wear with the driving
   entrants.forEach((e, i) => {
     if (running(e)) wearTyres(e.tyres, e.car, events[i], dt, race.weather);
+  });
+  // the slipstream: in a car's wake, a higher top speed for the next step (on top of the tyres'); racing only:
+  // not in the pit lane, under the safety car, or after the flag
+  entrants.forEach((e) => {
+    if (!running(e)) return;
+    const towing = racing && !e.pit && !race.sc && e.progress.finished === undefined;
+    e.tow = stepTow(e.tow, towing ? towFrom(e.car, cars) : 0, dt);
+    e.car.speedScale = (e.car.speedScale ?? 1) * towBoost(e.tow);
   });
   if (sc) {
     // it drives the line at its own pace, moving round a slower car in its way (a backmarker it joined
