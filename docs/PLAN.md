@@ -14,6 +14,7 @@ What's built and working (`src/`, about 4,300 lines, 12 test files):
 | Driving | Arcade physics with torque/power, sliding, drift, kerbs, grass and gravel, elevation and jumps (`engine/driving.ts`, `engine/sim.ts`) |
 | Race | Start lights, laps and sectors, positions, lap times, results, cool-down lap (`f1/racing.ts`, `f1/race.ts`) |
 | Race control | Damage for every car, smoke → fire → wreck, DNF, safety car with limiter, no-overtaking rule and 5 s penalties (`f1/raceControl.ts`) |
+| Pit stops | A pit lane on every circuit; a stop repairs damage; the car drives itself through once committed; the AI and a "BOX, BOX" call decide from the damage and laps left (`f1/pits.ts`) |
 | AI | Follows a precomputed racing line at a per-driver pace and lane, moves over for slower cars, holds station under the safety car (`aiInput`) |
 | Circuits | Crescent Park (~24 s lap) and Silver Heath (~27 s), built from a centreline + elevation profile (`f1/layouts.ts`, `f1/circuit.ts`) |
 | Teams | Eleven look-alike teams with liveries, patterns and logos; five teams of two per race (`f1/teams.ts`, `f1/logos.ts`) |
@@ -123,15 +124,17 @@ as now).
    where the game's name becomes a mechanic.
 3. **Qualifying (short):** one flying lap sets your grid slot; skippable. Today the player is
    always mid-grid.
-4. **Tyres and pit stops:** only in Grand Prix races (M6). Sprints stay 1–3 laps with no
-   tyre model. Two compounds (soft: fast, wears quickly; hard: slower, lasts), with grip
+4. **Tyres and pit stops:** pit stops are **in the game now**, for repairing damage (see
+   `f1/pits.ts`): every circuit has a pit lane with a box per team, the car drives itself
+   through once it turns in, and a stop costs about 7 s. Tyres come with the Grand Prix
+   races (M6); sprints stay 1–3 laps with no tyre model. Two compounds (soft: fast, wears quickly; hard: slower, lasts), with grip
    falling off as they wear, shown as a bar next to the health blocks. One pit stop: enter
    the pit lane, the car drives itself through at a speed limit, the stop takes a fixed
    time, and you pick the next compound. The AI chooses when to stop from its tyre wear and
    the gap behind, and some AI cars gamble on a different strategy.
 
-   To get ready for this, circuits built in M4 get a pit lane along the main straight in
-   their layout data, even though sprints don't use it yet.
+   Every new circuit needs a pit lane in its layout data (`pit` in `layouts.ts`) along a
+   straight long enough for five boxes; `tests/pits.test.ts` checks it.
 5. **Weather:** wet sections with lower grip and spray. Later milestone; touches the look and
    the handling.
 
@@ -286,7 +289,7 @@ The goal: a full first season.
 - [ ] Rain/forest circuit with wet-grip sections and spray (weather)
 - [ ] Start-of-race grid pan; 10-second replay after the flag
 - [ ] Music: a race track per circuit (or per pair of circuits), stings for fastest lap / podium / title
-- [ ] Pit lane in every circuit's layout data (not used until M6)
+- [ ] A pit lane in every new circuit's layout data (repair stops already use it)
 
 ### M5: Release
 
@@ -330,8 +333,8 @@ Everywhere:
 The goal: longer races with strategy, once players have mastered the sprints.
 
 - [ ] Tyre model: two compounds, wear, grip falling off; tyre bar in the HUD
-- [ ] Pit lane: entry and exit, speed limit, the car drives itself through, a fixed stop time,
-      pick the next compound
+- [x] Pit lane: entry and exit, speed limit, the car drives itself through, repairs (done early, for damage)
+- [ ] Pick the next compound at a stop; the stop time covers tyres as well as repairs
 - [ ] AI strategy: when to stop and which compound, from wear and gaps; some AI cars take a
       different strategy
 - [ ] Grand Prix mode (8–15 laps) and a Grand Prix length option in Championship

@@ -7,6 +7,7 @@
 
 import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
+import { between, entersPit, newPitStop, pitStep, wantsPit, type PitLane, type PitStop } from './pits';
 import { aiInput, coolDownInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
 
 export const SAFETY_CAR = {
@@ -44,6 +45,12 @@ export interface Entrant {
   progress: RaceProgress;
   /** race time it was wrecked */
   wreckedAt?: number;
+  /** its team's box in the pit lane */
+  box: number;
+  /** on its way through the pit lane */
+  pit?: PitStop;
+  /** pit stops made */
+  stops: number;
 }
 
 export interface SafetyCar {
@@ -61,11 +68,16 @@ export type RaceEvent =
   | { kind: 'retired'; who: number }
   | { kind: 'safety-car' }
   | { kind: 'green' }
-  | { kind: 'penalty'; who: number; seconds: number };
+  | { kind: 'penalty'; who: number; seconds: number }
+  | { kind: 'pit-in'; who: number }
+  | { kind: 'pit-stop'; who: number; seconds: number }
+  | { kind: 'pit-out'; who: number };
 
 export interface Race {
   track: Track;
   grid: Grid;
+  /** the circuit's pit lane (none: no stops) */
+  pit?: PitLane;
   handling: HandlingParams;
   laps: number;
   entrants: Entrant[];
@@ -79,10 +91,28 @@ export interface Race {
   holdBehind: Set<number>[];
 }
 
-/** A race about to start: the lights come on, then go out `lightsOut` s after the fifth. */
-export function newRace(track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver }[], lightsOut = 0.5): Race {
-  const entrants = field.map((f) => ({ ...f, progress: newProgress(track.samples.length - 4) }));
-  return { track, grid, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
+/**
+ * A race about to start: the lights come on, then go out `lightsOut` s after the
+ * fifth. With a `pit` lane, cars can stop there, each at its `box`.
+ */
+export function newRace(
+  track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver; box?: number }[], lightsOut = 0.5, pit?: PitLane,
+): Race {
+  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, progress: newProgress(track.samples.length - 4) }));
+  return { track, grid, pit, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
+}
+
+/** Samples before the pit entry from which an AI car that wants to stop heads in. */
+const PIT_CALL = 20;
+
+/** Whether an AI entrant heads into the pit lane now: it's at the entry and its damage is worth a stop. */
+function aiPits(race: Race, e: Entrant): boolean {
+  const { pit, track } = race;
+  const n = track.samples.length;
+  if (!pit || e.progress.lapStart === undefined || !between(e.progress.idx, pit.entry - PIT_CALL, pit.entry + 4, n)) return false;
+  const lapsLeft = race.laps - e.progress.lap - e.progress.idx / n;
+  const lapTime = e.progress.lapTimes[e.progress.lapTimes.length - 1] ?? track.length / 280;
+  return wantsPit(e.car, lapsLeft, lapTime, race.handling.damageSlow);
 }
 
 /** Still on the track: not retired (a wreck counts until it's cleared). */
@@ -145,10 +175,24 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
 
   // drive
   const before = entrants.map((e) => e.car.health);
-  const events = entrants.map((e): StepEvents => {
+  const events = entrants.map((e, i): StepEvents => {
     const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
     if (!running(e)) return quiet;
     const others = cars.filter((c) => c !== e.car);
+    // the pit lane: turning in at the entry commits a car; from there it drives itself through
+    const pit = race.pit;
+    if (pit && racing && !e.pit && e.progress.finished === undefined && (e.ai ? aiPits(race, e) : entersPit(pit, track, e.car, e.progress.idx))) {
+      e.pit = newPitStop(pit, e.car, e.box);
+      e.stops++;
+      out.push({ kind: 'pit-in', who: i });
+    }
+    if (pit && e.pit) {
+      const r = pitStep(pit, e.pit, e.car, others, dt);
+      if (r.stopped) out.push({ kind: 'pit-stop', who: i, seconds: e.pit.time });
+      if (!r.done) return stepCar(e.car, r.input, p, dt, grid);
+      e.pit = undefined;
+      out.push({ kind: 'pit-out', who: i });
+    }
     let input: DriveInput;
     if (!racing) input = { handbrake: true, brake: true };
     else if (e.progress.finished !== undefined) input = { ...coolDownInput(e.car, track, e.progress.idx, others), limit: orders.limit };
@@ -194,11 +238,12 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   } else if (sc) {
     if (leader && toSafetyCar(leader) <= SAFETY_CAR.queueGap) sc.led += dt;
     sc.out += dt;
-    // no overtaking: passing a car that was ahead when it came out costs a penalty (a wreck may be passed)
+    // no overtaking: passing a car that was ahead when it came out costs a penalty (a wreck, or a car in the pits, may be passed)
     entrants.forEach((e, i) => {
+      if (e.pit) return;
       for (const j of race.holdBehind[i]) {
         const other = entrants[j];
-        if (!running(other) || other.car.wrecked || other.progress.finished !== undefined || !running(e)) race.holdBehind[i].delete(j);
+        if (!running(other) || other.car.wrecked || other.pit || other.progress.finished !== undefined || !running(e)) race.holdBehind[i].delete(j);
         else if (ranked.indexOf(i) < ranked.indexOf(j)) {
           e.progress = { ...e.progress, penalty: e.progress.penalty + SAFETY_CAR.penalty };
           race.holdBehind[i].delete(j);

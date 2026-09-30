@@ -1,6 +1,6 @@
 // The F1 race: you and the AI field in F1 cars on one of the circuits.
-// Start lights, laps, positions, lap times, damage, the safety car after a big
-// crash, a minimap, and results at the flag. The rules live in raceControl.ts;
+// Start lights, laps, positions, lap times, damage, pit stops to repair it,
+// the safety car after a big crash, a minimap, and results at the flag. The rules live in raceControl.ts;
 // this is the picture and the HUD. START restarts; SELECT goes back to choose a circuit.
 
 import * as THREE from 'three';
@@ -10,6 +10,7 @@ import { groundAt } from '../engine/sim';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, playerInput, type AiDriver, type ControlScheme } from './racing';
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
+import { PIT, between, wantsPit } from './pits';
 import { TEAMS, secondCars, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
@@ -164,10 +165,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
       looks.push({ name: i === you ? 'YOU' : NAMES[(i < you ? i : i - 1) % NAMES.length], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
       // AI drivers differ a little in pace and line; a quicker car starts further up the grid
       const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: t.aiPace * (1 - (i / total) * 0.05) };
-      return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai };
+      // each team its own box in the pit lane
+      return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai, box: [...new Set(teams)].indexOf(livery) };
     });
     // five lights, one every 0.6 s, then out after a short random wait
-    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7);
+    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7, circuit.pit);
     done = false;
     notice = { text: '', color: '', until: 0 };
     skids.clear();
@@ -194,14 +196,36 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
         clock: () => race.clock,
         order: () => raceOrder(race).map((i) => looks[i].name),
         you: () => ({ ...race.entrants[you].progress, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
-        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health })),
+        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase })),
         safetyCar: () => !!race.sc,
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
+        /** damage your car by `share` of its health and put it in the pit entry, turning in, for trying out a stop */
+        toPits: (share = 0.5) => {
+          const me = race.entrants[you];
+          const { pit } = circuit;
+          const idx = (pit.entry + 6) % track.samples.length;
+          const s = track.samples[idx];
+          const out = 58 * pit.side;
+          Object.assign(me.car, { x: s.x + Math.cos(s.dir) * out, y: s.y + Math.sin(s.dir) * out, heading: s.dir, vx: Math.sin(s.dir) * 200, vy: -Math.cos(s.dir) * 200 });
+          me.progress = { ...me.progress, idx };
+          applyDamage(me.car, me.car.cls.health * share, HANDLING);
+        },
       },
     });
   }
+
+  // the pit entry is on this side of the track, and the pit wall calls you in when a stop would pay off
+  const pitSide = circuit.pit.side < 0 ? 'LEFT' : 'RIGHT';
+  const boxBox = () => {
+    const me = race.entrants[you];
+    const p = me.progress;
+    const n = track.samples.length;
+    if (p.lapStart === undefined || p.finished !== undefined || !between(p.idx, circuit.pit.entry - 60, circuit.pit.entry + 4, n)) return false;
+    const lapTime = p.lapTimes[p.lapTimes.length - 1] ?? track.length / 280;
+    return wantsPit(me.car, race.laps - p.lap - p.idx / n, lapTime, HANDLING.damageSlow);
+  };
 
   const showResults = (order: number[]) => {
     const first = race.entrants[order[0]].progress;
@@ -216,10 +240,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
             : `+${(p.finished + p.penalty - winner).toFixed(2)}`
           : `${p.lap}/${race.laps} laps`;
       const best = p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–';
-      const pen = p.penalty ? ` +${p.penalty}s` : '';
+      const pen = (p.penalty ? ` +${p.penalty}s` : '') + (race.entrants[i].stops ? ` ${race.entrants[i].stops}P` : '');
       return `${String(pos + 1).padStart(2)}  ${looks[i].name.padEnd(6)} ${looks[i].team.code} ${time.padStart(9)}  ${best}${pen}`;
     });
-    results.textContent = `CHEQUERED FLAG\n\n    NAME   TEAM      TIME  BEST LAP\n${lines.join('\n')}\n\nSTART to race again\nSELECT for circuits`;
+    results.textContent = `CHEQUERED FLAG\n\n    NAME   TEAM      TIME  BEST LAP\n${lines.join('\n')}\n\nP = PIT STOPS\nSTART to race again\nSELECT for circuits`;
     results.style.display = 'block';
   };
 
@@ -260,6 +284,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
       else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER SC · +${e.seconds} S`, '#d8323c', 3);
       else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
+      else if (e.kind === 'pit-out' && e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
+      else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
     }
     race.entrants.forEach((e, i) => {
       if (!running(e)) return;
@@ -305,9 +331,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
       banner.textContent = clock < 0 ? '● '.repeat(lit).trim() + ' ○'.repeat(5 - lit) : '● ● ● ● ●';
       banner.style.color = '#d8323c';
     } else {
+      const stop = me.pit;
       const [text, color] =
         me.car.wrecked || p.retired ? ['DNF · START to restart', '#d8323c']
         : done ? ['', '']
+        : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']
+        : stop ? ['PIT LIMITER', '#f2c14e']
+        : boxBox() ? [`BOX, BOX · PITS ${pitSide}`, '#f2c14e']
         : p.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
         : clock < 1.2 ? ['GO!', '#5fe0d0']
         : clock < notice.until ? [notice.text, notice.color]
@@ -321,7 +351,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, scheme: Contro
     // your car's health as five blocks (each is 20%)
     const blocks = Math.ceil((me.car.health / me.car.cls.health) * 5);
     const car = me.car.wrecked ? 'WRECKED' : '■'.repeat(blocks) + '□'.repeat(5 - blocks);
-    const limiter = sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
+    const limiter = me.pit ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
     readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nCAR  ${car}${limiter}`;
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber

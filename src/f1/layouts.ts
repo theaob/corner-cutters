@@ -2,6 +2,7 @@
 // first on the start/finish line), a scale, and an elevation profile along the
 // lap; circuit.ts turns one into tiles, run-off, heights and a starting grid.
 
+import type { PitSpec } from './pits';
 import type { Pt } from './racing';
 
 export interface CircuitLayout {
@@ -15,6 +16,8 @@ export interface CircuitLayout {
   scale: number;
   /** elevation (px) along the lap, as [share of the lap, height]; the first and last heights match */
   elevation: [number, number][];
+  /** the pit lane, beside the main straight */
+  pit: PitSpec;
 }
 
 /**
@@ -87,6 +90,8 @@ export const CRESCENT_PARK: CircuitLayout = {
     [0.94, 18],
     [1, 22],
   ],
+  // on the infield, from the chicane's exit to the run up to T1
+  pit: { from: -260, to: 560, side: -1 },
 };
 
 /**
@@ -136,6 +141,8 @@ export const SILVER_HEATH: CircuitLayout = {
     [0.9, 14],
     [1, 10],
   ],
+  // on the outside, along the start straight: out of the last complex's long right, back in before the fast right
+  pit: { from: -380, to: 220, side: -1 },
 };
 
 export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH];

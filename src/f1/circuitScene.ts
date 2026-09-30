@@ -1,7 +1,8 @@
 // A circuit in 3D: grass and gravel run-off, a smooth painted track with
 // white edge lines and red-and-white kerbs, the start line and grid boxes, all
 // draped over the circuit's heights; tyre walls round the outside and
-// grandstands along the main straight.
+// grandstands along the main straight; the pit lane beside it, with its
+// wall, box markings and garages.
 
 import * as THREE from 'three';
 import { canvas } from '../engine/render/sprites';
@@ -9,7 +10,8 @@ import { pixelTexture } from '../engine/render/textures';
 import { addDaylight, type Daylight } from '../engine/render/daylight';
 import { groundAt } from '../engine/sim';
 import type { Pt } from './racing';
-import { HALF_WIDTH, TILE as T, type Circuit } from './circuit';
+import { PIT } from './pits';
+import { HALF_WIDTH, LANE_IN, LANE_OUT, TILE as T, type Circuit } from './circuit';
 
 export interface CircuitScene extends Daylight {
   scene: THREE.Scene;
@@ -61,6 +63,41 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   };
   x.lineJoin = 'round';
   x.lineCap = 'butt';
+  // the pit lane: asphalt under the track's, so the track's edge runs unbroken past the entry and exit
+  const { pit } = circuit;
+  const lane = (across: number) => pit.points.map((p) => ({ x: p.x + Math.cos(p.dir) * across * pit.side, y: p.y + Math.sin(p.dir) * across * pit.side }));
+  x.strokeStyle = '#4a4d59';
+  x.lineWidth = LANE_IN + LANE_OUT;
+  path(lane((LANE_OUT - LANE_IN) / 2), false);
+  x.stroke();
+  x.strokeStyle = '#e8e8ee';
+  x.lineWidth = 2;
+  path(lane(LANE_OUT - 4), false);
+  x.stroke();
+  // the boxes: a yellow frame each, beside the fast lane
+  x.strokeStyle = '#f2c14e';
+  for (const b of pit.boxes) {
+    const q = pit.points.find((p) => p.s >= b)!;
+    const across = PIT.boxLane * pit.side;
+    const cx = q.x + Math.cos(q.dir) * across;
+    const cy = q.y + Math.sin(q.dir) * across;
+    x.save();
+    x.translate(cx, cy);
+    x.rotate(q.dir);
+    x.strokeRect(-9, -18, 18, 36);
+    x.restore();
+  }
+  // the speed-limit lines across the lane, where the pit wall starts and ends
+  x.strokeStyle = '#f4f4f8';
+  for (const at of [pit.wallFrom, pit.wallTo]) {
+    const q = pit.points.find((p) => p.idx === at)!;
+    const a = PIT.offset - LANE_IN;
+    const b = PIT.offset + LANE_OUT;
+    x.beginPath();
+    x.moveTo(q.x + Math.cos(q.dir) * (a - PIT.offset) * pit.side, q.y + Math.sin(q.dir) * (a - PIT.offset) * pit.side);
+    x.lineTo(q.x + Math.cos(q.dir) * (b - PIT.offset) * pit.side, q.y + Math.sin(q.dir) * (b - PIT.offset) * pit.side);
+    x.stroke();
+  }
   // asphalt
   x.strokeStyle = '#4a4d59';
   x.lineWidth = HALF_WIDTH * 2;
@@ -162,15 +199,25 @@ export function createCircuitScene(circuit: Circuit): CircuitScene {
   outer.receiveShadow = true;
   scene.add(ground, outer);
 
-  // tyre walls: on every wall tile that touches the run-off, stacked red and white
-  const drivable = (i: number, j: number) => i >= 0 && j >= 0 && i < W && j < H && cells[j * W + i] !== 'wall';
+  // tyre walls: on every wall tile that touches the run-off, stacked red and white (the garages
+  // stand behind the pit lane instead); concrete blocks along the pit wall
+  const cell = (i: number, j: number) => (i >= 0 && j >= 0 && i < W && j < H ? cells[j * W + i] : 'wall');
   const walls: [number, number][] = [];
+  const pitWall: [number, number][] = [];
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
+      if (cells[j * W + i] === 'pitwall') pitWall.push([i, j]);
       if (cells[j * W + i] !== 'wall') continue;
       let near = false;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) near ||= drivable(i + di, j + dj);
-      if (near) walls.push([i, j]);
+      let byPits = false;
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          const c = cell(i + di, j + dj);
+          near ||= c !== 'wall' && c !== 'pitwall';
+          byPits ||= c === 'pit';
+        }
+      }
+      if (near && !byPits) walls.push([i, j]);
     }
   }
   const tyres = new THREE.InstancedMesh(new THREE.CylinderGeometry(7, 7, 7, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }), walls.length);
@@ -185,6 +232,32 @@ export function createCircuitScene(circuit: Circuit): CircuitScene {
   });
   tyres.castShadow = tyres.receiveShadow = true;
   scene.add(tyres);
+  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(T, 8, T), new THREE.MeshLambertMaterial({ color: 0xc9ccd4 }), pitWall.length);
+  pitWall.forEach(([i, j], k) => {
+    m.makeTranslation((i + 0.5) * T, groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h + 4, (j + 0.5) * T);
+    blocks.setMatrixAt(k, m);
+  });
+  blocks.castShadow = blocks.receiveShadow = true;
+  scene.add(blocks);
+
+  // the garages: a row behind the pit lane, one open front facing each box, under one long roof
+  const { pit } = circuit;
+  const grey = new THREE.MeshLambertMaterial({ color: 0x8e929c });
+  const door = new THREE.MeshLambertMaterial({ color: 0x23222e });
+  const roof = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
+  // (turned to the track's direction, a box's +x face looks to the right of the way of the race)
+  const faces = pit.side < 0 ? [door, grey, roof, grey, grey, grey] : [grey, door, roof, grey, grey, grey];
+  const back = (LANE_OUT + 16) * pit.side;
+  for (const b of pit.boxes) {
+    const q = pit.points.find((p) => p.s >= b)!;
+    const gx = q.x + Math.cos(q.dir) * back;
+    const gy = q.y + Math.sin(q.dir) * back;
+    const garage = new THREE.Mesh(new THREE.BoxGeometry(24, 20, PIT.boxSpacing - 2), faces);
+    garage.position.set(gx, groundAt(grid, gx, gy).h + 10, gy);
+    garage.rotation.y = -q.dir;
+    garage.castShadow = garage.receiveShadow = true;
+    scene.add(garage);
+  }
 
   // grandstands along the outside of the main straight (behind the start line)
   const n = track.samples.length;
@@ -212,6 +285,16 @@ export function createCircuitScene(circuit: Circuit): CircuitScene {
       else mx.moveTo(q.x, q.y);
     });
     mx.closePath();
+    mx.stroke();
+    // the pit lane, thin and grey
+    mx.strokeStyle = '#9d9ab8';
+    mx.lineWidth = 1;
+    mx.beginPath();
+    circuit.pit.points.forEach((p, i) => {
+      const q = toMap(p.x, p.y);
+      if (i) mx.lineTo(q.x, q.y);
+      else mx.moveTo(q.x, q.y);
+    });
     mx.stroke();
     const s = toMap(track.samples[0].x, track.samples[0].y);
     mx.fillStyle = '#f2c14e';
