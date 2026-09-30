@@ -6,6 +6,7 @@ import { Hud, bindDeck, releaseDeck, setStickSide, stickSide } from './engine/de
 import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
 import { storeKey, useStore } from './engine/storage';
+import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById } from './f1/layouts';
 import { chooseCircuit } from './f1/circuitSelect';
@@ -50,6 +51,7 @@ applyLayout();
 const controls = new Controls();
 bindKeyboard(controls);
 bindGamepad(controls);
+unlockAudio();
 bindDeck(deck, controls);
 setStickSide(deck, stickSide());
 guardInput(controls, () => releaseDeck(deck));
