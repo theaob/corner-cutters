@@ -128,6 +128,30 @@
         margin-top: 3px;
         color: var(--gold);
       }
+      /* the settings button under the rows, and the settings screen's title and DONE */
+      .circuit-menu .menu-button {
+        width: 100%;
+        min-height: 0;
+        justify-content: center;
+        text-align: center;
+        padding: 10px 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font: 13px var(--pixel);
+        cursor: pointer;
+      }
+      .circuit-menu .menu-button.focused {
+        border-color: var(--accent-b);
+        color: var(--accent-b);
+      }
+      .circuit-menu h2 {
+        margin: 0 0 4px;
+        font: 16px var(--pixel);
+        color: var(--gold);
+        text-align: center;
+      }
       /* the option rows under the circuits (team, controls) */
       .circuit-menu .own-tab {
         align-self: center;
@@ -309,6 +333,12 @@
         justify-content: space-between;
         align-items: center;
         padding: 8px 22px;
+      }
+      /* the thumbstick on the right (a setting): the stick and the A/B buttons swap sides, and A and B
+         mirror so B stays on the inside, by the thumb */
+      html:not(.desktop) #deck.stick-right .controls,
+      html:not(.desktop) #deck.stick-right .face {
+        flex-direction: row-reverse;
       }
       /* the analogue thumbstick: a round well with a knob that follows the thumb */
       .stick {
