@@ -9,7 +9,7 @@ import { useStore } from './engine/storage';
 import { save, saved, useSave } from './engine/save';
 import { CC_SAVE } from './f1/save';
 import { playMusic } from './engine/music';
-import { MENU_MUSIC } from './f1/music';
+import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById } from './f1/layouts';
@@ -124,8 +124,8 @@ async function start(): Promise<void> {
     };
     fillScreen();
     onResize = fillScreen;
-    // the menu's music (it starts with the first tap: browsers allow no sound before one)
-    playMusic(MENU_MUSIC);
+    // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
+    playMusic(THEME_MUSIC);
     const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather());
     save('choices', 'circuit', picked.layout.id);
     save('choices', 'team', picked.team.id);
