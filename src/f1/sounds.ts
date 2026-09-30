@@ -3,7 +3,7 @@
 // on the throttle, popping on the overrun when you lift), the nearest rival's
 // engine (quieter, louder as it closes, its pitch bent up as it comes and down
 // as it goes), tyre squeal while sliding, a rumble on grass and gravel and a
-// buzz over the kerbs, rain in the wet, and one-shots: hits, the start lights,
+// buzz over the kerbs, rain in the wet, a rush of air in another car's slipstream, and one-shots: hits, the start lights,
 // the chequered flag and a lap record. The pitch model is pure and tested; the
 // voices are engine/audio.ts.
 
@@ -50,6 +50,8 @@ export interface SoundFrame {
   onKerb: boolean;
   /** the nearest other car: its speed and how far away it is (px); undefined for none */
   rival?: { speed: number; distance: number };
+  /** how much you're in another car's slipstream, 0…1 (a rush of air) */
+  tow?: number;
 }
 
 export class RaceSounds {
@@ -59,6 +61,7 @@ export class RaceSounds {
   private readonly rumble = noiseVoice('lowpass', 160, 1);
   private readonly kerb = noiseVoice('bandpass', 650, 3);
   private readonly rain = noiseVoice('highpass', 3200, 0.7);
+  private readonly wind = noiseVoice('bandpass', 1100, 0.9);
   private lastSpeed = 0;
   private throttle = 0;
   private gear = 0;
@@ -111,6 +114,7 @@ export class RaceSounds {
     this.tyres.set(slide * 0.1, slide);
     this.rumble.set(f.onRough ? 0.25 * moving : 0);
     this.kerb.set(f.onKerb && !f.onRough ? 0.1 * moving : 0);
+    this.wind.set((f.tow ?? 0) * 0.07);
   }
 
   /** Engine and ground to silence (e.g. your car is out of the race). */
@@ -120,6 +124,7 @@ export class RaceSounds {
     this.tyres.set(0, 0);
     this.rumble.set(0);
     this.kerb.set(0);
+    this.wind.set(0);
   }
 
   /** A hit: `strength` 0…1. */

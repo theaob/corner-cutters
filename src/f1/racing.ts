@@ -302,23 +302,38 @@ export interface Orders {
  * `others` are the other cars, so an AI can move over rather than run into one,
  * and holds the speed of a car right ahead in its lane rather than hit it.
  */
-export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, others: Car[] = [], orders: Orders = {}): DriveInput {
+/** px of straight a tow needs ahead to be used (room to brake from the extra speed), on top of 1.1 s at the car's speed */
+const TOW_ROOM = 120;
+
+export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, others: Car[] = [], orders: Orders = {}, boost = 1): DriveInput {
   const n = track.samples.length;
   const v = speedOf(car);
   const ahead = Math.round((40 + v * 0.3) / track.spacing);
   const t = track.samples[(idx + ahead) % n];
-  // move over for a slower car ahead in our lane
+  // the line's speed a little ahead (it already includes braking for what's beyond); on worn tyres
+  // the car turns less, so it takes the bends (and the braking into them) that much slower
+  const line = track.samples[(idx + 2) % n].speed;
+  const straight = line >= car.cls.topSpeed - 1;
+  const cornering = straight ? 1 : car.tyreGrip ?? 1;
+  // room: the straight goes on for more than a braking distance ahead
+  let room = straight;
+  for (let k = 2; room && k * track.spacing < TOW_ROOM + v * 1.1; k += 2) room = track.samples[(idx + k) % n].speed >= car.cls.topSpeed - 1;
+  // a tow in the slipstream (`boost`, × top speed) takes it faster down a straight, while there's room to brake
+  // from the extra speed; into a bend it aims for the same speed as ever (the stick asks for a share of the car's
+  // top speed, which the tow has raised)
+  const free = line * ai.pace * cornering * (room ? boost : 1);
   let lane = ai.lane;
-  /** speed of the slowest car close ahead in our lane (Infinity = none) */
+  /** speed of the slowest car close ahead in our way (Infinity = none) */
   let follow = Infinity;
   const here = track.samples[idx];
   const fx = Math.sin(here.dir);
   const fy = -Math.cos(here.dir);
+  const mine = lateralOffset(track, idx, car.x, car.y);
   for (const o of others) {
     const dx = o.x - car.x;
     const dy = o.y - car.y;
     const along = dx * fx + dy * fy;
-    const across = lateralOffset(track, idx, o.x, o.y) - lateralOffset(track, idx, car.x, car.y);
+    const across = lateralOffset(track, idx, o.x, o.y) - mine;
     // look further ahead the faster we're closing on it
     const closing = v - speedOf(o);
     // (a wreck is always steered round, never followed: it isn't going anywhere)
@@ -333,12 +348,8 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const dx = tx - car.x;
   const dy = ty - car.y;
   const d = Math.hypot(dx, dy) || 1;
-  // the line's speed a little ahead (it already includes braking for what's beyond); on worn tyres
-  // the car turns less, so it takes the bends (and the braking into them) that much slower
-  const line = track.samples[(idx + 2) % n].speed;
-  const cornering = line < car.cls.topSpeed - 1 ? car.tyreGrip ?? 1 : 1;
-  const want = Math.min(line * ai.pace * cornering, follow, orders.limit ?? Infinity);
-  const mag = Math.max(0.05, Math.min(1, want / car.cls.topSpeed));
+  const want = Math.min(free, follow, orders.limit ?? Infinity);
+  const mag = Math.max(0.05, Math.min(1, want / (car.cls.topSpeed * boost)));
   return { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 12, limit: orders.limit };
 }
 

@@ -119,6 +119,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     background: 'rgba(21,20,31,.75)', color: '#9d9ab8', font: '12px Silkscreen, monospace', whiteSpace: 'pre',
   });
   const tyreLine = document.createElement('span');
+  // the slipstream: TOW and a bar that fills as it builds, in cyan, while you're in a car's wake
+  const towLine = document.createElement('span');
+  towLine.style.color = '#5fe0d0';
   // the speed, frame rate and picture quality, small and dim under the rest
   const statsLine = document.createElement('span');
   Object.assign(statsLine.style, { color: '#6c6a88', fontSize: '10px' });
@@ -347,7 +350,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         clock: () => race.clock,
         paused: () => paused,
         order: () => raceOrder(race).map((i) => looks[i].name),
-        you: () => ({ ...race.entrants[you].progress, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
+        you: () => ({ ...race.entrants[you].progress, tow: race.entrants[you].tow, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
         racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase })),
         safetyCar: () => !!race.sc,
         skip: (seconds: number) => (race.clock += seconds),
@@ -583,7 +586,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         });
         sounds.update({
           dt, speed: speedOf(me.car), top: me.car.cls.topSpeed, slide: Math.abs(me.car.vx * -f.y + me.car.vy * f.x),
-          onRough: ev.onRough, onKerb: cell === 'kerb', rival,
+          onRough: ev.onRough, onKerb: cell === 'kerb', rival, tow: me.tow,
         });
       }
     }
@@ -755,7 +758,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     tyreLine.textContent = `TYRE ${tyres}\n`;
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
     statsLine.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}`;
-    readout.append(tyreLine, statsLine);
+    towLine.textContent = me.tow > 0.1 && !done ? `TOW  ${'▶'.repeat(Math.ceil(me.tow * 5))}\n` : '';
+    readout.append(towLine, tyreLine, statsLine);
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
