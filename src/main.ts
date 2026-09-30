@@ -8,7 +8,6 @@ import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenF
 import { storeKey, useStore } from './engine/storage';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById } from './f1/layouts';
-import { CONTROL_SCHEMES, type ControlScheme } from './f1/racing';
 import { chooseCircuit } from './f1/circuitSelect';
 import { TEAMS, teamById } from './f1/teams';
 
@@ -96,9 +95,8 @@ function withCircuit(id: string | null): string {
   return url.href;
 }
 
-// the last circuit raced, highlighted first in the menu, and the team and control scheme chosen there
+// the last circuit raced, highlighted first in the menu, and the team chosen there
 const CIRCUIT_KEY = storeKey('circuit');
-const SCHEME_KEY = storeKey('controls');
 const TEAM_KEY = storeKey('team');
 const saved = (key: string): string | null => {
   try {
@@ -115,10 +113,6 @@ const save = (key: string, value: string) => {
   }
 };
 const savedTeam = () => teamById(saved(TEAM_KEY)) ?? TEAMS[0];
-const savedScheme = (): ControlScheme => {
-  const s = saved(SCHEME_KEY);
-  return CONTROL_SCHEMES.find((c) => c === s) ?? 'stick';
-};
 
 /**
  * ?circuit=<id> races there; otherwise the circuit menu comes first. Picking
@@ -137,18 +131,17 @@ async function start(): Promise<void> {
     };
     fillScreen();
     onResize = fillScreen;
-    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(saved(CIRCUIT_KEY)), savedScheme(), savedTeam());
+    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(saved(CIRCUIT_KEY)), savedTeam());
     save(CIRCUIT_KEY, picked.layout.id);
-    save(SCHEME_KEY, picked.scheme);
     save(TEAM_KEY, picked.team.id);
     window.location.assign(withCircuit(picked.layout.id));
     return;
   }
-  // the TUNE button (laps, grid, AI pace, camera, pedal steering), in every build; values are kept on the device
+  // the TUNE button (laps, grid, AI pace, camera), in every build; values are kept on the device
   const tuning = mountTuning(screen, 'f1', F1_TUNING);
   const { raceOn } = await import('./f1/race');
   const quit = () => window.location.assign(withCircuit(null));
-  const view: StandaloneView = await raceOn(layout, quit, savedScheme(), savedTeam())({ host: screen, services, tuning, fit });
+  const view: StandaloneView = await raceOn(layout, quit, savedTeam())({ host: screen, services, tuning, fit });
   onResize = () => view.resize(sizeScreen());
 }
 

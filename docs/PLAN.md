@@ -18,9 +18,9 @@ What's built and working (`src/`, about 4,300 lines, 12 test files):
 | AI | Follows a precomputed racing line at a per-driver pace and lane, moves over for slower cars, holds station under the safety car (`aiInput`) |
 | Circuits | Crescent Park (~24 s lap) and Silver Heath (~27 s), built from a centreline + elevation profile (`f1/layouts.ts`, `f1/circuit.ts`) |
 | Teams | Eleven look-alike teams with liveries, patterns and logos; five teams of two per race (`f1/teams.ts`, `f1/logos.ts`). Cosmetic only: every team's car is the same |
-| Controls | Two schemes (analogue stick, pedals), touch deck, keyboard (`engine/controls.ts`, `engine/deck.ts`) |
+| Controls | Analogue thumbstick (point where to go, push for throttle, B drifts), touch deck, keyboard (`engine/controls.ts`, `engine/deck.ts`) |
 | Look | HD-2D pipeline (tilt-shift blur, bloom), three quality levels with an automatic governor (`engine/render/`) |
-| Menus | Touch circuit menu with TEAM and CONTROLS rows; TUNE panel for laps, grid, AI pace, camera (`f1/circuitSelect.ts`, `engine/tuning.ts`) |
+| Menus | Touch circuit menu with a TEAM row; TUNE panel for laps, grid, AI pace, camera (`f1/circuitSelect.ts`, `engine/tuning.ts`) |
 | Shipping | CI tests + builds every push and publishes to itch.io; Android APK via Capacitor (paused) |
 
 What's missing for it to feel like a game rather than a tech demo:
@@ -30,7 +30,7 @@ What's missing for it to feel like a game rather than a tech demo:
 - **No sound at all.** For a racing game this is the single biggest gap in feel.
 - **No pause.** A phone game has to survive a notification, a call or a tab switch.
 - **Difficulty is a debug slider.** AI pace lives in TUNE; a new player isn't told what to pick.
-- **No onboarding.** The two control schemes are explained only in the README.
+- **No onboarding.** The controls are explained only in the README.
 - **Two circuits**, both fast and flowing; there's no slow, technical or street-style track.
 - **The AI never makes mistakes or defends**; races are decided at the start or by damage.
 
@@ -184,8 +184,7 @@ release are done.
 ### Onboarding
 
 - First launch: a 20-second "learn the controls" lap on Crescent Park with prompts for
-  steering, drifting (B) and, in pedals mode, braking; skippable, never shown again.
-- A one-line description of each control scheme on the CONTROLS row.
+  steering, throttle (how far the stick is pushed) and drifting (B); skippable, never shown again.
 
 ### Out of scope (for now)
 

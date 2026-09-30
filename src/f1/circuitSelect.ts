@@ -1,5 +1,5 @@
 // The menu shown before a race: each circuit's outline, name and a line about
-// it, then your team and the control scheme. On a phone it's all touch (the
+// it, then your team. On a phone it's all touch (the
 // deck is hidden): tap a circuit to race it, swipe a row (or tap its sides) to
 // change it. On a keyboard, up/down moves, left/right changes a row, Enter races.
 
@@ -7,15 +7,8 @@ import type { Button } from '../engine/controls';
 import { holdTouches } from '../engine/deck';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
-import { CONTROL_SCHEMES, type ControlScheme } from './racing';
 import { TEAMS, type Team } from './teams';
 import { logoSvg } from './logos';
-
-/** What each control scheme is called, and how it drives, in a line. */
-const SCHEME_TEXT: Record<ControlScheme, [name: string, how: string]> = {
-  stick: ['STICK', 'point where to go · push = throttle · B drift'],
-  pedals: ['PEDALS', 'stick steers · B gas · A brake/reverse · A+B drift'],
-};
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -49,7 +42,6 @@ function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
 /** What the menu comes back with. */
 export interface MenuChoice {
   layout: CircuitLayout;
-  scheme: ControlScheme;
   team: Team;
 }
 
@@ -119,14 +111,13 @@ function optionRow<T>(label: string, values: T[], start: T, show: (v: T) => { na
 
 /**
  * Show the menu in `host` until a circuit is picked: `initial` highlighted
- * first, your team `team` and the controls `scheme` as last chosen.
+ * first, and your team `team` as last chosen.
  */
 export function chooseCircuit(
   host: HTMLElement,
   services: Services,
   layouts: CircuitLayout[],
   initial?: CircuitLayout,
-  scheme: ControlScheme = 'stick',
   team: Team = TEAMS[0],
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
@@ -141,15 +132,14 @@ export function chooseCircuit(
 
   /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
-  /** where up/down is: a circuit (0…), then the team row, then the controls row */
+  /** where up/down is: a circuit (0…), then the team row */
   let focus = selected;
   /** the button a press started on: lifting on the same button picks it */
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
 
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
-  const schemeRow = optionRow('CONTROLS', CONTROL_SCHEMES, scheme, (c) => ({ name: SCHEME_TEXT[c][0], about: SCHEME_TEXT[c][1] }));
-  const rows = [teamRow, schemeRow];
+  const rows = [teamRow];
 
   const buttons = layouts.map((layout, i) => {
     const li = document.createElement('li');
@@ -216,7 +206,7 @@ export function chooseCircuit(
       if (done) return;
       done = true;
       menu.remove();
-      resolve({ layout, scheme: schemeRow.value(), team: teamRow.value() });
+      resolve({ layout, team: teamRow.value() });
     };
     const places = layouts.length + rows.length;
     const tick = () => {
