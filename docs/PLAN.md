@@ -255,7 +255,7 @@ changelog in the README.
 
 The goal: someone who opens the itch.io page plays three races in a row.
 
-- [ ] Pause: PAUSE button, auto-pause when the tab or app is hidden, resume/restart/quit menu
+- [x] Pause: A pauses, auto-pause when the tab or app is hidden, resume/restart/circuits screen
 - [ ] Sound effects: engine note, tyre squeal, impacts, lights beeps, flag; volume, remembered
 - [ ] Music playback (`engine/music.ts`) with a placeholder loop, so the composed tracks can be dropped in
 - [ ] Music: menu theme and a first race loop
