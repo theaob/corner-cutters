@@ -267,6 +267,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 - [x] HUD: gap to the car ahead/behind; a flash on position change and fastest lap
 - [ ] Save format with a version number (`engine/save.ts`) and tests
 - [x] Haptics: crashes, landings, grass and gravel, kerbs; on/off on the pause screen (Android app and Android browsers)
+- [x] After the flag, an in-lap: the top three park in numbered spots on the main straight, the rest are pushed back into their garages; the results come up once you're parked (A skips)
 
 ### M2: Racecraft
 

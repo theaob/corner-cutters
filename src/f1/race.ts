@@ -214,6 +214,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   let looks: Look[] = [];
   /** your race is over (finished, or out) and the results are coming */
   let done = false;
+  /** the in-lap after your flag skipped (A): the results now, not once you're parked */
+  let skipInLap = false;
   let you = 0;
   const safetyCar = createSafetyCarMesh();
   // your car's marker on the grid, so you can find it before the start: a gold arrow bobbing above it and a
@@ -290,6 +292,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     hudState = { gaps: newGapTimer(total), lastPos: 0, flashUntil: 0, lapsSeen: new Array(total).fill(0), fastest: undefined };
     hud.setPositionChange(undefined);
     done = false;
+    skipInLap = false;
+    hud.setLabel('a', 'PAUSE');
     saved = { laps: 0, race: false, newLap: false, newRace: false };
     notice = { text: '', color: '', until: 0 };
     skids.clear();
@@ -325,6 +329,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         /** show the results table as the race stands, for checking its layout */
         results: () => showResults(raceOrder(race)),
         records: () => records,
+        /** wave the chequered flag for everyone now, in race order (you in `place`, 1 = the winner, if given), for watching the in-lap and the parking */
+        flag: (place?: number) => {
+          const ranked = raceOrder(race).filter((i) => i !== you);
+          ranked.splice(place ? place - 1 : raceOrder(race).indexOf(you), 0, you);
+          ranked.forEach((i, k) => (race.entrants[i].progress = { ...race.entrants[i].progress, finished: race.clock + k * 0.5 }));
+        },
+        inLap: () => race.entrants.map((e, i) => ({ name: looks[i].name, to: e.inLap?.to, parked: !!e.inLap?.parked, pit: e.pit?.phase })),
         /** damage your car by `share` of its health and put it in the pit entry, turning in, for trying out a stop */
         toPits: (share = 0.5) => {
           const me = race.entrants[you];
@@ -354,6 +365,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
    * The results as a table, so the columns line up (the pixel font isn't monospaced): position,
    * driver, team, time (the winner's, then the gap), best lap, and penalties and pit stops. Your row is in gold.
    */
+  /** The banner on your in-lap: where you're heading, P1–P3 to a numbered spot on the straight, the rest to the garage. */
+  const inLapBanner = (to: 'garage' | number | undefined, place: number): [string, string] => {
+    const podium = typeof to === 'number' ? to < 3 : to === undefined && place < 3;
+    return [podium ? `IN LAP · PARK IN SPOT ${typeof to === 'number' ? to + 1 : place + 1}` : 'IN LAP · BACK TO THE GARAGE', podium ? '#f2c14e' : '#9d9ab8'];
+  };
+
   const showResults = (order: number[]) => {
     const first = race.entrants[order[0]].progress;
     const winner = (first.finished ?? 0) + first.penalty;
@@ -449,6 +466,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     if (pressed('start')) startRace();
     // A pauses and resumes (not once the race is over: the results are up)
     if (pressed('a') && !done) setPaused(!paused);
+    // on your in-lap after the flag, A skips to the results
+    else if (pressed('a') && done && results.style.display !== 'block') skipInLap = true;
     // SELECT goes back to the circuits once it's let go: leaving the page with a finger still down
     // can leave the next page deaf to touch on a phone (in itch.io's frame the lifting finger's
     // events go to a page that's gone)
@@ -595,14 +614,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const pos = order.indexOf(you) + 1;
     const p = me.progress;
     const clock = race.clock;
-    if (!done && race.phase === 'racing' && (p.finished !== undefined || p.retired)) done = true;
+    if (!done && race.phase === 'racing' && (p.finished !== undefined || p.retired)) {
+      done = true;
+      if (p.finished !== undefined) hud.setLabel('a', 'RESULTS');
+    }
     if (p.finished !== undefined && !soundState.flag) {
       soundState.flag = true;
       sounds.flag();
     }
-    // the results come up a moment after your flag, or once the rest have finished if you're out
+    // the results come up once you're parked after your in-lap (or at A), or once the rest have finished if you're out
     const others = race.entrants.filter((e) => e !== me && running(e));
-    const showNow = p.finished !== undefined ? clock > p.finished + 1.5 : others.every((e) => e.progress.finished !== undefined);
+    const showNow = p.finished !== undefined ? skipInLap || !!me.inLap?.parked : others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
     hud.setPosition(`P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
@@ -628,6 +650,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       const stop = me.pit;
       const [text, color] =
         me.car.wrecked || p.retired ? ['DNF · START to restart', '#d8323c']
+        : done && p.finished !== undefined && results.style.display !== 'block' ? inLapBanner(me.inLap?.to, order.indexOf(you))
         : done ? ['', '']
         : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']
         : stop ? ['PIT LIMITER', '#f2c14e']

@@ -10,7 +10,7 @@ import { pixelTexture } from '../engine/render/textures';
 import { addDaylight, type Daylight } from '../engine/render/daylight';
 import { groundAt } from '../engine/sim';
 import type { Pt } from './racing';
-import { PIT } from './pits';
+import { GARAGE_ACROSS, PIT } from './pits';
 import { HALF_WIDTH, LANE_IN, LANE_OUT, TILE as T, type Circuit } from './circuit';
 import { DRY, type Weather } from './weather';
 
@@ -156,6 +156,22 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     x.lineTo(front.x + grx * 9 - gfx * 6, front.y + gry * 9 - gfy * 6);
     x.stroke();
   }
+  // the top three's parking spots past the line: a gold frame each, numbered 1, 2, 3 (read from behind)
+  circuit.pit.podium.forEach((spot, k) => {
+    const s = track.samples[spot.idx];
+    x.save();
+    x.translate(s.x + Math.cos(s.dir) * spot.lane, s.y + Math.sin(s.dir) * spot.lane);
+    x.rotate(s.dir);
+    x.strokeStyle = '#f2c14e';
+    x.lineWidth = 2;
+    x.strokeRect(-10, -19, 20, 38);
+    x.fillStyle = '#f2c14e';
+    x.font = 'bold 14px monospace';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText(String(k + 1), 0, 28);
+    x.restore();
+  });
   return c;
 }
 
@@ -250,7 +266,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const roof = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
   // (turned to the track's direction, a box's +x face looks to the right of the way of the race)
   const faces = pit.side < 0 ? [door, grey, roof, grey, grey, grey] : [grey, door, roof, grey, grey, grey];
-  const back = (LANE_OUT + 16) * pit.side;
+  const back = GARAGE_ACROSS * pit.side;
   for (const b of pit.boxes) {
     const q = pit.points.find((p) => p.s >= b)!;
     const gx = q.x + Math.cos(q.dir) * back;

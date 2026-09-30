@@ -18,6 +18,8 @@ An arcade F1 race in the HD-2D look: start lights, laps, positions, a minimap an
 
 **Pit stops:** each circuit has a pit lane beside its main straight, behind a pit wall, with a box for each team and garages behind. Leave the track on the pit side at the entry and you're committed: the car drives itself down the lane on a 120 px/s limiter, stops in your team's box while the crew fits new tyres and repairs its damage (1.2 s, plus up to 3 s for a wreck's worth of repairs), and hands it back at the exit. A stop costs about 7 s in all. The pit wall calls **BOX, BOX** on the way to the entry when a stop now pays (worn tyres, damage, or both, against the laps left), and the AI stops on the same sums. Passing a car in the pits under the safety car is no penalty. The rules are in `src/f1/pits.ts`.
 
+**After the flag:** every car does an in-lap. Back at the pits, the top three carry on to their parking spots on the main straight, gold boxes numbered 1, 2 and 3 just past the line (P1 furthest on), and the rest drive down the pit lane to their team's box, where the crew push them back into the garage, nose out, side by side with their teammate. Your car drives itself round too, with the banner saying where it's going (IN LAP · PARK IN SPOT 1, or BACK TO THE GARAGE); the results come up once it's parked, or straight away with A.
+
 Where it's going: the design and development plan is in [`docs/PLAN.md`](docs/PLAN.md).
 
 Copied from the `?demo=f1` race in [rpg-platformer](https://github.com/theaob/rpg-platformer) (Grand Theft Monster): its shared `engine/` and the `f1/` game.
@@ -55,7 +57,7 @@ The menu is all touch (the deck is hidden there): tap a circuit to race it, swip
 
 **TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, an AI pace adjustment (× the difficulty's), camera zoom and look-ahead; changes apply at once and are kept on the device (Reset puts the defaults back).
 
-**URL flags:** `?circuit=crescent-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3, `__cc.toPits()` damages your car and puts it in the pit entry), and `?desktop` / `?mobile` force a layout.
+**URL flags:** `?circuit=crescent-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3, `__cc.toPits()` damages your car and puts it in the pit entry, `__cc.flag(1)` waves the chequered flag for everyone now with you in P1, to watch the in-lap), and `?desktop` / `?mobile` force a layout.
 
 ## Publishing to itch.io
 
