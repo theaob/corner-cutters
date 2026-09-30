@@ -178,21 +178,31 @@ as now).
 
 ### Out of scope (for now)
 
-Online multiplayer, accounts, paid content or ads, real team/driver/circuit names or logos,
+Online multiplayer, accounts, paid content, real team/driver/circuit names or logos,
 and car setup screens. Each would take more than it gives at this size of game. (Longer races
 with strategy, once out of scope, are now the Grand Prix mode in M6.)
 
-### Release and pricing
+### Release, ads and pricing
 
-- **itch.io:** pay what you want (minimum $0, with a suggested price). Web build to play in
-  the browser, plus the Android APK as a download.
-- **Google Play:** Play has no pay-what-you-want pricing: an app is either free or has one
-  fixed price. To keep the same spirit, the Play version is **free with an optional
-  "support the game" purchase** (one or a few amounts, using Play Billing), which unlocks
-  nothing except a thank-you (for example a special livery or a credits mention). Play's
-  policy requires in-app tips to use its own billing, so there are no outside donation
-  links in the app. Check the current Play payments policy before building this.
-- The game is the same everywhere: no content locked behind payment, no ads.
+The game is **free everywhere**. The same game in every build: no content locked behind
+payment.
+
+- **Google Play (the main release):** free, with ads. A one-time **"Support the game"**
+  purchase (Play Billing) removes the ads for good, as a thank-you for supporting it.
+- **itch.io:** free, with the optional donation itch.io offers at download. No ads in the web
+  build: web ad networks work poorly inside itch.io's frame, and itch.io players are a small,
+  friendly audience worth keeping. The Android APK there has no ads either.
+
+How the ads behave, so they never get in the way of the game:
+- **Interstitial only**, shown after the results screen when you leave it, never during a
+  race, the start lights, a pause or a championship standings screen.
+- At most **one every three races**, and none in the first two races of a session or on a
+  player's first day.
+- **No banner** (it would eat the small portrait screen) and **no rewarded ads** for now (they
+  would tie rewards to ads and bend the progression design).
+- The ad slot is the natural pause point: music fades out, then back in.
+- The "Support the game" button sits on the menu and in the pause menu; after buying it says
+  thank you, and every ad call becomes a no-op.
 
 ## 3. Technical approach
 
@@ -213,7 +223,9 @@ New pieces:
 | Save data | `src/engine/save.ts` | Versioned JSON over `storage.ts`, with migrations and tests |
 | Audio | `src/engine/audio.ts` | Web Audio: one synthesised engine voice per nearby car, pooled one-shots; unlocked on the first touch (mobile browsers require it); separate music/effects volumes |
 | Music | `src/engine/music.ts`, files in `public/audio/` | Streams the soundtrack files, loops at the written loop points, crossfades between menu and race, ducks under effects; loads lazily so the first screen isn't slower |
-| Support purchase | `src/engine/store.ts` | Only in the Android build: Play Billing through a Capacitor plugin; does nothing on the web |
+| Ads | `src/engine/ads.ts` | One small interface (`maybeShowInterstitial()`), with an AdMob implementation in the Android build (a Capacitor AdMob plugin) and a no-op on the web; the frequency rules above live in plain, tested code; Google's test ad IDs in every non-release build |
+| Remove-ads purchase | `src/engine/store.ts` | Android only: a one-time (non-consumable) Play Billing product through a Capacitor plugin; the purchase is checked with Play on every start (so a reinstall or new phone restores it) and cached locally for offline play; a no-op on the web |
+| Consent | `src/engine/ads.ts` | Google's consent form (User Messaging Platform) before any ad in the EEA, UK and other regions that need it; a "Privacy options" entry in the settings to change it |
 | Tyres and pits | `src/f1/tyres.ts`, `src/f1/pits.ts` | Engine-free rules with headless tests, like `raceControl.ts`; pit lane geometry in `layouts.ts` |
 | Pause | `src/f1/race.ts` + `main.ts` | Pause on `visibilitychange`, on Android's app pause, and from a PAUSE button; the sim clock stops |
 | Fixed-step sim | `f1/raceControl.ts` | Step the race at a fixed 1/120 s and render interpolated; needed for ghosts and replays to be reproducible, and makes tests match the game exactly |
@@ -293,9 +305,16 @@ Google Play:
       developer accounts (check the current numbers) before production is allowed
 - [ ] Store listing: icon, feature graphic, phone screenshots, short and full description,
       a trailer with the game's music
-- [ ] Privacy policy page (the game collects nothing; say so), Data safety form, content rating
-      questionnaire, ads declaration (none)
-- [ ] Optional support purchase with Play Billing (see *Release and pricing*)
+- [ ] Content rating questionnaire; target audience declared as **13 and over**, so the app
+      stays out of the Families programme (its stricter ad rules and certified ad networks);
+      the listing and art must not look aimed at children
+- [ ] AdMob account and app; interstitial ad unit; `app-ads.txt` published at the root of the
+      developer website listed on Play (a small GitHub Pages site works)
+- [ ] Ads (see *Release, ads and pricing*): AdMob interstitial with the frequency rules,
+      consent form, test IDs outside release builds
+- [ ] "Support the game" one-time purchase in Play Billing that removes ads; restores on reinstall
+- [ ] Privacy policy page covering AdMob (advertising ID, device and usage data) and the
+      purchase; Data safety form to match; ads declaration (**contains ads**)
 - [ ] Android extras: Play Games sign-in is **not** needed; save data backed up with Android's
       Auto Backup so a new phone keeps records
 
@@ -303,8 +322,8 @@ Everywhere:
 - [ ] Performance pass on a low-end Android phone; quality governor thresholds re-checked
 - [ ] Accessibility: colour-blind-safe position/HUD colours, larger-text option, left-handed deck
 - [ ] Daily Challenge (seeded circuit + conditions, best result kept locally)
-- [ ] itch.io page: pay what you want with a suggested price; screenshots, GIF, soundtrack
-      as an optional download; version 1.0.0
+- [ ] itch.io page: free with optional donation; screenshots, GIF, soundtrack as an optional
+      download; version 1.0.0
 
 ### M6: Grand Prix (after 1.0)
 
@@ -320,6 +339,19 @@ The goal: longer races with strategy, once players have mastered the sprints.
 - [ ] Headless tests: a whole Grand Prix with stops runs in a test; strategies are balanced
       (no single strategy always wins)
 - [ ] Music: a "final laps" track
+
+### Later: iOS / App Store (decided at the end)
+
+A Mac is available; an Apple Developer Program membership (paid yearly) is not yet. When the
+time comes:
+
+- [ ] Apple Developer Program membership; app created in App Store Connect
+- [ ] `npx cap add ios`; build and sign in Xcode on the Mac (and CI on a macOS runner later)
+- [ ] App Tracking Transparency prompt before personalised ads; AdMob's iOS app and ad unit
+- [ ] Remove-ads purchase through StoreKit, ideally with one purchases plugin that covers both
+      stores so `engine/store.ts` stays one interface
+- [ ] Check the audio fallbacks (AAC music, Web Audio unlock) and touch handling in WKWebView
+- [ ] App Store listing, privacy "nutrition label", review
 
 ## 5. Working practice
 
@@ -341,6 +373,8 @@ The goal: longer races with strategy, once players have mastered the sprints.
 | Play review delays or rejection (policy, closed-testing rule for new accounts) | Create the developer account and start the closed test early (during M4), not at the end |
 | Losing the Play upload key | Play App Signing lets Google reset the upload key; keep a backup of it outside the repo secrets |
 | Music files making the download big or the first load slow | Size budget per minute, lazy loading, one shared race loop until the per-circuit tracks are ready |
+| Ads making the game feel cheap, or hurting reviews | Interstitials only between races, strict frequency caps, a cheap one-time removal; watch review comments and ad-related uninstalls after launch |
+| Ad and privacy compliance (consent, Data safety, Families policy, `app-ads.txt`) | Target audience 13+, Google's consent form, test IDs in development; do the Play forms during the closed test, not on launch day |
 | Grand Prix races too long for the "pocket" pillar | Mid-race save; sprints stay the default in Quick Race |
 | Look-alike teams and traced circuits too close to real ones | Keep invented names and logos; only use permissively licensed outline data, credited in the README |
 
@@ -351,10 +385,11 @@ The goal: longer races with strategy, once players have mastered the sprints.
 | Store release | **Google Play** is a target for 1.0 (M5), alongside itch.io |
 | Race length | Short races (1–3 laps) first; longer **Grand Prix** races with tyres and pit stops after 1.0 (M6) |
 | Music | **Custom soundtrack** made for the game |
-| Pricing | **Pay what you want** on itch.io; free with an optional support purchase on Play, which has no pay-what-you-want option |
+| Pricing | **Free** everywhere. Google Play: ads, removed by a one-time "Support the game" purchase. itch.io: free with optional donation, no ads |
+| iOS / App Store | **Decided at the end.** A Mac is available; an Apple developer account isn't yet |
 
 ### Still open
 
-1. Is the support purchase on Play wanted, or should the Play version just be free?
-2. Is an iOS / App Store version wanted later? The Capacitor setup would allow it, but it
-   needs a Mac to build and a paid Apple developer account.
+1. The price of "Support the game" (a typical remove-ads price is a few dollars/euros).
+2. Ads in the itch.io web build: planned as **none**; revisit only if itch.io becomes a big
+   share of players.
