@@ -292,8 +292,9 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
     const closing = v - speedOf(o);
     // (a wreck is always steered round, never followed: it isn't going anywhere)
     if ((!orders.noOvertaking || o.wrecked) && along > 0 && along < 40 + Math.max(0, closing) * 0.8 && Math.abs(across) < 18 && closing > 0) lane = across > 0 ? lane - 26 : lane + 26;
-    // too close to get by (a pack braking into a hairpin): don't drive into its gearbox
-    if (!o.wrecked && along > 0 && along < 44 + Math.max(0, closing) * 0.7 && Math.abs(across) < 18) follow = Math.min(follow, speedOf(o));
+    // too close to get by (a pack braking into a hairpin): don't drive into its gearbox. Watched across
+    // nearly two car widths, so a car merging from the side (off the grid, into a corner) counts too
+    if (!o.wrecked && along > 0 && along < 44 + Math.max(0, closing) * 0.7 && Math.abs(across) < 26) follow = Math.min(follow, speedOf(o));
   }
   lane = Math.max(-32, Math.min(32, lane));
   const tx = t.x + Math.cos(t.dir) * lane;

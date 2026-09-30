@@ -6,7 +6,8 @@ import type { ParamSpec } from '../engine/tuning';
 export const F1_TUNING = {
   laps: { label: 'Laps', value: 3, min: 1, max: 10, step: 1 },
   opponents: { label: 'AI opponents', value: 9, min: 0, max: 9, step: 1 },
-  aiPace: { label: 'AI pace (share of the racing line’s speed)', value: 0.94, min: 0.7, max: 1.1, step: 0.01 },
+  // the difficulty (menu) sets the AI's pace; this nudges it (a new key: the old absolute pace doesn't carry over)
+  aiPaceAdjust: { label: 'AI pace adjust (× the difficulty’s)', value: 1, min: 0.8, max: 1.15, step: 0.01 },
   zoom: { label: 'Camera zoom (×)', value: 0.8, min: 0.5, max: 1.5, step: 0.05 },
   lead: { label: 'Camera look-ahead (px)', value: 90, min: 0, max: 160, step: 5 },
 } satisfies ParamSpec;

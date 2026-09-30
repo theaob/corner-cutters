@@ -75,17 +75,18 @@ pick circuit + team ─▶ race (1–3 laps) ─▶ results: position, best lap,
 
 ### Difficulty
 
-Replace the raw AI-pace slider (it stays in TUNE for development) with three named levels
-chosen on the menu:
+Three levels, chosen on the menu's DIFFICULTY row (**done**, `f1/difficulty.ts`). A crash's
+cost applies to every car alike; TUNE keeps an AI pace adjustment for development.
 
-| Level | AI pace | AI mistakes | Damage to you | Notes |
+| Level | AI pace (front of grid) | AI spread down the grid | Crash damage | Slowing when damaged |
 |---|---|---|---|---|
-| Rookie | ~0.86 | frequent small ones | halved | Assisted braking into the tightest bends (optional) |
-| Pro | ~0.94 (today's default) | occasional | normal | |
-| Legend | ~1.00 | rare | normal | AI defends its line |
+| Easy | 0.86 | 8% | half of normal | 15% at worst |
+| Normal | 0.94 | 5% | normal | 30% at worst |
+| Hard | 1.00 | 2% | 1.75× normal | 40% at worst |
 
-The exact numbers come from playtesting with the existing headless race tests (a whole race
-already runs in a test), e.g. "a clean player lap on Rookie wins by ≥ 3 s on every circuit".
+Still to come with the AI work in M2: mistakes (frequent on Easy, rare on Hard) and defending
+on Hard. The numbers come from playtesting with the headless race tests, e.g. "a clean player
+lap on Easy wins by ≥ 3 s on every circuit".
 
 ### AI improvements
 
@@ -94,7 +95,7 @@ already runs in a test), e.g. "a clean player lap on Rookie wins by ≥ 3 s on e
 - **Defending:** a car being closed on picks the inside into the next braking zone.
 - **Personalities:** each named AI driver (VOLT, RAZZ…) gets a fixed pace/aggression/
   consistency so players learn their rivals across a championship.
-- **Rubber-banding:** only mild, and only on Rookie; it should never feel like the field is
+- **Rubber-banding:** only mild, and only on Easy; it should never feel like the field is
   being dragged along.
 
 ### Circuits
@@ -259,7 +260,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 - [ ] Sound effects: engine note, tyre squeal, impacts, lights beeps, flag; volume, remembered
 - [ ] Music playback (`engine/music.ts`) with a placeholder loop, so the composed tracks can be dropped in
 - [ ] Music: menu theme and a first race loop
-- [ ] Difficulty levels on the menu (Rookie / Pro / Legend) replacing AI pace as the player's choice
+- [x] Difficulty levels on the menu (Easy / Normal / Hard): crash damage and AI pace
 - [x] Saved best lap and best race per circuit (per number of laps), shown on the menu, in the race and at the results ("NEW!")
 - [ ] HUD: gap to the car ahead/behind; a flash on position change and fastest lap
 - [ ] Save format with a version number (`engine/save.ts`) and tests

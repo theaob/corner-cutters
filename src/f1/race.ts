@@ -8,7 +8,8 @@ import * as THREE from 'three';
 import type { Button } from '../engine/controls';
 import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf } from '../engine/driving';
 import { groundAt } from '../engine/sim';
-import { RACE_HANDLING, lineCornerSpeed, lineDecel, playerInput, type AiDriver } from './racing';
+import { lineCornerSpeed, lineDecel, playerInput, type AiDriver } from './racing';
+import { NORMAL, aiPaceFor, handlingFor, type Difficulty } from './difficulty';
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { PIT, between, wantsPit } from './pits';
@@ -46,13 +47,14 @@ interface Look {
 }
 
 
-/** The race on `layout`, driven for `team`; `onQuit` runs when the player presses and releases SELECT. */
-export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0]): MountStandalone => async ({ host, services, tuning, fit }) => {
+/** The race on `layout`, driven for `team` at `difficulty`; `onQuit` runs when the player presses and releases SELECT. */
+export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0], difficulty: Difficulty = NORMAL): MountStandalone => async ({ host, services, tuning, fit }) => {
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
   const f1 = carClass('f1');
-  const HANDLING = RACE_HANDLING;
+  // the difficulty sets how much a crash costs (every car alike) and how quick the AI is
+  const HANDLING = handlingFor(difficulty);
   // the AI's line: flat out wherever the car can follow the bend, like a player can
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
   const { track, grid } = circuit;
@@ -123,7 +125,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   });
   const cardLogo = logoSvg(team.id, 36);
   if (cardLogo) teamCard.append(cardLogo);
-  teamCard.append(team.name.toUpperCase());
+  teamCard.append(`${team.name.toUpperCase()} · ${difficulty.name}`);
   const MINI_H = Math.round(circuit.height * miniScale);
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
   const mini = document.createElement('canvas');
@@ -216,7 +218,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       // each AI driver its own name (the grid slots skip yours)
       looks.push({ name: i === you ? 'YOU' : NAMES[(i < you ? i : i - 1) % NAMES.length], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
       // AI drivers differ a little in pace and line; a quicker car starts further up the grid
-      const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: t.aiPace * (1 - (i / total) * 0.05) };
+      const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(difficulty, i, total, t.aiPaceAdjust) };
       // each team its own box in the pit lane
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai, box: [...new Set(teams)].indexOf(livery) };
     });
@@ -327,7 +329,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       return d;
     };
     results.replaceChildren(
-      line('CHEQUERED FLAG', { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
+      line(`CHEQUERED FLAG · ${difficulty.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
       table,
       line('P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
