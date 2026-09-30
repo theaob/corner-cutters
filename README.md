@@ -32,7 +32,7 @@ npm run dev        # http://localhost:5173
 
 **Controls:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts.
 
-The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, START restarts and SELECT (once let go) goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
+The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, A pauses (so does switching to another app or tab), START restarts and SELECT (once let go) goes back to the circuits. The pause screen has RESUME, RESTART and CIRCUITS to tap, and A resumes. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
 
 **Records:** your best lap on each circuit, and your best race time there for each number of laps (penalties included), are kept on the device between races (`src/f1/records.ts`). Each lap is saved as soon as it's done. The menu shows each circuit's lap record, the race readout has it as REC, a lap that beats it is announced (NEW LAP RECORD), and the results show both records, marked NEW! when this race set them.
 

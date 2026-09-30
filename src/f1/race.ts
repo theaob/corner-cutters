@@ -1,7 +1,8 @@
 // The F1 race: you and the AI field in F1 cars on one of the circuits.
 // Start lights, laps, positions, lap times, damage, pit stops to repair it,
 // the safety car after a big crash, a minimap, and results at the flag. The rules live in raceControl.ts;
-// this is the picture and the HUD. START restarts; SELECT goes back to choose a circuit.
+// this is the picture and the HUD. A pauses (so does leaving the app or tab); START restarts;
+// SELECT goes back to choose a circuit.
 
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
@@ -133,7 +134,36 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     background: 'rgba(21,20,31,.6)', borderRadius: '6px',
   });
   const miniCtx = mini.getContext('2d')!;
-  host.append(readout, banner, results, mini, teamCard);
+  // the pause screen: resume, restart or back to the circuits, by tap or with the deck (A, START, SELECT)
+  const pauseScreen = document.createElement('div');
+  style(pauseScreen, {
+    position: 'absolute', inset: '0', zIndex: '4', display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: '10px', background: 'rgba(14,13,22,.72)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
+  });
+  const pauseTitle = document.createElement('div');
+  pauseTitle.textContent = 'PAUSED';
+  style(pauseTitle, { font: '22px Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', marginBottom: '6px' });
+  const pauseButton = (label: string, action: () => void) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    style(b, {
+      width: '60%', padding: '10px 0', borderRadius: '10px', border: '1px solid #3a3858', background: '#25233a',
+      color: '#f4f2fa', font: '14px Silkscreen, monospace', cursor: 'pointer', touchAction: 'none',
+    });
+    // on the press's release, not 'click' (in a cross-origin frame on a phone a tap's click can go astray)
+    let armed = false;
+    b.addEventListener('pointerdown', () => (armed = true));
+    b.addEventListener('pointerleave', () => (armed = false));
+    b.addEventListener('pointerup', () => {
+      if (armed) action();
+      armed = false;
+    });
+    return b;
+  };
+  const pauseHint = document.createElement('div');
+  pauseHint.textContent = 'A RESUME · START RESTART · SELECT CIRCUITS';
+  style(pauseHint, { color: '#9d9ab8', fontSize: '10px', marginTop: '6px', textAlign: 'center', padding: '0 12px' });
+  host.append(readout, banner, results, mini, teamCard, pauseScreen);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
@@ -151,7 +181,24 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   /** your laps saved so far this race, whether your finish is saved, and the records this race set */
   let saved = { laps: 0, race: false, newLap: false, newRace: false };
 
+  /** the race is stopped: nothing moves and the clock doesn't run */
+  let paused = false;
+  /** frames to leave out of the quality governor after a pause (the first frame back measures the pause) */
+  let settle = 0;
+  let last = performance.now();
+  const setPaused = (on: boolean) => {
+    if (on === paused) return;
+    paused = on;
+    pauseScreen.style.display = on ? 'flex' : 'none';
+    hud.setLabel('a', on ? 'RESUME' : 'PAUSE');
+    if (!on) {
+      last = performance.now();
+      settle = 2;
+    }
+  };
+
   const startRace = () => {
+    setPaused(false);
     for (const l of looks) world.scene.remove(l.mesh);
     world.scene.remove(safetyCar.group);
     const total = Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
@@ -200,6 +247,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         circuit: () => layout.id,
         phase: () => (done ? 'done' : race.phase),
         clock: () => race.clock,
+        paused: () => paused,
         order: () => raceOrder(race).map((i) => looks[i].name),
         you: () => ({ ...race.entrants[you].progress, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
         racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, health: e.car.health, stops: e.stops, pit: e.pit?.phase })),
@@ -290,15 +338,29 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     results.style.display = 'block';
   };
 
+  pauseScreen.append(
+    pauseTitle,
+    pauseButton('RESUME', () => setPaused(false)),
+    pauseButton('RESTART', () => startRace()),
+    pauseButton('CIRCUITS', () => onQuit()),
+    pauseHint,
+  );
+  // leaving the app or the tab pauses the race; so do Esc and P on a keyboard
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && !done) setPaused(true);
+  });
+  window.addEventListener('keydown', (e) => {
+    if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat && !(e.target instanceof HTMLInputElement) && !done) setPaused(!paused);
+  });
+
   // ---------------------------------------------------------------- loop
   const focus = new THREE.Vector3(race.entrants[you].car.x, 0, race.entrants[you].car.y);
   const target = new THREE.Vector3();
-  let last = performance.now();
   let frames = 0;
   let statTime = 0;
   let fps = 0;
   let miniTime = 0;
-  hud.setLabel('a', '');
+  hud.setLabel('a', 'PAUSE');
   hud.setLabel('b', 'DRIFT');
 
   const tick = (now: number) => {
@@ -306,7 +368,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
     if (pressed('start')) startRace();
-    pressed('a');
+    // A pauses and resumes (not once the race is over: the results are up)
+    if (pressed('a') && !done) setPaused(!paused);
     // SELECT goes back to the circuits once it's let go: leaving the page with a finger still down
     // can leave the next page deaf to touch on a phone (in itch.io's frame the lifting finger's
     // events go to a page that's gone)
@@ -314,6 +377,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     if (quitting && !controls.isDown('select')) {
       quitting = false;
       onQuit();
+    }
+    // paused: nothing moves, and the last frame stays on the screen
+    if (paused) {
+      requestAnimationFrame(tick);
+      return;
     }
     // laps can be tuned live (TUNE), so the race picks up the current value
     race.laps = Math.round(t.laps);
@@ -445,7 +513,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     world.followSun(focus);
 
 
-    governor.sample(dt);
+    if (settle > 0) settle--;
+    else governor.sample(dt);
     const q = QUALITY_LEVELS[governor.level];
     applySize();
     world.setShadowMapSize(q.shadowMap);
