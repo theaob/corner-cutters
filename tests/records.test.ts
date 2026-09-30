@@ -33,6 +33,6 @@ describe('records', () => {
     expect(parseRecords(null)).toEqual(emptyRecords());
     expect(parseRecords('{not json')).toEqual(emptyRecords());
     const odd = JSON.stringify({ circuits: { a: { bestLap: -3, bestRace: { 3: 70, x: 5, 2: 'fast', 0: 10 } }, b: null } });
-    expect(parseRecords(odd)).toEqual({ version: 1, circuits: { a: { bestLap: undefined, bestRace: { 3: 70 } } } });
+    expect(parseRecords(odd)).toEqual({ circuits: { a: { bestLap: undefined, bestRace: { 3: 70 } } } });
   });
 });

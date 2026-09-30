@@ -5,7 +5,9 @@ import type { Services } from './engine/services';
 import { Hud, bindDeck, releaseDeck, setStickSide, stickSide } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
-import { storeKey, useStore } from './engine/storage';
+import { useStore } from './engine/storage';
+import { save, saved, useSave } from './engine/save';
+import { CC_SAVE } from './f1/save';
 import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById } from './f1/layouts';
@@ -20,19 +22,16 @@ const deck = document.getElementById('deck')!;
 const app = document.getElementById('app')!;
 const layoutButton = document.querySelector<HTMLButtonElement>('[data-layout]');
 
-// this game's saves (each game has its own prefix: itch.io games share one origin's storage)
+// this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
 useStore('cc:');
+useSave(CC_SAVE);
 
 // The layout: every device starts in the handheld one. The player can switch
 // to the desktop layout (a wide screen with the deck laid over it as a HUD)
 // with the WIDE button or the V key, and back; the choice is kept on the device.
-const LAYOUT_KEY = storeKey('layout');
 const savedLayout = () => {
-  try {
-    return localStorage.getItem(LAYOUT_KEY);
-  } catch {
-    return null;
-  }
+  const v = saved('settings', 'layout');
+  return typeof v === 'string' ? v : null;
 };
 let layout: LayoutMode = startLayout(window.location.search, savedLayout());
 function applyLayout(): void {
@@ -74,11 +73,7 @@ window.addEventListener('resize', () => onResize());
 /** The player switches layout: no reload, the game carries on in the new shape. */
 function switchLayout(): void {
   layout = layout === 'desktop' ? 'handheld' : 'desktop';
-  try {
-    localStorage.setItem(LAYOUT_KEY, layout);
-  } catch {
-    // storage blocked: the switch still holds until the page closes
-  }
+  save('settings', 'layout', layout);
   controls.clearAll();
   releaseDeck(deck);
   applyLayout();
@@ -101,28 +96,14 @@ function withCircuit(id: string | null): string {
   return url.href;
 }
 
-// the last circuit raced, highlighted first in the menu, and the team, difficulty and weather chosen there
-const CIRCUIT_KEY = storeKey('circuit');
-const TEAM_KEY = storeKey('team');
-const DIFFICULTY_KEY = storeKey('difficulty');
-const WEATHER_KEY = storeKey('weather');
-const saved = (key: string): string | null => {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null; // storage blocked
-  }
+/** A menu choice saved last time, by id (null for none): the last circuit raced (highlighted first in the menu), and the team, difficulty and weather chosen there. */
+const choice = (name: string): string | null => {
+  const v = saved('choices', name);
+  return typeof v === 'string' ? v : null;
 };
-const save = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // storage blocked: not remembered
-  }
-};
-const savedTeam = () => teamById(saved(TEAM_KEY)) ?? TEAMS[0];
-const savedDifficulty = () => difficultyById(saved(DIFFICULTY_KEY)) ?? NORMAL;
-const savedWeather = () => weatherById(saved(WEATHER_KEY)) ?? DRY;
+const savedTeam = () => teamById(choice('team')) ?? TEAMS[0];
+const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
+const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 
 /**
  * ?circuit=<id> races there; otherwise the circuit menu comes first. Picking
@@ -141,11 +122,11 @@ async function start(): Promise<void> {
     };
     fillScreen();
     onResize = fillScreen;
-    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(saved(CIRCUIT_KEY)), savedTeam(), savedDifficulty(), savedWeather());
-    save(CIRCUIT_KEY, picked.layout.id);
-    save(TEAM_KEY, picked.team.id);
-    save(DIFFICULTY_KEY, picked.difficulty.id);
-    save(WEATHER_KEY, picked.weather.id);
+    const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather());
+    save('choices', 'circuit', picked.layout.id);
+    save('choices', 'team', picked.team.id);
+    save('choices', 'difficulty', picked.difficulty.id);
+    save('choices', 'weather', picked.weather.id);
     window.location.assign(withCircuit(picked.layout.id));
     return;
   }

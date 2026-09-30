@@ -7,11 +7,10 @@
 // touch apart, a soft clip for grit and a breath of exhaust noise. The volume is a setting kept on the
 // device; without Web Audio (tests, old browsers) everything here does nothing.
 
-import { storeKey } from './storage';
+import { save, saved } from './save';
 
 /** The volume steps offered in the settings. */
 export const VOLUMES = [0, 0.35, 0.7, 1] as const;
-const VOLUME_KEY = () => storeKey('sound');
 
 let ctx: AudioContext | undefined;
 let master: GainNode | undefined;
@@ -21,12 +20,8 @@ let volume: number | undefined;
 /** The sound volume, 0…1 (0.7 unless the player changed it). */
 export function soundVolume(): number {
   if (volume === undefined) {
-    try {
-      const v = Number(localStorage.getItem(VOLUME_KEY()));
-      volume = localStorage.getItem(VOLUME_KEY()) !== null && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.7;
-    } catch {
-      volume = 0.7;
-    }
+    const v = saved('settings', 'sound');
+    volume = typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.7;
   }
   return volume;
 }
@@ -35,11 +30,7 @@ export function soundVolume(): number {
 export function setSoundVolume(v: number): void {
   volume = Math.max(0, Math.min(1, v));
   if (master && ctx) master.gain.setTargetAtTime(volume, ctx.currentTime, 0.05);
-  try {
-    localStorage.setItem(VOLUME_KEY(), String(volume));
-  } catch {
-    // storage blocked: the choice lasts until the page closes
-  }
+  save('settings', 'sound', volume);
 }
 
 /** The audio context, made (and resumed) on demand; undefined without Web Audio. */

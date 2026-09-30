@@ -1,9 +1,10 @@
 // Your records, kept on the device between races: the best lap on each
 // circuit, and the best race time on each circuit for each number of laps
 // (penalties included). Engine-free and unit-tested; the race saves a lap as
-// soon as it's done, so a record isn't lost by quitting mid-race.
+// soon as it's done, so a record isn't lost by quitting mid-race. They're the
+// save's 'records' section (engine/save.ts).
 
-import { storeKey } from '../engine/storage';
+import { save, savedSection } from '../engine/save';
 
 export interface CircuitRecords {
   /** seconds: your fastest lap here */
@@ -13,25 +14,33 @@ export interface CircuitRecords {
 }
 
 export interface Records {
-  /** the save's format, so a later version can read an old save */
-  version: 1;
   circuits: Record<string, CircuitRecords>;
 }
 
 /** A time as m:ss.hh ('–' for none). */
 export const formatTime = (s?: number) => (s === undefined ? '–' : `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}`);
 
-export const emptyRecords = (): Records => ({ version: 1, circuits: {} });
+export const emptyRecords = (): Records => ({ circuits: {} });
 
 const time = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined);
 
-/** Records from saved JSON, keeping whatever is valid and dropping the rest (a corrupt save gives none). */
+/** Records from saved JSON (as they were kept before the save format), keeping whatever is valid (a corrupt save gives none). */
 export function parseRecords(saved: string | null): Records {
-  const out = emptyRecords();
-  if (!saved) return out;
+  if (!saved) return emptyRecords();
   try {
-    const raw = JSON.parse(saved) as { circuits?: Record<string, { bestLap?: unknown; bestRace?: Record<string, unknown> }> };
-    for (const [id, c] of Object.entries(raw?.circuits ?? {})) {
+    return recordsFrom(JSON.parse(saved));
+  } catch {
+    return emptyRecords(); // corrupt: start afresh
+  }
+}
+
+/** Records from a saved object ({ circuits }), keeping whatever is valid and dropping the rest. */
+export function recordsFrom(raw: unknown): Records {
+  const out = emptyRecords();
+  try {
+    const circuits = (raw as { circuits?: unknown } | null)?.circuits;
+    if (!circuits || typeof circuits !== 'object') return out;
+    for (const [id, c] of Object.entries(circuits as Record<string, { bestLap?: unknown; bestRace?: Record<string, unknown> }>)) {
       if (!c || typeof c !== 'object') continue;
       const bestRace: Record<number, number> = {};
       for (const [laps, t] of Object.entries(c.bestRace ?? {})) {
@@ -42,7 +51,7 @@ export function parseRecords(saved: string | null): Records {
       out.circuits[id] = { bestLap: time(c.bestLap), bestRace };
     }
   } catch {
-    // corrupt save: start afresh
+    // not records: none
   }
   return out;
 }
@@ -66,22 +75,8 @@ export function recordRace(r: Records, id: string, laps: number, seconds: number
   return true;
 }
 
-const KEY = () => storeKey('records');
+/** The records saved on this device. */
+export const loadRecords = (): Records => recordsFrom(savedSection('records'));
 
-/** The records saved on this device (none if storage is blocked). */
-export function loadRecords(): Records {
-  try {
-    return parseRecords(localStorage.getItem(KEY()));
-  } catch {
-    return emptyRecords();
-  }
-}
-
-/** Keep `r` on this device (quietly not, if storage is blocked or full). */
-export function saveRecords(r: Records): void {
-  try {
-    localStorage.setItem(KEY(), JSON.stringify(r));
-  } catch {
-    // storage unavailable: the records last until the page closes
-  }
-}
+/** Keep `r` on this device (in memory, if storage is blocked or full). */
+export const saveRecords = (r: Records): void => save('records', 'circuits', r.circuits);
