@@ -451,6 +451,47 @@ describe('race rules in the physics', () => {
   });
 });
 
+describe('the wheel (driving it like a car, for keys and gamepads)', () => {
+  const wheel = (turn: number, gas: number, reverse = false) => ({ wheel: { turn, gas, reverse }, handbrake: false });
+
+  it('pulls away on the gas to top speed, and coasts down off it', () => {
+    const car = drive(newCar(ROAD, 1600, 1600), wheel(0, 1), 3).car;
+    expect(speedOf(car)).toBeCloseTo(180, 0);
+    expect(car.heading).toBe(0); // straight on
+    expect(speedOf(drive(car, wheel(0, 0), 3).car)).toBeLessThan(10);
+  });
+
+  it('turns the car relative to itself, and only while it rolls', () => {
+    const still = drive(newCar(ROAD, 1600, 1600), wheel(1, 0), 1).car;
+    expect(still.heading).toBe(0);
+    const moving = newCar(ROAD, 1600, 1600);
+    drive(moving, wheel(0, 1), 2);
+    const h0 = moving.heading;
+    drive(moving, wheel(1, 1), 0.2); // wheel right: clockwise
+    expect(moving.heading).toBeGreaterThan(h0 + 0.3);
+    const half = newCar(ROAD, 1600, 1600);
+    drive(half, wheel(0, 1), 2);
+    drive(half, wheel(0.5, 1), 0.2);
+    // half lock turns about half as far
+    expect(half.heading).toBeCloseTo((moving.heading + h0) / 2, 1);
+  });
+
+  it('reverses, with the steering the other way round like a real car', () => {
+    const car = drive(newCar(ROAD, 1600, 1600), wheel(0, 0, true), 1).car;
+    expect(car.y).toBeGreaterThan(1600 + 20); // backwards (south), facing north
+    expect(car.heading).toBe(0);
+    drive(car, wheel(1, 0, true), 0.5); // wheel right in reverse: the nose swings left
+    expect(car.heading).toBeLessThan(-0.1);
+  });
+
+  it('keeps to the limiter and brakes', () => {
+    const car = drive(newCar(ROAD, 1600, 1600), { ...wheel(0, 1), limit: 90 }, 3).car;
+    expect(speedOf(car)).toBeCloseTo(90, 0);
+    drive(car, { ...wheel(0, 0), brake: true }, 0.4);
+    expect(speedOf(car)).toBe(0);
+  });
+});
+
 describe('robustness', () => {
   it('ignores a zero or negative time step instead of turning the car to NaN', () => {
     const car = newCar(carClass('f1'), 1600, 1600);

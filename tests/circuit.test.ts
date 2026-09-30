@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildCircuit } from '../src/f1/circuit';
 import { CRESCENT_PARK, LAYOUTS, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
-import { carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
+import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
-import { RACE_HANDLING, aiInput, coolDownInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
+import { RACE_HANDLING, aiInput, coolDownInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
 import { collideCars } from '../src/engine/driving';
 
 const f1 = carClass('f1');
@@ -77,6 +77,24 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap })
     expect(p.lapTimes[0]).toBeLessThan(lap[1]);
     expect(car.health).toBe(f1.health);
     expect(speedOf(car)).toBeGreaterThan(100);
+  });
+
+  it('can be lapped on the keyboard (car-relative: up gas, down brake, left and right steer at full lock), unhurt', () => {
+    const start = circuit.slots[0];
+    const car = newCar(f1, start.x, start.y, start.heading);
+    let p = newProgress(track.samples.length - 3);
+    const n = track.samples.length;
+    for (let t = 0; t < 80 && p.lap < 1; t += 1 / 60) {
+      // a simple player: steer toward a point on the line a little ahead, a key at a time; lift, then brake, when well off it
+      const ahead = track.samples[(p.idx + 10) % n];
+      const off = angleDiff(Math.atan2(ahead.x - car.x, -(ahead.y - car.y)), car.heading);
+      const keys = { left: off < -0.04, right: off > 0.04, up: Math.abs(off) < 0.35, down: Math.abs(off) > 0.6 && speedOf(car) > 150 };
+      stepCar(car, wheelInput(keysWheel(keys, false), car), RACE_HANDLING, 1 / 60, grid);
+      p = stepProgress(p, track, car, t, 3, 1 / 60);
+    }
+    expect(p.lap).toBe(1);
+    expect(p.lapTimes[0]).toBeLessThan(lap[1] + 3);
+    expect(car.health).toBe(f1.health);
   });
 
   it('has an AI that goes flat out almost everywhere, like a player can', () => {

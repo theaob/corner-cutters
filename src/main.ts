@@ -1,6 +1,6 @@
 import { type StandaloneView } from './engine/view';
 import { mountTuning } from './engine/tuning';
-import { Controls, bindKeyboard, guardInput } from './engine/controls';
+import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
 import { Hud, bindDeck, releaseDeck } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
@@ -49,6 +49,7 @@ applyLayout();
 
 const controls = new Controls();
 bindKeyboard(controls);
+bindGamepad(controls);
 bindDeck(deck, controls);
 guardInput(controls, () => releaseDeck(deck));
 const services: Services = { controls, hud: new Hud(deck) };

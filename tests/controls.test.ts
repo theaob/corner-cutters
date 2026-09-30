@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Controls, THUMBSTICK, directionsFromOffset, guardInput, thumbstick } from '../src/engine/controls';
+import { Controls, THUMBSTICK, directionsFromOffset, guardInput, readGamepad, thumbstick } from '../src/engine/controls';
 
 describe('directionsFromOffset', () => {
   it('ignores the dead zone', () => {
@@ -168,5 +168,36 @@ describe('menu row gestures', () => {
     expect(rowGesture(3, 0.8)).toBe(1); // a tap on the right
     expect(rowGesture(-2, 0.1)).toBe(-1); // a tap on the ◀ side
     expect(rowGesture(18, 0.5)).toBe(0); // neither a tap nor a swipe
+  });
+});
+
+describe('the last source used, and gamepads', () => {
+  it('remembers which source the player last used', () => {
+    const c = new Controls();
+    expect(c.lastSource()).toBe('');
+    c.press('keyboard', 'up', true);
+    expect(c.lastSource()).toBe('keyboard');
+    c.setStick('touch-stick', { x: 0.5, y: 0 });
+    expect(c.lastSource()).toBe('touch-stick');
+    // a gamepad lying idle doesn't take over
+    c.setDrive('gamepad', { turn: 0, gas: 0, brake: 0 });
+    c.set('gamepad', []);
+    expect(c.lastSource()).toBe('touch-stick');
+    c.setDrive('gamepad', { turn: 0, gas: 0.6, brake: 0 });
+    expect(c.lastSource()).toBe('gamepad');
+    expect(c.drive('gamepad')?.gas).toBe(0.6);
+  });
+
+  it('reads a gamepad: the left stick steers (with a dead zone), the triggers are gas and brake, A drifts, Start pauses', () => {
+    const pad = (axes: number[], pressed: Record<number, number> = {}) => ({
+      axes, buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: (pressed[i] ?? 0) > 0.5, value: pressed[i] ?? 0 })),
+    });
+    expect(readGamepad(pad([0.1, 0])).drive.turn).toBe(0);
+    expect(readGamepad(pad([1, 0])).drive.turn).toBeCloseTo(1);
+    expect(readGamepad(pad([-0.575, 0])).drive.turn).toBeCloseTo(-0.5);
+    const r = readGamepad(pad([0, 0], { 7: 0.8, 6: 0.3, 0: 1, 9: 1 }));
+    expect(r.drive.gas).toBe(0.8);
+    expect(r.drive.brake).toBe(0.3);
+    expect(r.buttons).toEqual(expect.arrayContaining(['b', 'a']));
   });
 });

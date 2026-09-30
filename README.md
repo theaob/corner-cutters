@@ -36,9 +36,12 @@ npm run dev        # http://localhost:5173
 | `npm test` | Unit tests (Vitest) |
 | `npm run typecheck` | TypeScript only |
 
-**Controls:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts.
+**Controls:** each device drives the way it suits, and the game follows whichever you used last:
+- **Touch:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts.
+- **Keyboard:** the car itself: ↑ (or W) is the gas, ↓ (S) the brake (held once stopped, it reverses), ← → (A, D) steer, X or Shift drifts.
+- **Gamepad:** the right trigger is the gas, the left the brake, the left stick steers (gently near the centre), A drifts, Start pauses, Y restarts, Back is SELECT and the d-pad works the menu.
 
-The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, A pauses (so does switching to another app or tab), START restarts and SELECT (once let go) goes back to the circuits. The pause screen has RESUME, RESTART and CIRCUITS to tap, and A resumes. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
+The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, A pauses (so does switching to another app or tab), START restarts and SELECT (once let go) goes back to the circuits. The pause screen has RESUME, RESTART and CIRCUITS to tap, and A resumes. On a keyboard: X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
 
 **HUD:** the readout at the top left has your lap, last, best and record times; the gaps to the cars either side of you (`▲ RAZZ +0.84`, `▼ MOCHI −1.20`), timed at points round the lap as timing loops do (`src/f1/gaps.ts`); your car's health and tyres; and, small and dim, the speed, frame rate and picture quality. Gaining or losing a place flashes your new position big (green ▲, red ▼); a new fastest lap of the race is called in purple, and shown in purple in the results.
 
