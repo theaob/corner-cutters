@@ -281,6 +281,22 @@
         letter-spacing: 1px;
         color: var(--muted);
       }
+      /* a place just gained or lost: the position lights up green or red for a moment */
+      .strip [data-hud='position'] {
+        transition: color 0.2s;
+      }
+      .strip [data-hud='position'].gain {
+        color: #5fe0d0;
+      }
+      .strip [data-hud='position'].gain::after {
+        content: ' ▲';
+      }
+      .strip [data-hud='position'].lose {
+        color: #d8323c;
+      }
+      .strip [data-hud='position'].lose::after {
+        content: ' ▼';
+      }
       .strip .lap {
         margin-left: 10px;
         font-size: 17px;

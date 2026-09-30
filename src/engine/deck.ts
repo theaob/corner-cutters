@@ -137,6 +137,13 @@ export class Hud {
     this.set('position', text);
   }
 
+  /** Mark the position as just gained (green ▲) or lost (red ▼), or neither. */
+  setPositionChange(change: 'gain' | 'lose' | undefined): void {
+    const el = this.el('position');
+    el?.classList.toggle('gain', change === 'gain');
+    el?.classList.toggle('lose', change === 'lose');
+  }
+
   /** Lap counter, e.g. "LAP 2/3". */
   setLap(text: string): void {
     this.set('lap', text);
