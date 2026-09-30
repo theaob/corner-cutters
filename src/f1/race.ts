@@ -15,7 +15,7 @@ import { COMPOUNDS } from './tyres';
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, planLapTime, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { PIT, between, wantsPit } from './pits';
-import { TEAMS, secondCars, teamGrid, type Team } from './teams';
+import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime as fmt, loadRecords, recordLap, recordRace, saveRecords } from './records';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
@@ -40,7 +40,6 @@ const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
 /** The T-camera colour marking a team's second car. */
 const TCAM_GREEN = '#39ff14';
-const NAMES = ['VOLT', 'RAZZ', 'MOCHI', 'TANK', 'ZIGGY', 'PIP', 'NOVA', 'BLAZE', 'DOT'];
 
 /** How each entrant looks: its name, team, colour, model and effects (index-matched with the race's entrants). */
 interface Look {
@@ -250,16 +249,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     you = Math.floor(total / 2);
     // your team and four drawn at random, two cars each, in their liveries
     const teams = teamGrid(team, total, you);
-    const seconds = secondCars(teams);
+    // each car's seat in its team: you take your team's first, your teammate its second
+    const seats = driverSeats(teams, you);
     looks = [];
     const field = Array.from({ length: total }, (_, i) => {
       const slot = circuit.slots[i];
       const livery = teams[i];
       // teammates: the team's second car has the bright green T-camera
-      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seconds[i] ? TCAM_GREEN : undefined });
+      const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seats[i] === 1 ? TCAM_GREEN : undefined });
       world.scene.add(mesh);
-      // each AI driver its own name (the grid slots skip yours)
-      looks.push({ name: i === you ? 'YOU' : NAMES[(i < you ? i : i - 1) % NAMES.length], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
+      // each AI car driven by its team's driver in that seat
+      looks.push({ name: i === you ? 'YOU' : livery.drivers[seats[i]], team: livery, mesh, fx: new CarFx(mesh), color: livery.body });
       // AI drivers differ a little in pace and line; a quicker car starts further up the grid
       const ai: AiDriver | undefined = i === you ? undefined : { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(difficulty, i, total, t.aiPaceAdjust) };
       // each team its own box in the pit lane
