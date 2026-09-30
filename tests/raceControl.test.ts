@@ -105,7 +105,8 @@ describe('race control', () => {
     let crashed = false;
     let penalties = 0;
     for (let t = 0; t < 200 && !over(race); t += dt) {
-      if (!crashed && race.phase === 'racing' && race.clock > 12) {
+      // (early, while the player is still behind most of the field)
+      if (!crashed && race.phase === 'racing' && race.clock > 4) {
         applyDamage(race.entrants[order(race)[0] === you ? order(race)[1] : order(race)[0]].car, 1000, RACE_HANDLING);
         crashed = true;
       }

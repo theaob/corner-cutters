@@ -28,9 +28,15 @@ describe('the wake', () => {
     expect(wake(moving(0, SLIPSTREAM.range + 5), ahead)).toBe(0);
   });
   it('fades off to either side, and is gone a car width and more off its line', () => {
-    expect(wake(moving(10, 40), ahead)).toBeLessThan(1);
-    expect(wake(moving(10, 40), ahead)).toBeGreaterThan(0);
-    expect(wake(moving(-24, 40), ahead)).toBe(0);
+    expect(wake(moving(16, 150), ahead)).toBeLessThan(wake(moving(0, 150), ahead));
+    expect(wake(moving(10, 100), ahead)).toBeGreaterThan(0);
+    expect(wake(moving(-24, 120), ahead)).toBe(0);
+  });
+  it('spreads wider right behind a car, so a car pulling out to pass keeps some tow till alongside', () => {
+    expect(wake(moving(0, 40), ahead)).toBeCloseTo(1);
+    expect(wake(moving(24, 40), ahead)).toBeGreaterThan(0.3);
+    expect(wake(moving(24, 40), ahead)).toBeLessThan(1);
+    expect(wake(moving(34, 40), ahead)).toBe(0);
   });
   it('is nothing for a car ahead, at low speed, heading another way, or wrecked', () => {
     expect(wake(moving(0, -60), ahead)).toBe(0);

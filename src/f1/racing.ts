@@ -236,6 +236,10 @@ export interface AiDriver {
   lane: number;
   /** share of the line's speed it drives at (skill) */
   pace: number;
+  /** 0…1: its racecraft, how boldly it passes and how hard it defends (0.6 unless given) */
+  craft?: number;
+  /** what it's doing about the cars round it (kept from step to step): passing a car on a side, or covering a side from one */
+  move?: { kind: 'pass' | 'defend'; side: -1 | 1; car: Car };
 }
 
 /** The lateral offset (px, + = right of the centreline) of point (x, y) near sample i. */
@@ -296,60 +300,183 @@ export interface Orders {
   noOvertaking?: boolean;
 }
 
-/**
- * Drive the racing line: aim at a point ahead (further at speed), at the
- * driver's lane, and hold the speed the line allows there, braking when over it.
- * `others` are the other cars, so an AI can move over rather than run into one,
- * and holds the speed of a car right ahead in its lane rather than hit it.
- */
 /** px of straight a tow needs ahead to be used (room to brake from the extra speed), on top of 1.1 s at the car's speed */
 const TOW_ROOM = 120;
 
+/** The AI's racecraft: how it passes and defends (px across the track, + = right of the centreline). */
+export const RACECRAFT = {
+  /** furthest off the centreline it drives (the track is 44 either side) */
+  laneLimit: 28,
+  /** px across a pass takes it from the car it's passing */
+  passGap: 23,
+  /** px of straight a pass needs ahead to be finished before the braking, on top of seconds at the car's speed */
+  passRoom: 160,
+  passTime: 1.6,
+  /** px/s quicker than the car ahead it must be (at no racecraft; the boldest need `boldMargin`) */
+  margin: 10,
+  boldMargin: 3,
+  /** px across a defending car moves to cover the inside of the next bend: none below `defendFrom` racecraft, `cover` at full */
+  cover: 20,
+  defendFrom: 0.45,
+  /** px behind within which a quicker car is defended against */
+  defendRange: 100,
+  /** px a car alongside is left: a car's width and some */
+  room: 22,
+};
+
+/** px/s slower than a car alongside and ahead in a bend that a car giving way drops to */
+const YIELD = 12;
+
+/** Whether the track runs straight for `px` px from sample `idx`: the line flat out all the way. */
+function straightFor(track: Track, idx: number, px: number, top: number): boolean {
+  const n = track.samples.length;
+  for (let k = 0; k * track.spacing < px; k += 2) if (track.samples[(idx + k) % n].speed < top - 1) return false;
+  return true;
+}
+
+/** px of straight (the line flat out) ahead of sample `idx`, up to `max`. */
+function straightAhead(track: Track, idx: number, top: number, max: number): number {
+  const n = track.samples.length;
+  let k = 0;
+  while (k * track.spacing < max && track.samples[(idx + k) % n].speed >= top - 1) k += 2;
+  return k * track.spacing;
+}
+
+/** The next bend's curvature (1/px, + = right) within `px` px of sample `idx`: the tightest point of it. */
+function nextBend(track: Track, idx: number, px: number): number {
+  const n = track.samples.length;
+  let best = 0;
+  for (let k = 0; k * track.spacing < px; k++) {
+    const c = track.samples[(idx + k) % n].curve;
+    if (Math.abs(c) > Math.abs(best)) best = c;
+  }
+  return best;
+}
+
+/**
+ * Drive the racing line: aim at a point ahead (further at speed), at the
+ * driver's lane, and hold the speed the line allows there, braking when over it.
+ * `others` are the other cars, and around them the AI races:
+ *
+ * - quicker than a car ahead on a straight long enough to finish the move, it
+ *   pulls out and passes on the side with room, holding its line until clear,
+ *   and gives it up (tucking back in behind) if the straight runs out first;
+ * - caught on a straight by a quicker car still behind it, it makes one move to
+ *   cover the inside of the next bend (never across a car already alongside;
+ *   not at all with little racecraft);
+ * - a car alongside is left a car's width of room, rather than turned in on;
+ *   side by side into a bend, the one a nose behind gives way;
+ * - off the line in a bend, it takes the bend at the speed its radius there
+ *   allows (tighter on the inside), not the line's;
+ * - too close behind a car to get by, it holds that car's speed.
+ *
+ * A tow in the slipstream (`boost`, × top speed) takes it faster down a
+ * straight while there's room to brake from the extra speed.
+ */
 export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, others: Car[] = [], orders: Orders = {}, boost = 1): DriveInput {
+  const R = RACECRAFT;
   const n = track.samples.length;
   const v = speedOf(car);
+  const top = car.cls.topSpeed;
+  const craft = ai.craft ?? 0.6;
   const ahead = Math.round((40 + v * 0.3) / track.spacing);
   const t = track.samples[(idx + ahead) % n];
   // the line's speed a little ahead (it already includes braking for what's beyond); on worn tyres
   // the car turns less, so it takes the bends (and the braking into them) that much slower
   const line = track.samples[(idx + 2) % n].speed;
-  const straight = line >= car.cls.topSpeed - 1;
+  const straight = line >= top - 1;
   const cornering = straight ? 1 : car.tyreGrip ?? 1;
-  // room: the straight goes on for more than a braking distance ahead
-  let room = straight;
-  for (let k = 2; room && k * track.spacing < TOW_ROOM + v * 1.1; k += 2) room = track.samples[(idx + k) % n].speed >= car.cls.topSpeed - 1;
-  // a tow in the slipstream (`boost`, × top speed) takes it faster down a straight, while there's room to brake
-  // from the extra speed; into a bend it aims for the same speed as ever (the stick asks for a share of the car's
-  // top speed, which the tow has raised)
-  const free = line * ai.pace * cornering * (room ? boost : 1);
-  let lane = ai.lane;
-  /** speed of the slowest car close ahead in our way (Infinity = none) */
-  let follow = Infinity;
+  const mine = lateralOffset(track, idx, car.x, car.y);
+  // room to brake from a tow's extra speed; room to finish a pass before the braking
+  const brakeRoom = straight && straightFor(track, idx, TOW_ROOM + v * 1.1, top);
+  const passRoom = brakeRoom && straightFor(track, idx, R.passRoom + v * R.passTime, top);
+  // flat out on the line (off it in a bend, slower: below)
+  let free = line * ai.pace * cornering * (brakeRoom ? boost : 1);
+  // which side the next bend turns: its inside, to defend
+  const inside: -1 | 1 = nextBend(track, idx, 700) >= 0 ? 1 : -1;
+
   const here = track.samples[idx];
   const fx = Math.sin(here.dir);
   const fy = -Math.cos(here.dir);
-  const mine = lateralOffset(track, idx, car.x, car.y);
-  for (const o of others) {
-    const dx = o.x - car.x;
-    const dy = o.y - car.y;
-    const along = dx * fx + dy * fy;
-    const across = lateralOffset(track, idx, o.x, o.y) - mine;
-    // look further ahead the faster we're closing on it
-    const closing = v - speedOf(o);
-    // (a wreck is always steered round, never followed: it isn't going anywhere)
-    if ((!orders.noOvertaking || o.wrecked) && along > 0 && along < 40 + Math.max(0, closing) * 0.8 && Math.abs(across) < 18 && closing > 0) lane = across > 0 ? lane - 26 : lane + 26;
-    // too close to get by (a pack braking into a hairpin): don't drive into its gearbox. Watched across
-    // nearly two car widths, so a car merging from the side (off the grid, into a corner) counts too
-    if (!o.wrecked && along > 0 && along < 44 + Math.max(0, closing) * 0.7 && Math.abs(across) < 26) follow = Math.min(follow, speedOf(o));
+  const seen = others.map((o) => {
+    const along = (o.x - car.x) * fx + (o.y - car.y) * fy;
+    const theirs = lateralOffset(track, idx, o.x, o.y);
+    return { o, along, theirs, across: theirs - mine, speed: speedOf(o) };
+  });
+  const racing = !orders.noOvertaking;
+  const margin = R.margin - (R.margin - R.boldMargin) * craft;
+  // the car ahead in our way, if any: the nearest
+  const inWay = seen.filter((c) => !c.o.wrecked && c.along > 0 && c.along < 70 + Math.max(0, v - c.speed) * 0.9 && Math.abs(c.across) < 20).sort((a, b) => a.along - b.along)[0];
+  // cars alongside: not to be turned in on
+  const alongside = seen.filter((c) => !c.o.wrecked && Math.abs(c.along) < 34 && Math.abs(c.across) < 28);
+
+  // the move: keep it while it makes sense, or start one
+  let move = ai.move;
+  const other = move ? seen.find((c) => c.o === ai.move?.car) : undefined;
+  const victim = move?.kind === 'pass' ? other : undefined;
+  const attacker = move?.kind === 'defend' ? other : undefined;
+  if (move?.kind === 'pass') {
+    // done once the car is a length and a half behind; given up if the straight runs out with it still clearly ahead
+    if (!racing || !victim || victim.o.wrecked || victim.along < -45 || victim.along > 120 || (!passRoom && victim.along > 20)) move = undefined;
+  } else if (move?.kind === 'defend') {
+    // held down the straight while the car it's covering from is still behind; into the bend it's done
+    if (!racing || !straight || !attacker || attacker.o.wrecked || attacker.along > -10 || attacker.along < -1.5 * R.defendRange) move = undefined;
   }
-  lane = Math.max(-32, Math.min(32, lane));
+  // go for a pass only if it can be finished on this straight: the speed it'll have alongside (half the speed it's
+  // carrying over the car now, and its own pace's edge) over the straight left before the braking, against the
+  // ground to make up (to a length and a half ahead)
+  const canPass = (c: (typeof seen)[number]) => {
+    const left = straightAhead(track, idx, top, 2400) - (TOW_ROOM + v * 1.1);
+    const edge = 0.5 * Math.max(0, v - c.speed) + (line * ai.pace - c.speed);
+    return left > 0 && edge >= margin * 0.5 && edge * (left / Math.max(v, 1)) >= 1.3 * (c.along + 45);
+  };
+  // (from close behind: pulling out from further back just loses the tow)
+  if (!move && racing && inWay && inWay.along < 45 + Math.max(0, v - inWay.speed) * 0.6 && passRoom && free > inWay.speed + margin && canPass(inWay)) {
+    // pass on the side with room: away from where the car ahead is
+    const left = inWay.theirs - R.passGap >= -R.laneLimit;
+    const right = inWay.theirs + R.passGap <= R.laneLimit;
+    const side: -1 | 1 = left && (!right || inWay.theirs >= 0) ? -1 : 1;
+    move = { kind: 'pass', side, car: inWay.o };
+  }
+  if (!move && racing && straight && craft >= R.defendFrom) {
+    // a quicker car closing from behind, still in line with us: cover the inside, unless something's alongside there
+    // (only while it's still in line behind: not once it has started to pull out)
+    const closing = seen.find((c) => !c.o.wrecked && c.along < -20 && c.along > -R.defendRange && Math.abs(c.across) < 8 && c.speed > v + 3);
+    const inTheWay = alongside.some((c) => Math.sign(c.across) === inside);
+    if (closing && !inTheWay) move = { kind: 'defend', side: inside, car: closing.o };
+  }
+  ai.move = move;
+
+  let lane = ai.lane;
+  const passCar = move?.kind === 'pass' ? move.car : undefined;
+  const passing = passCar ? seen.find((c) => c.o === passCar) : undefined;
+  if (move?.kind === 'pass' && passing) lane = passing.theirs + move.side * R.passGap;
+  else if (move?.kind === 'defend') lane = move.side * R.cover * Math.min(1, (craft - R.defendFrom) / (1 - R.defendFrom) + 0.25);
+  // wrecks are steered round, whatever the orders
+  for (const c of seen) if (c.o.wrecked && c.along > 0 && c.along < 40 + v * 0.8 && Math.abs(c.across) < 18) lane = c.across > 0 ? mine - 26 : mine + 26;
+  lane = Math.max(-R.laneLimit, Math.min(R.laneLimit, lane));
+  // moved off its usual line for a bend (passing, defending, giving room): its radius there sets the speed, tighter
+  // on the inside (every car cuts the bends a little the same way; this is only for being moved over from that)
+  if (!straight) free *= Math.min(1, Math.sqrt(Math.max(0.5, 1 - (lane - ai.lane) * nextBend(track, idx, 60 + v * 0.8))));
+
+  // too close to get by (a pack braking into a hairpin): don't drive into its gearbox. Watched across
+  // nearly two car widths, so a car merging from the side counts too; pulled out to pass, only while overlapping it
+  let follow = Infinity;
+  const band = move?.kind === 'pass' ? 18 : 26;
+  for (const c of seen) {
+    const closing = v - c.speed;
+    if (!c.o.wrecked && c.along > 0 && c.along < 44 + Math.max(0, closing) * 0.7 && Math.abs(c.across) < band) follow = Math.min(follow, c.speed);
+  }
+  // side by side into a bend, a nose behind: give way, dropping in behind rather than both fighting for it
+  // (not under the safety car, where the order holds)
+  if (!straight && racing) for (const c of alongside) if (c.along > 4) follow = Math.min(follow, c.speed - YIELD);
   const tx = t.x + Math.cos(t.dir) * lane;
   const ty = t.y + Math.sin(t.dir) * lane;
   const dx = tx - car.x;
   const dy = ty - car.y;
   const d = Math.hypot(dx, dy) || 1;
   const want = Math.min(free, follow, orders.limit ?? Infinity);
-  const mag = Math.max(0.05, Math.min(1, want / (car.cls.topSpeed * boost)));
+  const mag = Math.max(0.05, Math.min(1, want / (top * boost)));
   return { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 12, limit: orders.limit };
 }
 
