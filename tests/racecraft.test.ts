@@ -3,9 +3,11 @@ import { carClass, newCar, type Car } from '../src/engine/driving';
 import { seededRandom } from '../src/engine/rng';
 import { buildCircuit, type Circuit } from '../src/f1/circuit';
 import { LAYOUTS, SILVER_HEATH } from '../src/f1/layouts';
-import { DIFFICULTIES, aiCraftFor, aiPaceFor, handlingFor, paceRanks } from '../src/f1/difficulty';
+import { DIFFICULTIES, aiCraftFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks } from '../src/f1/difficulty';
+import { STYLES, styleOf } from '../src/f1/drivers';
+import { TEAMS } from '../src/f1/teams';
 import { RACE_HANDLING, aiInput, lateralOffset, lineCornerSpeed, lineDecel, type AiDriver } from '../src/f1/racing';
-import { SETTLE, newRace, order, running, stepRace, type Race } from '../src/f1/raceControl';
+import { SETTLE, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -126,6 +128,67 @@ describe('defending', () => {
   });
 });
 
+describe('personalities', () => {
+  it('give every driver a style: aggression and consistency in range', () => {
+    for (const t of TEAMS) for (const code of t.drivers) expect(STYLES[styleOf(code).id]).toBeDefined();
+    for (const st of Object.values(STYLES)) {
+      expect(Math.abs(st.aggression)).toBeLessThanOrEqual(0.3);
+      expect(Math.abs(st.consistency)).toBeLessThanOrEqual(1);
+    }
+    // the more consistent a style, the fewer its mistakes; the harder the race, the fewer too
+    const [easy, normal, hard] = DIFFICULTIES;
+    expect(aiMistakesFor(normal, STYLES.metronome.consistency)).toBeLessThan(aiMistakesFor(normal, STYLES.rookie.consistency));
+    expect(aiMistakesFor(hard)).toBeLessThan(aiMistakesFor(normal));
+    expect(aiMistakesFor(normal)).toBeLessThan(aiMistakesFor(easy));
+    // and an aggressive one races with more racecraft
+    expect(aiCraftFor(normal, () => 0.5, STYLES.charger.aggression)).toBeGreaterThan(aiCraftFor(normal, () => 0.5, STYLES.metronome.aggression));
+  });
+});
+
+/** A lap (the second, once past the start's settling) of one car alone, making mistake `kind` into every braking bend (or none): its time, the mistakes, and the damage. */
+function lapWith(layout: (typeof LAYOUTS)[number], kind: 'none' | 'late' | 'wide') {
+  const c = build(layout);
+  const ai: AiDriver = { lane: 0, pace: 0.94, mistakes: kind === 'none' ? 0 : 1, rng: () => (kind === 'late' ? 0.1 : 0.9) };
+  const race = newRace(c.track, c.grid, RACE_HANDLING, 5, [{ car: newCar(f1, c.slots[0].x, c.slots[0].y, c.slots[0].heading), ai }], 0, c.pit);
+  while (race.phase !== 'racing') stepRace(race, dt);
+  race.clock = SETTLE + 1;
+  const e = race.entrants[0];
+  while (e.progress.lap < 1) stepRace(race, dt);
+  const t0 = race.clock;
+  const events: RaceEvent[] = [];
+  while (e.progress.lap < 2) events.push(...stepRace(race, dt).race);
+  return { time: race.clock - t0, mistakes: events.filter((x) => x.kind === 'mistake').length, damage: f1.health - e.car.health };
+}
+
+describe.each(LAYOUTS)('mistakes at $name', (layout) => {
+  const clean = lapWith(layout, 'none');
+  it.each(['late', 'wide'] as const)('%s: costs time at each braking bend (a few tenths), and nothing worse', (kind) => {
+    const lap = lapWith(layout, kind);
+    expect(lap.mistakes).toBeGreaterThan(0);
+    const each = (lap.time - clean.time) / lap.mistakes;
+    expect(each).toBeGreaterThan(0.15);
+    expect(each).toBeLessThan(1);
+    expect(lap.damage).toBe(0);
+  });
+});
+
+describe('mistakes in a race', () => {
+  const run = () => {
+    const c = build();
+    const field = c.slots.slice(0, 6).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: 0, pace: 0.9 - i * 0.005, mistakes: 0.3, rng: seededRandom(100 + i) }, box: i >> 1 }));
+    const race = newRace(c.track, c.grid, RACE_HANDLING, 2, field, 0.5, c.pit);
+    const events: { t: number; who: number; what: string }[] = [];
+    for (let t = 0; t < 70; t += dt) for (const e of stepRace(race, dt).race) if (e.kind === 'mistake') events.push({ t: race.clock, who: e.who, what: e.what });
+    return events;
+  };
+  it('are none while the pack settles, and the same every time from the same dice', () => {
+    const a = run();
+    expect(a.length).toBeGreaterThan(0);
+    expect(a.every((e) => e.t >= SETTLE)).toBe(true);
+    expect(run()).toEqual(a);
+  }, 30_000);
+});
+
 describe('a defence', () => {
   it('is over once the car it covers from has dropped back', () => {
     const { race } = duel({ lane: 0, pace: 0.9, craft: 0.95 }, { lane: 0, pace: 1, craft: 0.6 }, 5);
@@ -150,7 +213,15 @@ describe.each(LAYOUTS)('races at $name with mixed grids', (layout) => {
     for (const seed of [1, 2]) {
       const rng = seededRandom(seed * 101);
       const ranks = paceRanks(10, rng);
-      const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(d, ranks[i], 10), craft: aiCraftFor(d, rng) }, box: i >> 1 }));
+      // (the drivers of the first five teams, with their styles and their mistakes, as in the game)
+      const codes = TEAMS.slice(0, 5).flatMap((t) => t.drivers);
+      const field = c.slots.slice(0, 10).map((s, i) => {
+        const style = styleOf(codes[i]);
+        return {
+          car: newCar(f1, s.x, s.y, s.heading), box: i >> 1,
+          ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(d, ranks[i], 10), craft: aiCraftFor(d, rng, style.aggression), mistakes: aiMistakesFor(d, style.consistency), rng: seededRandom(Math.floor(rng() * 4294967296)) },
+        };
+      });
       const race = newRace(c.track, c.grid, handlingFor(d), 3, field, 0.5, c.pit);
       const kinds: string[] = [];
       let start: number[] = [];
