@@ -75,7 +75,15 @@ function ownTabButton(): HTMLButtonElement {
 }
 
 /** What the menu comes back with. */
+/** What to play: a race weekend, or a Time Trial (flying laps against your ghost). */
+export type GameMode = 'race' | 'timetrial';
+export const MODES: { id: GameMode; name: string; about: string }[] = [
+  { id: 'race', name: 'QUICK RACE', about: 'a race against the field' },
+  { id: 'timetrial', name: 'TIME TRIAL', about: 'flying laps against your ghost' },
+];
+
 export interface MenuChoice {
+  mode: GameMode;
   layout: CircuitLayout;
   team: Team;
   difficulty: Difficulty;
@@ -180,6 +188,7 @@ export function chooseCircuit(
   difficulty: Difficulty = NORMAL,
   weather: Weather = DRY,
   qualifying = false,
+  mode: GameMode = 'race',
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
   closed?: AbortSignal,
 ): Promise<MenuChoice> {
@@ -203,10 +212,11 @@ export function chooseCircuit(
   let armed: number | undefined;
   let finish: (l: CircuitLayout) => void = () => {};
 
+  const modeRow = optionRow('MODE', MODES, MODES.find((m) => m.id === mode) ?? MODES[0], (m) => ({ name: m.name, about: m.about }));
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
-  const rows = [teamRow, weatherRow, qualifyingRow];
+  const rows = [modeRow, teamRow, weatherRow, qualifyingRow];
 
   // the settings screen: difficulty, which side the thumbstick sits on, vibration, sound and music volumes
   const deck = document.getElementById('deck');
@@ -336,7 +346,7 @@ export function chooseCircuit(
       done = true;
       menuPick();
       menu.remove();
-      resolve({ layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() });
+      resolve({ mode: modeRow.value().id, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;
