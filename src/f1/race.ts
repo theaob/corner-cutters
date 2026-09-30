@@ -107,7 +107,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   const results = document.createElement('div');
   style(results, {
     position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
-    background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '13px Silkscreen, monospace', whiteSpace: 'pre', display: 'none',
+    background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '11px Silkscreen, monospace', display: 'none',
   });
   // the minimap fits the circuit in a 96 × 110 box, whatever its shape
   const miniScale = Math.min(96 / circuit.width, 110 / circuit.height);
@@ -201,6 +201,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
+        /** show the results table as the race stands, for checking its layout */
+        results: () => showResults(raceOrder(race)),
         /** damage your car by `share` of its health and put it in the pit entry, turning in, for trying out a stop */
         toPits: (share = 0.5) => {
           const me = race.entrants[you];
@@ -227,23 +229,55 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     return wantsPit(me.car, race.laps - p.lap - p.idx / n, lapTime, HANDLING.damageSlow);
   };
 
+  /**
+   * The results as a table, so the columns line up (the pixel font isn't monospaced): position,
+   * driver, team, time (the winner's, then the gap), best lap, and penalties and pit stops. Your row is in gold.
+   */
   const showResults = (order: number[]) => {
     const first = race.entrants[order[0]].progress;
     const winner = (first.finished ?? 0) + first.penalty;
-    const lines = order.map((i, pos) => {
-      const p = race.entrants[i].progress;
+    const cell = (tag: 'td' | 'th', text: string, right = false) => {
+      const c = document.createElement(tag);
+      c.textContent = text;
+      Object.assign(c.style, { padding: '1px 3px', textAlign: right ? 'right' : 'left', fontWeight: 'normal', whiteSpace: 'nowrap' });
+      return c;
+    };
+    const table = document.createElement('table');
+    Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: 'inherit', color: 'inherit' });
+    const head = document.createElement('tr');
+    head.style.color = '#9d9ab8';
+    head.append(cell('th', '', true), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'BEST', true), cell('th', ''));
+    table.append(head);
+    order.forEach((i, pos) => {
+      const e = race.entrants[i];
+      const p = e.progress;
       const time = p.retired
         ? 'DNF'
         : p.finished !== undefined
           ? pos === 0
             ? fmt(p.finished + p.penalty)
             : `+${(p.finished + p.penalty - winner).toFixed(2)}`
-          : `${p.lap}/${race.laps} laps`;
+          : `${p.lap}/${race.laps} LAPS`;
       const best = p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–';
-      const pen = (p.penalty ? ` +${p.penalty}s` : '') + (race.entrants[i].stops ? ` ${race.entrants[i].stops}P` : '');
-      return `${String(pos + 1).padStart(2)}  ${looks[i].name.padEnd(6)} ${looks[i].team.code} ${time.padStart(9)}  ${best}${pen}`;
+      const notes = [p.penalty ? `+${p.penalty}S` : '', e.stops ? `${e.stops}P` : ''].filter(Boolean).join(' ');
+      const row = document.createElement('tr');
+      if (i === you) row.style.color = '#f2c14e';
+      row.append(cell('td', `${pos + 1}`, true), cell('td', looks[i].name), cell('td', looks[i].team.code), cell('td', time, true), cell('td', best, true), cell('td', notes));
+      table.append(row);
     });
-    results.textContent = `CHEQUERED FLAG\n\n    NAME   TEAM      TIME  BEST LAP\n${lines.join('\n')}\n\nP = PIT STOPS\nSTART to race again\nSELECT for circuits`;
+    const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
+      const d = document.createElement('div');
+      d.textContent = text;
+      Object.assign(d.style, css);
+      return d;
+    };
+    results.replaceChildren(
+      line('CHEQUERED FLAG', { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
+      table,
+      line('P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
+      line('START to race again', { marginTop: '8px' }),
+      line('SELECT for circuits'),
+    );
     results.style.display = 'block';
   };
 
