@@ -34,6 +34,8 @@ npm run dev        # http://localhost:5173
 
 The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, START restarts and SELECT (once let go) goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
+**Records:** your best lap on each circuit, and your best race time there for each number of laps (penalties included), are kept on the device between races (`src/f1/records.ts`). Each lap is saved as soon as it's done. The menu shows each circuit's lap record, the race readout has it as REC, a lap that beats it is announced (NEW LAP RECORD), and the results show both records, marked NEW! when this race set them.
+
 **Frame rate:** the readout at the top left shows the frames per second and the picture quality (HIGH, MEDIUM, LOW). When a phone can't keep up, the quality steps down; if even the lowest level is no quicker, the browser is holding the page to 30 fps (Low Power Mode, or Safari throttling a game embedded in another site's page, as on itch.io), so it goes back to where it started. Embedded like that, the menu offers **PLAY IN ITS OWN TAB**, which isn't throttled; saves carry over.
 
 **TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead; changes apply at once and are kept on the device (Reset puts the defaults back).
@@ -83,4 +85,4 @@ public/fonts/     Pixel font, Silkscreen (SIL Open Font License)
 tests/            Driving, circuit, racing, race control, pit stops, controls, layout, storage, vehicle edits, code boundaries
 ```
 
-Saves (layout choice, last circuit, TUNE values) live in local storage under the `cc:` prefix. The status strip under the screen shows your position and lap.
+Saves (layout choice, last circuit, team, TUNE values, and your records) live in local storage under the `cc:` prefix. The status strip under the screen shows your position and lap.

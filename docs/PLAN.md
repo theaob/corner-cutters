@@ -260,7 +260,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 - [ ] Music playback (`engine/music.ts`) with a placeholder loop, so the composed tracks can be dropped in
 - [ ] Music: menu theme and a first race loop
 - [ ] Difficulty levels on the menu (Rookie / Pro / Legend) replacing AI pace as the player's choice
-- [ ] Saved best lap and best race per circuit, shown on the menu and at the results ("NEW RECORD")
+- [x] Saved best lap and best race per circuit (per number of laps), shown on the menu, in the race and at the results ("NEW!")
 - [ ] HUD: gap to the car ahead/behind; a flash on position change and fastest lap
 - [ ] Save format with a version number (`engine/save.ts`) and tests
 - [ ] Haptics on impacts (Android and where supported)
