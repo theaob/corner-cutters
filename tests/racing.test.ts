@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_HANDLING, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import type { Grid } from '../src/engine/sim';
 import {
-  PEDAL_STEER,
   aiInput,
   playerInput,
-  wheel,
   buildTrack,
   nearestSample,
   newProgress,
@@ -179,40 +177,10 @@ describe('AI driver', () => {
   });
 });
 
-describe('control schemes', () => {
-  const car = newCar(carClass('f1'), 0, 0); // facing north
-  const pad = (x: number, a = false, b = false) => ({ stick: { x, y: 0 }, a, b });
-
-  it('stick: points the car where the stick points, B drifts', () => {
-    expect(playerInput('stick', { stick: { x: 0.3, y: -0.4 }, a: true, b: false }, car)).toEqual({ steer: { x: 0.3, y: -0.4 }, handbrake: false });
-    expect(playerInput('stick', { stick: { x: 0, y: 0 }, a: false, b: true }, car)).toEqual({ steer: undefined, handbrake: true });
-  });
-
-  it('pedals: the stick turns the wheel, B is the gas, A the brake, both drift', () => {
-    expect(playerInput('pedals', pad(-0.5, false, true), car).pedals).toEqual({ turn: wheel(-0.5), gas: 1, reverse: false });
-    const both = playerInput('pedals', pad(0.2, true, true), car);
-    expect(both.pedals?.gas).toBe(1);
-    expect(both.handbrake).toBe(true);
-    expect(playerInput('pedals', pad(0), car)).toEqual({ pedals: { turn: 0, gas: 0, reverse: false }, handbrake: false, brake: false });
-  });
-
-  it('pedals: the wheel is gentle near the centre and capped at full lock', () => {
-    expect(wheel(1)).toBeCloseTo(PEDAL_STEER);
-    expect(wheel(-1)).toBeCloseTo(-PEDAL_STEER);
-    expect(wheel(0)).toBe(0);
-    // a quarter push turns far less than a quarter of full lock
-    expect(wheel(0.25)).toBeLessThan(PEDAL_STEER * 0.25 * 0.5);
-    expect(wheel(0.5, 1)).toBeGreaterThan(wheel(0.25, 1));
-    expect(wheel(2, 0.8)).toBeCloseTo(0.8);
-  });
-
-  it('pedals: A brakes while moving forwards, and reverses once stopped', () => {
-    const moving = newCar(carClass('f1'), 0, 0);
-    moving.vy = -150; // north, forwards
-    const braking = playerInput('pedals', pad(0, true), moving);
-    expect(braking.brake).toBe(true);
-    expect(braking.pedals?.reverse).toBe(false);
-    expect(playerInput('pedals', pad(0, true), car).pedals?.reverse).toBe(true);
+describe('the player\'s controls', () => {
+  it('point the car where the stick points, how far it\'s pushed is the throttle, and B drifts', () => {
+    expect(playerInput({ stick: { x: 0.3, y: -0.4 }, a: true, b: false })).toEqual({ steer: { x: 0.3, y: -0.4 }, handbrake: false });
+    expect(playerInput({ stick: { x: 0, y: 0 }, a: false, b: true })).toEqual({ steer: undefined, handbrake: true });
   });
 });
 

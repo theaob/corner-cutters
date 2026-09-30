@@ -30,13 +30,11 @@ npm run dev        # http://localhost:5173
 | `npm test` | Unit tests (Vitest) |
 | `npm run typecheck` | TypeScript only |
 
-**Controls:** two schemes, switched on the circuit menu with left/right (or a tap on the CONTROLS row), and remembered:
-- **Stick:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts.
-- **Pedals:** the stick's left/right turns the wheel (the car only turns while it rolls), B is the gas, A the brake (held once stopped, it reverses), and A+B together drift.
+**Controls:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts.
 
-The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM or CONTROLS row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, START restarts and SELECT (once let go) goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
+The menu is all touch (the deck is hidden there): tap a circuit to race it, swipe the TEAM row (or tap its sides) to change it; on a keyboard, up/down, left/right and Enter. In a race, START restarts and SELECT (once let go) goes back to the circuits. On a keyboard: WASD or the arrow keys steer, X or Shift is B, Z or Space is A, Enter is START, Backspace is SELECT, and V switches between the handheld and wide layouts.
 
-**TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead, and the pedals' steering; changes apply at once and are kept on the device (Reset puts the defaults back).
+**TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead; changes apply at once and are kept on the device (Reset puts the defaults back).
 
 **URL flags:** `?circuit=crescent-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3, `__cc.toPits()` damages your car and puts it in the pit entry), and `?desktop` / `?mobile` force a layout.
 
