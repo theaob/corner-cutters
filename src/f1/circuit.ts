@@ -3,6 +3,7 @@
 
 import type { Grid } from '../engine/sim';
 import type { CircuitLayout } from './layouts';
+import { PIT, between, buildPitLane, type PitLane } from './pits';
 import { buildTrack, type Track } from './racing';
 
 export const TILE = 16;
@@ -24,7 +25,13 @@ function elevationAt(profile: [number, number][], share: number): number {
   return profile[0][1];
 }
 
-export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'wall';
+export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'wall' | 'pit' | 'pitwall';
+
+/** px from the lane's centre that its tiles reach: on the track's side (up to the pit wall), and away from it */
+export const LANE_IN = 30;
+export const LANE_OUT = 34;
+/** px from the centreline where the pit wall starts, beyond the track edge */
+const PIT_WALL = 50;
 
 export interface Circuit {
   layout: CircuitLayout;
@@ -33,6 +40,7 @@ export interface Circuit {
   cells: CircuitCell[];
   grid: Grid;
   track: Track;
+  pit: PitLane;
   /** starting grid slots (px), pole first, all behind the line facing the way of the race */
   slots: { x: number; y: number; heading: number }[];
 }
@@ -87,17 +95,42 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   };
 
   const n = track.samples.length;
+  // (from the samples, already shifted onto the map)
+  const pit = buildPitLane(track, layout.pit);
+  /** px across the pit lane (+ = away from the track) of (x, y), if it's beside the lane */
+  const acrossLane = (x: number, y: number): number | undefined => {
+    let best: (typeof pit.points)[0] | undefined;
+    let bestD = (LANE_OUT + 24) ** 2;
+    for (const q of pit.points) {
+      const d = (q.x - x) ** 2 + (q.y - y) ** 2;
+      if (d < bestD) [best, bestD] = [q, d];
+    }
+    return best && ((x - best.x) * Math.cos(best.dir) + (y - best.y) * Math.sin(best.dir)) * pit.side;
+  };
   const cells: CircuitCell[] = [];
   for (let ty = 0; ty < H; ty++) {
     for (let tx = 0; tx < W; tx++) {
       const x = (tx + 0.5) * TILE;
       const y = (ty + 0.5) * TILE;
       const { i, d } = nearest(x, y);
+      const p = track.samples[i];
+      // the pit lane and its wall, beside the main straight on the pit side
+      if (i >= 0 && d > HALF_WIDTH + 4) {
+        const side = ((x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir)) * pit.side > 0;
+        const across = side ? acrossLane(x, y) : undefined;
+        if (side && between(i, pit.wallFrom, pit.wallTo, n) && d > PIT_WALL && d <= PIT.offset - LANE_IN) {
+          cells.push('pitwall');
+          continue;
+        }
+        if (across !== undefined && across >= -LANE_IN && across <= LANE_OUT) {
+          cells.push('pit');
+          continue;
+        }
+      }
       if (i < 0 || d > HALF_WIDTH + RUNOFF) {
         cells.push('wall');
         continue;
       }
-      const p = track.samples[i];
       const tight = Math.abs(p.curve) > 1 / 260;
       if (d <= HALF_WIDTH - 6) cells.push('track');
       else if (d <= HALF_WIDTH + 4) cells.push(tight ? 'kerb' : 'track');
@@ -134,7 +167,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     width: W,
     height: H,
     tile: TILE,
-    solid: cells.map((c) => c === 'wall'),
+    solid: cells.map((c) => c === 'wall' || c === 'pitwall'),
     rough: cells.map((c) => c === 'grass' || c === 'gravel'),
     heights,
   };
@@ -147,5 +180,5 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });
 
-  return { layout, width: W, height: H, cells, grid, track, slots };
+  return { layout, width: W, height: H, cells, grid, track, pit, slots };
 }

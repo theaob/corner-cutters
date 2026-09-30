@@ -10,6 +10,8 @@ An arcade F1 race in the HD-2D look: start lights, laps, positions, a minimap an
 
 **Damage and the safety car:** every car, yours and the AI's, takes damage from walls, landings and contact. A damaged car smokes, then burns, and loses up to 30% of its top speed; your health shows as five blocks in the readout. A wrecked car is cleared off the track and classified DNF. A big crash (a wreck, or one hit taking 40% of a car's health) brings out the safety car: it joins ahead of the leader, the field queues behind it on a 200 px/s limiter with no overtaking (and nobody gets past the safety car itself), and after 12 s with the leader lined up behind it, it goes in. Passing a car under it costs 5 s a place, added at the flag. The rules are in `src/f1/raceControl.ts`.
 
+**Pit stops:** each circuit has a pit lane beside its main straight, behind a pit wall, with a box for each team and garages behind. Leave the track on the pit side at the entry and you're committed: the car drives itself down the lane on a 120 px/s limiter, stops in your team's box while the crew repairs its damage (1.2 s, plus up to 3 s for a wreck's worth of repairs), and hands it back at the exit. A stop costs about 7 s in all, so it pays with a badly damaged car and a lap or two to go; the pit wall calls **BOX, BOX** on the way to the entry when it does. The AI stops on the same sums. Passing a car in the pits under the safety car is no penalty. The rules are in `src/f1/pits.ts`.
+
 Where it's going: the design and development plan is in [`docs/PLAN.md`](docs/PLAN.md).
 
 Copied from the `?demo=f1` race in [rpg-platformer](https://github.com/theaob/rpg-platformer) (Grand Theft Monster): its shared `engine/` and the `f1/` game.
@@ -36,7 +38,7 @@ The menu is all touch (the deck is hidden there): tap a circuit to race it, swip
 
 **TUNE:** the button at the top right of a race opens sliders for laps, AI opponents, AI pace, camera zoom and look-ahead, and the pedals' steering; changes apply at once and are kept on the device (Reset puts the defaults back).
 
-**URL flags:** `?circuit=crescent-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3), and `?desktop` / `?mobile` force a layout.
+**URL flags:** `?circuit=crescent-park` or `?circuit=silver-heath` goes straight to a race, `?inputlog` lists the input events the page receives and the buttons held (for debugging controls on a phone), `?debug` shows the FPS / quality readout and exposes `window.__cc` for tests (`__cc.wreck(3)` wrecks the car in P3, `__cc.toPits()` damages your car and puts it in the pit entry), and `?desktop` / `?mobile` force a layout.
 
 ## Publishing to itch.io
 
@@ -75,10 +77,10 @@ src/
   engine/         Controls, deck, layout, storage, TUNE panel, view types, driving physics (driving.ts),
                   ground and collision (sim.ts), vehicle edits, render/ (HD-2D pipeline, quality, effects,
                   car models, daylight, sprites, textures)
-  f1/             The race, race control (raceControl.ts: wrecks, safety car, penalties), circuit menu,
+  f1/             The race, race control (raceControl.ts: wrecks, safety car, penalties), pit lane and stops (pits.ts), circuit menu,
                   circuit layouts (layouts.ts), circuit builder and scene, race rules and tuning; uses only engine/
 public/fonts/     Pixel font, Silkscreen (SIL Open Font License)
-tests/            Driving, circuit, racing, race control, controls, layout, storage, vehicle edits, code boundaries
+tests/            Driving, circuit, racing, race control, pit stops, controls, layout, storage, vehicle edits, code boundaries
 ```
 
 Saves (layout choice, last circuit, TUNE values) live in local storage under the `cc:` prefix. The status strip under the screen shows your position and lap.
