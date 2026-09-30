@@ -114,12 +114,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   // the speed, frame rate and picture quality, small and dim under the rest
   const statsLine = document.createElement('span');
   Object.assign(statsLine.style, { color: '#6c6a88', fontSize: '10px' });
-  // your position, flashed big when it changes: green gaining a place, red losing one
-  const posFlash = document.createElement('div');
-  Object.assign(posFlash.style, {
-    position: 'absolute', left: '0', right: '0', top: '21%', zIndex: '2', textAlign: 'center', pointerEvents: 'none',
-    font: '26px Silkscreen, monospace', textShadow: '0 2px 0 #1b1b26', opacity: '0', transition: 'opacity .5s',
-  });
   const banner = document.createElement('div');
   style(banner, {
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
@@ -208,7 +202,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     }
     rainCtx.stroke();
   };
-  host.append(rain, posFlash, readout, banner, results, mini, teamCard, pauseScreen);
+  host.append(rain, readout, banner, results, mini, teamCard, pauseScreen);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
@@ -274,7 +268,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // five lights, one every 0.6 s, then out after a short random wait
     race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7, circuit.pit, weather.id);
     hudState = { gaps: newGapTimer(total), lastPos: 0, flashUntil: 0, lapsSeen: new Array(total).fill(0), fastest: undefined };
-    posFlash.style.opacity = '0';
+    hud.setPositionChange(undefined);
     done = false;
     saved = { laps: 0, race: false, newLap: false, newRace: false };
     notice = { text: '', color: '', until: 0 };
@@ -552,15 +546,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     const showNow = p.finished !== undefined ? clock > p.finished + 1.5 : others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
     hud.setPosition(`P${pos}/${race.entrants.length}`);
-    // a place gained or lost (not while the lights are on, nor after your flag)
+    // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
+    // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
-      const up = pos < hudState.lastPos;
-      posFlash.textContent = `P${pos} ${up ? '▲' : '▼'}`;
-      posFlash.style.color = up ? '#5fe0d0' : '#d8323c';
-      posFlash.style.opacity = '1';
-      hudState.flashUntil = clock + 1.2;
+      hud.setPositionChange(pos < hudState.lastPos ? 'gain' : 'lose');
+      hudState.flashUntil = clock + 1.5;
     }
-    if (clock > hudState.flashUntil) posFlash.style.opacity = '0';
+    if (clock > hudState.flashUntil) hud.setPositionChange(undefined);
     hudState.lastPos = pos;
     hud.setLap(p.retired ? 'OUT' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
