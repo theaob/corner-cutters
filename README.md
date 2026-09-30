@@ -55,7 +55,7 @@ Until both settings exist, the workflow skips the upload and warns which one is 
 
 The same web build, wrapped by [Capacitor](https://capacitorjs.com) into an Android app (`android/`, `capacitor.config.ts`): full screen, portrait, the screen kept on, played offline; the back button goes from a race to the circuit menu, then out.
 
-`.github/workflows/android.yml` builds an APK (a download under the run's **Artifacts**) and uploads it to the itch.io page as the `android` channel, so it can be downloaded there on a phone. **It's paused:** it runs only when started by hand (Actions → android → Run workflow); to build on every push again, add `push:` and `pull_request:` back under `on:` in the workflow. To install, allow installs from your browser or files app when Android asks. Each build has a higher version code, so it installs as an update over the last.
+`.github/workflows/android.yml` builds an APK (a download under the run's **Artifacts**) and uploads it to the itch.io page as the `android` channel, so it can be downloaded there on a phone. It runs on every push and pull request (and by hand: Actions → android → Run workflow); only a push to the default branch uploads to itch.io. To install, allow installs from your browser or files app when Android asks. Each build has a higher version code, so it installs as an update over the last.
 
 **Signing:** without secrets, the APK is signed with `android/app/sideload.keystore`, a key committed to the repo so every build updates the last one (like Android's debug key, it isn't a secret, so don't rely on it for anything you publish widely). For your own key, create one once and keep it safe (an update must always be signed with the same key):
 

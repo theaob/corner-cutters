@@ -3,9 +3,8 @@
 # page's "android" channel (with the same BUTLER_API_KEY / ITCH_TARGET as the
 # web build), where phones can download it.
 #
-# Paused: it runs only when started by hand (Actions -> android -> Run
-# workflow). To build on every push again, add `push:` and `pull_request:`
-# back under `on:`.
+# Runs on every push and pull request (and by hand from the Actions tab); only
+# a push to the default branch (or a run by hand on it) uploads to itch.io.
 #
 # Signing: with the four ANDROID_* secrets set (see the README), the APK is
 # signed with your release key. Without them, it's signed with the sideload key
@@ -13,6 +12,8 @@
 name: android
 
 on:
+  push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
