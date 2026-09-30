@@ -273,7 +273,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 
 The goal: races are won by overtaking, not just by surviving the start.
 
-- [ ] Fixed-step sim and seeded RNG (prerequisite for M3's ghosts; do it first here)
+- [x] Fixed-step sim and seeded RNG (prerequisite for M3's ghosts): 60 Hz steps drawn between for faster screens (`engine/fixedStep.ts`); each race's draws from its seed (`engine/rng.ts`, `?seed=`)
 - [ ] Slipstream
 - [ ] AI mistakes and defending, scaled by difficulty; named driver personalities
 - [ ] Corner-cutting rule: marked corners, warnings, time penalties
