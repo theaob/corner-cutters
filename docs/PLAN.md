@@ -288,7 +288,7 @@ The goal: a reason to come back tomorrow.
 - [x] In-page screen stack replacing the page-reload flow (`main.ts` routes in the page; views close cleanly: loop, sounds, GPU, overlays); mode select on the menu (MODE: QUICK RACE, TIME TRIAL, CHAMPIONSHIP)
 - [x] Time Trial with best-lap ghost and sector splits (`f1/timeTrial.ts`): flying laps on your own on fresh tyres, a cut deletes the lap; your record lap per circuit and weather kept as a ghost (20 frames a second) that drives beside you, a live GAP to it, splits at each sector (purple: quicker than your record, green: than your session's best, amber: slower)
 - [x] Championship: season of rounds, points, drivers' standings, resumable save (`f1/championship.ts`, `f1/screens/championship.ts`): a round on each circuit in turn, the same field all season (teams and each driver's pace drawn when it starts), F1 points for the top ten, standings by points then countback; the season is saved after every round, and leaving a round mid-race doesn't count it
-- [ ] Circuit unlocks through the championship
+- [x] Circuit unlocks through the championship (`f1/unlocks.ts`): the first circuit is open; each later one opens for Quick Race and Time Trial once a Championship reaches it; a circuit you already had a record on stays open; locked circuits are dimmed on the menu
 - [ ] First-launch controls lap (onboarding)
 
 ### M4: Content

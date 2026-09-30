@@ -17,6 +17,8 @@ import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
 import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, teamOf } from './f1/championship';
 import { newSeed } from './engine/rng';
+import { openCircuits, savedUnlocks, unlockCircuit } from './f1/unlocks';
+import { loadRecords } from './f1/records';
 import type { RaceOptions } from './f1/race';
 import { TEAMS, teamById } from './f1/teams';
 import { NORMAL, difficultyById } from './f1/difficulty';
@@ -159,7 +161,7 @@ async function showMenu(id: number): Promise<void> {
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
-  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), closed.signal);
+  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), openNow(), closed.signal);
   if (id !== routeId) return;
   save('choices', 'circuit', picked.layout.id);
   save('choices', 'team', picked.team.id);
@@ -182,6 +184,11 @@ function menuScreen(): void {
   onResize = fillScreen;
 }
 
+/** The circuits open for a Quick Race or a Time Trial now. */
+const openNow = () => openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits));
+/** A circuit the Championship just unlocked (said on its screen once). */
+let justUnlocked: string | undefined;
+
 /** The Championship screen: the season so far and the way on (the next round, a new season, or back to the menu). */
 async function showSeason(id: number): Promise<void> {
   menuScreen();
@@ -189,7 +196,8 @@ async function showSeason(id: number): Promise<void> {
   const closed = new AbortController();
   current = { close: () => closed.abort() };
   const season = loadSeason();
-  const action = await showChampionship(screen, services, season, closed.signal);
+  const action = await showChampionship(screen, services, season, justUnlocked, closed.signal);
+  justUnlocked = undefined;
   if (id !== routeId) return;
   if (action === 'race' && season) navigate(withCircuit(season.rounds[season.round], 'championship'));
   else if (action === 'new') {
@@ -221,6 +229,12 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode): Prom
           onDone: (finish, out) => {
             recordRound(season, finish, out);
             saveSeason(season);
+            // reaching the next round's circuit unlocks it for a Quick Race and a Time Trial
+            const next = season.rounds[season.round];
+            if (next && !openNow().has(next)) {
+              unlockCircuit(next);
+              justUnlocked = next;
+            }
             toSeason();
           },
         },

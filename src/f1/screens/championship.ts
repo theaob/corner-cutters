@@ -50,9 +50,9 @@ function standingsTable(s: Season): HTMLTableElement {
 
 /**
  * Show the Championship screen for `season` (none: no season yet) in `host`
- * until the player picks what next.
+ * until the player picks what next; `unlocked`, a circuit the season has just unlocked.
  */
-export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, closed?: AbortSignal): Promise<ChampionshipAction> {
+export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, unlocked?: string, closed?: AbortSignal): Promise<ChampionshipAction> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
@@ -76,6 +76,8 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     screen.append(line(settings));
     // the rounds: raced (your place), next, to come
     screen.append(line(season.rounds.map((id, k) => `${k < season.round ? (season.places[k][season.you] < 0 ? 'DNF' : `P${season.places[k][season.you] + 1}`) : k === season.round ? '▶' : '·'} ${nameOf(id)}`).join('   ')));
+    // a circuit just unlocked: said once
+    if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE AND TIME TRIAL`, 'var(--accent-b)'));
     screen.append(standingsTable(season));
   } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('YOUR TEAM, DIFFICULTY, WEATHER AND QUALIFYING FROM THE MENU'));
 

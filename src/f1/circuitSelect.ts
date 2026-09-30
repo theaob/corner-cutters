@@ -190,6 +190,8 @@ export function chooseCircuit(
   weather: Weather = DRY,
   qualifying = false,
   mode: GameMode = 'race',
+  /** the circuits open for a Quick Race or a Time Trial (the rest are reached in a Championship) */
+  open: ReadonlySet<string> = new Set(layouts.map((l) => l.id)),
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
   closed?: AbortSignal,
 ): Promise<MenuChoice> {
@@ -205,6 +207,8 @@ export function chooseCircuit(
 
   /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
+  // (a circuit that's locked isn't highlighted first)
+  if (!open.has(layouts[selected].id)) selected = Math.max(0, layouts.findIndex((l) => open.has(l.id)));
   /** where up/down is: on the menu a circuit (0…), then the team, weather and qualifying rows, then SETTINGS; in the settings, a row, then DONE */
   let focus = selected;
   /** the menu, or the settings screen over it */
@@ -264,7 +268,9 @@ export function chooseCircuit(
     const name = document.createElement('strong');
     name.textContent = layout.name;
     const about = document.createElement('span');
-    about.textContent = layout.about;
+    const locked = !open.has(layout.id);
+    about.textContent = locked ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : layout.about;
+    if (locked) b.classList.add('locked');
     const text = document.createElement('div');
     text.append(name, about);
     // your lap record here, once you have one
@@ -344,6 +350,12 @@ export function chooseCircuit(
     let done = false;
     finish = (layout) => {
       if (done) return;
+      // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
+      if (!open.has(layout.id) && modeRow.value().id !== 'championship') {
+        menuTick();
+        hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
+        return;
+      }
       done = true;
       menuPick();
       menu.remove();
