@@ -426,10 +426,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     results.style.display = 'none';
   };
 
+  /** the grid the race started from (drivers by slot; none: everyone in their own), for restarting it */
+  let raceGrid: number[] | undefined;
   /** The race, from the grid qualifying set (drivers by slot, pole first), or everyone in their own slot. */
   const startRace = (gridSlots?: number[]) => {
     session = 'race';
     quali = undefined;
+    raceGrid = gridSlots;
     resetSession();
     const w = drawWeekend();
     const slots = gridSlots ?? w.drivers.map((_, k) => k);
@@ -486,6 +489,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     else startRace();
   };
   newWeekend();
+  /**
+   * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
+   * need to qualify again); without qualifying, a new weekend (new rivals), as ever.
+   */
+  const restart = () => (session === 'race' && qualifying ? startRace(raceGrid) : newWeekend());
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
@@ -623,7 +631,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       line('P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
       line(`BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}${saved.newRace ? ' · NEW!' : ''}`, { color: saved.newRace ? '#f2c14e' : '#f4f2fa' }),
-      line('START to race again', { marginTop: '8px' }),
+      line(qualifying ? 'START to race again from the same grid' : 'START to race again', { marginTop: '8px' }),
       line('SELECT for circuits'),
     );
     results.style.display = 'block';
@@ -686,7 +694,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   pauseScreen.append(
     pauseTitle,
     pauseButton('RESUME', () => setPaused(false)),
-    pauseButton('RESTART', () => newWeekend()),
+    pauseButton('RESTART', () => restart()),
     pauseButton('CIRCUITS', () => onQuit()),
     vibrationButton,
     pauseHint,
@@ -718,7 +726,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // over goes to the grid
     const aPressed = pressed('a');
     if (quali?.over && (aPressed || startPressed)) startRace(quali.over.grid);
-    else if (startPressed) newWeekend();
+    else if (startPressed) restart();
     else if (aPressed && session === 'qualifying') startRace();
     else if (aPressed && !done) setPaused(!paused);
     // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
