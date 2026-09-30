@@ -27,7 +27,9 @@ import type { ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
 import { defaults } from '../engine/tuning';
-import { buildCircuit } from './circuit';
+import { TILE, buildCircuit } from './circuit';
+import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
+import { newRumble, rumble } from './rumble';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
 import { F1_TUNING } from './tuning';
@@ -370,11 +372,21 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     results.style.display = 'block';
   };
 
+  // vibration on or off, from the pause screen (and remembered)
+  const rumbleState = newRumble();
+  const vibrationButton = pauseButton('', () => {
+    setVibration(!vibrationOn());
+    showVibration();
+    vibrate(40);
+  });
+  const showVibration = () => (vibrationButton.textContent = `VIBRATION: ${vibrationOn() ? 'ON' : 'OFF'}`);
+  showVibration();
   pauseScreen.append(
     pauseTitle,
     pauseButton('RESUME', () => setPaused(false)),
     pauseButton('RESTART', () => startRace()),
     pauseButton('CIRCUITS', () => onQuit()),
+    vibrationButton,
     pauseHint,
   );
   // leaving the app or the tab pauses the race; so do Esc and P on a keyboard
@@ -421,7 +433,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
 
     // the race: everyone drives, the rules run
     const pad = { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') };
+    const healthBefore = race.entrants[you].car.health;
     const step = stepRace(race, dt, () => playerInput(pad));
+    // your car's vibration: crashes, landings, grass and gravel, kerbs
+    {
+      const me = race.entrants[you];
+      const ev = step.cars[you];
+      const cell = circuit.cells[Math.floor(me.car.y / TILE) * circuit.width + Math.floor(me.car.x / TILE)];
+      vibrate(rumble(rumbleState, {
+        dt, speed: speedOf(me.car), topSpeed: me.car.cls.topSpeed, healthLost: healthBefore - me.car.health,
+        wreckedNow: ev.wreckedNow, landed: ev.landed, onRough: ev.onRough, onKerb: cell === 'kerb',
+      }));
+    }
     for (const e of step.race) {
       if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
