@@ -10,6 +10,8 @@ import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf } from '../
 import { groundAt } from '../engine/sim';
 import { lineCornerSpeed, lineDecel, playerInput, type AiDriver } from './racing';
 import { NORMAL, aiPaceFor, handlingFor, type Difficulty } from './difficulty';
+import { DRY, type Weather } from './weather';
+import { COMPOUNDS } from './tyres';
 import { LIGHTS, SAFETY_CAR, newRace, order as raceOrder, planLapTime, running, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { PIT, between, wantsPit } from './pits';
@@ -47,8 +49,8 @@ interface Look {
 }
 
 
-/** The race on `layout`, driven for `team` at `difficulty`; `onQuit` runs when the player presses and releases SELECT. */
-export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0], difficulty: Difficulty = NORMAL): MountStandalone => async ({ host, services, tuning, fit }) => {
+/** The race on `layout`, driven for `team` at `difficulty` in `weather`; `onQuit` runs when the player presses and releases SELECT. */
+export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = TEAMS[0], difficulty: Difficulty = NORMAL, weather: Weather = DRY): MountStandalone => async ({ host, services, tuning, fit }) => {
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
@@ -58,9 +60,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   // the AI's line: flat out wherever the car can follow the bend, like a player can
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
   const { track, grid } = circuit;
-  const world = createCircuitScene(circuit);
+  const world = createCircuitScene(circuit, weather);
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
-  const particles = new Particles();
+  // (a bigger pool in the wet: every car throws up spray)
+  const particles = new Particles(weather.spray ? 220 : 90);
   world.scene.add(skids.group, particles.group);
 
   // ---------------------------------------------------------------- renderer
@@ -102,6 +105,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     position: 'absolute', left: '6px', top: '6px', zIndex: '2', padding: '2px 6px', borderRadius: '6px',
     background: 'rgba(21,20,31,.75)', color: '#9d9ab8', font: '12px Silkscreen, monospace', whiteSpace: 'pre',
   });
+  const tyreLine = document.createElement('span');
   const banner = document.createElement('div');
   style(banner, {
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
@@ -125,7 +129,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   });
   const cardLogo = logoSvg(team.id, 36);
   if (cardLogo) teamCard.append(cardLogo);
-  teamCard.append(`${team.name.toUpperCase()} · ${difficulty.name}`);
+  teamCard.append(`${team.name.toUpperCase()} · ${difficulty.name} · ${weather.name}`);
   const MINI_H = Math.round(circuit.height * miniScale);
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
   const mini = document.createElement('canvas');
@@ -165,7 +169,32 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   const pauseHint = document.createElement('div');
   pauseHint.textContent = 'A RESUME · START RESTART · SELECT CIRCUITS';
   style(pauseHint, { color: '#9d9ab8', fontSize: '10px', marginTop: '6px', textAlign: 'center', padding: '0 12px' });
-  host.append(readout, banner, results, mini, teamCard, pauseScreen);
+  // rain over the picture: streaks falling at a slant, under the readouts
+  const rain = document.createElement('canvas');
+  style(rain, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none', display: weather.rain > 0 ? 'block' : 'none' });
+  const rainCtx = rain.getContext('2d')!;
+  const drops = Array.from({ length: Math.round(90 * weather.rain) }, () => ({ x: Math.random(), y: Math.random(), v: 0.9 + Math.random() * 0.6 }));
+  const drawRain = (dt: number) => {
+    if (weather.rain <= 0) return;
+    const w = (rain.width = rain.clientWidth);
+    const h = (rain.height = rain.clientHeight);
+    rainCtx.clearRect(0, 0, w, h);
+    rainCtx.strokeStyle = 'rgba(210,220,236,.45)';
+    rainCtx.lineWidth = 1;
+    rainCtx.beginPath();
+    for (const d of drops) {
+      d.y += d.v * dt * 1.6;
+      d.x -= d.v * dt * 0.25;
+      if (d.y > 1) Object.assign(d, { y: d.y - 1, x: Math.random() + 0.1 });
+      if (d.x < 0) d.x += 1.1;
+      const px = d.x * w;
+      const py = d.y * h;
+      rainCtx.moveTo(px, py);
+      rainCtx.lineTo(px + 4, py - 16);
+    }
+    rainCtx.stroke();
+  };
+  host.append(rain, readout, banner, results, mini, teamCard, pauseScreen);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
@@ -179,7 +208,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
   const records = loadRecords();
-  const rec = () => records.circuits[layout.id];
+  // (kept apart for each weather: a wet lap is slower)
+  const recordId = weather.id === 'dry' ? layout.id : `${layout.id}:${weather.id}`;
+  const rec = () => records.circuits[recordId];
   /** your laps saved so far this race, whether your finish is saved, and the records this race set */
   let saved = { laps: 0, race: false, newLap: false, newRace: false };
 
@@ -223,7 +254,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai, box: [...new Set(teams)].indexOf(livery) };
     });
     // five lights, one every 0.6 s, then out after a short random wait
-    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7, circuit.pit);
+    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, 0.3 + Math.random() * 0.7, circuit.pit, weather.id);
     done = false;
     saved = { laps: 0, race: false, newLap: false, newRace: false };
     notice = { text: '', color: '', until: 0 };
@@ -328,7 +359,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       return d;
     };
     results.replaceChildren(
-      line(`CHEQUERED FLAG · ${difficulty.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
+      line(`CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
       table,
       line('P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
@@ -404,7 +435,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     if (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race)) {
       for (const lap of mine.lapTimes.slice(saved.laps)) {
         const had = rec()?.bestLap !== undefined;
-        if (recordLap(records, layout.id, lap)) {
+        if (recordLap(records, recordId, lap)) {
           saved.newLap = true;
           if (had) announce(`NEW LAP RECORD ${fmt(lap)}`, '#f2c14e', 3);
         }
@@ -412,7 +443,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       saved.laps = mine.lapTimes.length;
       if (mine.finished !== undefined && !saved.race) {
         saved.race = true;
-        saved.newRace = recordRace(records, layout.id, race.laps, mine.finished + mine.penalty);
+        saved.newRace = recordRace(records, recordId, race.laps, mine.finished + mine.penalty);
       }
       saveRecords(records);
     }
@@ -427,6 +458,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       l.mesh.rotation.set(tilt.pitch, -e.car.heading, tilt.roll, 'YXZ');
       const speed = speedOf(e.car);
       l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
+      // the tyres' compound colour, and spray off a wet track from behind the car at speed
+      l.mesh.userData.tyreMark.color.set(COMPOUNDS[e.tyres.compound].color);
+      if (weather.spray && speed > 60 && Math.random() < dt * (weather.rain > 0 ? 14 : 6) * Math.min(1, speed / 250)) {
+        particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);
+      }
     });
     // the safety car on the track while it's out
     const sc = race.sc;
@@ -483,9 +519,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
     // your tyres as five blocks and a share left, amber once they're past their best
     const left = 1 - me.tyres.wear;
     const tyreBlocks = Math.ceil(left * 5);
-    const tyres = `${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
+    const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
     const limiter = me.pit ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
-    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}\nCAR  ${car}${limiter}\nTYRE ${tyres}`;
+    readout.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}\nLAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(rec()?.bestLap)}\nCAR  ${car}${limiter}\n`;
+    // the tyre line in its compound's colour
+    tyreLine.textContent = `TYRE ${tyres}`;
+    tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
+    readout.append(tyreLine);
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
@@ -505,6 +545,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, team: Team = T
       dot(me.car.x, me.car.y, '#f2c14e', 7);
     }
     particles.update(dt);
+    drawRain(dt);
     skids.update(dt);
 
     // camera: follow your car, looking ahead along its motion

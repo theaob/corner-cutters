@@ -12,6 +12,7 @@ import { groundAt } from '../engine/sim';
 import type { Pt } from './racing';
 import { PIT } from './pits';
 import { HALF_WIDTH, LANE_IN, LANE_OUT, TILE as T, type Circuit } from './circuit';
+import { DRY, type Weather } from './weather';
 
 export interface CircuitScene extends Daylight {
   scene: THREE.Scene;
@@ -181,20 +182,22 @@ function grandstand(len: number): THREE.Mesh {
   return m;
 }
 
-export function createCircuitScene(circuit: Circuit): CircuitScene {
+/** The circuit in `weather`: its sky and light, and the ground darker when it's wet. */
+export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): CircuitScene {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#8fb8e8');
   const light = addDaylight(scene);
+  light.setSky(weather.sky);
   const { width: W, height: H, cells, grid, track } = circuit;
 
   const geo = new THREE.PlaneGeometry(W * T, H * T, W, H).rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) pos.setY(i, grid.heights![i]);
   geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: pixelTexture(paint(circuit)) }));
+  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: pixelTexture(paint(circuit)), color: weather.groundTint }));
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x4b9444 }));
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(0x4b9444).multiply(new THREE.Color(weather.groundTint)) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
   scene.add(ground, outer);

@@ -8,7 +8,8 @@
 import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
 import { between, entersPit, newPitStop, pitStep, wantsPit, type PitLane, type PitStop } from './pits';
-import { fitTyres, freshTyres, wearTyres, type TyreSet } from './tyres';
+import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
+import type { WeatherId } from './weather';
 import { aiInput, coolDownInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
 
 export const SAFETY_CAR = {
@@ -81,6 +82,8 @@ export interface Race {
   grid: Grid;
   /** the circuit's pit lane (none: no stops) */
   pit?: PitLane;
+  /** the track's weather: it sets which tyres the crews fit and how they do */
+  weather: WeatherId;
   handling: HandlingParams;
   laps: number;
   entrants: Entrant[];
@@ -96,14 +99,16 @@ export interface Race {
 
 /**
  * A race about to start: the lights come on, then go out `lightsOut` s after the
- * fifth. With a `pit` lane, cars can stop there, each at its `box`.
+ * fifth. With a `pit` lane, cars can stop there, each at its `box`. Every car
+ * starts on the tyres for the `weather`.
  */
 export function newRace(
   track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver; box?: number }[], lightsOut = 0.5, pit?: PitLane,
+  weather: WeatherId = 'dry',
 ): Race {
-  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tyres: freshTyres(), progress: newProgress(track.samples.length - 4) }));
-  for (const e of entrants) fitTyres(e.tyres, e.car);
-  return { track, grid, pit, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
+  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tyres: freshTyres(tyreFor(weather)), progress: newProgress(track.samples.length - 4) }));
+  for (const e of entrants) fitTyres(e.tyres, e.car, weather);
+  return { track, grid, pit, weather, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
 }
 
 /** Samples before the pit entry from which an AI car that wants to stop heads in. */
@@ -195,9 +200,9 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     if (pit && e.pit) {
       const r = pitStep(pit, e.pit, e.car, others, dt);
       if (r.stopped) {
-        // new tyres on
-        e.tyres = freshTyres();
-        fitTyres(e.tyres, e.car);
+        // new tyres on, the right ones for the weather
+        e.tyres = freshTyres(tyreFor(race.weather));
+        fitTyres(e.tyres, e.car, race.weather);
         out.push({ kind: 'pit-stop', who: i, seconds: e.pit.time });
       }
       if (!r.done) return stepCar(e.car, r.input, p, dt, grid);
@@ -214,7 +219,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   });
   // the tyres wear with the driving
   entrants.forEach((e, i) => {
-    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt);
+    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt, race.weather);
   });
   if (sc) {
     // it drives the line at its own pace, moving round a slower car in its way (a backmarker it joined

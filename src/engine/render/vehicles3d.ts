@@ -95,6 +95,8 @@ export interface CarMesh extends THREE.Group {
   userData: {
     /** materials whose colour darkens as the car burns */
     paint: THREE.MeshLambertMaterial[];
+    /** the coloured band round each tyre's outer edge, marking its compound: set its colour */
+    tyreMark: THREE.MeshBasicMaterial;
   };
 }
 
@@ -168,15 +170,21 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     [L / 2 - 6, 3.8, 3.6, W / 2 - 1.2],
   ];
   const wheelMat = lambert({ color: 0x151515 });
+  // the compound's colour round the outer edge of each tread (unlit, so it reads from afar and in shade)
+  const tyreMark = new THREE.MeshBasicMaterial({ color: 0xffd21f, toneMapped: false });
   for (const [z, wr, ww, half] of axles) {
     for (const x of [-half, half]) {
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, ww, 12), wheelMat);
       wheel.rotation.z = Math.PI / 2;
       wheel.position.set(x, wr, z);
       car.add(wheel);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.8, 12, 1, true), tyreMark);
+      band.rotation.z = Math.PI / 2;
+      band.position.set(x + Math.sign(x) * (ww / 2 - 0.4), wr, z);
+      car.add(band);
     }
   }
 
-  car.userData = { paint };
+  car.userData = { paint, tyreMark };
   return car;
 }
