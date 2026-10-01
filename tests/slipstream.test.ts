@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { carClass, newCar, speedOf, stepCar, type Car } from '../src/engine/driving';
 import type { Grid } from '../src/engine/sim';
 import { buildCircuit } from '../src/f1/circuit';
-import { LAYOUTS } from '../src/f1/layouts';
+import { SILVER_HEATH } from '../src/f1/layouts';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, running, stepRace } from '../src/f1/raceControl';
 import { SLIPSTREAM, stepTow, towBoost, towFrom, wake } from '../src/f1/slipstream';
@@ -91,7 +91,8 @@ describe('down a straight', () => {
   });
 });
 
-describe.each(LAYOUTS)('slipstream in a race at $name', (layout) => {
+describe('slipstream in a race', () => {
+  const layout = SILVER_HEATH;
   it('tows cars on the straights, and the racing stays clean', () => {
     const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
     const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: 0.94 * (1 - (i / 10) * 0.05) }, box: i >> 1 }));

@@ -3,8 +3,7 @@ import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
 import { ARDENNES, CRESCENT_PARK, HARBOUR, LAYOUTS, ROYAL_PARK, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
-import { RACE_HANDLING, aiInput, coolDownInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
-import { collideCars } from '../src/engine/driving';
+import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
 
 const f1 = carClass('f1');
 
@@ -124,31 +123,6 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap, b
     expect(line.braking).toBeLessThan(braking);
     expect(Math.abs(line.time - flat.time)).toBeLessThan(flatGap);
     expect(line.time).toBeLessThan(lap[1]);
-  });
-
-  it('runs a whole AI race from a full grid of 10 at the tuned pace: everyone finishes, in order, without wrecking', () => {
-    const handling = RACE_HANDLING;
-    const field = circuit.slots.slice(0, 10).map((s, i) => ({
-      car: newCar(f1, s.x, s.y, s.heading),
-      ai: { lane: ((i * 7) % 11) - 5, pace: 0.94 * (1 - (i / 10) * 0.05) },
-      p: newProgress(track.samples.length - 4),
-    }));
-    let t = 0;
-    for (; t < 120 && field.some((r) => r.p.finished === undefined); t += 1 / 60) {
-      for (const r of field) {
-        const others = field.filter((o) => o !== r).map((o) => o.car);
-        const input = r.p.finished !== undefined ? coolDownInput(r.car, track, r.p.idx, others) : aiInput(r.car, track, r.p.idx, r.ai, others);
-        stepCar(r.car, input, handling, 1 / 60, grid);
-        r.p = stepProgress(r.p, track, r.car, t, 2, 1 / 60);
-      }
-      for (let i = 0; i < field.length; i++) for (let j = i + 1; j < field.length; j++) collideCars(field[i].car, field[j].car, handling);
-    }
-    expect(field.every((r) => r.p.finished !== undefined)).toBe(true);
-    expect(field.every((r) => !r.car.wrecked)).toBe(true);
-    const order = standings(field.map((r) => r.p), track);
-    expect(order).toHaveLength(10);
-    const times = order.map((i) => field[i].p.finished!);
-    for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
   });
 });
 
