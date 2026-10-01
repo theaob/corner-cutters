@@ -18,6 +18,7 @@ import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
 import { standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
+import { buildForest } from './forest3d';
 
 /** The flags on the grandstands: the teams' colours and white. */
 const FLAG_COLORS = [0xd8323c, 0xf2c14e, 0x3d7fc4, 0xf4f4f8, 0x5fe0d0, 0xff5fb8, 0x3d9a5a];
@@ -37,6 +38,9 @@ function rng(seed: number): () => number {
   };
 }
 
+/** A forest's floor, past the barriers */
+const FOREST_FLOOR = '#2f5a2c';
+
 /** The banking's concrete, and the seams along it */
 const CONCRETE = '#b4b2ac';
 const SEAM = '#99978f';
@@ -49,6 +53,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const [c, x] = canvas(W * T, H * T);
   const r = rng(11);
   const street = !!circuit.layout.street;
+  const forest = !!circuit.layout.forest;
   const sea = seaOf(circuit);
   // run-off and surroundings, tile by tile
   for (let j = 0; j < H; j++) {
@@ -90,11 +95,11 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
         }
       } else {
-        // grass everywhere else (the track is painted over it); mown stripes on the run-off
-        x.fillStyle = cell === 'wall' ? '#4b9444' : (i + j) % 4 < 2 ? '#5aa84f' : '#62b156';
+        // grass everywhere else (the track is painted over it); mown stripes on the run-off; in a forest, its dark floor past the barriers
+        x.fillStyle = cell === 'wall' ? (forest ? FOREST_FLOOR : '#4b9444') : (i + j) % 4 < 2 ? '#5aa84f' : '#62b156';
         x.fillRect(px, py, T, T);
         for (let k = 0; k < 3; k++) {
-          x.fillStyle = '#3f8a3c';
+          x.fillStyle = cell === 'wall' && forest ? (r() < 0.5 ? '#3a5a2a' : '#5a4a2e') : '#3f8a3c';
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 2);
         }
       }
@@ -308,7 +313,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(street ? STREET.town : 0x4b9444).multiply(new THREE.Color(weather.groundTint)) }));
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : 0x4b9444).multiply(new THREE.Color(weather.groundTint)) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
   scene.add(ground, outer);
@@ -417,6 +422,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (at a circuit whose podium hangs over the main straight: its deck)
   const deck = createPodiumDeck(circuit);
   if (deck) scene.add(deck);
+  // (at a circuit in a forest: the trees)
+  buildForest(scene, circuit);
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);

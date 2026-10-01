@@ -41,7 +41,7 @@ function rng(seed: number): () => number {
 }
 
 /** Ground hidden behind (north of) something, per px of its height, from the camera looking down from the south. */
-const HIDES = 1 / Math.tan((HD2D_VIEW.pitch * Math.PI) / 180);
+export const HIDES = 1 / Math.tan((HD2D_VIEW.pitch * Math.PI) / 180);
 
 /**
  * How tall something standing on footprint (x, y, w across, d deep) can be and
