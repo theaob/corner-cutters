@@ -33,10 +33,10 @@ function elevationAt(profile: [number, number][], share: number): number {
 export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'apron' | 'wall' | 'pit' | 'pitwall';
 
 /** px from the lane's centre that its tiles reach: on the track's side (up to the pit wall), and away from it */
-export const LANE_IN = 30;
-export const LANE_OUT = 34;
+export const LANE_IN = 42;
+export const LANE_OUT = 56;
 /** px from the centreline where the pit wall starts, beyond the track edge */
-const PIT_WALL = 50;
+const PIT_WALL = PIT.offset - LANE_IN - 18;
 
 export interface Circuit {
   layout: CircuitLayout;
@@ -65,7 +65,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   const control = layout.points.map((p) => ({ x: p.x * layout.scale, y: p.y * layout.scale }));
   const track = buildTrack(control, 8, opts.cornerSpeed, opts.decel);
   track.tyreWear = layout.tyreWear;
-  const margin = HALF_WIDTH + RUNOFF + 64;
+  // (room round the track for its run-off, or for the pit lane and its garages)
+  const margin = Math.max(HALF_WIDTH + RUNOFF + 64, PIT.offset + LANE_OUT + 80);
   const minX = Math.min(...track.samples.map((p) => p.x)) - margin;
   const minY = Math.min(...track.samples.map((p) => p.y)) - margin;
   // shift everything so the map starts at (0, 0), on whole tiles
@@ -93,10 +94,12 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     for (let j = by - rb; j <= by + rb; j++) for (let i = bx - rb; i <= bx + rb; i++) out.push(...(buckets.get(`${i},${j}`) ?? []));
     return out;
   };
+  /** px from the centreline the nearest-sample lookup reaches: past the run-off, and past the pit lane */
+  const REACH = Math.max(HALF_WIDTH + RUNOFF, PIT.offset + LANE_OUT) + 16;
   const nearest = (x: number, y: number) => {
     let best = -1;
     let bestD = Infinity;
-    for (const i of near(x, y, HALF_WIDTH + RUNOFF + 16)) {
+    for (const i of near(x, y, REACH)) {
       const p = track.samples[i];
       const d = (p.x - x) ** 2 + (p.y - y) ** 2;
       if (d < bestD) [best, bestD] = [i, d];

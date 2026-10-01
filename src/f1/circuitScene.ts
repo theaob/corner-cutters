@@ -117,13 +117,27 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   // the pit lane: asphalt under the track's, so the track's edge runs unbroken past the entry and exit
   const { pit } = circuit;
   const lane = (across: number) => pit.points.map((p) => ({ x: p.x + Math.cos(p.dir) * across * pit.side, y: p.y + Math.sin(p.dir) * across * pit.side }));
+  /** a line along the lane, `across` px out, left out where it would fold back on itself (round the inside of a tight bend on an entry or exit road) */
+  const laneLine = (across: number) => {
+    const pts = lane(across);
+    x.beginPath();
+    let pen = false;
+    pts.forEach((q, k) => {
+      const d = pit.points[k].dir;
+      const prev = pts[k - 1];
+      const forward = prev ? (q.x - prev.x) * Math.sin(d) - (q.y - prev.y) * Math.cos(d) > 0 : false;
+      if (pen && forward) x.lineTo(q.x, q.y);
+      else x.moveTo(q.x, q.y);
+      pen = true;
+    });
+  };
   x.strokeStyle = '#4a4d59';
   x.lineWidth = LANE_IN + LANE_OUT;
-  path(lane((LANE_OUT - LANE_IN) / 2), false);
+  laneLine((LANE_OUT - LANE_IN) / 2);
   x.stroke();
   x.strokeStyle = '#e8e8ee';
   x.lineWidth = 2;
-  path(lane(LANE_OUT - 4), false);
+  laneLine(LANE_OUT - 4);
   x.stroke();
   // the boxes: a yellow frame each, beside the fast lane
   x.strokeStyle = '#f2c14e';
@@ -135,7 +149,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     x.save();
     x.translate(cx, cy);
     x.rotate(q.dir);
-    x.strokeRect(-9, -18, 18, 36);
+    x.strokeRect(-12, -22, 24, 44);
     x.restore();
   }
   // the speed-limit lines across the lane, where the pit wall starts and ends
@@ -390,8 +404,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     const q = pit.points.find((p) => p.s >= b)!;
     const gx = q.x + Math.cos(q.dir) * back;
     const gy = q.y + Math.sin(q.dir) * back;
-    const garage = new THREE.Mesh(new THREE.BoxGeometry(24, 20, PIT.boxSpacing - 2), faces);
-    garage.position.set(gx, groundAt(grid, gx, gy).h + 10, gy);
+    const garage = new THREE.Mesh(new THREE.BoxGeometry(28, 22, PIT.boxSpacing - 2), faces);
+    garage.position.set(gx, groundAt(grid, gx, gy).h + 11, gy);
     garage.rotation.y = -q.dir;
     garage.castShadow = garage.receiveShadow = true;
     scene.add(garage);

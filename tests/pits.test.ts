@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyDamage, carClass, newCar, speedOf } from '../src/engine/driving';
 import { HALF_WIDTH, TILE, buildCircuit, type Circuit } from '../src/f1/circuit';
 import { LAYOUTS, SILVER_HEATH, type CircuitLayout } from '../src/f1/layouts';
-import { GARAGE_ACROSS, PIT, entersPit, stopTime, wantsPit } from '../src/f1/pits';
+import { GARAGE_ACROSS, PIT, entersPit, inLimitZone, stopTime, wantsPit } from '../src/f1/pits';
 import { freshTyres } from '../src/f1/tyres';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, nearestSample } from '../src/f1/racing';
 import { newRace, order, running, skipToParked, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
@@ -105,11 +105,12 @@ describe('when to stop', () => {
 });
 
 describe.each(LAYOUTS)('a pit stop at $name', (layout) => {
-  it('repairs a damaged AI car: in on the limiter, stopped in its box, out again, and it still finishes', () => {
+  it('repairs a damaged AI car: in on the limiter (between the speed-limit lines; no faster than the road speed on the way in), stopped in its box, out again, and it still finishes', () => {
     const race = raceOn(layout, 3);
     const events: RaceEvent[] = [];
     let victim = -1;
     let fastestInLane = 0;
+    let fastestOnRoads = 0;
     for (let t = 0; t < 240 && !over(race); t += dt) {
       if (victim < 0 && race.phase === 'racing' && race.clock > 6) {
         victim = order(race)[3];
@@ -117,7 +118,13 @@ describe.each(LAYOUTS)('a pit stop at $name', (layout) => {
       }
       events.push(...stepRace(race, dt).race);
       const stop = victim >= 0 ? race.entrants[victim].pit : undefined;
-      if (stop && stop.phase !== 'in') fastestInLane = Math.max(fastestInLane, speedOf(race.entrants[victim].car));
+      if (stop) {
+        const v = speedOf(race.entrants[victim].car);
+        const s = race.pit!.points[stop.at].s;
+        if (stop.phase !== 'in' && inLimitZone(race.pit!, s)) fastestInLane = Math.max(fastestInLane, v);
+        // (on the entry road, once off the track)
+        if (stop.phase === 'in' && s < race.pit!.limitFrom && race.pit!.points[stop.at].off > PIT.onTrack + 40) fastestOnRoads = Math.max(fastestOnRoads, v);
+      }
     }
     const mine = events.filter((e) => 'who' in e && e.who === victim).map((e) => e.kind);
     expect(mine).toEqual(['pit-in', 'pit-stop', 'pit-out']);
@@ -125,6 +132,7 @@ describe.each(LAYOUTS)('a pit stop at $name', (layout) => {
     expect(e.stops).toBe(1);
     expect(e.car.health).toBe(f1.health);
     expect(fastestInLane).toBeLessThanOrEqual(PIT.limit + 5);
+    expect(fastestOnRoads).toBeLessThanOrEqual(PIT.road + 5);
     expect(e.progress.finished).toBeDefined();
     expect(e.progress.lapTimes).toHaveLength(3);
     // nobody else stopped, and no one was hurt
