@@ -18,6 +18,7 @@ import { COMPOUNDS, fitTyres } from './tyres';
 import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
+import { GRID_PAN, panAt, panLength } from './gridPan';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
@@ -381,7 +382,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** the session on track: qualifying (your flying lap, alone), the race, or a Time Trial (flying laps, alone, against your ghost) */
   let session: 'qualifying' | 'race' | 'timetrial' | 'tutorial' = 'race';
   /** what A does while the session's running: skips qualifying, pauses the race */
-  const aLabel = () => (session === 'qualifying' || session === 'tutorial' ? 'SKIP' : 'PAUSE');
+  const aLabel = () => (session === 'qualifying' || session === 'tutorial' || gridPan ? 'SKIP' : 'PAUSE');
+  /** The grid pan over: the lights come on (the camera swings back to your car). */
+  const endPan = () => {
+    gridPan = undefined;
+    hud.setLabel('a', 'PAUSE');
+  };
   /** qualifying: your laps so far, this weekend's field, and once it's over, the grid it set (drivers by slot) and the times */
   let quali: { lap: QualiLap; weekend: ReturnType<typeof drawWeekend>; flying?: boolean; over?: { grid: number[]; times: (number | undefined)[] } } | undefined;
   /**
@@ -458,6 +464,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     results.style.display = 'none';
   };
 
+  /** the grid pan before the lights: seconds in, and how long it lasts (undefined: it's over, or skipped) */
+  let gridPan: { t: number; length: number } | undefined;
   /** the grid the race started from (drivers by slot; none: everyone in their own), for restarting it */
   let raceGrid: number[] | undefined;
   /** the race's entrants' drivers (entrant i is driver raceDrivers[i]) */
@@ -480,13 +488,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai: w.drivers[k].ai, box: w.drivers[k].box };
     });
     race = newRace(track, grid, HANDLING, Math.round(t.laps), field, w.lightsOut, circuit.pit, weather.id);
+    // (on the ground from the start: the grid pan shows them before the first step puts them there)
+    for (const e of race.entrants) e.car.z = groundAt(grid, e.car.x, e.car.y).h;
     hudState = { gaps: newGapTimer(slots.length), lastPos: 0, flashUntil: 0, lapsSeen: new Array(slots.length).fill(0), fastest: undefined };
-    hud.setLabel('a', 'PAUSE');
+    // the grid pan first (A skips it), then the lights
+    gridPan = { t: 0, length: panLength(slots.length) };
+    hud.setLabel('a', 'SKIP');
   };
 
   /** Qualifying: you on your own, on a flying lap (A skips it: you start mid-grid). */
   const startQualifying = () => {
     session = 'qualifying';
+    gridPan = undefined;
     learn = undefined;
     trial = undefined;
     resetSession();
@@ -504,6 +517,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** A Time Trial: you on your own, on the run-up to your first flying lap, your record lap's ghost to chase. */
   const startTimeTrial = () => {
     session = 'timetrial';
+    gridPan = undefined;
     learn = undefined;
     quali = undefined;
     resetSession();
@@ -521,6 +535,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** The controls lap: you on your own on the run-up, a prompt at a time for the controls. */
   const startTutorial = () => {
     session = 'tutorial';
+    gridPan = undefined;
     quali = undefined;
     trial = undefined;
     resetSession();
@@ -594,6 +609,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
+        /** the grid pan before the lights: whether it's on, and the car it's on */
+        gridPan: () => gridPan && { t: gridPan.t, length: gridPan.length, car: panAt(circuit.slots, gridPan.t).car },
         /** the session (qualifying or race), and once qualifying's over, the grid it set (names, pole first) and your time */
         session: () => session,
         qualifying: () => quali?.over && { grid: quali.over.grid.map((k) => (k === quali!.weekend.youDriver ? 'YOU' : quali!.weekend.drivers[k].livery.drivers[quali!.weekend.drivers[k].seat])), you: quali.over.times[quali.weekend.youDriver] },
@@ -882,6 +899,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   hud.setLabel('a', aLabel());
   hud.setLabel('b', 'DRIFT');
 
+  /** the camera's zoom for the grid pan, eased */
+  let panZoom = 1;
   /** the view has been closed: the loop stops */
   let closed = false;
   const tick = (now: number) => {
@@ -901,6 +920,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (aPressed && session === 'qualifying') startRace();
     // the controls lap: A skips it, or once it's done goes on to the menu
     else if (aPressed && session === 'tutorial') onQuit();
+    // the grid pan: A skips it, straight to the lights
+    else if (aPressed && gridPan) endPan();
     else if (aPressed && !done) setPaused(!paused);
     // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
     else if (aPressed && done && results.style.display !== 'block') {
@@ -936,7 +957,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       : playerInput(pad);
     const healthBefore = race.entrants[you].car.health;
     // the race runs in fixed steps: as many as this frame's time holds (none, one, or a few)
-    const { steps, alpha } = advance(simClock, dt);
+    // (during the grid pan nothing moves and the lights wait)
+    if (gridPan) {
+      gridPan.t += dt;
+      if (gridPan.t >= gridPan.length) endPan();
+    }
+    const { steps, alpha } = gridPan ? { steps: 0, alpha: 1 } : advance(simClock, dt);
     const raceEvents: RaceEvent[] = [];
     const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 }));
     for (let k = 0; k < steps; k++) {
@@ -1178,7 +1204,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
     // the banner: start lights, GO!, then the most urgent message
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';
-    if (race.phase === 'lights') {
+    if (gridPan) {
+      // the grid pan: the car the camera's on, by grid place, name and team (you in gold)
+      const k = panAt(circuit.slots, gridPan.t).car;
+      banner.textContent = `P${k + 1} ${looks[k].name} · ${looks[k].team.code}`;
+      banner.style.color = k === you ? '#f2c14e' : '#f4f4f8';
+    } else if (race.phase === 'lights') {
       const lit = Math.max(0, Math.min(5, Math.floor((clock + LIGHTS) / 0.6)));
       // a beep as each light comes on
       if (clock < 0 && lit > soundState.lights) sounds.light();
@@ -1266,7 +1297,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
     const c = me.car;
     const drawn = pose(c, you, alpha);
-    if (podium) {
+    if (gridPan) {
+      // the grid pan: along the grid from pole to the back
+      const at = panAt(circuit.slots, gridPan.t);
+      target.set(at.x, groundAt(grid, at.x, at.y).h * 0.5, at.y);
+      focus.copy(target);
+    } else if (podium) {
       // on the ceremony, close in
       target.copy(ceremony.focus);
       ceremony.group.localToWorld(target);
@@ -1274,7 +1310,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     } else target.set(drawn.x + (c.vx / c.cls.topSpeed) * t.lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * t.lead);
     focus.lerp(target, 1 - Math.exp(-dt * 6));
     const pitch = deg(LOOK.pitch);
-    const dist = viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : 1));
+    // (the zoom eases back out from the grid pan's)
+    panZoom += ((gridPan ? GRID_PAN.zoom : 1) - panZoom) * (1 - Math.exp(-dt * 4));
+    const dist = viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom));
     camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
     camera.lookAt(focus.x, focus.y, focus.z);
     world.followSun(focus);

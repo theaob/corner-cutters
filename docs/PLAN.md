@@ -300,7 +300,8 @@ The goal: a full first season.
 - [ ] Night desert circuit (straights, slipstream) with a night variant of `render/daylight.ts`
 - [x] Weather: dry, damp and wet, with three tyre compounds, rain and spray (done early)
 - [ ] Weather that changes during a race; the player picking tyres at a stop
-- [ ] Start-of-race grid pan; 10-second replay after the flag
+- [x] Start-of-race grid pan (`f1/gridPan.ts`): before the lights the camera glides from pole to the back of the grid, naming each car (yours in gold); A skips it
+- [ ] 10-second replay after the flag
 - [ ] Music: a race track per circuit (or per pair of circuits), stings for fastest lap / podium / title
 - [ ] A pit lane in every new circuit's layout data (repair stops already use it)
 
