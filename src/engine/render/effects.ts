@@ -142,6 +142,8 @@ interface Puff {
   vy: number;
   vz: number;
   grow: number;
+  /** px/s² it falls (sparks); 0 for a puff */
+  fall: number;
 }
 
 /** A fixed pool of smoke and flame puffs. */
@@ -156,11 +158,11 @@ export class Particles {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
       sprite.visible = false;
       this.group.add(sprite);
-      this.pool.push({ sprite, life: 0, maxLife: 1, vx: 0, vy: 0, vz: 0, grow: 0 });
+      this.pool.push({ sprite, life: 0, maxLife: 1, vx: 0, vy: 0, vz: 0, grow: 0, fall: 0 });
     }
   }
 
-  private spawn(x: number, z: number, y: number, color: number, life: number, size: number, rise: number, additive: boolean): void {
+  private spawn(x: number, z: number, y: number, color: number, life: number, size: number, rise: number, additive: boolean): Puff {
     const p = this.pool[this.next];
     this.next = (this.next + 1) % this.pool.length;
     const m = p.sprite.material;
@@ -174,6 +176,26 @@ export class Particles {
     p.vz = (Math.random() - 0.5) * 6;
     p.vy = rise;
     p.grow = size * 1.2;
+    p.fall = 0;
+    return p;
+  }
+
+  /**
+   * Sparks off a hit, a scrape or a car bottoming out at (x, z), `base` px up: `n` bright specks flung out along
+   * (dx, dz) (a unit direction on the ground, or none: every way), up and out, falling and gone in a moment.
+   */
+  sparks(x: number, z: number, base: number, n: number, dx = 0, dz = 0): void {
+    for (let k = 0; k < n; k++) {
+      const p = this.spawn(x, z, base + 3, Math.random() < 0.5 ? 0xffe08a : 0xff9a3a, 0.25 + Math.random() * 0.25, 3.5, 0, true);
+      const a = Math.random() * Math.PI * 2;
+      const out = 60 + Math.random() * 120;
+      p.vx = (dx + Math.cos(a) * 0.7) * out;
+      p.vz = (dz + Math.sin(a) * 0.7) * out;
+      p.vy = 40 + Math.random() * 80;
+      p.fall = 420;
+      p.grow = -4;
+      p.sprite.position.set(x, base + 3, z);
+    }
   }
 
   /** A low brown cloud kicked up on rough ground. */
@@ -202,10 +224,11 @@ export class Particles {
         p.sprite.visible = false;
         continue;
       }
+      p.vy -= p.fall * dt;
       p.sprite.position.x += p.vx * dt;
       p.sprite.position.y += p.vy * dt;
       p.sprite.position.z += p.vz * dt;
-      p.sprite.scale.addScalar(p.grow * dt);
+      p.sprite.scale.setScalar(Math.max(0.5, p.sprite.scale.x + p.grow * dt));
       p.sprite.material.opacity = (p.life / p.maxLife) * 0.8;
     }
   }

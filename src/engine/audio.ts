@@ -322,6 +322,29 @@ export function noiseVoice(type: BiquadFilterType, freq: number, q = 1): NoiseVo
   };
 }
 
+/**
+ * A burst of filtered noise: `seconds` long through a `type` filter at `freq` Hz, peaking at `gain` and fading
+ * (a scrape, a radio's squelch, a crunch), after `delay` s.
+ */
+export function burst(type: BiquadFilterType, freq: number, q: number, seconds: number, gain: number, delay = 0): void {
+  const c = audio();
+  if (!c || !master || !noiseBuffer || c.state !== 'running' || gain <= 0) return;
+  const t = c.currentTime + delay;
+  const noise = c.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const f = c.createBiquadFilter();
+  f.type = type;
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.001, t + seconds);
+  noise.connect(f).connect(g).connect(master);
+  noise.start(t, Math.random() * 1.5);
+  noise.stop(t + seconds + 0.05);
+}
+
 /** A short tone: `freq` Hz for `seconds`, a quick attack and fade. */
 export function beep(freq: number, seconds = 0.15, gain = 0.25, type: OscillatorType = 'square', delay = 0): void {
   const c = audio();

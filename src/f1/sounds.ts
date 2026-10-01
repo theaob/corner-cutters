@@ -3,11 +3,14 @@
 // on the throttle, popping on the overrun when you lift), the nearest rival's
 // engine (quieter, louder as it closes, its pitch bent up as it comes and down
 // as it goes), tyre squeal while sliding, a rumble on grass and gravel and a
-// buzz over the kerbs, rain in the wet, a rush of air in another car's slipstream, and one-shots: hits, the start lights,
-// the chequered flag and a lap record. The pitch model is pure and tested; the
-// voices are engine/audio.ts.
+// buzz over the kerbs and a crunch on the gravel, rain in the wet, a rush of air in another car's slipstream,
+// the crowd in the grandstands (a murmur when you're near them, swelling into a
+// cheer at the start, an overtake, a crash, the flag), the pit limiter's beep,
+// and one-shots: hits and the scrape of metal, the start lights, the chequered
+// flag, a lap record, and the team radio's squelch. The pitch and crowd models
+// are pure and tested; the voices are engine/audio.ts.
 
-import { beep, engineVoice, noiseVoice, pop, squealVoice, thump } from '../engine/audio';
+import { beep, burst, engineVoice, noiseVoice, pop, squealVoice, thump } from '../engine/audio';
 
 /** The gears an F1 car goes up through from a standstill to top speed. */
 export const GEARS = 8;
@@ -40,6 +43,35 @@ export function doppler(closing: number): number {
   return Math.max(0.82, Math.min(1.2, 1 / (1 - closing / 1100)));
 }
 
+/** The crowd: how loud its murmur and its cheer are, how far off it's heard, and how fast a cheer dies away. */
+export const CROWD = {
+  murmur: 0.03,
+  cheer: 0.11,
+  /** px from a grandstand's middle within which it's loudest, and beyond which it's quiet */
+  close: 90,
+  reach: 520,
+  /** a cheer is heard this much even far from the stands (the whole circuit roars at the start) */
+  everywhere: 0.3,
+  /** cheer lost a second */
+  fade: 0.4,
+};
+
+/** How near the crowd is (0…1) at (x, y): 1 by a grandstand, 0 out of earshot of them all. */
+export function crowdNear(stands: { x: number; y: number }[], x: number, y: number): number {
+  let near = 0;
+  for (const st of stands) {
+    const d = Math.hypot(st.x - x, st.y - y);
+    near = Math.max(near, Math.min(1, Math.max(0, 1 - (d - CROWD.close) / (CROWD.reach - CROWD.close))));
+  }
+  return near;
+}
+
+/** The crowd's loudness: its murmur where you are, and a cheer (0…1) heard everywhere, loudest by the stands. */
+export const crowdGain = (near: number, cheer: number): number => near * CROWD.murmur + cheer * CROWD.cheer * (CROWD.everywhere + (1 - CROWD.everywhere) * near);
+
+/** The pit limiter's beep: every this many s while it's on. */
+export const LIMITER_BEEP = 0.55;
+
 export interface SoundFrame {
   dt: number;
   /** your car: speed and top speed (px/s), how fast it's sliding sideways (px/s), and what it's on */
@@ -52,6 +84,12 @@ export interface SoundFrame {
   rival?: { speed: number; distance: number };
   /** how much you're in another car's slipstream, 0…1 (a rush of air) */
   tow?: number;
+  /** on the gravel (a crunch, over the rough ground's rumble) */
+  onGravel?: boolean;
+  /** how near the grandstands are, 0…1 (crowdNear) */
+  crowd?: number;
+  /** the pit limiter is on (between the speed-limit lines) */
+  limiter?: boolean;
 }
 
 export class RaceSounds {
@@ -62,6 +100,13 @@ export class RaceSounds {
   private readonly kerb = noiseVoice('bandpass', 650, 3);
   private readonly rain = noiseVoice('highpass', 3200, 0.7);
   private readonly wind = noiseVoice('bandpass', 1100, 0.9);
+  private readonly gravel = noiseVoice('bandpass', 2400, 1.4);
+  private readonly crowd = noiseVoice('bandpass', 800, 0.35);
+  private readonly roar = noiseVoice('bandpass', 1700, 0.6);
+  /** the crowd's cheer, 0…1, dying away */
+  private cheering = 0;
+  /** s to the pit limiter's next beep */
+  private limiterIn = 0;
   private lastSpeed = 0;
   private throttle = 0;
   private gear = 0;
@@ -115,6 +160,41 @@ export class RaceSounds {
     this.rumble.set(f.onRough ? 0.25 * moving : 0);
     this.kerb.set(f.onKerb && !f.onRough ? 0.1 * moving : 0);
     this.wind.set((f.tow ?? 0) * 0.07);
+    // the gravel's crunch: grainy, a stone at a time
+    this.gravel.set(f.onGravel ? 0.12 * moving * (0.35 + 0.65 * Math.random()) : 0);
+    // the crowd: a murmur by the stands, a cheer dying away
+    this.cheering = Math.max(0, this.cheering - CROWD.fade * f.dt);
+    const crowd = crowdGain(f.crowd ?? 0, this.cheering);
+    this.crowd.set(crowd);
+    this.roar.set(crowd * this.cheering * 0.8);
+    // the pit limiter's beep
+    if (f.limiter) {
+      this.limiterIn -= f.dt;
+      if (this.limiterIn <= 0) {
+        beep(1450, 0.06, 0.07, 'square');
+        this.limiterIn = LIMITER_BEEP;
+      }
+    } else this.limiterIn = 0;
+  }
+
+  /** The crowd cheers: `how` loud (0…1; a start, an overtake, a crash, the flag). */
+  cheer(how: number): void {
+    this.cheering = Math.min(1, this.cheering + how);
+  }
+
+  /** Metal on tarmac or on a wall, sparks flying: `strength` 0…1. */
+  scrape(strength: number): void {
+    const s = Math.min(1, strength);
+    burst('highpass', 2600, 0.8, 0.12 + 0.2 * s, 0.12 * s);
+    burst('bandpass', 4200, 2, 0.08 + 0.12 * s, 0.08 * s, 0.02);
+  }
+
+  /** The team radio keyed: a click and a burst of squelch (and again, softer, as it closes after `talk` s). */
+  radio(talk = 1.6): void {
+    beep(1900, 0.03, 0.08, 'square');
+    burst('bandpass', 1800, 2.5, 0.16, 0.09);
+    burst('bandpass', 1800, 2.5, 0.1, 0.05, talk);
+    beep(1500, 0.03, 0.05, 'square', talk + 0.08);
   }
 
   /** Engine and ground to silence (e.g. your car is out of the race). */
@@ -125,11 +205,14 @@ export class RaceSounds {
     this.rumble.set(0);
     this.kerb.set(0);
     this.wind.set(0);
+    this.gravel.set(0);
+    this.crowd.set(0);
+    this.roar.set(0);
   }
 
   /** Silence and stop every voice for good (the race view is closing). */
   dispose(): void {
-    for (const v of [this.engine, this.rival, this.tyres, this.rumble, this.kerb, this.rain, this.wind]) v.stop();
+    for (const v of [this.engine, this.rival, this.tyres, this.rumble, this.kerb, this.rain, this.wind, this.gravel, this.crowd, this.roar]) v.stop();
   }
 
   /** A hit: `strength` 0…1. */

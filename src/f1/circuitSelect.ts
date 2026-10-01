@@ -25,6 +25,7 @@ import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 import { DRY, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { distance } from './timeAttack';
+import { setShake, shakeOn } from './shake';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -292,7 +293,8 @@ export function chooseCircuit(
   const musicRow = optionRow('MUSIC', [...VOLUMES], musicNow, (v) => ({ name: ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])], about: v ? 'menu and race tracks' : 'silence' }), (v) => {
     setMusicVolume(v);
   });
-  const settingsRows = [difficultyRow, stickRow, vibrationRow, soundRow, musicRow];
+  const shakeRow = optionRow('SCREEN SHAKE', [true, false], shakeOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, kerbs and grass shake the camera' : 'the camera stays still' }), setShake);
+  const settingsRows = [difficultyRow, stickRow, vibrationRow, shakeRow, soundRow, musicRow];
   const settingsTitle = document.createElement('h2');
   settingsTitle.textContent = 'SETTINGS';
   const openSettings = () => {

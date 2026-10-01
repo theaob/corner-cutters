@@ -46,7 +46,9 @@ import { defaults } from '../engine/tuning';
 import { HALF_WIDTH, TILE, buildCircuit } from './circuit';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
-import { RaceSounds } from './sounds';
+import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
+import { RaceSounds, crowdNear } from './sounds';
+import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
 import { musicPlaying, playMusic } from '../engine/music';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
@@ -73,7 +75,13 @@ interface Look {
   mesh: CarMesh;
   fx: CarFx;
   color: string;
+  /** last frame's speed and health (for its rear light and its sparks), and s its rear light stays lit */
+  was?: { speed: number; health: number };
+  lit?: number;
 }
+
+/** The rear light: lit while a car slows by more than this (px/s²: braking, or lifting at speed, as the hybrid harvests), held this long (s) so it doesn't flicker. */
+const REAR_LIGHT = { decel: 140, hold: 0.18 };
 
 
 /** How a race weekend is set up. */
@@ -178,6 +186,30 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
     font: '20px Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', pointerEvents: 'none',
   });
+  // the team radio: your engineer's line in a panel in your team's colour, keyed with a click and a squelch
+  const radioPanel = document.createElement('div');
+  style(radioPanel, {
+    position: 'absolute', left: '6px', right: '6px', bottom: '8px', zIndex: '2', padding: '4px 8px', borderRadius: '6px',
+    background: 'rgba(21,20,31,.88)', borderLeft: `3px solid ${team.body}`, color: '#f4f2fa', font: '11px Silkscreen, monospace',
+    pointerEvents: 'none', display: 'none',
+  });
+  const radioLabel = document.createElement('div');
+  // (the brighter of your team's colours, so it reads on the dark panel)
+  const lightness = (hex: string) => {
+    const n = parseInt(hex.slice(1), 16);
+    return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  };
+  const radioColor = [team.body, team.trim, ...(team.accent ? [team.accent] : [])].reduce((a, c) => (lightness(c) > lightness(a) ? c : a));
+  radioPanel.style.borderLeftColor = radioColor;
+  style(radioLabel, { color: radioColor, fontSize: '9px', marginBottom: '2px' });
+  radioLabel.textContent = '◉ RADIO';
+  const radioText = document.createElement('div');
+  radioPanel.append(radioLabel, radioText);
+  let radioQ = newRadio();
+  /** Your engineer says `cue` (in a race or qualifying: not on your own against the clock). */
+  const sayRadio = (cue: RadioCue) => {
+    if (session === 'race' || session === 'qualifying') say(radioQ, radioLine(cue));
+  };
   const results = document.createElement('div');
   style(results, {
     position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
@@ -237,6 +269,39 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   pauseHint.textContent = 'A RESUME · START RESTART · SELECT CIRCUITS';
   style(pauseHint, { color: '#9d9ab8', fontSize: '10px', marginTop: '6px', textAlign: 'center', padding: '0 12px' });
   // rain over the picture: streaks falling at a slant, under the readouts
+  // the rush of speed: pale streaks flowing past the screen's edges near top speed and in a tow (none in the middle,
+  // where the racing is), the way the car's going
+  const streaks = document.createElement('canvas');
+  style(streaks, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none' });
+  const streakCtx = streaks.getContext('2d')!;
+  const streakAt = () => ({ x: Math.random(), y: Math.random(), len: 0.05 + Math.random() * 0.07, v: 1.4 + Math.random() * 1.4 });
+  const streakList = Array.from({ length: 28 }, streakAt);
+  /** the rush now (eased toward what the speed says) */
+  let rushNow = 0;
+  /** Draw the streaks for `rush` (0…1), flowing back from the way the car's going on the screen (`dx`, `dy`, a unit vector). */
+  const drawStreaks = (dt: number, rush: number, dx: number, dy: number) => {
+    const w = streaks.clientWidth;
+    const h = streaks.clientHeight;
+    if (streaks.width !== w || streaks.height !== h) [streaks.width, streaks.height] = [w, h];
+    streakCtx.clearRect(0, 0, w, h);
+    if (rush < 0.02) return;
+    streakCtx.strokeStyle = `rgba(244,242,250,${(0.5 * rush).toFixed(3)})`;
+    streakCtx.lineWidth = 1;
+    streakCtx.beginPath();
+    for (const st of streakList) {
+      st.x -= dx * st.v * rush * dt;
+      st.y -= dy * st.v * rush * dt;
+      if (st.x < -0.1 || st.x > 1.1 || st.y < -0.1 || st.y > 1.1) Object.assign(st, streakAt());
+      // (only round the edges: outside an oval over the middle)
+      const ox = (st.x - 0.5) / 0.5;
+      const oy = (st.y - 0.5) / 0.5;
+      if (ox * ox + oy * oy < 0.55) continue;
+      const len = st.len * h * (0.5 + rush);
+      streakCtx.moveTo(Math.round(st.x * w), Math.round(st.y * h));
+      streakCtx.lineTo(Math.round(st.x * w - dx * len), Math.round(st.y * h - dy * len));
+    }
+    streakCtx.stroke();
+  };
   const rain = document.createElement('canvas');
   style(rain, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none', display: weather.rain > 0 ? 'block' : 'none' });
   const rainCtx = rain.getContext('2d')!;
@@ -285,7 +350,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       }
     }
   };
-  host.append(rain, readout, banner, results, mini, teamCard, pauseScreen, flagOverlay);
+  host.append(streaks, rain, readout, banner, radioPanel, results, mini, teamCard, pauseScreen, flagOverlay);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
@@ -359,7 +424,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // the race's sounds (silent until the first tap or key: browsers require one)
   const sounds = new RaceSounds(weather.rain);
   /** start lights lit so far (a beep for each), and whether your flag has been sounded */
-  let soundState = { lights: 0, flag: false, finalLap: false };
+  let soundState = { lights: 0, flag: false, finalLap: false, boxLap: -1 };
+  /** the camera's shake, and the hit-stop of a big hit */
+  let shake = newShake();
+  /** a hit to your car the debug hook asked for, dealt next frame */
+  let pendingHit = 0;
   const setPaused = (on: boolean) => {
     if (on === paused) return;
     paused = on;
@@ -461,11 +530,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   /** Clear the track and the screen for a new session. */
   const resetSession = () => {
+    shake = newShake();
     setPaused(false);
     resetClock(simClock);
     before = undefined;
     frameEvents = [];
-    soundState = { lights: 0, flag: false, finalLap: false };
+    soundState = { lights: 0, flag: false, finalLap: false, boxLap: -1 };
+    radioQ = newRadio();
+    radioPanel.style.display = 'none';
     playMusic(RACE_MUSIC);
     for (const l of looks) world.scene.remove(l.mesh);
     world.scene.remove(safetyCar.group);
@@ -685,6 +757,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
+        /** the team radio's line up now, and the camera's shake (trauma) and the rush of speed */
+        radio: () => radioQ.now?.text,
+        feel: () => ({ trauma: shake.trauma, hold: shake.hold, rush: rushNow }),
+        /** hit your car for `health` (a crash of your own, for trying out the shake and sparks) */
+        hitMe: (health: number) => (pendingHit = health),
         /** parts torn off in crashes, flying or lying on the ground now */
         debris: () => debris.count,
         /** show the results table as the race stands, for checking its layout */
@@ -848,6 +925,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   // vibration on or off, from the pause screen (and remembered)
   const rumbleState = newRumble();
+  /** the grandstands (where the crowd is heard) */
+  const stands = standsOf(circuit);
   const vibrationButton = pauseButton('', () => {
     setVibration(!vibrationOn());
     showVibration();
@@ -1060,6 +1139,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
       : playerInput(pad);
     const healthBefore = race.entrants[you].car.health;
+    // (the debug hook's hit, dealt inside the frame so the frame feels it)
+    if (pendingHit) {
+      applyDamage(race.entrants[you].car, pendingHit, HANDLING);
+      pendingHit = 0;
+    }
     // the race runs in fixed steps: as many as this frame's time holds (none, one, or a few)
     // (during the grid pan nothing moves and the lights wait)
     if (gridPan) {
@@ -1078,7 +1162,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         if (replay.t >= replay.to) endReplay();
       }
     }
-    const { steps, alpha } = gridPan || replay ? { steps: 0, alpha: 1 } : advance(simClock, dt);
+    // (through a big hit's hit-stop, the race runs at a crawl)
+    const { steps, alpha } = gridPan || replay ? { steps: 0, alpha: 1 } : advance(simClock, dt * timeScale(shake));
     const raceEvents: RaceEvent[] = [];
     const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 }));
     for (let k = 0; k < steps; k++) {
@@ -1142,14 +1227,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const me = race.entrants[you];
       const ev = step.cars[you];
       const cell = circuit.cells[Math.floor(me.car.y / TILE) * circuit.width + Math.floor(me.car.x / TILE)];
-      vibrate(rumble(rumbleState, {
+      const felt = {
         dt, speed: speedOf(me.car), topSpeed: me.car.cls.topSpeed, healthLost: healthBefore - me.car.health,
         wreckedNow: ev.wreckedNow, landed: ev.landed, onRough: ev.onRough, onKerb: cell === 'kerb',
-      }));
+      };
+      vibrate(rumble(rumbleState, felt));
+      // and the camera's shake (not in the replay, nor once you're out)
+      stepShake(shake, replay || !running(me) ? { ...felt, healthLost: 0, wreckedNow: false, landed: 0, onRough: false, onKerb: false } : felt);
       // and its sounds: the engine, tyres, ground, the nearest rival, and hits
       const lost = healthBefore - me.car.health;
       if (ev.wreckedNow) sounds.hit(1);
       else if (lost > 0.5) sounds.hit(Math.min(1, 0.25 + lost / 15));
+      // (and the scrape of metal with the sparks)
+      if (!replay && (lost > 0.5 || ev.landed > 160)) sounds.scrape(Math.min(1, 0.3 + Math.max(lost, 0) / 10));
       else if (ev.landed > 160) sounds.hit(0.3);
       if (!running(me) || me.car.wrecked || replay) sounds.quiet();
       else {
@@ -1163,19 +1253,35 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         sounds.update({
           dt, speed: speedOf(me.car), top: me.car.cls.topSpeed, slide: Math.abs(me.car.vx * -f.y + me.car.vy * f.x),
           onRough: ev.onRough, onKerb: cell === 'kerb', rival, tow: me.tow,
+          onGravel: cell === 'gravel', crowd: crowdNear(stands, me.car.x, me.car.y),
+          limiter: !!me.pit && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s),
         });
       }
     }
     mistakeCount += step.race.filter((e) => e.kind === 'mistake').length;
     for (const e of step.race) {
-      if (e.kind === 'lights-out') sounds.go();
-      else if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
-      else if (e.kind === 'vsc') announce('VIRTUAL SAFETY CAR', '#f2c14e', 2.5);
+      if (e.kind === 'lights-out') {
+        sounds.go();
+        // (the crowd roars them away)
+        if (session === 'race') sounds.cheer(0.9);
+      }
+      else if (e.kind === 'safety-car') {
+        announce('SAFETY CAR', '#f2c14e', 2.5);
+        sayRadio('safety-car');
+      }
+      else if (e.kind === 'vsc') {
+        announce('VIRTUAL SAFETY CAR', '#f2c14e', 2.5);
+        sayRadio('vsc');
+      }
       else if (e.kind === 'vsc-ending') announce('VSC ENDING', '#f2c14e', VSC.warn);
-      else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
+      else if (e.kind === 'green') {
+        announce('GREEN FLAG', '#5fe0d0', 2);
+        sayRadio('green');
+      }
       else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER ${race.vsc ? 'VSC' : 'SC'} · +${e.seconds} S`, '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'tutorial') announce("THAT'S A CUT: IN A RACE, A WARNING, THEN +5 S", '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'race') {
+        sayRadio(e.seconds ? 'penalty' : 'warning');
         announce(e.seconds ? `TRACK LIMITS · +${e.seconds} S` : `TRACK LIMITS · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
         sounds.trackLimits(e.seconds > 0);
       }
@@ -1183,6 +1289,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (e.kind === 'retired') looks[e.who].mesh.visible = false;
       // a big crash tears the nose off (the car keeps going, if it can); a wreck loses a wheel or two as well
       else if (e.kind === 'crash') {
+        // (a gasp from the stands)
+        sounds.cheer(e.wrecked ? 0.55 : 0.3);
+        if (e.who === you && e.wrecked) sayRadio('wreck');
         const { nose, wheels } = looks[e.who].mesh.userData.parts;
         const power = e.wrecked ? 1 : Math.min(1, e.hit * 1.5);
         debris.tear(nose, race.clock, e.vx, e.vy, power);
@@ -1195,7 +1304,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (a stop repairs the car: a new nose on)
       else if (e.kind === 'pit-out') {
         debris.refit(looks[e.who].mesh, race.clock);
-        if (e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
+        if (e.who === you) {
+          announce('PIT EXIT', '#5fe0d0', 1.5);
+          sayRadio('pit-out');
+        }
       }
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
       // a mistake by a car near you (on the screen, more or less): called out
@@ -1213,7 +1325,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       hudState.fastest = { time: lap, who: i };
       // (not for the first lap anyone completes: that's always the fastest so far)
       if (!first && race.clock >= notice.until) announce(`FASTEST LAP · ${looks[i].name} ${fmt(lap)}`, '#b36bff', 2.5);
-      if (!first && i === you) sounds.record();
+      if (!first && i === you) {
+        sounds.record();
+        sayRadio('fastest-lap');
+      }
     });
     // your records: a new lap as soon as it's done (a record announced if it beats one), the race at your flag
     const mine = race.entrants[you].progress;
@@ -1262,8 +1377,20 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
       // the tyres' compound colour, and spray off a wet track from behind the car at speed
       l.mesh.userData.tyreMark.color.set(COMPOUNDS[e.tyres.compound].color);
-      // the rain light blinks on a damp or wet track, each car a little out of step with the rest
-      l.mesh.userData.rainLight.visible = weather.spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5;
+      // the rear light: lit while the car slows (braking, or lifting at speed: the hybrid harvesting, as in F1), and on a
+      // damp or wet track blinking besides, each car a little out of step with the rest
+      const was = l.was ?? { speed, health: e.car.health };
+      if (!replay && dt > 0 && speed > 30 && (was.speed - speed) / dt > REAR_LIGHT.decel) l.lit = REAR_LIGHT.hold;
+      else l.lit = Math.max(0, (l.lit ?? 0) - dt);
+      l.mesh.userData.rainLight.visible = l.lit > 0 || (weather.spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5);
+      // sparks: off a hit (a wall, another car), thrown back the way it was going, and off a hard landing, from under it
+      if (!replay && !then) {
+        const lost = was.health - e.car.health;
+        const back = speed > 1 ? { x: -e.car.vx / speed, z: -e.car.vy / speed } : { x: 0, z: 0 };
+        if (lost > 0.5) particles.sparks(e.car.x, e.car.y, e.car.z, Math.min(14, 4 + Math.round(lost)), back.x * 0.6, back.z * 0.6);
+        if (ev.landed > 160) particles.sparks(e.car.x, e.car.y, e.car.z, 6);
+      }
+      l.was = { speed, health: e.car.health };
       if (weather.spray && speed > 60 && Math.random() < dt * (weather.rain > 0 ? 14 : 6) * Math.min(1, speed / 250)) {
         particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);
       }
@@ -1320,6 +1447,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       soundState.finalLap = true;
       announce('FINAL LAP', '#f4f4f8', 3);
       sounds.finalLap();
+      sayRadio('final-lap');
     }
     // the chequered flag: out at the line from the winner's finish, and big over the picture for a few seconds at yours
     const flagOut = race.entrants.some((e) => e.progress.finished !== undefined);
@@ -1331,6 +1459,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (p.finished !== undefined && !soundState.flag) {
       soundState.flag = true;
       sounds.flag();
+      sounds.cheer(1);
+      if (session === 'race') say(radioQ, finishLine(raceOrder(race).indexOf(you) + 1, race.entrants.length));
       // the race's music gives way to the menu's, for the in-lap and the results
       playMusic(MENU_MUSIC, 3);
     }
@@ -1352,12 +1482,29 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
       hud.setPositionChange(pos < hudState.lastPos ? 'gain' : 'lose');
+      // (an overtake of yours: the crowd's with you)
+      if (pos < hudState.lastPos) sounds.cheer(0.35);
       hudState.flashUntil = clock + 1.5;
     }
     if (clock > hudState.flashUntil) hud.setPositionChange(undefined);
     hudState.lastPos = pos;
     hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
+    // box, box: on the radio once a lap, as the pit wall's call goes up
+    if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {
+      soundState.boxLap = p.lap;
+      sayRadio('box');
+    }
+    // the radio: the next line up once the last is done
+    {
+      const line = stepRadio(radioQ, dt);
+      if (line) {
+        radioText.textContent = line;
+        radioPanel.style.display = 'block';
+        sounds.radio(Math.max(0.6, radioFor(line) - 0.5));
+      }
+      if (!radioQ.now) radioPanel.style.display = 'none';
+    }
     // the banner: start lights, GO!, then the most urgent message
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';
     if (gridPan) {
@@ -1458,6 +1605,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);
     else debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
     drawRain(dt);
+    {
+      // (the way the car's going, on the screen: the ground's y is foreshortened by the camera's pitch)
+      const c = race.entrants[you].car;
+      const sy = c.vy * Math.sin(deg(LOOK.pitch));
+      const len = Math.hypot(c.vx, sy) || 1;
+      drawStreaks(dt, rushNow, c.vx / len, sy / len);
+    }
     skids.update(dt);
 
     // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
@@ -1486,9 +1640,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const pitch = deg(LOOK.pitch);
     // (the zoom eases back out from the grid pan's)
     panZoom += ((gridPan ? GRID_PAN.zoom : 1) - panZoom) * (1 - Math.exp(-dt * 4));
-    const dist = viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom));
+    // (the rush of speed pulls the camera back a touch)
+    const meNow = race.entrants[you];
+    const rushWant = !replay && !podium && !gridPan && running(meNow) && !meNow.pit ? rushOf(speedOf(meNow.car), meNow.car.cls.topSpeed, meNow.tow) : 0;
+    rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + RUSH.pullBack * rushNow);
     camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
     camera.lookAt(focus.x, focus.y, focus.z);
+    // the shake: the camera moved across and up its own view (SCREEN SHAKE off in the settings: still)
+    if (shakeOn()) {
+      const o = shakeOffset(shake);
+      camera.translateX(o.x);
+      camera.translateY(o.y);
+    }
     world.followSun(focus);
     world.animate(performance.now() / 1000);
 
