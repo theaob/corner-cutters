@@ -4,8 +4,7 @@ import type { ParamSpec } from '../engine/tuning';
 // pulling three.js into the main bundle.
 // Defaults locked from on-phone tuning: a full grid of 10 at 94% AI pace.
 export const F1_TUNING = {
-  // five laps: long enough that worn tyres make a pit stop worth it (a set lasts about two laps at its best)
-  laps: { label: 'Laps', value: 5, min: 1, max: 15, step: 1 },
+  // (the race's laps are the menu's LAPS row now, src/f1/laps.ts: an old saved value here is no longer read)
   opponents: { label: 'AI opponents', value: 9, min: 0, max: 9, step: 1 },
   // the difficulty (menu) sets the AI's pace; this nudges it (a new key: the old absolute pace doesn't carry over)
   aiPaceAdjust: { label: 'AI pace adjust (× the difficulty’s)', value: 1, min: 0.8, max: 1.15, step: 0.01 },

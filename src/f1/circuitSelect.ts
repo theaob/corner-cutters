@@ -19,6 +19,7 @@ import { logoSvg } from './logos';
 import { formatTime, loadRecords } from './records';
 import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 import { DRY, WEATHERS, type Weather } from './weather';
+import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -96,6 +97,8 @@ export interface MenuChoice {
   weather: Weather;
   /** a qualifying lap before the race, to set your place on the grid */
   qualifying: boolean;
+  /** a Quick Race's laps (a Championship round is always RACE_LAPS) */
+  laps: number;
 }
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
@@ -218,6 +221,8 @@ export function chooseCircuit(
   weather: Weather = DRY,
   qualifying = false,
   mode: GameMode = 'race',
+  /** a Quick Race's laps, as last chosen */
+  laps: number = RACE_LAPS,
   /** the circuits open for a Quick Race or a Time Trial (the rest are reached in a Championship) */
   open: ReadonlySet<string> = new Set(layouts.map((l) => l.id)),
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
@@ -246,7 +251,9 @@ export function chooseCircuit(
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
-  const rows = [modeRow, teamRow, weatherRow, qualifyingRow];
+  // (a Quick Race's: a Championship round is always RACE_LAPS, and a Time Trial is laps until you stop)
+  const lapsRow = optionRow('LAPS', [...LAP_CHOICES], laps, (n) => ({ name: `${n}`, about: lapsAbout(n) }));
+  const rows = [modeRow, teamRow, weatherRow, qualifyingRow, lapsRow];
 
   // the settings screen: difficulty, which side the thumbstick sits on, vibration, sound and music volumes
   const deck = document.getElementById('deck');
@@ -429,7 +436,7 @@ export function chooseCircuit(
       done = true;
       menuPick();
       menu.remove();
-      resolve({ mode: modeRow.value().id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() });
+      resolve({ mode: modeRow.value().id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;

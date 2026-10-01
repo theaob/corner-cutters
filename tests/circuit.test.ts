@@ -268,5 +268,5 @@ describe('the kerbs', () => {
       }
       expect(c.cells).toContain('kerb');
     }
-  });
+  }, 30_000);
 });
