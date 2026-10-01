@@ -25,6 +25,7 @@ import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { distance } from './timeAttack';
 import { settingsRows as settingsRowsNow } from './settingsRows';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
+import { medalBadge, trophy } from './screens/celebrate';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -296,19 +297,29 @@ export function chooseCircuit(
   cabinetTitle.textContent = 'TROPHIES';
   const cabinet = document.createElement('div');
   cabinet.className = 'cabinet';
+  /** the medals won so far, each popping in a beat after the one before when the cabinet opens */
+  let popped = 0;
   const medalCell = (m?: Medal) => {
     const cell = document.createElement('span');
     cell.className = 'medal';
     if (m) {
-      cell.textContent = `● ${MEDAL_NAME[m]}`;
-      cell.style.color = MEDAL_COLOR[m];
+      cell.classList.add('won');
+      cell.style.setProperty('--delay', `${0.15 + popped++ * 0.08}s`);
+      const name = document.createElement('span');
+      name.textContent = MEDAL_NAME[m];
+      name.style.color = MEDAL_COLOR[m];
+      cell.append(medalBadge(m, 14), name);
     } else cell.textContent = '–';
     return cell;
   };
   {
     const titles = document.createElement('div');
     titles.className = 'titles';
-    titles.textContent = trophies.titles ? `★ ${trophies.titles} CHAMPIONSHIP${trophies.titles === 1 ? '' : 'S'} WON` : 'NO CHAMPIONSHIPS WON YET';
+    const titleText = document.createElement('span');
+    titleText.textContent = trophies.titles ? `× ${trophies.titles} CHAMPIONSHIP${trophies.titles === 1 ? '' : 'S'} WON` : 'NO CHAMPIONSHIPS WON YET';
+    titleText.style.color = 'inherit';
+    if (trophies.titles) titles.append(trophy(40));
+    titles.append(titleText);
     const head = document.createElement('div');
     head.className = 'cabinet-row head';
     for (const t of ['CIRCUIT', 'TIME TRIAL', 'TIME ATTACK']) {
@@ -322,8 +333,11 @@ export function chooseCircuit(
     tally.className = 'tally';
     for (const m of ['gold', 'silver', 'bronze'] as const) {
       const c = document.createElement('span');
-      c.textContent = `● ${count(m)}`;
-      c.style.color = MEDAL_COLOR[m];
+      c.className = 'medal won';
+      const n = document.createElement('span');
+      n.textContent = `${count(m)}`;
+      n.style.color = MEDAL_COLOR[m];
+      c.append(medalBadge(m, 20), n);
       tally.append(c);
     }
     cabinet.append(titles, tally, head, ...layouts.map((l) => {

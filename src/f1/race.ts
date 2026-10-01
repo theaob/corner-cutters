@@ -57,6 +57,7 @@ import { musicPlaying, playMusic } from '../engine/music';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import { overtakeOf, towerGap, towerRows } from './tower';
+import { stampMedal } from './screens/celebrate';
 /** the blue flag's colour on the screen */
 const BLUE_COLOR = '#4fa3ff';
 import { type Medal, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
@@ -1114,7 +1115,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const medal = reference === undefined ? undefined : lapMedal(g.time, reference);
     if (medal && awardMedal(layout.id, 'trial', medal)) {
       showMedal();
-      announce(`${MEDAL_NAME[medal]} MEDAL · ${fmt(g.time)}`, MEDAL_COLOR[medal], 3);
+      stampMedal(host, medal, fmt(g.time));
       sounds.record();
     }
   };
@@ -1177,7 +1178,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (record) saveRecords(records);
       const medal = attackMedal(passed, attack.a.generous);
       attack.result = { passed, record, medal, newMedal: awardMedal(layout.id, 'attack', medal) };
-      if (attack.result.newMedal) sounds.record();
+      if (attack.result.newMedal && medal) {
+        sounds.record();
+        stampMedal(host, medal, distance(passed));
+      }
       showMedal();
       if (record) sounds.record();
       sounds.quiet();

@@ -225,6 +225,8 @@ const openNow = () => openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Obj
 const needsControlsLap = () => saved('progress', 'onboarded') !== true && !Object.keys(loadRecords().circuits).length && !loadSeason() && !savedUnlocks().length;
 /** A circuit the Championship just unlocked (said on its screen once). */
 let justUnlocked: string | undefined;
+/** The Championship was just won (celebrated on its screen once). */
+let justWon = false;
 
 /** The Championship screen: the season so far and the way on (the next round, a new season, or back to the menu). */
 async function showSeason(id: number): Promise<void> {
@@ -233,7 +235,8 @@ async function showSeason(id: number): Promise<void> {
   const closed = new AbortController();
   current = { close: () => closed.abort() };
   const season = loadSeason();
-  const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal);
+  const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal, justWon);
+  justWon = false;
   curtainUp();
   const action = await showing;
   justUnlocked = undefined;
@@ -289,7 +292,10 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
             recordRound(season, finish, out);
             saveSeason(season);
             // the season won: into the trophy cabinet
-            if (seasonOver(season) && standings(season)[0]?.driver === season.you) awardTitle();
+            if (seasonOver(season) && standings(season)[0]?.driver === season.you) {
+              awardTitle();
+              justWon = true;
+            }
             // reaching the next round's circuit unlocks it for a Quick Race and a Time Trial
             const next = season.rounds[season.round];
             if (next && !openNow().has(next)) {
