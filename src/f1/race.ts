@@ -10,7 +10,7 @@ import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car, 
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
-import { keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
+import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiCraftFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
 import { styleOf } from './drivers';
 import { DRY, type Weather } from './weather';
@@ -32,7 +32,8 @@ import { createCeremony, podiumSpot } from './podium3d';
 import { PIT, between, inLimitZone, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
-import { formatTime as fmt, loadRecords, recordLap, recordQualifying, recordRace, saveRecords } from './records';
+import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
+import { distance, newAttack, stepAttack, type Attack } from './timeAttack';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -86,7 +87,7 @@ export interface RaceOptions {
   /** how many laps the race is (a Championship round is always RACE_LAPS) */
   laps?: number;
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
-  mode?: 'race' | 'timetrial' | 'tutorial';
+  mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
    * a round of a Championship: the season (its field, all season), and where the result goes once you've seen the
    * results: the drivers (the season's indexes) in finishing order, and those who didn't finish
@@ -385,7 +386,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const seedParam = Number(new URLSearchParams(window.location.search).get('seed'));
   let seed = 0;
   /** the session on track: qualifying (your flying lap, alone), the race, or a Time Trial (flying laps, alone, against your ghost) */
-  let session: 'qualifying' | 'race' | 'timetrial' | 'tutorial' = 'race';
+  let session: 'qualifying' | 'race' | 'timetrial' | 'timeattack' | 'tutorial' = 'race';
   /** what A does while the session's running: skips qualifying, pauses the race */
   const aLabel = () => (session === 'qualifying' || session === 'tutorial' || gridPan ? 'SKIP' : 'PAUSE');
   /** The replay over (or skipped): back to the in-lap, live. */
@@ -409,6 +410,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** the controls lap: the prompt you're on, the bends you've been through, and where you were last frame */
   let learn: { o: Onboarding; bends: number; lastIdx: number } | undefined;
   let trial: { recorder: LapRecorder; lapStart?: number; sector: number; lap: QualiLap; best?: Ghost; record?: Ghost } | undefined;
+  /** a Time Attack: the clock, and the best distance here when it started (checkpoints) */
+  let attack: { a: Attack; best?: number; result?: { passed: number; record: boolean } } | undefined;
 
   /** The champagne ceremony: the race finished at once (the rest at their pace, everyone put where their in-lap ends), and
    * the top three on the podium, spraying champagne, till the results. */
@@ -494,6 +497,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     learn = undefined;
     quali = undefined;
     trial = undefined;
+    attack = undefined;
     raceGrid = gridSlots;
     resetSession();
     const w = drawWeekend();
@@ -524,6 +528,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     gridPan = undefined;
     learn = undefined;
     trial = undefined;
+    attack = undefined;
     resetSession();
     const w = drawWeekend();
     you = 0;
@@ -554,12 +559,34 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     announce(trial.record ? `TIME TRIAL · BEAT ${fmt(trial.record.time)}` : 'TIME TRIAL', '#f2c14e', 3);
   };
 
+  /** A Time Attack: you on your own, on the run-up; at the line the clock starts, and each checkpoint adds time. */
+  const startTimeAttack = () => {
+    session = 'timeattack';
+    gridPan = undefined;
+    learn = undefined;
+    quali = undefined;
+    trial = undefined;
+    resetSession();
+    const w = drawWeekend();
+    you = 0;
+    const d = w.drivers[w.youDriver];
+    looks = [addLook(d.livery, d.seat, true)];
+    race = newQualifying(track, grid, HANDLING, weather.id);
+    reference ??= referenceLap(track, grid, HANDLING, weather.id);
+    const best = rec()?.bestAttack;
+    attack = { a: newAttack(reference, difficulty), best };
+    hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
+    hud.setLabel('a', 'PAUSE');
+    announce(best ? `TIME ATTACK · BEAT ${distance(best)}` : 'TIME ATTACK · THE CLOCK STARTS AT THE LINE', '#f2c14e', 3);
+  };
+
   /** The controls lap: you on your own on the run-up, a prompt at a time for the controls. */
   const startTutorial = () => {
     session = 'tutorial';
     gridPan = undefined;
     quali = undefined;
     trial = undefined;
+    attack = undefined;
     resetSession();
     const w = drawWeekend();
     you = 0;
@@ -598,6 +625,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     reference = undefined;
     if (mode === 'tutorial') startTutorial();
     else if (mode === 'timetrial') startTimeTrial();
+    else if (mode === 'timeattack') startTimeAttack();
     else if (qualifying) startQualifying();
     else startRace();
   };
@@ -606,7 +634,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
    * need to qualify again); without qualifying, a new weekend (new rivals), as ever.
    */
-  const restart = () => (session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'tutorial' ? startTutorial() : newWeekend());
+  const restart = () => (session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
@@ -639,6 +667,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** your car driven by the AI's line at `pace`, for trying out a session hands-off */
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
+        /** Time Attack: seconds left, checkpoints passed, whether it's over, and your best here */
+        attack: () => attack && { left: attack.a.left, passed: attack.a.passed, over: attack.a.over, best: attack.best },
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
         /** a street circuit's landmarks (where they stand on the map), and the camera held on a point of the map (none: back on your car), for looking at the scenery */
         landmarks: () => landmarksOf(circuit),
@@ -915,6 +945,32 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     recordFrame(trial.recorder, t, me.car, p.idx);
   };
+  // ---------------------------------------------------------------- time attack
+  /** A Time Attack step (`cut`: you cut a corner): the clock, time added at each checkpoint, and TIME UP. */
+  const stepTimeAttack = (cut: boolean) => {
+    if (!attack || attack.a.over) return;
+    const me = race.entrants[you];
+    const p = me.progress;
+    // no tyre wear against the clock: fresh tyres all the way
+    me.tyres.wear = 0;
+    fitTyres(me.tyres, me.car, weather.id);
+    const step = stepAttack(attack.a, SIM_DT, p.lapStart !== undefined, p.lapTimes.length * SECTORS + p.sector, cut);
+    if (step.started) announce('THE CLOCK IS RUNNING', '#5fe0d0', 1.5);
+    if (step.added) announce(`+${step.added.toFixed(1)} S`, '#5fe0d0', 1.2);
+    if (step.lost) {
+      announce(`CUT · −${step.lost} S`, '#d8323c', 2);
+      sounds.trackLimits(true);
+    }
+    if (step.timeUp) {
+      const passed = attack.a.passed;
+      const record = recordAttack(records, recordId, passed);
+      if (record) saveRecords(records);
+      attack.result = { passed, record };
+      if (record) sounds.record();
+      sounds.quiet();
+      hud.setLabel('a', 'AGAIN');
+    }
+  };
   // your record lap's ghost: your car, see-through, driving it again from the line
   const ghostMesh = createCarMesh('f1', { body: '#f4f4f8', stripe: '#9d9ab8' });
   ghostMesh.traverse((o) => {
@@ -958,6 +1014,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // round can't be restarted)
     if (championship && done && (aPressed || startPressed) && results.style.display === 'block') finishRound();
     else if (quali?.over && (aPressed || startPressed)) startRace(quali.over.grid);
+    else if (attack?.result && (aPressed || startPressed)) startTimeAttack();
     else if (startPressed && !(championship && done)) restart();
     else if (aPressed && session === 'qualifying') startRace();
     // the controls lap: A skips it, or once it's done goes on to the menu
@@ -981,7 +1038,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       onQuit();
     }
     // paused (or qualifying's times up): nothing moves, and the last frame stays on the screen
-    if (paused || quali?.over) {
+    if (attack?.result) {
+      const { passed, record } = attack.result;
+      banner.textContent = `TIME UP · ${distance(passed)}${record ? ' · NEW RECORD' : attack.best ? ` · BEST ${distance(attack.best)}` : ''}`;
+      banner.style.color = record ? SPLIT_COLOR.record : '#f2c14e';
+    }
+    if (paused || quali?.over || attack?.result) {
       requestAnimationFrame(tick);
       return;
     }
@@ -1035,6 +1097,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // gaps at the timing points, timed to the step
       if (race.phase === 'racing') stepGaps(hudState.gaps, race.entrants.map((e) => e.progress), track, race.clock);
       if (trial) stepTrial(s.race.some((e) => e.kind === 'track-limits' && e.who === you));
+      if (attack) stepTimeAttack(s.race.some((e) => e.kind === 'track-limits' && e.who === you));
       if (session === 'race' && race.phase === 'racing') {
         const scCar = race.sc?.car;
         recordReplay(recorder, race.clock, [...race.entrants.map((e) => (running(e) && e.pit?.phase !== 'garage' ? e.car : undefined)), scCar]);
@@ -1284,7 +1347,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (podium || race.entrants.some((e) => e.inLap?.to === 0)) playMusic(PODIUM_MUSIC, 1);
     const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished === undefined && others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
-    hud.setPosition(session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'tutorial' ? 'CONTROLS' : `P${pos}/${race.entrants.length}`);
+    hud.setPosition(session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'timeattack' ? 'TIME ATTACK' : session === 'tutorial' ? 'CONTROLS' : `P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
     // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
@@ -1293,7 +1356,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     if (clock > hudState.flashUntil) hud.setPositionChange(undefined);
     hudState.lastPos = pos;
-    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // the banner: start lights, GO!, then the most urgent message
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';
@@ -1327,6 +1390,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         : session !== 'race' && session !== 'tutorial' && p.lapStart === undefined ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
         : sc ? ['SAFETY CAR', '#f2c14e']
         : race.vsc ? ['VIRTUAL SAFETY CAR', '#f2c14e']
+        // (a Time Attack's clock, red in its last seconds)
+        : attack?.a.left !== undefined ? [`${attack.a.left.toFixed(1)} S`, attack.a.left < 5 ? '#d8323c' : '#f4f4f8']
         : ['', ''];
       banner.textContent = text;
       banner.style.color = color;
@@ -1352,7 +1417,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const ahead = pos > 1 ? order[pos - 2] : undefined;
     const behindCar = order[pos];
     const behind = behindCar !== undefined && running(race.entrants[behindCar]) && !race.entrants[behindCar].car.wrecked ? behindCar : undefined;
-    readout.textContent = `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}${limiter}\n`;
+    readout.textContent = attack
+      ? // a Time Attack: the clock, how far you've got, and your best here
+        `TIME ${attack.a.left === undefined ? '–' : attack.a.left.toFixed(1)}\nGOT  ${distance(attack.a.passed)}\nBEST ${attack.best ? distance(attack.best) : '–'}\nLAP  ${fmt(lapTime)}\nCAR  ${car}\n`
+      : `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}${limiter}\n`;
     // the tyre line in its compound's colour
     tyreLine.textContent = `TYRE ${tyres}\n`;
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;

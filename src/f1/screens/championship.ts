@@ -7,14 +7,24 @@
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
-import { menuButton } from '../circuitSelect';
+import { menuButton, optionRow } from '../circuitSelect';
 import { pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
 import { menuPick, menuTick } from '../sounds';
-import { weatherById } from '../weather';
+import { WEATHERS, weatherById, type Weather } from '../weather';
+import { TEAMS, type Team } from '../teams';
+import { logoSvg } from '../logos';
 
-export type ChampionshipAction = 'race' | 'new' | 'back';
+/** What next: the next round, a new season (with the team, weather and qualifying picked for it), or back to the menu. */
+export type ChampionshipAction = 'race' | 'back' | { new: { team: Team; weather: Weather; qualifying: boolean } };
+
+/** A new season's choices, as last picked. */
+export interface SeasonChoices {
+  team: Team;
+  weather: Weather;
+  qualifying: boolean;
+}
 
 const nameOf = (id: string) => layoutById(id)?.name.toUpperCase() ?? id.toUpperCase();
 
@@ -52,7 +62,7 @@ function standingsTable(s: Season): HTMLTableElement {
  * Show the Championship screen for `season` (none: no season yet) in `host`
  * until the player picks what next; `unlocked`, a circuit the season has just unlocked.
  */
-export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, unlocked?: string, closed?: AbortSignal): Promise<ChampionshipAction> {
+export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, unlocked: string | undefined, picked: SeasonChoices, closed?: AbortSignal): Promise<ChampionshipAction> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
@@ -77,9 +87,20 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     // the rounds: raced (your place), next, to come
     screen.append(line(season.rounds.map((id, k) => `${k < season.round ? (season.places[k][season.you] < 0 ? 'DNF' : `P${season.places[k][season.you] + 1}`) : k === season.round ? '▶' : '·'} ${nameOf(id)}`).join('   ')));
     // a circuit just unlocked: said once
-    if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE AND TIME TRIAL`, 'var(--accent-b)'));
+    if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE, TIME ATTACK AND TIME TRIAL`, 'var(--accent-b)'));
     screen.append(standingsTable(season));
-  } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('YOUR TEAM, DIFFICULTY, WEATHER AND QUALIFYING FROM THE MENU'));
+  } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('PICK YOUR TEAM, THE WEATHER AND QUALIFYING (DIFFICULTY IN SETTINGS)'));
+  // a new season's team, weather and qualifying: shown when one can be started (mid-season, once NEW SEASON is pressed)
+  const teamRow = optionRow('TEAM', TEAMS, picked.team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
+  const weatherRow = optionRow('WEATHER', WEATHERS, picked.weather, (w) => ({ name: w.name, about: w.about }));
+  const qualifyingRow = optionRow('QUALIFYING', [false, true], picked.qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
+  const rows = [teamRow, weatherRow, qualifyingRow];
+  const options = document.createElement('div');
+  options.className = 'options';
+  options.append(...rows.map((r) => r.el));
+  screen.append(options);
+  /** the rows are up: a new season can be started */
+  let setUp = !season || over;
 
   return new Promise((resolve) => {
     let done = false;
@@ -90,16 +111,16 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       screen.remove();
       resolve(a);
     };
-    // a season in progress is only thrown away on a second press
-    let confirmNew = false;
+    // a season in progress is only thrown away on a second press, once its rows are up
     const pickNew = () => {
-      if (season && !over && !confirmNew) {
-        confirmNew = true;
+      if (!setUp) {
+        setUp = true;
         newButton.textContent = 'NEW SEASON? THIS ONE ENDS · PRESS AGAIN';
         menuTick();
+        layOut();
         return;
       }
-      finish('new');
+      finish({ new: { team: teamRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() } });
     };
     const newButton = menuButton(season && !over ? 'NEW SEASON' : 'START A SEASON', pickNew);
     const choices: { el: HTMLButtonElement; pick: () => void }[] = [
@@ -109,9 +130,27 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     ];
     const buttons = choices.map((c) => c.el);
     screen.append(...buttons);
+    /** up/down: the rows (while they're up), then the buttons */
+    let places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
     let focus = 0;
-    const show = () => buttons.forEach((b, i) => b.classList.toggle('focused', i === focus));
-    show();
+    const show = () => places.forEach((p, i) => p.el.classList.toggle('focused', i === focus));
+    const layOut = () => {
+      options.style.display = setUp ? '' : 'none';
+      places = [...(setUp ? rows.map((r) => ({ el: r.el, step: r.step })) : []), ...choices];
+      // (on the button that starts the season)
+      focus = places.findIndex((p) => p.el === newButton);
+      show();
+    };
+    layOut();
+    if (season && !over) {
+      // (mid-season: on the next round)
+      focus = 0;
+      show();
+    }
+    rows.forEach((r) => r.el.addEventListener('pointerdown', () => {
+      focus = places.findIndex((p) => p.el === r.el);
+      show();
+    }));
     holdTouches(screen);
     host.append(screen);
     hud.setPosition('');
@@ -131,14 +170,16 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     };
     const tick = () => {
       if (done) return;
-      const [down, up, a, start, select] = (['down', 'up', 'a', 'start', 'select'] as const).map(pressed);
+      const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map(pressed);
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
-        focus = (focus + move + buttons.length) % buttons.length;
+        focus = (focus + move + places.length) % places.length;
         menuTick();
         show();
       }
-      if (a || start) choices[focus].pick();
+      const at = places[focus];
+      if ((left || right) && at.step) at.step(right ? 1 : -1);
+      if ((a || start) && at.pick) at.pick();
       if (select) finish('back');
       if (!done) requestAnimationFrame(tick);
     };

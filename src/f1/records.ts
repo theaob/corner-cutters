@@ -14,6 +14,8 @@ export interface CircuitRecords {
   bestQualifying?: number;
   /** seconds: your fastest finish here, by the race's number of laps */
   bestRace: Record<number, number>;
+  /** Time Attack: the most checkpoints you've passed here before the clock ran out */
+  bestAttack?: number;
 }
 
 export interface Records {
@@ -54,6 +56,8 @@ export function recordsFrom(raw: unknown): Records {
       out.circuits[id] = { bestLap: time(c.bestLap), bestRace };
       const q = time(c.bestQualifying);
       if (q !== undefined) out.circuits[id].bestQualifying = q;
+      const a = (c as { bestAttack?: unknown }).bestAttack;
+      if (typeof a === 'number' && Number.isInteger(a) && a > 0) out.circuits[id].bestAttack = a;
     }
   } catch {
     // not records: none
@@ -85,6 +89,15 @@ export function recordRace(r: Records, id: string, laps: number, seconds: number
   const best = c.bestRace[laps];
   if (best !== undefined && best <= seconds) return false;
   c.bestRace[laps] = seconds;
+  return true;
+}
+
+/** Note a Time Attack run on circuit `id` that passed `checkpoints`; true if it's a new best there (none passed never is). */
+export function recordAttack(r: Records, id: string, checkpoints: number): boolean {
+  if (checkpoints <= 0) return false;
+  const c = circuit(r, id);
+  if (c.bestAttack !== undefined && c.bestAttack >= checkpoints) return false;
+  c.bestAttack = checkpoints;
   return true;
 }
 

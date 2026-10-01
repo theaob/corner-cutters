@@ -1,10 +1,14 @@
-// The menu shown before a race, on one screen: the circuit (one card at a time:
-// its outline, name, a line about it and your lap record, dots for where it is
-// in the list), then a compact row each for the mode, team, weather and
-// qualifying, the big button that races, and SETTINGS. On a phone it's all touch
-// (the deck is hidden): swipe the card or a row (or tap its sides) to change
-// it, tap the card's middle or the race button to race. On a keyboard, up/down
-// moves, left/right changes the circuit or a row, Enter races.
+// The menu shown before a race. First the modes: QUICK RACE, CHAMPIONSHIP, TIME
+// ATTACK and TIME TRIAL, a big button each, and SETTINGS. A Championship goes
+// straight to its own screen (a season races every circuit); the others go on
+// to the circuit: one card at a time (its outline, name, a line about it and
+// your record there, dots for where it is in the list), a compact row for each
+// of the mode's options (team and weather; a Quick Race's qualifying and laps
+// too), the big button that races, and BACK to the modes. On a phone it's all
+// touch (the deck is hidden): tap a mode; swipe the card or a row (or tap its
+// sides) to change it, tap the card's middle or the race button to race. On a
+// keyboard, up/down moves, left/right changes the circuit or a row, Enter picks
+// or races, and B goes back.
 
 import type { Button } from '../engine/controls';
 import { holdTouches, setStickSide, stickSide, type StickSide } from '../engine/deck';
@@ -20,6 +24,7 @@ import { formatTime, loadRecords } from './records';
 import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 import { DRY, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
+import { distance } from './timeAttack';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -79,13 +84,18 @@ function ownTabButton(): HTMLButtonElement {
 }
 
 /** What the menu comes back with. */
-/** What to play: a race weekend, a Time Trial (flying laps against your ghost), or a Championship season. */
-export type GameMode = 'race' | 'timetrial' | 'championship';
+/** What to play: a race weekend, a Championship season, a Time Attack (beat the clock), or a Time Trial (flying laps against your ghost). */
+export type GameMode = 'race' | 'championship' | 'timeattack' | 'timetrial';
 export const MODES: { id: GameMode; name: string; about: string }[] = [
-  { id: 'race', name: 'QUICK RACE', about: 'a race against the field' },
+  { id: 'race', name: 'QUICK RACE', about: 'a race against the field, your circuit, your laps' },
+  { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season: a round on every circuit, points and standings' },
+  { id: 'timeattack', name: 'TIME ATTACK', about: 'beat the clock: each sector you pass adds time' },
   { id: 'timetrial', name: 'TIME TRIAL', about: 'flying laps against your ghost' },
-  { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season: points and standings' },
 ];
+
+/** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen). */
+export const rowsOf = (mode: GameMode): ('team' | 'weather' | 'qualifying' | 'laps')[] =>
+  mode === 'race' ? ['team', 'weather', 'qualifying', 'laps'] : mode === 'championship' ? [] : ['team', 'weather'];
 
 export interface MenuChoice {
   mode: GameMode;
@@ -106,6 +116,7 @@ const SWIPE = 28;
 const TAP_SLOP = 12;
 
 const HINT = 'SWIPE TO CHANGE · TAP THE CIRCUIT TO RACE';
+const MODES_HINT = 'PICK A MODE';
 
 /**
  * What a gesture on the circuit card does: a swipe left is the next circuit and
@@ -136,7 +147,7 @@ export function rowGesture(dx: number, at: number): -1 | 0 | 1 {
  * A row of options under the circuits: its label and the current value (with a
  * line about it and, for a team, its colours), switched with left/right or a tap.
  */
-function optionRow<T>(
+export function optionRow<T>(
   label: string, values: T[], start: T, show: (v: T) => { name: string; about: string; colors?: string[]; icon?: Element }, onChange?: (v: T) => void,
 ) {
   const el = document.createElement('button');
@@ -223,7 +234,7 @@ export function chooseCircuit(
   mode: GameMode = 'race',
   /** a Quick Race's laps, as last chosen */
   laps: number = RACE_LAPS,
-  /** the circuits open for a Quick Race or a Time Trial (the rest are reached in a Championship) */
+  /** the circuits open for a Quick Race, a Time Attack or a Time Trial (the rest are reached in a Championship) */
   open: ReadonlySet<string> = new Set(layouts.map((l) => l.id)),
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
   closed?: AbortSignal,
@@ -234,26 +245,32 @@ export function chooseCircuit(
   const title = document.createElement('h1');
   title.textContent = 'CORNER CUTTERS';
   const hint = document.createElement('p');
-  hint.textContent = HINT;
+  hint.textContent = MODES_HINT;
   menu.append(title, hint);
 
   /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
   // (a circuit that's locked isn't highlighted first)
   if (!open.has(layouts[selected].id)) selected = Math.max(0, layouts.findIndex((l) => open.has(l.id)));
-  /** where up/down is: on the menu the circuit (0), then the mode, team, weather and qualifying rows, then the race button, then SETTINGS; in the settings, a row, then DONE */
-  let focus = 0;
-  /** the menu, or the settings screen over it */
-  let view: 'menu' | 'settings' = 'menu';
+  /** the mode picked (or, on the modes screen, last picked) */
+  let current = MODES.find((m) => m.id === mode) ?? MODES[0];
+  /**
+   * where up/down is: on the modes screen a mode, then SETTINGS; on the circuit screen the circuit (0), then the mode's
+   * rows, then the race button, then BACK; in the settings, a row, then CONTROLS LAP, then DONE
+   */
+  let focus = MODES.indexOf(current);
+  /** the modes, a mode's circuit screen, or the settings */
+  let view: 'modes' | 'circuit' | 'settings' = 'modes';
   let finish: (l: CircuitLayout, controlsLap?: boolean) => void = () => {};
 
-  const modeRow = optionRow('MODE', MODES, MODES.find((m) => m.id === mode) ?? MODES[0], (m) => ({ name: m.name, about: m.about }));
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   // (a Quick Race's: a Championship round is always RACE_LAPS, and a Time Trial is laps until you stop)
   const lapsRow = optionRow('LAPS', [...LAP_CHOICES], laps, (n) => ({ name: `${n}`, about: lapsAbout(n) }));
-  const rows = [modeRow, teamRow, weatherRow, qualifyingRow, lapsRow];
+  const ROWS = { team: teamRow, weather: weatherRow, qualifying: qualifyingRow, laps: lapsRow };
+  /** the rows on the circuit screen, for the mode picked */
+  let rows = rowsOf(current.id).map((k) => ROWS[k]);
 
   // the settings screen: difficulty, which side the thumbstick sits on, vibration, sound and music volumes
   const deck = document.getElementById('deck');
@@ -286,8 +303,8 @@ export function chooseCircuit(
   };
   const closeSettings = () => {
     menuPick();
-    view = 'menu';
-    focus = SETTINGS_AT;
+    view = 'modes';
+    focus = MODES.length;
     show();
   };
   const settingsButton = menuButton('SETTINGS', openSettings);
@@ -317,12 +334,13 @@ export function chooseCircuit(
     about.textContent = locked ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : layout.about;
     const text = document.createElement('div');
     text.append(name, about);
-    // your lap record here, once you have one
-    const best = records.circuits[layout.id]?.bestLap;
-    if (best !== undefined) {
+    // your record here, once you have one: in a Time Attack the furthest you've got, else your fastest lap
+    const here = records.circuits[layout.id];
+    const best = current.id === 'timeattack' ? (here?.bestAttack ? `BEST ${distance(here.bestAttack)}` : undefined) : here?.bestLap !== undefined ? `LAP RECORD ${formatTime(here.bestLap)}` : undefined;
+    if (best) {
       const record = document.createElement('span');
       record.className = 'record';
-      record.textContent = `LAP RECORD ${formatTime(best)}`;
+      record.textContent = best;
       text.append(record);
     }
     card.append(prev, outline(layout, 64), text, next);
@@ -370,28 +388,72 @@ export function chooseCircuit(
   // the big button that races, named for the mode
   const raceButton = menuButton('', () => finish(layouts[selected]));
   raceButton.classList.add('race-button');
-  const renderRace = () => (raceButton.textContent = `${modeRow.value().name} ▶`);
-  rows[0].el.addEventListener('pointerup', () => setTimeout(renderRace));
+  const renderRace = () => (raceButton.textContent = `${current.name} ▶`);
+  const options = document.createElement('div');
+  options.className = 'options';
+  /** a mode picked: a Championship to its screen; the others on to the circuit screen, with the mode's rows */
+  const pickMode = (m: (typeof MODES)[number]) => {
+    current = m;
+    if (m.id === 'championship') {
+      finish(layouts[selected]);
+      return;
+    }
+    menuPick();
+    view = 'circuit';
+    rows = rowsOf(m.id).map((k) => ROWS[k]);
+    options.replaceChildren(...rows.map((r) => r.el));
+    hint.textContent = HINT;
+    focus = 0;
+    renderCard();
+    renderRace();
+    show();
+  };
+  /** back from the circuit screen to the modes */
+  const toModes = () => {
+    menuPick();
+    view = 'modes';
+    hint.textContent = MODES_HINT;
+    focus = MODES.indexOf(current);
+    show();
+  };
+  const modeButtons = MODES.map((m) => {
+    const b = menuButton('', () => pickMode(m));
+    b.classList.add('mode-button');
+    const name = document.createElement('strong');
+    name.textContent = m.name;
+    const about = document.createElement('span');
+    about.textContent = m.about;
+    b.append(name, about);
+    return b;
+  });
+  const backButton = menuButton('◀ BACK', toModes);
   const tab = framed() ? ownTabButton() : undefined;
-  /** the menu's places for up/down: the circuit, the rows, the race button, SETTINGS */
-  const RACE_AT = 1 + rows.length;
-  const SETTINGS_AT = RACE_AT + 1;
-  const menuParts: HTMLElement[] = [hint, card, dots, ...rows.map((r) => r.el), raceButton, settingsButton, ...(tab ? [tab] : [])];
+  /** the circuit screen's places for up/down: the circuit, the rows, the race button, BACK */
+  const raceAt = () => 1 + rows.length;
+  const backAt = () => raceAt() + 1;
+  const modesParts: HTMLElement[] = [...modeButtons, settingsButton, ...(tab ? [tab] : [])];
+  const circuitParts: HTMLElement[] = [card, dots, options, raceButton, backButton];
   const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), controlsButton, doneButton];
   const show = () => {
-    for (const el of menuParts) el.style.display = view === 'menu' ? '' : 'none';
+    hint.style.display = view === 'settings' ? 'none' : '';
+    for (const el of modesParts) el.style.display = view === 'modes' ? '' : 'none';
+    for (const el of circuitParts) el.style.display = view === 'circuit' ? '' : 'none';
     for (const el of settingsParts) el.style.display = view === 'settings' ? '' : 'none';
-    card.classList.toggle('focused', view === 'menu' && focus === 0);
-    rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'menu' && focus === 1 + k));
-    raceButton.classList.toggle('focused', view === 'menu' && focus === RACE_AT);
-    settingsButton.classList.toggle('focused', view === 'menu' && focus === SETTINGS_AT);
+    modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === k));
+    settingsButton.classList.toggle('focused', view === 'modes' && focus === MODES.length);
+    card.classList.toggle('focused', view === 'circuit' && focus === 0);
+    rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
+    raceButton.classList.toggle('focused', view === 'circuit' && focus === raceAt());
+    backButton.classList.toggle('focused', view === 'circuit' && focus === backAt());
     settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
     controlsButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
     doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length + 1);
+    hud.setLabel('a', view === 'circuit' ? 'RACE' : view === 'modes' ? 'PICK' : 'DONE');
+    hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
   };
   // a tap on a row focuses it too
-  rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
-    focus = 1 + k;
+  Object.values(ROWS).forEach((r) => r.el.addEventListener('pointerdown', () => {
+    focus = 1 + rows.indexOf(r);
     show();
   }));
   settingsRows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
@@ -400,11 +462,8 @@ export function chooseCircuit(
   }));
   renderCard();
   renderRace();
-  const options = document.createElement('div');
-  options.className = 'options';
   options.append(...rows.map((r) => r.el));
-  menuParts.splice(menuParts.indexOf(rows[0].el), rows.length, options);
-  menu.append(card, dots, options, raceButton, settingsButton, ...settingsParts);
+  menu.append(...modeButtons, settingsButton, card, dots, options, raceButton, backButton, ...settingsParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
@@ -413,8 +472,6 @@ export function chooseCircuit(
   host.append(menu);
   hud.setPosition('');
   hud.setLap('');
-  hud.setLabel('a', 'RACE');
-  hud.setLabel('b', '');
 
   return new Promise((resolve) => {
     const seen = new Map<Button, number>();
@@ -428,7 +485,7 @@ export function chooseCircuit(
     finish = (layout, controlsLap = false) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
-      if (!controlsLap && !open.has(layout.id) && modeRow.value().id !== 'championship') {
+      if (!controlsLap && !open.has(layout.id) && current.id !== 'championship') {
         menuTick();
         hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
         return;
@@ -436,7 +493,7 @@ export function chooseCircuit(
       done = true;
       menuPick();
       menu.remove();
-      resolve({ mode: modeRow.value().id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
+      resolve({ mode: current.id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;
@@ -445,7 +502,7 @@ export function chooseCircuit(
     const tick = () => {
       if (done) return;
       // poll every button each frame, so a press is never counted late
-      const [down, right, up, left, a, start] = (['down', 'right', 'up', 'left', 'a', 'start'] as const).map(pressed);
+      const [down, right, up, left, a, start, b] = (['down', 'right', 'up', 'left', 'a', 'start', 'b'] as const).map(pressed);
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (view === 'settings') {
         // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back
@@ -458,8 +515,17 @@ export function chooseCircuit(
         if (row && (left || right)) row.step(right ? 1 : -1);
         if ((a || start) && focus === settingsRows.length) finish(layouts[0], true);
         else if (a || start) closeSettings();
+      } else if (view === 'modes') {
+        // the modes: up/down moves, A or START picks (or opens SETTINGS)
+        const places = MODES.length + 1;
+        if (move) {
+          focus = (focus + move + places) % places;
+          show();
+        }
+        if ((a || start) && focus === MODES.length) openSettings();
+        else if (a || start) pickMode(MODES[focus]);
       } else {
-        const places = SETTINGS_AT + 1;
+        const places = backAt() + 1;
         if (move) {
           focus = (focus + move + places) % places;
           show();
@@ -467,11 +533,8 @@ export function chooseCircuit(
         // left/right: the circuit, or the focused row
         const row = rows[focus - 1];
         if (focus === 0 && (left || right)) stepCircuit(right ? 1 : -1);
-        if (row && (left || right)) {
-          row.step(right ? 1 : -1);
-          renderRace();
-        }
-        if ((a || start) && focus === SETTINGS_AT) openSettings();
+        if (row && (left || right)) row.step(right ? 1 : -1);
+        if (b || ((a || start) && focus === backAt())) toModes();
         else if (a || start) finish(layouts[selected]);
       }
       if (!done) requestAnimationFrame(tick);
