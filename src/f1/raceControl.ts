@@ -9,6 +9,7 @@
 // (trackLimits.ts). Engine-free,
 // so a whole race, crashes and all, runs in a test exactly as in the game.
 
+import { blueFlags } from './blueFlags';
 import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
 import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
@@ -106,6 +107,8 @@ export interface Entrant {
   limits: Limits;
   /** the player's limiter this step under the safety car (or the virtual one): px/s, or undefined when there's none */
   held?: number;
+  /** blue flags: the car lapping it, close behind (its index), while they're out */
+  blue?: number;
   /** after its flag: px driven on its in-lap, and where it's going once it's back at the pits (a podium spot 0–2, or its garage) */
   inLap?: { driven: number; to?: 'garage' | number; parked?: boolean };
 }
@@ -135,6 +138,7 @@ export type RaceEvent =
   | { kind: 'pit-stop'; who: number; seconds: number }
   | { kind: 'pit-out'; who: number }
   | { kind: 'mistake'; who: number; what: 'late' | 'wide' }
+  | { kind: 'blue'; who: number; by: number }
   /** a cut across a corner's inside: strike number `strike`, costing `seconds` (0: a warning) */
   | { kind: 'track-limits'; who: number; strike: number; seconds: number };
 
@@ -378,6 +382,16 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     return { limit, tight };
   };
 
+  // blue flags: a car about to be lapped (racing, not under either safety car)
+  {
+    const eligible = entrants.map((e) => racing && !sc && !vsc && running(e) && !e.pit && !e.car.wrecked && e.progress.finished === undefined && race.clock > SETTLE);
+    const blue = blueFlags(entrants.map((e) => e.progress), eligible, entrants.map((e) => e.blue), n, track.spacing);
+    entrants.forEach((e, i) => {
+      if (blue[i] !== undefined && blue[i] !== e.blue) out.push({ kind: 'blue', who: i, by: blue[i]! });
+      e.blue = blue[i];
+    });
+  }
+
   // drive
   const before = entrants.map((e) => e.car.health);
   // (how each car was moving going into the step: a crash throws its parts on that way)
@@ -430,7 +444,9 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       const blending = pit && e.blend !== undefined && e.blend > 0;
       if (blending) e.blend! -= speedOf(e.car) * dt;
       const ai = blending ? { ...e.ai, lane: pit.side * PIT.joinAt } : e.ai;
-      input = aiInput(e.car, track, e.progress.idx, ai, others, race.clock < SETTLE || blending ? { ...orders, noOvertaking: true } : orders, towBoost(e.tow));
+      const lapping = entrants.filter((o) => o.blue === i).map((o) => o.car);
+      const given = e.blue === undefined && !lapping.length ? orders : { ...orders, blue: e.blue === undefined ? undefined : entrants[e.blue].car, lapping };
+      input = aiInput(e.car, track, e.progress.idx, ai, others, race.clock < SETTLE || blending ? { ...given, noOvertaking: true } : given, towBoost(e.tow));
       if (e.ai.slip && e.ai.slip !== slip) out.push({ kind: 'mistake', who: i, what: e.ai.slip });
     }
     // the player's limiter: holding station behind the car ahead (or the safety car), and the brakes on when well over it

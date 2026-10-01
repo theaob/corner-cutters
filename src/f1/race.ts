@@ -57,6 +57,8 @@ import { musicPlaying, playMusic } from '../engine/music';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import { overtakeOf, towerGap, towerRows } from './tower';
+/** the blue flag's colour on the screen */
+const BLUE_COLOR = '#4fa3ff';
 import { type Medal, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
@@ -445,7 +447,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       }
       const e = race.entrants[i];
       const place = order.indexOf(i) + 1;
-      const gap = e.progress.retired ? 'OUT' : e.pit ? 'PIT' : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
+      const gap = e.progress.retired ? 'OUT' : e.pit ? 'PIT' : e.blue !== undefined ? '▮ BLUE' : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
       style(row, {
         display: 'grid', gridTemplateColumns: '16px 3px 28px 1fr', gap: '4px', alignItems: 'center', padding: '1px 6px 1px 4px',
         background: i === you ? 'rgba(242,193,78,.18)' : '', color: i === you ? '#f2c14e' : e.progress.retired ? '#6c707a' : '#f4f2fa',
@@ -459,7 +461,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         return span;
       });
       (cells[3] as HTMLElement).style.textAlign = 'right';
-      (cells[3] as HTMLElement).style.color = '#9d9ab8';
+      (cells[3] as HTMLElement).style.color = e.blue !== undefined ? BLUE_COLOR : '#9d9ab8';
       row.append(...cells);
       return row;
     }));
@@ -1474,6 +1476,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         }
       }
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
+      // blue flags: yours (let the leader by), or one shown to a car you're coming up to lap
+      else if (e.kind === 'blue' && e.who === you) {
+        announce(`BLUE FLAG · LET ${looks[e.by].name} BY`, BLUE_COLOR, 3);
+        sayRadio('blue');
+      } else if (e.kind === 'blue' && e.by === you && race.clock >= notice.until) announce(`BLUE FLAG · ${looks[e.who].name}`, BLUE_COLOR, 1.5);
       // a mistake by a car near you (on the screen, more or less): called out
       else if (e.kind === 'mistake' && !done && race.clock >= notice.until && near(e.who)) announce(e.what === 'late' ? `LOCK-UP · ${looks[e.who].name}` : `${looks[e.who].name} RUNS WIDE`, '#9d9ab8', 1.5);
     }
