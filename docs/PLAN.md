@@ -301,7 +301,7 @@ The goal: a full first season.
 - [x] Weather: dry, damp and wet, with three tyre compounds, rain and spray (done early)
 - [ ] Weather that changes during a race; the player picking tyres at a stop
 - [x] Start-of-race grid pan (`f1/gridPan.ts`): before the lights the camera glides from pole to the back of the grid, naming each car (yours in gold); A skips it
-- [ ] 10-second replay after the flag
+- [x] 10-second replay after the flag (`f1/replay.ts`): every car and the safety car recorded at 20 Hz (the last 15 s kept); a few seconds after your flag the race holds and the 10 s up to just past your finish play again, slow through the line; A skips it
 - [ ] Music: a race track per circuit (or per pair of circuits), stings for fastest lap / podium / title
 - [ ] A pit lane in every new circuit's layout data (repair stops already use it)
 

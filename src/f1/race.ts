@@ -19,6 +19,7 @@ import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
 import { GRID_PAN, panAt, panLength } from './gridPan';
+import { REPLAY, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
@@ -383,6 +384,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let session: 'qualifying' | 'race' | 'timetrial' | 'tutorial' = 'race';
   /** what A does while the session's running: skips qualifying, pauses the race */
   const aLabel = () => (session === 'qualifying' || session === 'tutorial' || gridPan ? 'SKIP' : 'PAUSE');
+  /** The replay over (or skipped): back to the in-lap, live. */
+  const endReplay = () => {
+    replay = undefined;
+    replayed = true;
+    before = undefined;
+  };
   /** The grid pan over: the lights come on (the camera swings back to your car). */
   const endPan = () => {
     gridPan = undefined;
@@ -464,6 +471,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     results.style.display = 'none';
   };
 
+  /** every car through the race, for the replay after your flag; and the replay when it's on: the race time it's showing, its end, your finish */
+  let recorder: ReplayRecorder = newReplay(0);
+  let replay: { t: number; to: number; finish: number } | undefined;
+  /** the replay has been shown (or skipped) this race */
+  let replayed = false;
   /** the grid pan before the lights: seconds in, and how long it lasts (undefined: it's over, or skipped) */
   let gridPan: { t: number; length: number } | undefined;
   /** the grid the race started from (drivers by slot; none: everyone in their own), for restarting it */
@@ -493,6 +505,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     hudState = { gaps: newGapTimer(slots.length), lastPos: 0, flashUntil: 0, lapsSeen: new Array(slots.length).fill(0), fastest: undefined };
     // the grid pan first (A skips it), then the lights
     gridPan = { t: 0, length: panLength(slots.length) };
+    // (every car and the safety car recorded, for the replay)
+    recorder = newReplay(slots.length + 1);
+    replay = undefined;
+    replayed = false;
     hud.setLabel('a', 'SKIP');
   };
 
@@ -609,6 +625,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
+        /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
+        replay: () => replay && { ...replay },
         /** the grid pan before the lights: whether it's on, and the car it's on */
         gridPan: () => gridPan && { t: gridPan.t, length: gridPan.length, car: panAt(circuit.slots, gridPan.t).car },
         /** the session (qualifying or race), and once qualifying's over, the grid it set (names, pole first) and your time */
@@ -923,6 +941,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the grid pan: A skips it, straight to the lights
     else if (aPressed && gridPan) endPan();
     else if (aPressed && !done) setPaused(!paused);
+    // the replay: A skips it, back to the in-lap
+    else if (aPressed && replay) endReplay();
     // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
     else if (aPressed && done && results.style.display !== 'block') {
       if (!podium) startCeremony();
@@ -962,7 +982,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       gridPan.t += dt;
       if (gridPan.t >= gridPan.length) endPan();
     }
-    const { steps, alpha } = gridPan ? { steps: 0, alpha: 1 } : advance(simClock, dt);
+    // the replay: a few seconds after your flag (the flag's moment live), the race holds and your finish plays again
+    {
+      const mine = race.entrants[you].progress;
+      if (!replay && !replayed && session === 'race' && mine.finished !== undefined && race.clock >= mine.finished + REPLAY.startAt && !podium && results.style.display !== 'block') {
+        const w = replayWindow(recorder, mine.finished);
+        replay = { t: w.from, to: w.to, finish: mine.finished };
+      }
+      if (replay) {
+        replay.t += dt * replaySpeed(replay.t, replay.finish);
+        if (replay.t >= replay.to) endReplay();
+      }
+    }
+    const { steps, alpha } = gridPan || replay ? { steps: 0, alpha: 1 } : advance(simClock, dt);
     const raceEvents: RaceEvent[] = [];
     const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 }));
     for (let k = 0; k < steps; k++) {
@@ -981,6 +1013,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // gaps at the timing points, timed to the step
       if (race.phase === 'racing') stepGaps(hudState.gaps, race.entrants.map((e) => e.progress), track, race.clock);
       if (trial) stepTrial(s.race.some((e) => e.kind === 'track-limits' && e.who === you));
+      if (session === 'race' && race.phase === 'racing') {
+        const scCar = race.sc?.car;
+        recordReplay(recorder, race.clock, [...race.entrants.map((e) => (running(e) && e.pit?.phase !== 'garage' ? e.car : undefined)), scCar]);
+      }
     }
     // a frame between steps (a screen faster than the simulation) carries on the last one's skids and ground
     if (steps === 0) frameEvents.forEach((ev, i) => cars[i] && Object.assign(cars[i], { skidding: ev.skidding, onRough: ev.onRough, airborne: ev.airborne }));
@@ -1030,7 +1066,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (ev.wreckedNow) sounds.hit(1);
       else if (lost > 0.5) sounds.hit(Math.min(1, 0.25 + lost / 15));
       else if (ev.landed > 160) sounds.hit(0.3);
-      if (!running(me) || me.car.wrecked) sounds.quiet();
+      if (!running(me) || me.car.wrecked || replay) sounds.quiet();
       else {
         const f = { x: Math.sin(me.car.heading), y: -Math.cos(me.car.heading) };
         let rival: { speed: number; distance: number } | undefined;
@@ -1101,10 +1137,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (!running(e)) return;
       const ev = step.cars[i];
       const l = looks[i];
-      if (ev.skidding) skids.mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
+      if (ev.skidding && !replay) skids.mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
       else skids.lift(i);
-      const tilt = bodyTilt(e.car, grid);
-      const at = pose(e.car, i, alpha);
+      // (in the replay, where it was then)
+      const then = replay && replayPose(recorder, i, replay.t);
+      l.mesh.visible = !replay || !!then;
+      const tilt = then ? { pitch: 0, roll: 0 } : bodyTilt(e.car, grid);
+      const at = then || pose(e.car, i, alpha);
       l.mesh.position.set(at.x, at.z, at.y);
       l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
       const speed = speedOf(e.car);
@@ -1136,11 +1175,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       youArrow.position.y = 34 + Math.sin(t * 4) * 3;
       youArrow.rotation.y = t * 1.5;
     }
-    // the safety car on the track while it's out
+    // the safety car on the track while it's out (in the replay, if it was out then)
     const sc = race.sc;
-    if (sc && !safetyCar.group.parent) world.scene.add(safetyCar.group);
-    if (!sc && safetyCar.group.parent) world.scene.remove(safetyCar.group);
-    if (sc) {
+    const scThen = replay && replayPose(recorder, race.entrants.length, replay.t);
+    const scShown = replay ? !!scThen : !!sc;
+    if (scShown && !safetyCar.group.parent) world.scene.add(safetyCar.group);
+    if (!scShown && safetyCar.group.parent) world.scene.remove(safetyCar.group);
+    if (scThen) {
+      safetyCar.group.position.set(scThen.x, scThen.z, scThen.y);
+      safetyCar.group.rotation.set(0, -scThen.heading, 0, 'YXZ');
+    } else if (sc && !replay) {
       const tilt = bodyTilt(sc.car, grid);
       // (drawn between its steps too, once it has been out for one)
       const at = before && before.length > race.entrants.length ? pose(sc.car, race.entrants.length, alpha) : sc.car;
@@ -1169,7 +1213,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const flagOut = race.entrants.some((e) => e.progress.finished !== undefined);
     chequered.group.visible = flagOut;
     if (flagOut) chequered.update(performance.now() / 1000);
-    const yourFlag = p.finished !== undefined && clock < p.finished + 3.5 && !podium && results.style.display !== 'block';
+    const yourFlag = p.finished !== undefined && clock < p.finished + 3.5 && !podium && !replay && results.style.display !== 'block';
     flagOverlay.style.display = yourFlag ? 'block' : 'none';
     if (yourFlag) drawFlag(performance.now() / 1000);
     if (p.finished !== undefined && !soundState.flag) {
@@ -1219,7 +1263,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     } else {
       const stop = me.pit;
       const [text, color] =
-        podium && results.style.display !== 'block' ? [podium.top.map((i, k) => `P${k + 1} ${looks[i].name}`).join(' · '), '#f2c14e']
+        replay ? [`${Math.floor(performance.now() / 500) % 2 ? '●' : '○'} REPLAY`, '#d8323c']
+        : podium && results.style.display !== 'block' ? [podium.top.map((i, k) => `P${k + 1} ${looks[i].name}`).join(' · '), '#f2c14e']
         : me.car.wrecked || p.retired ? [championship ? 'DNF' : 'DNF · START to restart', '#d8323c']
         : done && p.finished !== undefined && results.style.display !== 'block' ? inLapBanner(me.inLap?.to, order.indexOf(you))
         : done ? ['', '']
@@ -1297,7 +1342,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
     const c = me.car;
     const drawn = pose(c, you, alpha);
-    if (gridPan) {
+    const mineThen = replay && replayPose(recorder, you, replay.t);
+    if (mineThen) {
+      // the replay: on your car as it was, looking ahead along its way
+      target.set(mineThen.x + Math.sin(mineThen.heading) * t.lead * 0.6, mineThen.z * 0.5, mineThen.y - Math.cos(mineThen.heading) * t.lead * 0.6);
+    } else if (gridPan) {
       // the grid pan: along the grid from pole to the back
       const at = panAt(circuit.slots, gridPan.t);
       target.set(at.x, groundAt(grid, at.x, at.y).h * 0.5, at.y);
