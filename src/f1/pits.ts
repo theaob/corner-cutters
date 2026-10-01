@@ -11,8 +11,8 @@ import { stopNow, wearPerLap, type TyreSet } from './tyres';
 export const PIT = {
   /** px from the track's centreline out to the lane's centre */
   offset: 130,
-  /** px along the track the lane takes to move out from the track, and back in (the entry and exit roads), at the most */
-  taper: 400,
+  /** px along the track the lane takes to move out from the track, and back in (the entry and exit roads) */
+  taper: 360,
   /** px from the centreline where the lane starts and ends, on the track (toward its edge, off the racing line) */
   joinAt: 32,
   /** px/s: the pit lane speed limit (an F1 car's top speed is 320), between the speed-limit lines across the lane */
@@ -91,6 +91,14 @@ const SMOOTH = 10;
 /** px of the lane, fully out, that the boxes take (with room either side) */
 const BOX_RUN = (PIT.boxes - 1) * PIT.boxSpacing + 80;
 
+/**
+ * The shortest a pit lane can be (px along the track): the entry road, the boxes' run between the
+ * speed-limit lines, and the exit road. A circuit's main straight is at least PIT_STRAIGHT_MIN, so the
+ * whole lane lies on it with a little to spare at either end, its roads never bending round a corner.
+ */
+export const PIT_LANE_MIN = 2 * PIT.taper + BOX_RUN;
+export const PIT_STRAIGHT_MIN = PIT_LANE_MIN + 80;
+
 const ease = (t: number) => (1 - Math.cos(Math.max(0, Math.min(1, t)) * Math.PI)) * 0.5;
 const wrap = (i: number, n: number) => ((i % n) + n) % n;
 
@@ -100,8 +108,8 @@ export function buildPitLane(track: Track, spec: PitSpec): PitLane {
   const entry = wrap(Math.round(spec.from / track.spacing), n);
   const count = Math.round((spec.to - spec.from) / track.spacing) + 1;
   const along = (count - 1) * track.spacing;
-  // (the entry and exit roads as long as they can be, leaving the boxes their run)
-  const taper = Math.max(PIT.taper / 4, Math.min(PIT.taper, (along - BOX_RUN) / 2));
+  // (the entry and exit roads their full length; a layout gives the lane at least PIT_LANE_MIN, tested)
+  const taper = Math.min(PIT.taper, (along - BOX_RUN) / 2);
   const raw = Array.from({ length: count }, (_, k) => {
     const idx = wrap(entry + k, n);
     const p = track.samples[idx];

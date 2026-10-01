@@ -528,8 +528,9 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
     if (!c.o.wrecked && c.along > 0 && c.along < 44 + Math.max(0, closing) * 0.7 && Math.abs(c.across) < band) follow = Math.min(follow, c.speed);
   }
   // side by side into a bend, a nose behind: give way, dropping in behind rather than both fighting for it
-  // (not under the safety car, where the order holds)
-  if (!straight && racing) for (const c of alongside) if (c.along > 4) follow = Math.min(follow, c.speed - YIELD);
+  // (not under the safety car, where the order holds; but while the pack settles from the start, yes: the first
+  // corner is where cars are most often side by side)
+  if (!straight && orders.limit === undefined) for (const c of alongside) if (c.along > 4) follow = Math.min(follow, c.speed - YIELD);
   const tx = t.x + Math.cos(t.dir) * lane;
   const ty = t.y + Math.sin(t.dir) * lane;
   const dx = tx - car.x;

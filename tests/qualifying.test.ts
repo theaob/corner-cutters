@@ -33,7 +33,8 @@ describe.each(LAYOUTS)('qualifying at $name', (layout) => {
     // (flat out on the AI's line: the quickest anyone gets there)
     me.ai = { lane: 0, pace: 1 };
     for (let t = 0; t < 20 && me.progress.lapStart === undefined; t += SIM_DT) stepRace(q, SIM_DT);
-    expect(q.clock).toBeGreaterThan(4);
+    // (about four seconds at the least: where the straight before the line is shorter than the run-up, it starts there)
+    expect(q.clock).toBeGreaterThan(3.9);
     expect(q.clock).toBeLessThan(7);
   });
   it("sets the AI's times off a reference lap, scaled by pace", () => {
