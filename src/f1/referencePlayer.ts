@@ -67,10 +67,11 @@ export function referenceInput(car: Car, track: Track, idx: number, player: Refe
     const mag = Math.max(0.15, Math.min(1, want / car.cls.topSpeed));
     return playerInput({ stick: { x: Math.sin(heading) * mag, y: -Math.cos(heading) * mag }, a: false, b: false });
   }
-  // the wheel: turn toward the line ahead (full lock past ~25°), gas unless over the speed for what's coming, then brake
+  // the wheel: turn toward the line ahead (full lock past ~9°, as a quick hand on the keys does), gas unless over the
+  // speed for what's coming, then brake
   const want = speedToCarry(track, idx, skill, (car.cls.topSpeed / car.cls.brakeTime) * BRAKE_SHARE);
   const diff = Math.atan2(Math.sin(heading - car.heading), Math.cos(heading - car.heading));
-  const turn = Math.max(-1, Math.min(1, diff / 0.45));
+  const turn = Math.max(-1, Math.min(1, diff / 0.15));
   const over = v > want + 6;
   // (wheelInput eases the turn by its 1.5 power; undone here, so the turn is as asked)
   return wheelInput({ turn: Math.sign(turn) * Math.abs(turn) ** (1 / 1.5), gas: over ? 0 : 1, brake: over ? 1 : 0, drift: false }, car);

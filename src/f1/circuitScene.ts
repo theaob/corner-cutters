@@ -29,16 +29,55 @@ function rng(seed: number): () => number {
   };
 }
 
+/** Whether (x, y) is inside the polygon `poly`. */
+function inside(poly: Pt[], x: number, y: number): boolean {
+  let hit = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i];
+    const b = poly[j];
+    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) hit = !hit;
+  }
+  return hit;
+}
+
+/** A street circuit's sea, on the map (its layout's polygon, scaled and moved as the track was); none for a circuit in the country. */
+function seaOf(circuit: Circuit): Pt[] | undefined {
+  const { layout, offset } = circuit;
+  return layout.street?.sea.map((p) => ({ x: p.x * layout.scale - offset.x, y: p.y * layout.scale - offset.y }));
+}
+
+/** The street circuits' colours: the pavement, the town's paving, the sea. */
+const STREET = { pavement: '#9b9ba3', joint: '#8a8a93', town: '#c8b48f', townDot: '#b9a47e', sea: '#2a6ca6', wave: '#4b8ccc' };
+
 function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
   const r = rng(11);
+  const street = !!circuit.layout.street;
+  const sea = seaOf(circuit);
   // run-off and surroundings, tile by tile
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
       const cell = cells[j * W + i];
       const px = i * T;
       const py = j * T;
+      if (street) {
+        // a street circuit: pavement up to the barriers; beyond them the town's paving, or the sea
+        const wet = cell === 'wall' && sea && inside(sea, px + T / 2, py + T / 2);
+        x.fillStyle = cell === 'wall' ? (wet ? STREET.sea : STREET.town) : STREET.pavement;
+        x.fillRect(px, py, T, T);
+        if (cell !== 'wall') {
+          x.fillStyle = STREET.joint;
+          x.fillRect(px, py, T, 1);
+          x.fillRect(px, py, 1, T);
+        } else {
+          for (let k = 0; k < (wet ? 2 : 4); k++) {
+            x.fillStyle = wet ? STREET.wave : STREET.townDot;
+            x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wet ? 3 : 1, 1);
+          }
+        }
+        continue;
+      }
       if (cell === 'gravel') {
         x.fillStyle = '#d8c49a';
         x.fillRect(px, py, T, T);
@@ -142,6 +181,21 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       x.stroke();
     }
   }
+  // a street circuit's tunnel: darker under the roof, with a row of lamps along each side
+  const tunnel = circuit.layout.street?.tunnel;
+  if (tunnel) {
+    const [from, to] = tunnel.map((d) => Math.round(d / track.spacing));
+    const run = pts.slice(from, to + 1);
+    x.strokeStyle = '#2f3139';
+    x.lineWidth = HALF_WIDTH * 2 - 6;
+    path(run, false);
+    x.stroke();
+    x.fillStyle = '#f2d36b';
+    for (const side of [-1, 1]) {
+      const edge = offset(side * (HALF_WIDTH - 8));
+      for (let k = from; k <= to; k += 3) x.fillRect(Math.round(edge[k].x) - 1, Math.round(edge[k].y) - 1, 3, 3);
+    }
+  }
   // chequered start/finish line across the track at sample 0
   const s0 = pts[0];
   const rx = Math.cos(s0.dir);
@@ -214,6 +268,89 @@ function grandstand(len: number): THREE.Mesh {
   return m;
 }
 
+/**
+ * A street circuit's town: blocks of flats in warm colours with terracotta roofs a little way back from the
+ * barriers (kept low near the track, so they never hide it from the camera), yachts moored on the sea, and
+ * the tunnel's roof, see-through so the cars show under it.
+ */
+function addTown(scene: THREE.Scene, circuit: Circuit): void {
+  const { width: W, height: H, cells, grid, track, layout } = circuit;
+  const street = layout.street!;
+  const sea = seaOf(circuit) ?? [];
+  const r = rng(29);
+  const samples = track.samples;
+  /** px from (x, y) to the centreline */
+  const fromTrack = (x: number, y: number) => {
+    let best = Infinity;
+    for (let k = 0; k < samples.length; k += 2) best = Math.min(best, (samples[k].x - x) ** 2 + (samples[k].y - y) ** 2);
+    return Math.sqrt(best);
+  };
+  const keep = HALF_WIDTH + street.runoff + 40;
+  // the flats: a block every few tiles on the town's paving, clear of the track
+  const blocks: { x: number; y: number; w: number; d: number; h: number; c: string }[] = [];
+  const facades = ['#e8c9a0', '#f0d8b8', '#e9b9a0', '#d9a07a', '#f4e3c3', '#e4cfa8', '#f2c9b4'];
+  for (let j = 1; j < H - 1; j += 4) {
+    for (let i = 1; i < W - 1; i += 4) {
+      const x = (i + 2) * T;
+      const y = (j + 2) * T;
+      if (cells[j * W + i] !== 'wall' || inside(sea, x, y)) continue;
+      const d = fromTrack(x, y);
+      if (d < keep || r() < 0.25) continue;
+      // (low near the track, taller further back)
+      const h = Math.min(14 + (d - keep) * 0.25, 46) * (0.6 + r() * 0.4);
+      blocks.push({ x, y, w: 44 + r() * 12, d: 44 + r() * 12, h, c: facades[Math.floor(r() * facades.length)] });
+    }
+  }
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const bodies = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), blocks.length);
+  const roofs = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color: 0xb5583c }), blocks.length);
+  const m = new THREE.Matrix4();
+  blocks.forEach((b, k) => {
+    const g = groundAt(grid, b.x, b.y).h;
+    m.makeScale(b.w, b.h, b.d).setPosition(b.x, g + b.h / 2, b.y);
+    bodies.setMatrixAt(k, m);
+    bodies.setColorAt(k, new THREE.Color(b.c));
+    m.makeScale(b.w + 4, 3, b.d + 4).setPosition(b.x, g + b.h + 1.5, b.y);
+    roofs.setMatrixAt(k, m);
+  });
+  bodies.castShadow = bodies.receiveShadow = roofs.castShadow = true;
+  scene.add(bodies, roofs);
+
+  // yachts on the sea, clear of the quay
+  const hull = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
+  const cabin = new THREE.MeshLambertMaterial({ color: 0xc9ccd4 });
+  let boats = 0;
+  for (let tries = 0; tries < 400 && boats < 16; tries++) {
+    const x = r() * W * T;
+    const y = r() * H * T;
+    if (!inside(sea, x, y) || fromTrack(x, y) < keep + 30) continue;
+    const yacht = new THREE.Group();
+    const length = 34 + r() * 22;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(length, 6, length * 0.32), hull);
+    body.position.y = 3;
+    const top = new THREE.Mesh(new THREE.BoxGeometry(length * 0.45, 6, length * 0.22), cabin);
+    top.position.set(-length * 0.08, 9, 0);
+    for (const part of [body, top]) part.castShadow = true;
+    yacht.add(body, top);
+    yacht.position.set(x, groundAt(grid, x, y).h, y);
+    yacht.rotation.y = Math.floor(r() * 4) * (Math.PI / 2) + 0.3;
+    scene.add(yacht);
+    boats++;
+  }
+
+  // the tunnel's roof: concrete slabs over the track, see-through so the cars show under it
+  const [from, to] = street.tunnel.map((d) => Math.round(d / track.spacing));
+  const slab = new THREE.MeshLambertMaterial({ color: 0x9a948a, transparent: true, opacity: 0.32, depthWrite: false });
+  const span = (HALF_WIDTH + street.runoff) * 2 + 24;
+  for (let k = from; k < to; k += 4) {
+    const p = samples[k];
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(span, 4, track.spacing * 4), slab);
+    roof.position.set(p.x, groundAt(grid, p.x, p.y).h + 34, p.y);
+    roof.rotation.y = -p.dir;
+    scene.add(roof);
+  }
+}
+
 /** The circuit in `weather`: its sky and light, and the ground darker when it's wet. */
 export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): CircuitScene {
   const scene = new THREE.Scene();
@@ -229,7 +366,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: pixelTexture(paint(circuit)), color: weather.groundTint }));
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(0x4b9444).multiply(new THREE.Color(weather.groundTint)) }));
+  const street = circuit.layout.street;
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(street ? STREET.town : 0x4b9444).multiply(new THREE.Color(weather.groundTint)) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
   scene.add(ground, outer);
@@ -255,15 +393,17 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       if (near && !byPits) walls.push([i, j]);
     }
   }
-  const tyres = new THREE.InstancedMesh(new THREE.CylinderGeometry(7, 7, 7, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }), walls.length);
+  // (a street circuit: steel barriers, grey with red and white bands, in place of tyre stacks)
+  const tyres = new THREE.InstancedMesh(street ? new THREE.BoxGeometry(T, 9, T) : new THREE.CylinderGeometry(7, 7, 7, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }), walls.length);
   const m = new THREE.Matrix4();
   const red = new THREE.Color('#d8323c');
   const white = new THREE.Color('#f4f4f8');
+  const steel = new THREE.Color('#b8bcc6');
   walls.forEach(([i, j], k) => {
     const h = groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h;
-    m.makeTranslation((i + 0.5) * T, h + 3.5, (j + 0.5) * T);
+    m.makeTranslation((i + 0.5) * T, h + (street ? 4.5 : 3.5), (j + 0.5) * T);
     tyres.setMatrixAt(k, m);
-    tyres.setColorAt(k, (i + j) % 2 === 0 ? red : white);
+    tyres.setColorAt(k, street ? ((i + j) % 6 === 0 ? red : (i + j) % 6 === 3 ? white : steel) : (i + j) % 2 === 0 ? red : white);
   });
   tyres.castShadow = tyres.receiveShadow = true;
   scene.add(tyres);
@@ -294,18 +434,21 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     scene.add(garage);
   }
 
-  // grandstands along the outside of the main straight (behind the start line)
+  // grandstands along the main straight (behind the start line), across it from the pits
   const n = track.samples.length;
+  const standSide = -pit.side;
   for (let k = 0; k < 3; k++) {
     const p = track.samples[(n - 20 - k * 16) % n];
-    const out = 44 + 72 + 40;
+    const out = (HALF_WIDTH + (street ? street.runoff : 72) + 40) * standSide;
     const gx = p.x + Math.cos(p.dir) * out;
     const gy = p.y + Math.sin(p.dir) * out;
     const stand = grandstand(110);
     stand.position.set(gx, groundAt(grid, gx, gy).h + 11, gy);
-    stand.rotation.y = -p.dir;
+    // (the crowd's face toward the track)
+    stand.rotation.y = -p.dir + (standSide < 0 ? Math.PI : 0);
     scene.add(stand);
   }
+  if (street) addTown(scene, circuit);
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);

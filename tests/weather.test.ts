@@ -39,7 +39,7 @@ describe('weather and tyres', () => {
   });
 
   it.each(LAYOUTS.flatMap((layout) => (['damp', 'wet'] as const).map((weather) => ({ layout, weather, name: `${layout.name}, ${weather}` }))))(
-    'runs a clean 5-lap race at $name: everyone on the right tyres, one stop each, all finish',
+    'runs a clean 5-lap race at $name: everyone on the right tyres, one stop each (at most one, on a circuit easy on tyres), all finish',
     ({ layout, weather }) => {
       const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
       const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
@@ -48,7 +48,8 @@ describe('weather and tyres', () => {
       const events: RaceEvent[] = [];
       for (let t = 0; t < 500 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) events.push(...stepRace(race, 1 / 60).race);
       expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'safety-car')).toEqual([]);
-      expect(race.entrants.every((e) => e.progress.finished !== undefined && e.stops === 1 && e.tyres.compound === tyreFor(weather))).toBe(true);
+      const stops = (layout.tyreWear ?? 1) < 1 ? (n: number) => n <= 1 : (n: number) => n === 1;
+      expect(race.entrants.every((e) => e.progress.finished !== undefined && stops(e.stops) && e.tyres.compound === tyreFor(weather))).toBe(true);
     },
     60_000,
   );

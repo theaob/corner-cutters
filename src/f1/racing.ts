@@ -53,6 +53,8 @@ export interface Track {
   spacing: number;
   /** px round the loop */
   length: number;
+  /** how hard the circuit is on tyres (1 unless given): a slow street circuit wears them less */
+  tyreWear?: number;
 }
 
 /** A closed Catmull-Rom spline through `points`, resampled every `spacing` px. The first point is the start line. */
@@ -315,8 +317,10 @@ const TOW_ROOM = 120;
 
 /** The AI's racecraft: how it passes and defends (px across the track, + = right of the centreline). */
 export const RACECRAFT = {
-  /** furthest off the centreline it drives (the track is 44 either side) */
+  /** furthest off the centreline it drives (the track is 44 either side), and on the inside of a tight bend (|curvature| above `tightBend`: the kerbed ones) */
   laneLimit: 28,
+  insideLimit: 14,
+  tightBend: 1 / 260,
   /** px across a pass takes it from the car it's passing */
   passGap: 23,
   /** px of straight a pass needs ahead to be finished before the braking, on top of seconds at the car's speed */
@@ -504,6 +508,10 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   // running wide (or gathering up a lock-up): out toward the edge on the outside of the bend
   if ((ai.slip === 'wide' && (gathering || ai.slipApex === undefined)) || (ai.slip === 'late' && gathering)) lane -= Math.sign(nextBend(track, idx, 60 + v * 0.8) || here.curve || ai.slipMin || 1) * R.wide;
   lane = Math.max(-R.laneLimit, Math.min(R.laneLimit, lane));
+  // in or into a tight bend, not far over on its inside: the line it aims along cuts across the inside, and all four
+  // wheels past the kerb is a cut (on the streets, a wall)
+  const bendAhead = nextBend(track, idx, 60 + v * 0.8);
+  if (Math.abs(bendAhead) > R.tightBend && lane * bendAhead > 0) lane = Math.sign(lane) * Math.min(Math.abs(lane), R.insideLimit);
   // moved off its usual line for a bend (passing, defending, giving room): its radius there sets the speed, tighter
   // on the inside (every car cuts the bends a little the same way; this is only for being moved over from that)
   if (!straight) free *= Math.min(1, Math.sqrt(Math.max(0.5, 1 - (lane - ai.lane) * nextBend(track, idx, 60 + v * 0.8))));
