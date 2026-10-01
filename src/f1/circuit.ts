@@ -13,6 +13,8 @@ export const HALF_WIDTH = 44;
 export const RUNOFF = 72;
 /** |curvature| (1/px) from which a bend is tight: kerbed, with gravel on the outside, and a marked corner for track limits */
 export const TIGHT = 1 / 260;
+/** px over which a banked bend's tilt eases in and out */
+export const BANK_EASE = 240;
 
 /** Height (px) at a share of the lap, eased between the profile's points. */
 function elevationAt(profile: [number, number][], share: number): number {
@@ -27,7 +29,8 @@ function elevationAt(profile: [number, number][], share: number): number {
   return profile[0][1];
 }
 
-export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'wall' | 'pit' | 'pitwall';
+/** ('apron': a banked bend's concrete run-off, smooth like the track) */
+export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'apron' | 'wall' | 'pit' | 'pitwall';
 
 /** px from the lane's centre that its tiles reach: on the track's side (up to the pit wall), and away from it */
 export const LANE_IN = 30;
@@ -45,6 +48,8 @@ export interface Circuit {
   pit: PitLane;
   /** starting grid slots (px), pole first, all behind the line facing the way of the race */
   slots: { x: number; y: number; heading: number }[];
+  /** how steeply the ground tilts across the track at each sample (rise per px to the right, from the inside edge up; 0 off a banked bend) */
+  bank: Float32Array;
   /** px the layout was moved by to put the map at (0, 0): a point of the layout (scaled) is here at its own minus this */
   offset: { x: number; y: number };
 }
@@ -114,6 +119,24 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   };
   /** px from the track's edge to the walls: the run-off, or a street circuit's pavement */
   const runoff = layout.street?.runoff ?? RUNOFF;
+  // a banked bend: how steeply the ground tilts across the track at each sample (easing in and out over
+  // BANK_EASE px at its ends), up toward the outside of the bend
+  const bank = new Float32Array(n);
+  if (layout.banking) {
+    const { from, to, grade } = layout.banking;
+    const span = (((to - from) % track.length) + track.length) % track.length;
+    let turn = 0;
+    track.samples.forEach((p, i) => {
+      const along = (((p.s - from) % track.length) + track.length) % track.length;
+      if (along > span) return;
+      const ease = Math.min(1, along / BANK_EASE, (span - along) / BANK_EASE);
+      bank[i] = grade * ease * ease * (3 - 2 * ease);
+      turn += p.curve;
+    });
+    // (a right-hander's outside is on the left)
+    const outside = turn > 0 ? -1 : 1;
+    for (let i = 0; i < n; i++) bank[i] *= outside;
+  }
   const cells: CircuitCell[] = [];
   for (let ty = 0; ty < H; ty++) {
     for (let tx = 0; tx < W; tx++) {
@@ -144,6 +167,11 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         continue;
       }
       const tight = Math.abs(p.curve) > TIGHT;
+      // (a banked bend: concrete from the track's edge to the walls)
+      if (Math.abs(bank[i]) > 0.02 && d > HALF_WIDTH + 4) {
+        cells.push('apron');
+        continue;
+      }
       // (a street circuit: pavement up to the walls, no gravel)
       if (layout.street && d > HALF_WIDTH + 4) {
         cells.push('grass');
@@ -160,7 +188,16 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     }
   }
 
-  // heights at tile corners: blended from the centreline's elevation nearby
+  /** px the ground at (x, y) is raised by sample i's banking: flat up to the inside edge of the track, rising from there in proportion to how far across it is, out to the walls */
+  const banked = (i: number, x: number, y: number) => {
+    if (!bank[i]) return 0;
+    const p = track.samples[i];
+    const across = (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
+    const out = across * Math.sign(bank[i]);
+    return Math.abs(bank[i]) * Math.max(0, Math.min(HALF_WIDTH + runoff, out) + HALF_WIDTH);
+  };
+
+  // heights at tile corners: blended from the centreline's elevation (and banking) nearby
   const heights: number[] = [];
   for (let cy = 0; cy <= H; cy++) {
     for (let cx = 0; cx <= W; cx++) {
@@ -173,7 +210,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
         if (d2 > 200 * 200) continue;
         const w = 1 / (d2 + 400);
-        sum += w * elevationAt(layout.elevation, i / n);
+        sum += w * (elevationAt(layout.elevation, i / n) + banked(i, x, y));
         wsum += w;
       }
       heights.push(wsum ? sum / wsum : 0);
@@ -197,5 +234,5 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });
 
-  return { layout, width: W, height: H, cells, grid, track, pit, slots, offset: { x: ox, y: oy } };
+  return { layout, width: W, height: H, cells, grid, track, pit, slots, bank, offset: { x: ox, y: oy } };
 }

@@ -27,7 +27,7 @@ import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame,
 import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
-import { createCeremony } from './podium3d';
+import { createCeremony, podiumSpot } from './podium3d';
 import { PIT, between, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
@@ -317,20 +317,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     chequered.group.visible = false;
     world.scene.add(chequered.group);
   }
-  // the champagne ceremony: a podium on the run-off across the straight from the top three's spots
-  const ceremony = createCeremony();
-  {
-    const at = track.samples[circuit.pit.podium[1].idx];
-    const lat = -circuit.pit.side * (HALF_WIDTH + 34);
-    const cx = at.x + Math.cos(at.dir) * lat;
-    const cy = at.y + Math.sin(at.dir) * lat;
-    const h = groundAt(grid, cx, cy).h;
-    ceremony.group.position.set(cx, h, cy);
-    // (facing the camera, which always looks from the south: the backboard behind the drivers)
-    ceremony.group.rotation.y = 0;
-    ceremony.group.visible = false;
-    world.scene.add(ceremony.group);
-  }
+  // the champagne ceremony: a podium on the run-off across the straight from the top three's spots, or up on the deck over it
+  const spot = podiumSpot(circuit);
+  const ceremony = createCeremony(spot.raise);
+  ceremony.group.position.set(spot.x, spot.h, spot.y);
+  // (facing the camera, which always looks from the south: the backboard behind the drivers)
+  ceremony.group.rotation.y = 0;
+  ceremony.group.visible = false;
+  world.scene.add(ceremony.group);
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
