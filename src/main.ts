@@ -13,6 +13,7 @@ import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
+import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
 import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, teamOf } from './f1/championship';
@@ -140,7 +141,8 @@ async function route(): Promise<void> {
   controls.clearAll();
   releaseDeck(deck);
   const params = new URLSearchParams(window.location.search);
-  const layout = layoutById(params.get('circuit'));
+  // (a circuit straight from the track designer: ?circuit=designer-draft)
+  const layout = params.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params.get('circuit'));
   const mode = asMode(params.get('mode'));
   // a new player: the controls lap first, on the first circuit
   if (!layout && mode !== 'championship' && needsControlsLap()) {
@@ -217,7 +219,9 @@ async function showSeason(id: number): Promise<void> {
 }
 
 async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial'): Promise<void> {
+  // (a draft from the designer: a quick race or a time trial, never a Championship round)
   // a Championship round: the season's next round (any other circuit: back to its screen)
+  if (layout.id === DESIGNER_DRAFT_ID && mode === 'championship') mode = 'race';
   const season = mode === 'championship' ? loadSeason() : undefined;
   if (mode === 'championship' && (!season || seasonOver(season) || season.rounds[season.round] !== layout.id)) {
     history.replaceState(null, '', withCircuit(null, 'championship'));
@@ -231,6 +235,11 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
   const toSeason = () => navigate(withCircuit(null, 'championship'));
   const quit = season
     ? toSeason
+    : layout.id === DESIGNER_DRAFT_ID
+      ? () => {
+          // (a draft from the track designer: back to it)
+          window.location.href = './designer.html';
+        }
     : mode === 'tutorial'
       ? () => {
           // (done or skipped: either way, not shown on its own again)
