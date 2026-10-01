@@ -1,5 +1,6 @@
 // The menu shown before a race. First the modes: QUICK RACE, CHAMPIONSHIP, TIME
-// ATTACK and TIME TRIAL, a big button each, and SETTINGS. A Championship goes
+// ATTACK and TIME TRIAL, a big button each, SETTINGS, and TROPHIES (the
+// cabinet: the Championships you've won, and your medals on each circuit). A Championship goes
 // straight to its own screen (a season races every circuit); the others go on
 // to the circuit: one card at a time (its outline, name, a line about it and
 // your record there, dots for where it is in the list), a compact row for each
@@ -26,6 +27,7 @@ import { DRY, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { distance } from './timeAttack';
 import { setShake, shakeOn } from './shake';
+import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -260,8 +262,8 @@ export function chooseCircuit(
    * rows, then the race button, then BACK; in the settings, a row, then CONTROLS LAP, then DONE
    */
   let focus = MODES.indexOf(current);
-  /** the modes, a mode's circuit screen, or the settings */
-  let view: 'modes' | 'circuit' | 'settings' = 'modes';
+  /** the modes, a mode's circuit screen, the settings, or the trophy cabinet */
+  let view: 'modes' | 'circuit' | 'settings' | 'trophies' = 'modes';
   let finish: (l: CircuitLayout, controlsLap?: boolean) => void = () => {};
 
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
@@ -310,6 +312,68 @@ export function chooseCircuit(
     show();
   };
   const settingsButton = menuButton('SETTINGS', openSettings);
+  // the trophy cabinet: the Championships won, then each circuit's medals in a Time Trial and a Time Attack
+  const trophies = loadTrophies();
+  const cabinetTitle = document.createElement('h2');
+  cabinetTitle.textContent = 'TROPHIES';
+  const cabinet = document.createElement('div');
+  cabinet.className = 'cabinet';
+  const medalCell = (m?: Medal) => {
+    const cell = document.createElement('span');
+    cell.className = 'medal';
+    if (m) {
+      cell.textContent = `● ${MEDAL_NAME[m]}`;
+      cell.style.color = MEDAL_COLOR[m];
+    } else cell.textContent = '–';
+    return cell;
+  };
+  {
+    const titles = document.createElement('div');
+    titles.className = 'titles';
+    titles.textContent = trophies.titles ? `★ ${trophies.titles} CHAMPIONSHIP${trophies.titles === 1 ? '' : 'S'} WON` : 'NO CHAMPIONSHIPS WON YET';
+    const head = document.createElement('div');
+    head.className = 'cabinet-row head';
+    for (const t of ['CIRCUIT', 'TIME TRIAL', 'TIME ATTACK']) {
+      const c = document.createElement('span');
+      c.textContent = t;
+      head.append(c);
+    }
+    const all = layouts.flatMap((l) => [trophies.medals[l.id]?.trial, trophies.medals[l.id]?.attack]);
+    const count = (m: Medal) => all.filter((x) => x === m).length;
+    const tally = document.createElement('div');
+    tally.className = 'tally';
+    for (const m of ['gold', 'silver', 'bronze'] as const) {
+      const c = document.createElement('span');
+      c.textContent = `● ${count(m)}`;
+      c.style.color = MEDAL_COLOR[m];
+      tally.append(c);
+    }
+    cabinet.append(titles, tally, head, ...layouts.map((l) => {
+      const row = document.createElement('div');
+      row.className = 'cabinet-row';
+      const name = document.createElement('span');
+      name.textContent = l.name.toUpperCase();
+      row.classList.toggle('locked', !open.has(l.id));
+      row.append(name, medalCell(trophies.medals[l.id]?.trial), medalCell(trophies.medals[l.id]?.attack));
+      return row;
+    }));
+    const how = document.createElement('p');
+    how.textContent = 'A LAP OR A RUN AS QUICK AS THE QUICKEST AI ON EASY: BRONZE · NORMAL: SILVER · HARD: GOLD';
+    cabinet.append(how);
+  }
+  const openCabinet = () => {
+    menuPick();
+    view = 'trophies';
+    show();
+  };
+  const closeCabinet = () => {
+    menuPick();
+    view = 'modes';
+    focus = MODES.length + 1;
+    show();
+  };
+  const trophiesButton = menuButton('TROPHIES', openCabinet);
+  const cabinetDone = menuButton('DONE', closeCabinet);
   const doneButton = menuButton('DONE', closeSettings);
   // the controls lap again (a new player gets it on first launch)
   const controlsButton = menuButton('CONTROLS LAP', () => finish(layouts[0], true));
@@ -344,6 +408,15 @@ export function chooseCircuit(
       record.className = 'record';
       record.textContent = best;
       text.append(record);
+    }
+    // your medal here, in a Time Trial or a Time Attack
+    const medal = current.id === 'timetrial' ? trophies.medals[layout.id]?.trial : current.id === 'timeattack' ? trophies.medals[layout.id]?.attack : undefined;
+    if (medal) {
+      const m = document.createElement('span');
+      m.className = 'record';
+      m.textContent = `● ${MEDAL_NAME[medal]} MEDAL`;
+      m.style.color = MEDAL_COLOR[medal];
+      text.append(m);
     }
     card.append(prev, outline(layout, 64), text, next);
     dots.innerHTML = '';
@@ -433,16 +506,20 @@ export function chooseCircuit(
   /** the circuit screen's places for up/down: the circuit, the rows, the race button, BACK */
   const raceAt = () => 1 + rows.length;
   const backAt = () => raceAt() + 1;
-  const modesParts: HTMLElement[] = [...modeButtons, settingsButton, ...(tab ? [tab] : [])];
+  const modesParts: HTMLElement[] = [...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
+  const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, options, raceButton, backButton];
   const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), controlsButton, doneButton];
   const show = () => {
-    hint.style.display = view === 'settings' ? 'none' : '';
+    hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
+    for (const el of cabinetParts) el.style.display = view === 'trophies' ? '' : 'none';
     for (const el of modesParts) el.style.display = view === 'modes' ? '' : 'none';
     for (const el of circuitParts) el.style.display = view === 'circuit' ? '' : 'none';
     for (const el of settingsParts) el.style.display = view === 'settings' ? '' : 'none';
     modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === k));
     settingsButton.classList.toggle('focused', view === 'modes' && focus === MODES.length);
+    trophiesButton.classList.toggle('focused', view === 'modes' && focus === MODES.length + 1);
+    cabinetDone.classList.toggle('focused', view === 'trophies');
     card.classList.toggle('focused', view === 'circuit' && focus === 0);
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
     raceButton.classList.toggle('focused', view === 'circuit' && focus === raceAt());
@@ -465,7 +542,7 @@ export function chooseCircuit(
   renderCard();
   renderRace();
   options.append(...rows.map((r) => r.el));
-  menu.append(...modeButtons, settingsButton, card, dots, options, raceButton, backButton, ...settingsParts);
+  menu.append(...modeButtons, settingsButton, trophiesButton, card, dots, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
@@ -517,14 +594,18 @@ export function chooseCircuit(
         if (row && (left || right)) row.step(right ? 1 : -1);
         if ((a || start) && focus === settingsRows.length) finish(layouts[0], true);
         else if (a || start) closeSettings();
+      } else if (view === 'trophies') {
+        // the cabinet: A, START or B goes back
+        if (a || start || b) closeCabinet();
       } else if (view === 'modes') {
-        // the modes: up/down moves, A or START picks (or opens SETTINGS)
-        const places = MODES.length + 1;
+        // the modes: up/down moves, A or START picks (or opens SETTINGS or TROPHIES)
+        const places = MODES.length + 2;
         if (move) {
           focus = (focus + move + places) % places;
           show();
         }
         if ((a || start) && focus === MODES.length) openSettings();
+        else if ((a || start) && focus === MODES.length + 1) openCabinet();
         else if (a || start) pickMode(MODES[focus]);
       } else {
         const places = backAt() + 1;

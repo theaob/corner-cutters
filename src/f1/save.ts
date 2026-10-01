@@ -6,6 +6,7 @@
 //   championship  season: the Championship season in progress (or just over) (championship.ts)
 //   progress  unlocked: the circuits a Championship has unlocked (unlocks.ts); onboarded: the controls lap done or skipped
 //   records   circuits: best race lap, best qualifying lap and best race times per circuit (records.ts)
+//   trophies  medals: your best Time Trial and Time Attack medal on each circuit; titles: Championships won (medals.ts)
 //   circuits  each circuit's hash when last played: records and ghosts on one changed since are forgotten (circuitHash.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //

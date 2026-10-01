@@ -156,6 +156,54 @@
         color: var(--gold);
         text-align: center;
       }
+      /* the trophy cabinet: the titles won, the medal tally, each circuit's medals */
+      .circuit-menu .cabinet {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        font: 11px var(--pixel);
+      }
+      .circuit-menu .cabinet .titles {
+        text-align: center;
+        color: var(--gold);
+        font-size: 13px;
+      }
+      .circuit-menu .cabinet .tally {
+        display: flex;
+        justify-content: center;
+        gap: 18px;
+        margin-bottom: 6px;
+      }
+      .circuit-menu .cabinet .tally span {
+        font-size: 13px;
+      }
+      .circuit-menu .cabinet-row {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr;
+        gap: 6px;
+        align-items: center;
+        padding: 3px 0;
+        border-top: 1px solid var(--key-edge);
+      }
+      .circuit-menu .cabinet-row span {
+        color: var(--text);
+      }
+      .circuit-menu .cabinet-row.head span {
+        color: var(--muted);
+        font-size: 9px;
+      }
+      .circuit-menu .cabinet-row.locked span:first-child {
+        color: var(--muted);
+      }
+      .circuit-menu .cabinet p {
+        margin: 6px 0 0;
+        font-size: 9px;
+        text-align: center;
+      }
       /* the option rows under the circuits (team, controls) */
       .circuit-menu .own-tab {
         align-self: center;
