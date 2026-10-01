@@ -2,7 +2,7 @@
 // white edge lines and red-and-white kerbs, yellow track-limit strips inside
 // the marked corners, the start line and grid boxes, all
 // draped over the circuit's heights; tyre walls round the outside and
-// grandstands along the main straight; the pit lane beside it, with its
+// grandstands along the main straight and round the bends; the pit lane beside it, with its
 // wall, box markings and garages.
 
 import * as THREE from 'three';
@@ -16,6 +16,10 @@ import { HALF_WIDTH, LANE_IN, LANE_OUT, TIGHT, TILE as T, type Circuit } from '.
 import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
+import { standsOf } from './stands';
+
+/** The flags on the grandstands: the teams' colours and white. */
+const FLAG_COLORS = [0xd8323c, 0xf2c14e, 0x3d7fc4, 0xf4f4f8, 0x5fe0d0, 0xff5fb8, 0x3d9a5a];
 
 export interface CircuitScene extends Daylight {
   scene: THREE.Scene;
@@ -231,7 +235,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   return c;
 }
 
-function grandstand(len: number): THREE.Mesh {
+function grandstand(len: number, roofColor = 0x3d7fc4): THREE.Mesh {
   const [c, x] = canvas(len, 20);
   x.fillStyle = '#6c707a';
   x.fillRect(0, 0, len, 20);
@@ -247,7 +251,7 @@ function grandstand(len: number): THREE.Mesh {
   }
   const crowd = new THREE.MeshLambertMaterial({ map: pixelTexture(c) });
   const grey = new THREE.MeshLambertMaterial({ color: 0x8e929c });
-  const roof = new THREE.MeshLambertMaterial({ color: 0x3d7fc4 });
+  const roof = new THREE.MeshLambertMaterial({ color: roofColor });
   // a stepped stand is suggested by a tall box with the crowd painted on the face toward the track (−x)
   const m = new THREE.Mesh(new THREE.BoxGeometry(18, 22, len), [grey, crowd, roof, grey, grey, grey]);
   m.castShadow = m.receiveShadow = true;
@@ -337,20 +341,27 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     scene.add(garage);
   }
 
-  // grandstands along the main straight (behind the start line), across it from the pits
-  const n = track.samples.length;
-  const standSide = -pit.side;
-  for (let k = 0; k < 3; k++) {
-    const p = track.samples[(n - 20 - k * 16) % n];
-    const out = (HALF_WIDTH + (street ? street.runoff : 72) + 40) * standSide;
-    const gx = p.x + Math.cos(p.dir) * out;
-    const gy = p.y + Math.sin(p.dir) * out;
-    const stand = grandstand(110);
-    stand.position.set(gx, groundAt(grid, gx, gy).h + 11, gy);
+  // grandstands: along the main straight (behind the start line, across it from the pits), and on a circuit in
+  // the country round the outside of the bends; each with its own roof colour and flags on top, waving
+  const roofs = [0x3d7fc4, 0xd8323c, 0xf2c14e, 0x3d9a5a, 0x8a3cc8, 0xf4f4f8];
+  const flags: { flag: THREE.Mesh; phase: number }[] = [];
+  standsOf(circuit).forEach((s, k) => {
+    const stand = grandstand(s.len, s.at === 'start' ? 0x3d7fc4 : roofs[k % roofs.length]);
+    stand.position.set(s.x, groundAt(grid, s.x, s.y).h + 11, s.y);
     // (the crowd's face toward the track)
-    stand.rotation.y = -p.dir + (standSide < 0 ? Math.PI : 0);
+    stand.rotation.y = -s.dir + (s.side < 0 ? Math.PI : 0);
     scene.add(stand);
-  }
+    // flags on poles along its back, in the teams' colours
+    for (const along of [-0.35, 0, 0.35]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 10, 4), new THREE.MeshLambertMaterial({ color: 0xc9ccd4 }));
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(8, 5).translate(4, 0, 0), new THREE.MeshLambertMaterial({ color: FLAG_COLORS[(k * 3 + Math.round(along * 3) + 1) % FLAG_COLORS.length], side: THREE.DoubleSide }));
+      // (in the stand's own space: its back is +x, away from the track; its length runs along z)
+      pole.position.set(7, 16, along * s.len);
+      flag.position.set(7, 18.5, along * s.len);
+      stand.add(pole, flag);
+      flags.push({ flag, phase: k * 1.7 + along * 5 });
+    }
+  });
   const town = street ? buildTown(scene, circuit) : undefined;
 
   const minimap = (mw: number, mh: number) => {
@@ -383,5 +394,14 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     return { canvas: mc, toMap };
   };
 
-  return { scene, ...light, minimap, animate: (t) => town?.animate(t) };
+  return {
+    scene,
+    ...light,
+    minimap,
+    animate: (t) => {
+      town?.animate(t);
+      // the flags flap in the wind
+      for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
+    },
+  };
 }
