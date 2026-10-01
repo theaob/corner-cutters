@@ -19,7 +19,8 @@ import { curtainDown, curtainUp } from './f1/screens/curtain';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
-import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, teamOf } from './f1/championship';
+import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, standings, teamOf } from './f1/championship';
+import { awardTitle } from './f1/medals';
 import { newSeed } from './engine/rng';
 import { openCircuits, savedUnlocks, unlockCircuit } from './f1/unlocks';
 import { loadRecords } from './f1/records';
@@ -287,6 +288,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
           onDone: (finish, out) => {
             recordRound(season, finish, out);
             saveSeason(season);
+            // the season won: into the trophy cabinet
+            if (seasonOver(season) && standings(season)[0]?.driver === season.you) awardTitle();
             // reaching the next round's circuit unlocks it for a Quick Race and a Time Trial
             const next = season.rounds[season.round];
             if (next && !openNow().has(next)) {

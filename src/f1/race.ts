@@ -55,6 +55,7 @@ import { musicPlaying, playMusic } from '../engine/music';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import { overtakeOf, towerGap, towerRows } from './tower';
+import { type Medal, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
 import { F1_TUNING } from './tuning';
@@ -178,6 +179,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   towLine.style.color = '#5fe0d0';
   // Time Trial: the live gap to your record lap's ghost, green ahead of it, red behind
   const ghostLine = document.createElement('span');
+  // Time Trial and Time Attack: the next medal here and what it asks for (or the gold, held)
+  const medalLine = document.createElement('span');
   // track limits: your strikes, amber while they're warnings, red once they cost you
   const limitsLine = document.createElement('span');
   // the speed, frame rate and picture quality, small and dim under the rest
@@ -458,6 +461,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return row;
     }));
   };
+  /** Show the next medal here and what it asks for (on starting a Time Trial or a Time Attack, and on winning one). */
+  const showMedal = () => {
+    const kind = session === 'timetrial' ? 'trial' : session === 'timeattack' ? 'attack' : undefined;
+    if (!kind || reference === undefined) {
+      medalLine.textContent = '';
+      return;
+    }
+    const next = nextMedal(loadTrophies().medals[layout.id]?.[kind]);
+    const target = !next ? undefined : kind === 'trial' ? fmt(lapTargets(reference)[next]) : attack ? distance(attackTargets(attack.a.generous)[next]) : undefined;
+    medalLine.textContent = !next ? '● GOLD\n' : target ? `${MEDAL_NAME[next]} ${target}\n` : '';
+    medalLine.style.color = MEDAL_COLOR[next ?? 'gold'];
+  };
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
   const records = loadRecords();
   // (kept apart for each weather: a wet lap is slower)
@@ -532,7 +547,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let learn: { o: Onboarding; bends: number; lastIdx: number } | undefined;
   let trial: { recorder: LapRecorder; lapStart?: number; sector: number; lap: QualiLap; best?: Ghost; record?: Ghost } | undefined;
   /** a Time Attack: the clock, and the best distance here when it started (checkpoints) */
-  let attack: { a: Attack; best?: number; result?: { passed: number; record: boolean } } | undefined;
+  let attack: { a: Attack; best?: number; result?: { passed: number; record: boolean; medal?: Medal; newMedal: boolean } } | undefined;
 
   /** The champagne ceremony: the race finished at once (the rest at their pace, everyone put where their in-lap ends), and
    * the top three on the podium, spraying champagne, till the results. */
@@ -584,6 +599,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const resetSession = () => {
     shake = newShake();
     launch = newLaunch();
+    medalLine.textContent = '';
     setPaused(false);
     resetClock(simClock);
     before = undefined;
@@ -681,6 +697,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     looks = [addLook(d.livery, d.seat, true)];
     race = newQualifying(track, grid, HANDLING, weather.id);
     trial = { recorder: newRecorder(), sector: 0, lap: newQualiLap(), record: loadGhost(recordId) };
+    // (the medals' laps are shares of it)
+    reference ??= referenceLap(track, grid, HANDLING, weather.id);
+    showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
     hud.setLabel('a', 'PAUSE');
     announce(trial.record ? `TIME TRIAL · BEAT ${fmt(trial.record.time)}` : 'TIME TRIAL', '#f2c14e', 3);
@@ -702,6 +721,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     reference ??= referenceLap(track, grid, HANDLING, weather.id);
     const best = rec()?.bestAttack;
     attack = { a: newAttack(reference, difficulty), best };
+    showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
     hud.setLabel('a', 'PAUSE');
     announce(best ? `TIME ATTACK · BEAT ${distance(best)}` : 'TIME ATTACK · THE CLOCK STARTS AT THE LINE', '#f2c14e', 3);
@@ -1057,6 +1077,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     } else if (!best || g.time < best.time) announce(`BEST LAP ${fmt(g.time)} · ${signed(g.time - record.time)}`, SPLIT_COLOR.better, 3);
     else announce(`LAP ${fmt(g.time)} · ${signed(g.time - best.time)}`, SPLIT_COLOR.worse, 3);
     if (!best || g.time < best.time) trial.best = g;
+    // a medal here, better than the one you had: said over the rest
+    const medal = reference === undefined ? undefined : lapMedal(g.time, reference);
+    if (medal && awardMedal(layout.id, 'trial', medal)) {
+      showMedal();
+      announce(`${MEDAL_NAME[medal]} MEDAL · ${fmt(g.time)}`, MEDAL_COLOR[medal], 3);
+      sounds.record();
+    }
   };
   /** A Time Trial step (`cut`: you cut a corner): the lap's verdict at the line, its splits, and its frames for a ghost. */
   const stepTrial = (cut: boolean) => {
@@ -1115,7 +1142,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const passed = attack.a.passed;
       const record = recordAttack(records, recordId, passed);
       if (record) saveRecords(records);
-      attack.result = { passed, record };
+      const medal = attackMedal(passed, attack.a.generous);
+      attack.result = { passed, record, medal, newMedal: awardMedal(layout.id, 'attack', medal) };
+      if (attack.result.newMedal) sounds.record();
+      showMedal();
       if (record) sounds.record();
       sounds.quiet();
       hud.setLabel('a', 'AGAIN');
@@ -1189,9 +1219,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     // paused (or qualifying's times up): nothing moves, and the last frame stays on the screen
     if (attack?.result) {
-      const { passed, record } = attack.result;
-      banner.textContent = `TIME UP · ${distance(passed)}${record ? ' · NEW RECORD' : attack.best ? ` · BEST ${distance(attack.best)}` : ''}`;
-      banner.style.color = record ? SPLIT_COLOR.record : '#f2c14e';
+      const { passed, record, medal, newMedal } = attack.result;
+      banner.textContent = `TIME UP · ${distance(passed)}${medal ? ` · ${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : ''}${record ? ' · NEW RECORD' : attack.best ? ` · BEST ${distance(attack.best)}` : ''}`;
+      banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record ? SPLIT_COLOR.record : '#f2c14e';
     }
     if (paused || quali?.over || attack?.result) {
       requestAnimationFrame(tick);
@@ -1677,7 +1707,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const ghostGap = ghostAt === undefined ? undefined : clock - p.lapStart! - ghostAt;
     ghostLine.textContent = ghostGap === undefined ? '' : `GAP  ${ghostGap < 0 ? '−' : '+'}${Math.abs(ghostGap).toFixed(2)}\n`;
     ghostLine.style.color = (ghostGap ?? 0) < 0 ? '#5fe0d0' : '#d8323c';
-    readout.append(ghostLine, towLine, tyreLine, limitsLine, statsLine);
+    readout.append(medalLine, ghostLine, towLine, tyreLine, limitsLine, statsLine);
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
