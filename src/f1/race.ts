@@ -48,11 +48,13 @@ import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
 import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
 import { RaceSounds, crowdNear } from './sounds';
+import { LAUNCH, kickOf, newLaunch, stepLaunch } from './launch';
 import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
 import { musicPlaying, playMusic } from '../engine/music';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
+import { overtakeOf, towerGap, towerRows } from './tower';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
 import { F1_TUNING } from './tuning';
@@ -239,6 +241,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     background: 'rgba(21,20,31,.6)', borderRadius: '6px',
   });
   const miniCtx = mini.getContext('2d')!;
+  // the timing tower under the minimap, as on TV: the top three, then the cars around you, each with its team's
+  // colour and its gap to the leader (in a race)
+  const tower = document.createElement('div');
+  style(tower, {
+    position: 'absolute', right: '6px', top: `${46 + MINI_H}px`, zIndex: '2', minWidth: `${Math.max(96, MINI_W)}px`,
+    background: 'rgba(21,20,31,.75)', borderRadius: '6px', padding: '2px 0', color: '#f4f2fa',
+    font: '10px Silkscreen, monospace', pointerEvents: 'none', display: 'none',
+  });
   // the pause screen: resume, restart or back to the circuits, by tap or with the deck (A, START, SELECT)
   const pauseScreen = document.createElement('div');
   style(pauseScreen, {
@@ -278,6 +288,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const streakList = Array.from({ length: 28 }, streakAt);
   /** the rush now (eased toward what the speed says) */
   let rushNow = 0;
+  /** wheel to wheel: a rival this close (px) pulls the camera back this much more, eased in and slowly out */
+  const BATTLE = { near: 50, pullBack: 0.08 };
+  let battleNow = 0;
   /** Draw the streaks for `rush` (0…1), flowing back from the way the car's going on the screen (`dx`, `dy`, a unit vector). */
   const drawStreaks = (dt: number, rush: number, dx: number, dy: number) => {
     const w = streaks.clientWidth;
@@ -350,12 +363,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       }
     }
   };
-  host.append(streaks, rain, readout, banner, radioPanel, results, mini, teamCard, pauseScreen, flagOverlay);
+  host.append(streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
   /** the HUD's own state: gap timing, your last position and its flash, and the race's fastest lap so far (set up by startRace) */
-  let hudState: { gaps: GapTimer; lastPos: number; flashUntil: number; lapsSeen: number[]; fastest?: { time: number; who: number } } = {
+  let hudState: { gaps: GapTimer; lastPos: number; lastOrder?: number[]; flashUntil: number; lapsSeen: number[]; fastest?: { time: number; who: number } } = {
     gaps: newGapTimer(0), lastPos: 0, flashUntil: 0, lapsSeen: [],
   };
   let looks: Look[] = [];
@@ -408,6 +421,43 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const b = race.entrants[you].car;
     return Math.hypot(a.x - b.x, a.y - b.y) < 360;
   };
+  /** Fill the timing tower (a race, from the lights to your flag). */
+  const drawTower = () => {
+    const show = session === 'race' && race.phase === 'racing' && !gridPan && !done && !podium;
+    tower.style.display = show ? 'block' : 'none';
+    if (!show) return;
+    const order = raceOrder(race);
+    const lead = order[0];
+    const n = track.samples.length;
+    const along = (i: number) => race.entrants[i].progress.lap * n + race.entrants[i].progress.idx;
+    tower.replaceChildren(...towerRows(order, you).map((i) => {
+      const row = document.createElement('div');
+      if (i === 'gap') {
+        row.textContent = '···';
+        style(row, { textAlign: 'center', color: '#6c6a88', lineHeight: '8px' });
+        return row;
+      }
+      const e = race.entrants[i];
+      const place = order.indexOf(i) + 1;
+      const gap = e.progress.retired ? 'OUT' : e.pit ? 'PIT' : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
+      style(row, {
+        display: 'grid', gridTemplateColumns: '16px 3px 28px 1fr', gap: '4px', alignItems: 'center', padding: '1px 6px 1px 4px',
+        background: i === you ? 'rgba(242,193,78,.18)' : '', color: i === you ? '#f2c14e' : e.progress.retired ? '#6c707a' : '#f4f2fa',
+      });
+      const bar = document.createElement('i');
+      style(bar, { height: '9px', background: looks[i].color, boxShadow: `inset 0 -2px ${looks[i].team.trim}` });
+      const cells = [String(place), bar, looks[i].name, gap].map((c) => {
+        if (typeof c !== 'string') return c;
+        const span = document.createElement('span');
+        span.textContent = c;
+        return span;
+      });
+      (cells[3] as HTMLElement).style.textAlign = 'right';
+      (cells[3] as HTMLElement).style.color = '#9d9ab8';
+      row.append(...cells);
+      return row;
+    }));
+  };
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
   const records = loadRecords();
   // (kept apart for each weather: a wet lap is slower)
@@ -429,6 +479,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let shake = newShake();
   /** a hit to your car the debug hook asked for, dealt next frame */
   let pendingHit = 0;
+  /** your start off the lights (judged once, in a race) */
+  let launch = newLaunch();
   const setPaused = (on: boolean) => {
     if (on === paused) return;
     paused = on;
@@ -531,6 +583,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** Clear the track and the screen for a new session. */
   const resetSession = () => {
     shake = newShake();
+    launch = newLaunch();
     setPaused(false);
     resetClock(simClock);
     before = undefined;
@@ -761,7 +814,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
         /** the team radio's line up now, and the camera's shake (trauma) and the rush of speed */
         radio: () => radioQ.now?.text,
-        feel: () => ({ trauma: shake.trauma, hold: shake.hold, rush: rushNow }),
+        feel: () => ({ trauma: shake.trauma, hold: shake.hold, rush: rushNow, battle: battleNow }),
+        /** your start off the lights, judged */
+        launch: () => ({ ...launch }),
         /** hit your car for `health` (a crash of your own, for trying out the shake and sparks) */
         hitMe: (health: number) => (pendingHit = health),
         /** parts torn off in crashes, flying or lying on the ground now */
@@ -1154,6 +1209,23 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       drive ? wheelInput({ ...drive, drift: pad.b }, car)
       : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
       : playerInput(pad);
+    // the start: once all five lights are lit, going is a jump start; after they're out, your reaction is judged
+    if (session === 'race' && !gridPan) {
+      const car = race.entrants[you].car;
+      const input = driveInput(car);
+      const gas = input.wheel ? (input.wheel.reverse ? 0 : input.wheel.gas) : Math.hypot(input.steer?.x ?? 0, input.steer?.y ?? 0);
+      const verdict = stepLaunch(launch, race.phase === 'lights' && race.clock >= 0, race.phase === 'racing' ? race.clock : undefined, gas);
+      if (verdict === 'jump') {
+        race.entrants[you].progress.penalty += LAUNCH.jumpPenalty;
+        announce(`JUMP START · +${LAUNCH.jumpPenalty} S`, '#d8323c', 3);
+        sayRadio('jump-start');
+      } else if (verdict && verdict !== 'slow') {
+        const kick = kickOf(verdict);
+        car.vx += Math.sin(car.heading) * kick;
+        car.vy -= Math.cos(car.heading) * kick;
+        announce(`${verdict === 'great' ? 'GREAT' : 'GOOD'} LAUNCH · ${launch.reaction!.toFixed(2)} S`, verdict === 'great' ? '#b36bff' : '#5fe0d0', 2);
+      }
+    }
     const healthBefore = race.entrants[you].car.health;
     // (the debug hook's hit, dealt inside the frame so the frame feels it)
     if (pendingHit) {
@@ -1498,12 +1570,20 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
       hud.setPositionChange(pos < hudState.lastPos ? 'gain' : 'lose');
+      // the callout: who you went by, or who went by you (not a car in the pits: that's its stop, not a pass)
+      const move = hudState.lastOrder && clock > 3 ? overtakeOf(hudState.lastOrder, order, you) : undefined;
+      const other = move && race.entrants[move.other];
+      if (move && other && !other.pit && !race.entrants[you].pit && running(other) && (race.clock >= notice.until || / PASS/.test(notice.text))) {
+        const name = looks[move.other].name;
+        announce(move.kind === 'passed' ? `PASSED ${name} · P${move.place}` : `${name} PASSES · P${move.place}`, move.kind === 'passed' ? '#5fe0d0' : '#f08a24', 1.8);
+      }
       // (an overtake of yours: the crowd's with you)
       if (pos < hudState.lastPos) sounds.cheer(0.35);
       hudState.flashUntil = clock + 1.5;
     }
     if (clock > hudState.flashUntil) hud.setPositionChange(undefined);
     hudState.lastPos = pos;
+    hudState.lastOrder = order;
     hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // box, box: on the radio once a lap, as the pit wall's call goes up
@@ -1615,6 +1695,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       });
       if (sc) dot(sc.car.x, sc.car.y, '#ffb020', 6);
       dot(me.car.x, me.car.y, '#f2c14e', 7);
+      drawTower();
     }
     particles.update(dt);
     // (in the replay, thrown again as they flew then)
@@ -1660,7 +1741,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const meNow = race.entrants[you];
     const rushWant = !replay && !podium && !gridPan && running(meNow) && !meNow.pit ? rushOf(speedOf(meNow.car), meNow.car.cls.topSpeed, meNow.tow) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + RUSH.pullBack * rushNow);
+    // (wheel to wheel with a rival, it pulls back a touch more, to show you both)
+    const battleWant = !replay && !podium && !gridPan && session === 'race' && race.phase === 'racing' && running(meNow) && !meNow.pit
+      && race.entrants.some((e, i) => i !== you && running(e) && !e.pit && Math.hypot(e.car.x - meNow.car.x, e.car.y - meNow.car.y) < BATTLE.near) ? 1 : 0;
+    battleNow += (battleWant - battleNow) * Math.min(1, dt * (battleWant ? 2 : 0.8));
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + RUSH.pullBack * rushNow + BATTLE.pullBack * battleNow);
     camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
     camera.lookAt(focus.x, focus.y, focus.z);
     // the shake: the camera moved across and up its own view (SCREEN SHAKE off in the settings: still)
@@ -1711,7 +1796,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.dispose();
     renderer.forceContextLoss();
     renderer.domElement.remove();
-    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, teamCard, pauseScreen, flagOverlay]) el.remove();
+    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay]) el.remove();
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };

@@ -5,7 +5,7 @@
 // line in a radio panel, keyed with a click and a squelch, and holds the next
 // until it's done (and drops a stale one). Engine-free and unit-tested.
 
-export type RadioCue = 'box' | 'safety-car' | 'vsc' | 'green' | 'pit-out' | 'final-lap' | 'fastest-lap' | 'warning' | 'penalty' | 'wreck';
+export type RadioCue = 'box' | 'safety-car' | 'vsc' | 'green' | 'pit-out' | 'final-lap' | 'fastest-lap' | 'warning' | 'penalty' | 'wreck' | 'jump-start';
 
 export const RADIO_LINES: Record<RadioCue, string[]> = {
   box: ['BOX, BOX. BOX THIS LAP.', 'BOX, BOX. PIT THIS LAP.', 'BOX NOW, BOX NOW.'],
@@ -17,6 +17,7 @@ export const RADIO_LINES: Record<RadioCue, string[]> = {
   'fastest-lap': ["PURPLE! THAT'S FASTEST LAP.", 'FASTEST LAP. GREAT PACE.', 'MEGA LAP. FASTEST OF THE RACE.'],
   warning: ['TRACK LIMITS. CAREFUL.', 'WATCH THE TRACK LIMITS.', 'THAT ONE WAS A WARNING. KEEP IT ON THE TRACK.'],
   penalty: ["THAT'S A FIVE SECOND PENALTY.", 'PENALTY FOR TRACK LIMITS. KEEP IT CLEAN NOW.'],
+  'jump-start': ['JUMP START. THAT IS FIVE SECONDS.', 'YOU JUMPED IT. FIVE SECOND PENALTY.'],
   wreck: ['ARE YOU OK? THE CAR IS DONE.', "YOU OK? WE'RE OUT, I'M SORRY.", "SORRY MATE, THAT'S THE RACE."],
 };
 
