@@ -70,3 +70,14 @@ describe('the music without Web Audio (tests, old browsers)', () => {
     expect(musicPlaying()).toBeUndefined();
   });
 });
+
+describe('the recorded songs', () => {
+  it('play the theme on the landing screen and "Triumphal Fanfare" for the champagne, each with its placeholder should the file not load', async () => {
+    const { existsSync } = await import('node:fs');
+    for (const [track, file] of [[THEME_MUSIC, 'music/theme.mp3'], [PODIUM_MUSIC, 'music/podium.mp3']] as const) {
+      expect(track.file).toBe(file);
+      expect(existsSync(`public/${file}`)).toBe(true);
+      expect(track.placeholder).toBeDefined();
+    }
+  });
+});
