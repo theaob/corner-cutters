@@ -24,7 +24,7 @@ import { standsOf } from './stands';
 import { REPLAY, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
-import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
+import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
 import { createCeremony, podiumSpot } from './podium3d';
@@ -625,6 +625,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         you: () => ({ ...race.entrants[you].progress, tow: race.entrants[you].tow, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
         racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, strikes: e.limits.strikes, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind, craft: e.ai?.craft, mistakes: e.ai?.mistakes, dice: !!e.ai?.rng })),
         safetyCar: () => !!race.sc,
+        /** the virtual safety car: seconds it's been out (undefined: it isn't) */
+        vsc: () => race.vsc?.out,
+        /** call the virtual safety car now, for trying it out */
+        callVsc: () => {
+          callVsc(race);
+          announce('VIRTUAL SAFETY CAR', '#f2c14e', 2.5);
+        },
         /** your car driven by the AI's line at `pace`, for trying out a session hands-off */
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
@@ -1098,8 +1105,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     for (const e of step.race) {
       if (e.kind === 'lights-out') sounds.go();
       else if (e.kind === 'safety-car') announce('SAFETY CAR', '#f2c14e', 2.5);
+      else if (e.kind === 'vsc') announce('VIRTUAL SAFETY CAR', '#f2c14e', 2.5);
+      else if (e.kind === 'vsc-ending') announce('VSC ENDING', '#f2c14e', VSC.warn);
       else if (e.kind === 'green') announce('GREEN FLAG', '#5fe0d0', 2);
-      else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER SC · +${e.seconds} S`, '#d8323c', 3);
+      else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER ${race.vsc ? 'VSC' : 'SC'} · +${e.seconds} S`, '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'tutorial') announce("THAT'S A CUT: IN A RACE, A WARNING, THEN +5 S", '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'race') {
         announce(e.seconds ? `TRACK LIMITS · +${e.seconds} S` : `TRACK LIMITS · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
@@ -1315,6 +1324,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         : learn ? [prompt(learn.o.step, device()), learn.o.step === 'done' ? '#f2c14e' : '#f4f4f8']
         : session !== 'race' && session !== 'tutorial' && p.lapStart === undefined ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
         : sc ? ['SAFETY CAR', '#f2c14e']
+        : race.vsc ? ['VIRTUAL SAFETY CAR', '#f2c14e']
         : ['', ''];
       banner.textContent = text;
       banner.style.color = color;
@@ -1329,7 +1339,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const left = 1 - me.tyres.wear;
     const tyreBlocks = Math.ceil(left * 5);
     const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
-    const limiter = me.pit && !done && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s) ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
+    const limiter = me.pit && !done && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s) ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : race.vsc && !done ? ` · VSC ${VSC.limit}` : '';
     // the gaps to the cars either side of you (by the timing points), while you're racing
     const gapLine = (other: number | undefined, mark: string) => {
       if (other === undefined || done) return '';
