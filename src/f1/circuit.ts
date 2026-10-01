@@ -13,6 +13,56 @@ export const HALF_WIDTH = 44;
 export const RUNOFF = 72;
 /** |curvature| (1/px) from which a bend is tight: kerbed, with gravel on the outside, and a marked corner for track limits */
 export const TIGHT = 1 / 260;
+/**
+ * The kerbs: which stretches of the track have them (both sides), from its tight bends, made whole: a gap
+ * shorter than `gap` px between two kerbed stretches is filled, a kerb shorter than `shortest` px (a sharp
+ * spot rather than a bend) is drawn out to that round its middle, and each runs on `lead` px past the bend at
+ * either end. Their
+ * red-and-white stripes are `stripe` px long, measured along the kerb itself, so they're the same size round
+ * the inside of a bend and the outside.
+ */
+export const KERB = { gap: 64, shortest: 40, lead: 16, stripe: 12, inner: HALF_WIDTH - 8, outer: HALF_WIDTH - 1 };
+
+/** Whether each of `track`'s samples is kerbed (see KERB). */
+export function kerbed(track: Track): boolean[] {
+  const n = track.samples.length;
+  const sp = track.spacing;
+  const on = track.samples.map((p) => Math.abs(p.curve) >= TIGHT);
+  if (on.every(Boolean) || !on.some(Boolean)) return on;
+  // the runs of kerbed samples, round the lap (starting just after an unkerbed sample, so none wraps)
+  const runsOf = (flags: boolean[]) => {
+    const start = flags.findIndex((f, i) => !f && flags[(i + 1) % n]);
+    const runs: [number, number][] = [];
+    for (let k = 1; k <= n; k++) {
+      const i = (start + k) % n;
+      if (!flags[i]) continue;
+      if (!flags[(i - 1 + n) % n]) runs.push([i, i]);
+      else runs[runs.length - 1][1] = i;
+    }
+    return runs;
+  };
+  const len = ([a, b]: [number, number]) => ((((b - a) % n) + n) % n) + 1;
+  // fill the short gaps
+  let runs = runsOf(on);
+  const filled = [...on];
+  for (let r = 0; r < runs.length; r++) {
+    const [, end] = runs[r];
+    const [next] = runs[(r + 1) % runs.length];
+    const gap = ((((next - end) % n) + n) % n) - 1;
+    if (gap > 0 && gap * sp < KERB.gap) for (let k = 1; k <= gap; k++) filled[(end + k) % n] = true;
+  }
+  // no scraps, and each kerb led in and out
+  runs = runsOf(filled);
+  const out = new Array<boolean>(n).fill(false);
+  const lead = Math.round(KERB.lead / sp);
+  for (const run of runs) {
+    // (a short one, a sharp spot rather than a bend: as long as the shortest kerb, round its middle)
+    const short = Math.max(0, Math.ceil((KERB.shortest / sp - len(run)) / 2));
+    for (let k = -lead - short; k < len(run) + lead + short; k++) out[(((run[0] + k) % n) + n) % n] = true;
+  }
+  return out;
+}
+
 /** px over which a banked bend's tilt eases in and out */
 export const BANK_EASE = 240;
 
@@ -140,6 +190,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     const outside = turn > 0 ? -1 : 1;
     for (let i = 0; i < n; i++) bank[i] *= outside;
   }
+  const kerbs = kerbed(track);
   const cells: CircuitCell[] = [];
   for (let ty = 0; ty < H; ty++) {
     for (let tx = 0; tx < W; tx++) {
@@ -170,6 +221,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         continue;
       }
       const tight = Math.abs(p.curve) > TIGHT;
+      const kerb = kerbs[i];
       // (a banked bend: concrete from the track's edge to the walls)
       if (Math.abs(bank[i]) > 0.02 && d > HALF_WIDTH + 4) {
         cells.push('apron');
@@ -181,7 +233,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         continue;
       }
       if (d <= HALF_WIDTH - 6) cells.push('track');
-      else if (d <= HALF_WIDTH + 4) cells.push(tight ? 'kerb' : 'track');
+      else if (d <= HALF_WIDTH + 4) cells.push(kerb ? 'kerb' : 'track');
       else {
         // gravel on the outside of tight bends, where a car that runs wide ends up
         const side = (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
