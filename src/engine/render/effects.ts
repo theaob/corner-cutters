@@ -266,19 +266,38 @@ export class CarFx {
   }
 }
 
+/** Debris steps a second: a fixed step, so a piece flies the same way live and again in the replay. */
+const DEBRIS_HZ = 60;
+
 interface Shed {
+  /** the part on its car, hidden while it's off */
+  part: THREE.Object3D;
+  /** the copy thrown */
   obj: THREE.Object3D;
+  /** race time it was torn off, and put back (a repair), if it has been */
+  at: number;
+  fixed?: number;
+  /** as it was thrown, and where it is now (after `steps` steps) */
+  start: Piece;
   piece: Piece;
+  steps: number;
+  /** still in the air or on the ground (not yet gone), live */
+  live: boolean;
   /** its resting pose (lying as it lands), which its tumble turns */
   pose: THREE.Quaternion;
   /** px its origin stands above the ground, lying in that pose */
   lift: number;
 }
 
+/** s of throws kept, for the replay (longer than any replay looks back, and than a piece lies) */
+const KEPT = 40;
+
 /**
  * Parts torn off cars in big crashes (the nose, a wheel): each hidden on its car, and a copy thrown clear from where
  * it was, tumbling and bouncing (debris.ts) till it lies still, then sinking away. The car's paint is shared, so a
- * burning car's parts char with it. The scene's x and z are the ground plane, y up.
+ * burning car's parts char with it. It runs on the race's clock, in fixed steps, and keeps its throws a while, so a
+ * replay throws them again just as they flew (and takes the parts off the cars, and puts them back, when it did).
+ * The scene's x and z are the ground plane, y up.
  */
 export class DebrisLayer {
   readonly group = new THREE.Group();
@@ -287,20 +306,20 @@ export class DebrisLayer {
   private readonly euler = new THREE.Euler();
 
   /**
-   * Tear `part` off its car (if it's still on), moving with the car at (vx, vz) px/s; `power` (0…1) throws it harder.
-   * `lies` turns its resting pose from the way it sat on the car (a wheel lies on its side).
+   * Tear `part` off its car (if it's still on) at race time `at`, moving with the car at (vx, vz) px/s; `power`
+   * (0…1) throws it harder. `lies` turns its resting pose from the way it sat on the car (a wheel lies on its side).
    */
-  tear(part: THREE.Object3D, vx: number, vz: number, power: number, lies?: THREE.Quaternion): void {
+  tear(part: THREE.Object3D, at: number, vx: number, vz: number, power: number, lies?: THREE.Quaternion): void {
     if (!part.visible || !part.parent) return;
     const car = part.parent;
     car.updateWorldMatrix(true, true);
-    const at = new THREE.Vector3();
+    const where = new THREE.Vector3();
     const quat = new THREE.Quaternion();
     const scale = new THREE.Vector3();
-    part.matrixWorld.decompose(at, quat, scale);
+    part.matrixWorld.decompose(where, quat, scale);
     const centre = car.getWorldPosition(new THREE.Vector3());
-    const ox = at.x - centre.x;
-    const oz = at.z - centre.z;
+    const ox = where.x - centre.x;
+    const oz = where.z - centre.z;
     const d = Math.hypot(ox, oz) || 1;
     const copy = part.clone();
     copy.visible = true;
@@ -311,45 +330,114 @@ export class DebrisLayer {
     copy.quaternion.copy(pose);
     copy.updateMatrixWorld(true);
     const lift = -new THREE.Box3().setFromObject(copy).min.y;
-    copy.position.copy(at);
+    copy.position.copy(where);
     copy.quaternion.copy(quat);
     this.group.add(copy);
     part.visible = false;
     // (it leaves as it sat on the car: its tumble starts from there, eased toward the resting pose as it slides)
-    const piece = fling(at.x, at.z, at.y - lift, vx, vz, { x: ox / d, y: oz / d }, power);
-    this.shed.push({ obj: copy, piece, pose, lift });
+    const start = fling(where.x, where.z, where.y - lift, vx, vz, { x: ox / d, y: oz / d }, power);
+    this.shed.push({ part, obj: copy, at, start, piece: clonePiece(start), steps: 0, live: true, pose, lift });
   }
 
-  /** Move the pieces on `dt` s, over ground `ground(x, z)` px high. */
-  update(dt: number, ground: (x: number, z: number) => number): void {
-    for (let i = this.shed.length - 1; i >= 0; i--) {
-      const s = this.shed[i];
-      const p = s.piece;
-      stepPiece(p, dt, ground);
-      if (gone(p)) {
+  /** The parts torn off `mesh` put back on at race time `at` (a repaired car). */
+  refit(mesh: THREE.Object3D, at: number): void {
+    for (const s of this.shed) {
+      if (s.fixed !== undefined || !isPartOf(s.part, mesh)) continue;
+      s.fixed = at;
+      s.part.visible = true;
+    }
+  }
+
+  /** Move the pieces on to race time `now`, over ground `ground(x, z)` px high. */
+  update(now: number, ground: (x: number, z: number) => number): void {
+    for (const s of this.shed) {
+      if (!s.live) continue;
+      s.steps = flyTo(s.piece, s.steps, (now - s.at) * DEBRIS_HZ, ground);
+      if (gone(s.piece)) {
+        s.live = false;
         this.group.remove(s.obj);
-        this.shed.splice(i, 1);
         continue;
       }
-      s.obj.position.set(p.x, p.h + s.lift - sunk(p) * (s.lift + 6), p.y);
-      this.euler.set(p.rot[0], p.rot[1], p.rot[2]);
-      s.obj.quaternion.copy(this.turn.setFromEuler(this.euler)).multiply(s.pose);
+      this.place(s, s.piece);
+    }
+    // (throws long past: forgotten)
+    for (let i = this.shed.length - 1; i >= 0; i--) if (!this.shed[i].live && now - this.shed[i].at > KEPT) this.shed.splice(i, 1);
+  }
+
+  /**
+   * The pieces as they were at race time `t`, for the replay: each thrown again from where it was torn off and
+   * flown on to then (or not yet torn off: back on its car). `back()` returns to the race as it is now.
+   */
+  replay(t: number, ground: (x: number, z: number) => number): void {
+    for (const s of this.shed) {
+      const off = s.at <= t && (s.fixed === undefined || s.fixed > t);
+      // (the part on the car, then)
+      s.part.visible = !this.offNow(s.part, t);
+      if (!off) {
+        s.obj.visible = false;
+        continue;
+      }
+      // (flown on from its throw: from where the last frame left it, unless that's past `t`)
+      const target = (t - s.at) * DEBRIS_HZ;
+      let then = s.obj.userData.replay as { piece: Piece; steps: number } | undefined;
+      if (!then || then.steps > target) then = s.obj.userData.replay = { piece: clonePiece(s.start), steps: 0 };
+      then.steps = flyTo(then.piece, then.steps, target, ground);
+      if (gone(then.piece)) {
+        s.obj.visible = false;
+        continue;
+      }
+      if (!s.obj.parent) this.group.add(s.obj);
+      s.obj.visible = true;
+      this.place(s, then.piece);
+    }
+  }
+
+  /** Back from the replay: the pieces, and the parts on the cars, as they are now. */
+  back(): void {
+    for (const s of this.shed) {
+      delete s.obj.userData.replay;
+      s.part.visible = !this.offNow(s.part);
+      if (!s.live) this.group.remove(s.obj);
+      else {
+        s.obj.visible = true;
+        this.place(s, s.piece);
+      }
     }
   }
 
   /** The pieces in the air or on the ground now. */
   get count(): number {
-    return this.shed.length;
+    return this.shed.filter((s) => s.live).length;
   }
 
   clear(): void {
     for (const s of this.shed) this.group.remove(s.obj);
     this.shed.length = 0;
   }
+
+  /** Whether `part` is off its car at race time `t` (now, if none). */
+  private offNow(part: THREE.Object3D, t = Infinity): boolean {
+    return this.shed.some((s) => s.part === part && s.at <= t && (s.fixed === undefined || s.fixed > t));
+  }
+
+  private place(s: Shed, p: Piece): void {
+    s.obj.position.set(p.x, p.h + s.lift - sunk(p) * (s.lift + 6), p.y);
+    this.euler.set(p.rot[0], p.rot[1], p.rot[2]);
+    s.obj.quaternion.copy(this.turn.setFromEuler(this.euler)).multiply(s.pose);
+  }
 }
 
-/** Put back every part a crash tore off `mesh` (a repaired car). */
-export function refit(mesh: CarMesh): void {
-  const { nose, wheels } = mesh.userData.parts;
-  for (const p of [nose, ...wheels]) p.visible = true;
+const clonePiece = (p: Piece): Piece => ({ ...p, rot: [...p.rot], spin: [...p.spin] });
+
+/** Fly `p` on from step `from` to step `to` (whole steps); the step it's at now. */
+function flyTo(p: Piece, from: number, to: number, ground: (x: number, z: number) => number): number {
+  let k = from;
+  // (a hair's tolerance: the same race time gives the same step, whatever the sums that led to it)
+  for (; k + 1 <= to + 1e-6; k++) stepPiece(p, 1 / DEBRIS_HZ, ground);
+  return k;
 }
+
+const isPartOf = (part: THREE.Object3D, mesh: THREE.Object3D) => {
+  for (let o: THREE.Object3D | null = part; o; o = o.parent) if (o === mesh) return true;
+  return false;
+};
