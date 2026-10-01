@@ -17,6 +17,7 @@ import type { Circuit } from '../f1/circuit';
 import { createCircuitScene, type CircuitScene } from '../f1/circuitScene';
 import { LAYOUTS } from '../f1/layouts';
 import { DRY } from '../f1/weather';
+import { DESIGNER_DRAFT_ID, DESIGNER_DRIVE_KEY } from '../f1/designerDraft';
 import { aiLap, blankDraft, check, circuitOf, draftFrom, layoutFrom, layoutToTs, type Draft, type DraftPoint } from './layoutEdit';
 
 const DRAFT_KEY = 'cc:designer:draft';
@@ -463,6 +464,24 @@ function renderPanel() {
   }), lapOut);
   panel.append(lapRow);
 
+  // drive it: the draft in the game itself, in a tab of its own (its quit comes back here)
+  panel.append(heading('Drive it'));
+  const driveRow = document.createElement('div');
+  driveRow.className = 'row';
+  const driveMode = document.createElement('select');
+  driveMode.style.width = 'auto';
+  driveMode.append(new Option('Quick race', 'race'), new Option('Time trial (alone)', 'timetrial'));
+  try {
+    driveMode.value = localStorage.getItem(`${DESIGNER_DRIVE_KEY}:mode`) ?? 'timetrial';
+  } catch {
+    driveMode.value = 'timetrial';
+  }
+  const drive = button('Drive it ▶', () => drive_(driveMode.value));
+  drive.style.borderColor = 'var(--gold)';
+  drive.style.color = 'var(--gold)';
+  driveRow.append(driveMode, drive);
+  panel.append(driveRow);
+
   panel.append(heading('Export'));
   const out = document.createElement('div');
   out.className = 'row';
@@ -485,6 +504,20 @@ function renderPanel() {
   st.id = 'status';
   panel.append(st);
   status(statusText, statusBad);
+}
+
+/** Open the game on the draft as it is now (`mode`: a quick race or a time trial). */
+function drive_(mode: string) {
+  if (!circuit) return status("can't drive it: it doesn't build", true);
+  try {
+    localStorage.setItem(DESIGNER_DRIVE_KEY, JSON.stringify(layoutFrom(draft)));
+    localStorage.setItem(`${DESIGNER_DRIVE_KEY}:mode`, mode);
+  } catch {
+    return status("can't drive it: the browser won't keep it (a private window?)", true);
+  }
+  const failing = check(layoutFrom(draft), circuit).filter((c) => !c.ok).map((c) => c.label);
+  window.open(`./index.html?circuit=${DESIGNER_DRAFT_ID}&mode=${mode}`, 'corner-cutters-drive');
+  status(failing.length ? `driving it as it is (failing: ${failing.join(', ')})` : 'driving it in the game (a tab of its own)', failing.length > 0);
 }
 
 function download(name: string, text: string, type: string) {

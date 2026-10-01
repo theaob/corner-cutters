@@ -12,7 +12,7 @@ import { addDaylight, type Daylight } from '../engine/render/daylight';
 import { groundAt } from '../engine/sim';
 import type { Pt } from './racing';
 import { GARAGE_ACROSS, PIT } from './pits';
-import { HALF_WIDTH, LANE_IN, LANE_OUT, RUNOFF, TIGHT, TILE as T, type Circuit } from './circuit';
+import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
@@ -195,19 +195,41 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     path(offset(side * (HALF_WIDTH - 2)));
     x.stroke();
   }
-  // kerbs on the bends: red-and-white strips just inside the edges
-  x.lineWidth = 7;
+  // kerbs on the bends: a red-and-white band just inside each edge along every kerbed stretch (KERB), its stripes
+  // all the same length measured along the kerb itself (so as long round the inside of a bend as round the
+  // outside), each kerb starting on red; drawn as quads that share their edges, so there are no gaps on a curve
+  const kerbs = kerbed(track);
+  const n = pts.length;
   for (const side of [-1, 1]) {
-    const edge = offset(side * (HALF_WIDTH - 4));
-    for (let i = 0; i < pts.length; i++) {
-      if (Math.abs(pts[i].curve) < TIGHT) continue;
-      const a = edge[i];
-      const b = edge[(i + 1) % pts.length];
-      x.strokeStyle = Math.floor(i / 1) % 2 === 0 ? '#d8323c' : '#f4f4f8';
-      x.beginPath();
-      x.moveTo(a.x, a.y);
-      x.lineTo(b.x, b.y);
-      x.stroke();
+    const inner = offset(side * KERB.inner);
+    const outer = offset(side * KERB.outer);
+    const mid = offset(side * (KERB.inner + KERB.outer) * 0.5);
+    // each kerbed stretch, from its first sample to its last
+    for (let i = 0; i < n; i++) {
+      if (!kerbs[i] || kerbs[(i - 1 + n) % n]) continue;
+      let end = i;
+      while (kerbs[(end + 1) % n] && (end + 1) % n !== i) end++;
+      let along = 0;
+      for (let k = i; k < end; k++) {
+        const a = k % n;
+        const b = (k + 1) % n;
+        const seg = Math.hypot(mid[b].x - mid[a].x, mid[b].y - mid[a].y);
+        // this step cut where the stripes change, each piece filled in its stripe's colour
+        let t0 = 0;
+        while (t0 < 1 - 1e-6) {
+          const stripe = Math.floor((along + t0 * seg) / KERB.stripe + 1e-6);
+          const t1 = seg > 0 ? Math.min(1, ((stripe + 1) * KERB.stripe - along) / seg) : 1;
+          const lerp = (p: Pt[], t: number) => ({ x: p[a].x + (p[b].x - p[a].x) * t, y: p[a].y + (p[b].y - p[a].y) * t });
+          const q = [lerp(inner, t0), lerp(outer, t0), lerp(outer, t1), lerp(inner, t1)];
+          x.fillStyle = stripe % 2 === 0 ? '#d8323c' : '#f4f4f8';
+          x.beginPath();
+          q.forEach((v, j) => (j ? x.lineTo(v.x, v.y) : x.moveTo(v.x, v.y)));
+          x.closePath();
+          x.fill();
+          t0 = t1;
+        }
+        along += seg;
+      }
     }
   }
   // track limits: a yellow-and-black strip round each marked corner's apex, just off the inside edge (past it is a cut)

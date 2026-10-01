@@ -51,3 +51,18 @@ describe('the track designer', () => {
     expect(lap.damage).toBe(0);
   });
 });
+
+describe('driving a draft from the designer', () => {
+  it('reads the layout the designer left, under an id of its own (not a real circuit), or nothing if it is not one', async () => {
+    const { DESIGNER_DRAFT_ID, parseDraft } = await import('../src/f1/designerDraft');
+    const layout = layoutFrom(draftFrom(ROYAL_PARK));
+    const back = parseDraft(JSON.stringify(layout))!;
+    expect(back.id).toBe(DESIGNER_DRAFT_ID);
+    expect(back.name).toBe('Royal Park (draft)');
+    expect(back.points).toEqual(layout.points);
+    expect(back.banking).toEqual(ROYAL_PARK.banking);
+    // and it builds and races like any circuit
+    expect(check(back, circuitOf(back)).filter((c) => !c.ok)).toEqual([]);
+    for (const bad of [null, '', 'not json', '{}', JSON.stringify({ ...layout, points: [{ x: 1, y: 2 }] }), JSON.stringify({ ...layout, pit: undefined })]) expect(parseDraft(bad)).toBeUndefined();
+  });
+});

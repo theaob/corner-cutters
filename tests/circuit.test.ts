@@ -266,3 +266,33 @@ describe('Ardennes', () => {
     expect(Math.max(...ardennes.track.samples.map((p) => Math.abs(p.curve)))).toBeLessThan(1 / (HALF_WIDTH + 6));
   });
 });
+
+describe('the kerbs', () => {
+  it('run whole round every tight bend: no scraps, no short gaps, and the kerb tiles where they are', async () => {
+    const { KERB, TIGHT, kerbed } = await import('../src/f1/circuit');
+    for (const layout of LAYOUTS) {
+      const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+      const { track } = c;
+      const n = track.samples.length;
+      const k = kerbed(track);
+      // every tight bend kerbed
+      track.samples.forEach((p, i) => {
+        if (Math.abs(p.curve) >= TIGHT) expect(k[i]).toBe(true);
+      });
+      // the runs and the gaps between them, round the lap
+      const start = k.findIndex((f, i) => !f && k[(i + 1) % n]);
+      if (start < 0) continue;
+      const lengths: { on: boolean; len: number }[] = [];
+      for (let j = 1; j <= n; j++) {
+        const f = k[(start + j) % n];
+        if (lengths.length && lengths[lengths.length - 1].on === f) lengths[lengths.length - 1].len++;
+        else lengths.push({ on: f, len: 1 });
+      }
+      for (const r of lengths) {
+        if (r.on) expect(r.len * track.spacing).toBeGreaterThanOrEqual(KERB.shortest);
+        else expect(r.len * track.spacing).toBeGreaterThanOrEqual(KERB.gap - 2 * KERB.lead - track.spacing);
+      }
+      expect(c.cells).toContain('kerb');
+    }
+  });
+});
