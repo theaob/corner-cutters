@@ -20,6 +20,7 @@ import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap,
 import { roundSeed, teamOf, type Season } from './championship';
 import { GRID_PAN, panAt, panLength } from './gridPan';
 import { landmarksOf } from './town3d';
+import { standsOf } from './stands';
 import { REPLAY, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
@@ -630,6 +631,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
         /** a street circuit's landmarks (where they stand on the map), and the camera held on a point of the map (none: back on your car), for looking at the scenery */
         landmarks: () => landmarksOf(circuit),
+        /** the circuit's grandstands */
+        stands: () => standsOf(circuit),
         look: (x?: number, y?: number) => (lookAt = x === undefined || y === undefined ? undefined : { x, y }),
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
         replay: () => replay && { ...replay },
