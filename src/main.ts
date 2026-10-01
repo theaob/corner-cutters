@@ -15,6 +15,7 @@ import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
 import { lapsFrom } from './f1/laps';
+import { curtainDown, curtainUp } from './f1/screens/curtain';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
@@ -140,6 +141,11 @@ let tuning: ReturnType<typeof mountTuning<typeof F1_TUNING>> | undefined;
  */
 async function route(): Promise<void> {
   const id = ++routeId;
+  // the curtain down over the screen going (going to a race, with its loading card), then the screen closed behind it
+  const params0 = new URLSearchParams(window.location.search);
+  const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
+  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : undefined);
+  if (id !== routeId) return;
   current?.close();
   current = undefined;
   // (nothing held on one screen carries over to the next)
@@ -162,6 +168,15 @@ async function route(): Promise<void> {
   else await showRace(id, layout, mode);
 }
 
+/** The line under a race's name on its loading card: the mode (a Championship's round) and the weather. */
+function raceLine(mode: string | null): string {
+  if (mode === 'tutorial') return 'CONTROLS LAP';
+  const season = mode === 'championship' ? loadSeason() : undefined;
+  const what = season ? `CHAMPIONSHIP · ROUND ${season.round + 1} OF ${season.rounds.length}` : mode === 'timetrial' ? 'TIME TRIAL' : mode === 'timeattack' ? 'TIME ATTACK' : 'QUICK RACE';
+  const weather = season ? weatherById(season.weather) ?? DRY : savedWeather();
+  return `${what} · ${weather.name}`;
+}
+
 /** Go to `url` (this page with other flags) and show its screen. */
 function navigate(url: string): void {
   history.pushState(null, '', url);
@@ -176,7 +191,9 @@ async function showMenu(id: number): Promise<void> {
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
-  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal);
+  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal);
+  curtainUp();
+  const picked = await picking;
   if (id !== routeId) return;
   save('choices', 'circuit', picked.layout.id);
   save('choices', 'team', picked.team.id);
@@ -215,7 +232,9 @@ async function showSeason(id: number): Promise<void> {
   const closed = new AbortController();
   current = { close: () => closed.abort() };
   const season = loadSeason();
-  const action = await showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal);
+  const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal);
+  curtainUp();
+  const action = await showing;
   justUnlocked = undefined;
   if (id !== routeId) return;
   if (action === 'race' && season) navigate(withCircuit(season.rounds[season.round], 'championship'));
@@ -288,6 +307,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
   }
   current = { close: () => view.dispose() };
   onResize = () => view.resize(sizeScreen());
+  curtainUp();
 }
 
 void route();
