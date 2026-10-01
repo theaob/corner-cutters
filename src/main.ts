@@ -121,7 +121,7 @@ const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
 const savedLaps = () => lapsFrom(choice('laps'));
-const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'championship' ? v : 'race');
+const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' ? v : 'race');
 const savedMode = (): GameMode => asMode(choice('mode'));
 
 /** The screen showing now (the menu or a race): closed before the next one opens. */
@@ -201,7 +201,7 @@ function menuScreen(): void {
   onResize = fillScreen;
 }
 
-/** The circuits open for a Quick Race or a Time Trial now. */
+/** The circuits open for a Quick Race, a Time Attack or a Time Trial now. */
 const openNow = () => openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits));
 /** A new player: never done (or skipped) the controls lap, and nothing played yet (no records, no season, nothing unlocked). */
 const needsControlsLap = () => saved('progress', 'onboarded') !== true && !Object.keys(loadRecords().circuits).length && !loadSeason() && !savedUnlocks().length;
@@ -215,13 +215,18 @@ async function showSeason(id: number): Promise<void> {
   const closed = new AbortController();
   current = { close: () => closed.abort() };
   const season = loadSeason();
-  const action = await showChampionship(screen, services, season, justUnlocked, closed.signal);
+  const action = await showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal);
   justUnlocked = undefined;
   if (id !== routeId) return;
   if (action === 'race' && season) navigate(withCircuit(season.rounds[season.round], 'championship'));
-  else if (action === 'new') {
-    // a new season with the menu's team, difficulty, weather and qualifying: a round on every circuit
-    saveSeason(newSeason({ seed: newSeed(), team: savedTeam(), difficulty: savedDifficulty().id, weather: savedWeather().id, qualifying: savedQualifying(), rounds: LAYOUTS.map((l) => l.id), total: 10 }));
+  else if (typeof action === 'object') {
+    // a new season with the team, weather and qualifying picked for it (kept as the choices), and the difficulty from
+    // the settings: a round on every circuit
+    const { team, weather, qualifying } = action.new;
+    save('choices', 'team', team.id);
+    save('choices', 'weather', weather.id);
+    save('choices', 'qualifying', qualifying ? 'on' : 'off');
+    saveSeason(newSeason({ seed: newSeed(), team, difficulty: savedDifficulty().id, weather: weather.id, qualifying, rounds: LAYOUTS.map((l) => l.id), total: 10 }));
     void route();
   } else navigate(withCircuit(null));
 }
@@ -275,7 +280,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
       }
     : mode === 'tutorial'
       ? { team: savedTeam(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
-      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' ? 'timetrial' : 'race' };
+      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();

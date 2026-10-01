@@ -1,5 +1,5 @@
 // Circuit unlocks: the first circuit is open from the start; each later one
-// opens for Quick Race and Time Trial once a Championship reaches it (you've
+// opens for Quick Race, Time Attack and Time Trial once a Championship reaches it (you've
 // raced the round before it). Anyone who already has a record on a circuit
 // (from before unlocks) keeps it open. Kept in the save's 'progress' section.
 
