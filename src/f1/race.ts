@@ -33,7 +33,7 @@ import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime as fmt, loadRecords, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
-import { CarFx, Particles, SkidLayer } from '../engine/render/effects';
+import { CarFx, DebrisLayer, Particles, SkidLayer, refit } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
 import { QUALITY_LEVELS, QualityGovernor } from '../engine/render/quality';
@@ -110,7 +110,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
   // (a bigger pool in the wet: every car throws up spray)
   const particles = new Particles(weather.spray ? 220 : 90);
-  world.scene.add(skids.group, particles.group);
+  // parts torn off in big crashes: the nose, and wheels off a wreck
+  const debris = new DebrisLayer();
+  world.scene.add(skids.group, particles.group, debris.group);
+  /** a wheel torn off lies on its side */
+  const onItsSide = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
 
   // ---------------------------------------------------------------- renderer
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -464,6 +468,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     notice = { text: '', color: '', until: 0 };
     skids.clear();
     particles.clear();
+    debris.clear();
     results.style.display = 'none';
   };
 
@@ -638,6 +643,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         skip: (seconds: number) => (race.clock += seconds),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
+        /** parts torn off in crashes, flying or lying on the ground now */
+        debris: () => debris.count,
         /** show the results table as the race stands, for checking its layout */
         results: () => showResults(raceOrder(race)),
         records: () => records,
@@ -1098,7 +1105,22 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         sounds.trackLimits(e.seconds > 0);
       }
       else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
-      else if (e.kind === 'pit-out' && e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
+      // a big crash tears the nose off (the car keeps going, if it can); a wreck loses a wheel or two as well
+      else if (e.kind === 'crash') {
+        const { nose, wheels } = looks[e.who].mesh.userData.parts;
+        const power = e.wrecked ? 1 : Math.min(1, e.hit * 1.5);
+        debris.tear(nose, e.vx, e.vy, power);
+        if (e.wrecked) {
+          const first = Math.floor(Math.random() * 4);
+          const lost = Math.random() < 0.5 ? [first] : [first, (first + 1 + Math.floor(Math.random() * 3)) % 4];
+          for (const k of lost) debris.tear(wheels[k], e.vx, e.vy, power, onItsSide);
+        }
+      }
+      // (a stop repairs the car: a new nose on)
+      else if (e.kind === 'pit-out') {
+        refit(looks[e.who].mesh);
+        if (e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
+      }
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
       // a mistake by a car near you (on the screen, more or less): called out
       else if (e.kind === 'mistake' && !done && race.clock >= notice.until && near(e.who)) announce(e.what === 'late' ? `LOCK-UP · ${looks[e.who].name}` : `${looks[e.who].name} RUNS WIDE`, '#9d9ab8', 1.5);
@@ -1341,6 +1363,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       dot(me.car.x, me.car.y, '#f2c14e', 7);
     }
     particles.update(dt);
+    debris.update(dt, (x, z) => groundAt(grid, x, z).h);
     drawRain(dt);
     skids.update(dt);
 

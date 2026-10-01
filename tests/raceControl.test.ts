@@ -67,7 +67,9 @@ describe('race control', () => {
       }
     }
     const kinds = events.map((x) => x.e.kind);
-    expect(kinds).toEqual(['lights-out', 'wreck', 'safety-car', 'retired', 'green']);
+    expect(kinds).toEqual(['lights-out', 'crash', 'wreck', 'safety-car', 'retired', 'green']);
+    // (the crash: the wrecked car's, so its parts fly)
+    expect(events.find((x) => x.e.kind === 'crash')!.e).toMatchObject({ who: victim, wrecked: true });
     const at = (k: string) => events.find((x) => x.e.kind === k)!.t;
     // out at once, cleared after CLEAR_AFTER, in once the queue has run behind it
     expect(at('safety-car')).toBeCloseTo(at('wreck'), 1);

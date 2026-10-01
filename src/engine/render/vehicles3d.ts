@@ -101,6 +101,8 @@ export interface CarMesh extends THREE.Group {
     tyreMark: THREE.MeshBasicMaterial;
     /** the red rain light at the back, for wet races: off (hidden) until shown */
     rainLight: THREE.Mesh;
+    /** the parts a big crash can tear off: the nose (with the front wing) and each wheel (front left, front right, rear left, rear right) */
+    parts: { nose: THREE.Group; wheels: THREE.Group[] };
   };
 }
 
@@ -121,13 +123,22 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   };
   const dark = lambert({ color: 0x111111 });
   // BoxGeometry faces: +x, −x, +y, −y, +z (back), −z (front)
-  const box = (w: number, h: number, l: number, y: number, z: number, faces: THREE.Material[]) => {
+  const box = (w: number, h: number, l: number, y: number, z: number, faces: THREE.Material[], on: THREE.Object3D = car) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), faces);
     m.position.set(0, y, z);
     m.castShadow = m.receiveShadow = true;
-    car.add(m);
+    on.add(m);
     return m;
   };
+  /** a part of its own (one a crash can tear off), its origin at `z` along the car */
+  const part = (z: number, x = 0, y = 0) => {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    car.add(g);
+    return g;
+  };
+  const noseZ = -(L / 2 - 6);
+  const nose = part(noseZ);
 
   const body = mat(look.body);
   const second = look.stripe ?? '#f4f4f8';
@@ -143,7 +154,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   // the pattern along the top of the tub, from the nose back
   const tubTop = look.pattern && look.pattern !== 'plain' ? painted(canvasTexture(paintPattern(8, 48, look.pattern, look.body, second))) : body;
   box(5, 3.5, L - 6, 3.5, 1, [body, body, tubTop, dark, body, body]); // tub
-  box(3, 2.5, 8, 3, -(L / 2 - 6), [body, body, trim, dark, body, body]); // nose
+  box(3, 2.5, 8, 3, 0, [body, body, trim, dark, body, body], nose); // nose
   for (const x of [-4, 4]) {
     const pod = box(3, 3, 9, 3, 3, [pods, pods, pods, dark, pods, pods]);
     pod.position.x = x;
@@ -166,7 +177,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   helmet.position.set(0, 7.2, 0.5);
   helmet.castShadow = true;
   car.add(helmet);
-  box(W, 0.8, 3, 1.4, -(L / 2 - 1.5), [trim, trim, trim, dark, trim, trim]); // front wing
+  box(W, 0.8, 3, 1.4, -(L / 2 - 1.5) - noseZ, [trim, trim, trim, dark, trim, trim], nose); // front wing
   box(W - 3, 0.8, 2.5, 8.5, L / 2 - 1.5, [trim, trim, body, dark, trim, trim]); // rear wing
   for (const x of [-(W - 3) / 2, (W - 3) / 2]) {
     const plate = box(0.6, 5, 3, 6.5, L / 2 - 1.5, [carbon, carbon, carbon, carbon, carbon, carbon]);
@@ -181,16 +192,19 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   const wheelMat = lambert({ color: 0x151515 });
   // the compound's colour round the outer edge of each tread (unlit, so it reads from afar and in shade)
   const tyreMark = new THREE.MeshBasicMaterial({ color: 0xffd21f, toneMapped: false });
+  const wheels: THREE.Group[] = [];
   for (const [z, wr, ww, half] of axles) {
     for (const x of [-half, half]) {
+      // (each wheel a part of its own, centred on its hub)
+      const hub = part(z, x, wr);
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, ww, 12), wheelMat);
       wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(x, wr, z);
-      car.add(wheel);
+      hub.add(wheel);
       const band = new THREE.Mesh(new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.8, 12, 1, true), tyreMark);
       band.rotation.z = Math.PI / 2;
-      band.position.set(x + Math.sign(x) * (ww / 2 - 0.4), wr, z);
-      car.add(band);
+      band.position.x = Math.sign(x) * (ww / 2 - 0.4);
+      hub.add(band);
+      wheels.push(hub);
     }
   }
 
@@ -200,6 +214,6 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   rainLight.visible = false;
   car.add(rainLight);
 
-  car.userData = { paint, tyreMark, rainLight };
+  car.userData = { paint, tyreMark, rainLight, parts: { nose, wheels } };
   return car;
 }
