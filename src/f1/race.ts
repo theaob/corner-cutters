@@ -33,7 +33,7 @@ import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime as fmt, loadRecords, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
-import { CarFx, DebrisLayer, Particles, SkidLayer, refit } from '../engine/render/effects';
+import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
 import { QUALITY_LEVELS, QualityGovernor } from '../engine/render/quality';
@@ -389,6 +389,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     replay = undefined;
     replayed = true;
     before = undefined;
+    debris.back();
   };
   /** The grid pan over: the lights come on (the camera swings back to your car). */
   const endPan = () => {
@@ -1104,21 +1105,22 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         announce(e.seconds ? `TRACK LIMITS · +${e.seconds} S` : `TRACK LIMITS · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
         sounds.trackLimits(e.seconds > 0);
       }
-      else if (e.kind === 'retired') world.scene.remove(looks[e.who].mesh);
+      // (cleared off the track: hidden, though the replay may show it again)
+      else if (e.kind === 'retired') looks[e.who].mesh.visible = false;
       // a big crash tears the nose off (the car keeps going, if it can); a wreck loses a wheel or two as well
       else if (e.kind === 'crash') {
         const { nose, wheels } = looks[e.who].mesh.userData.parts;
         const power = e.wrecked ? 1 : Math.min(1, e.hit * 1.5);
-        debris.tear(nose, e.vx, e.vy, power);
+        debris.tear(nose, race.clock, e.vx, e.vy, power);
         if (e.wrecked) {
           const first = Math.floor(Math.random() * 4);
           const lost = Math.random() < 0.5 ? [first] : [first, (first + 1 + Math.floor(Math.random() * 3)) % 4];
-          for (const k of lost) debris.tear(wheels[k], e.vx, e.vy, power, onItsSide);
+          for (const k of lost) debris.tear(wheels[k], race.clock, e.vx, e.vy, power, onItsSide);
         }
       }
       // (a stop repairs the car: a new nose on)
       else if (e.kind === 'pit-out') {
-        refit(looks[e.who].mesh);
+        debris.refit(looks[e.who].mesh, race.clock);
         if (e.who === you) announce('PIT EXIT', '#5fe0d0', 1.5);
       }
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
@@ -1161,9 +1163,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       saveRecords(records);
     }
     race.entrants.forEach((e, i) => {
-      if (!running(e)) return;
-      const ev = step.cars[i];
       const l = looks[i];
+      if (!running(e)) {
+        // (cleared off the track: only in the replay, where it was then)
+        const then = replay && replayPose(recorder, i, replay.t);
+        l.mesh.visible = !!then;
+        if (then) {
+          l.mesh.position.set(then.x, then.z, then.y);
+          l.mesh.rotation.set(0, -then.heading, 0, 'YXZ');
+        }
+        return;
+      }
+      const ev = step.cars[i];
       if (ev.skidding && !replay) skids.mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
       else skids.lift(i);
       // (in the replay, where it was then)
@@ -1363,7 +1374,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       dot(me.car.x, me.car.y, '#f2c14e', 7);
     }
     particles.update(dt);
-    debris.update(dt, (x, z) => groundAt(grid, x, z).h);
+    // (in the replay, thrown again as they flew then)
+    if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);
+    else debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
     drawRain(dt);
     skids.update(dt);
 
