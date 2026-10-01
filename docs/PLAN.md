@@ -109,6 +109,7 @@ the same:
 | Silver Heath | fast, two hard stops | done |
 | Harbour street circuit | tight, walls close, slow corners | done: after the famous harbour street circuit |
 | Royal Park | the longest straight, two hard chicanes, the banking | done: after the temple of speed, with a floating podium |
+| Ardennes | the longest lap, big fast elevation changes, a forest | done: traced from the famous circuit in the Ardennes |
 | Mountain / hill track | big elevation, blind crests, jumps | shows off the height model and airborne physics |
 | Night desert track | long straights, slipstream battles | needs a slipstream effect (see below) |
 | Rain / forest track | low grip sections | introduces weather (later) |
@@ -298,6 +299,7 @@ The goal: a full first season.
 
 - [x] Harbour street circuit (tight, walls), after the most famous street circuit (`HARBOUR` in `f1/layouts.ts`): its corners in order, eased apart for our track width; street features in the layout data (walls 28 px off the track's edge with pavement between, the sea, the tunnel) drawn as steel barriers, a town of flats, the sea with yachts and a see-through tunnel roof; a pit lane on the harbour side; a per-circuit tyre wear (0.3 here: a stop pays for some, not others). To keep the AI clean between walls, it no longer sits far over on the inside of a tight bend (it was cutting them flat out). Third round of the Championship, unlocked by it
 - [x] Royal Park, after the temple of speed (`ROYAL_PARK` in `f1/layouts.ts`): the longest straight, two chicanes that need braking, a fast left–right–left and a banked half circle onto the straight (`banking` in the layout: the ground tilts up to the outside from the track's inside edge, concrete run-off and wall); the podium on a deck hanging over the main straight, the tifosi on the track below at the ceremony (`podiumDeck`, `f1/podium3d.ts`). Fourth round of the Championship, unlocked by it
+- [x] Ardennes, traced from the famous circuit in the Ardennes (`ARDENNES` in `f1/layouts.ts`): the longest lap (about 12,500 px), 116 px from hilltop to valley floor and the steepest climb of all (0.18) out of the bottom of the valley; a forest of spruces and broadleaves all round (`f1/forest3d.ts`), each tree only as tall as it can be without hiding the track, hillsides counted. Fifth round of the Championship, unlocked by it
 - [ ] Mountain circuit (elevation, crests, jumps)
 - [ ] Night desert circuit (straights, slipstream) with a night variant of `render/daylight.ts`
 - [x] Weather: dry, damp and wet, with three tyre compounds, rain and spray (done early)

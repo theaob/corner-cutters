@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildCircuit } from '../src/f1/circuit';
-import { CRESCENT_PARK, HARBOUR, LAYOUTS, ROYAL_PARK, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
+import { ARDENNES, CRESCENT_PARK, HARBOUR, LAYOUTS, ROYAL_PARK, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, coolDownInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
@@ -9,7 +9,7 @@ import { collideCars } from '../src/engine/driving';
 const f1 = carClass('f1');
 
 /** What each circuit should measure up to: its lap length (px), the AI's lap time (s), and how close to flat out the line is. */
-const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, number]; flatGap: number }[] = [
+const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, number]; flatGap: number; braking?: number }[] = [
   // flat out almost everywhere, like a player can
   { layout: CRESCENT_PARK, length: [7000, 8200], lap: [20, 26], flatGap: 0.5 },
   // the hook's hairpin and the last complex want a lift
@@ -18,6 +18,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: HARBOUR, length: [8300, 9300], lap: [24, 34], flatGap: 0.5 },
   // the temple of speed: flat out all the way round, the banking included
   { layout: ROYAL_PARK, length: [9000, 10000], lap: [26, 32], flatGap: 0.5 },
+  // the longest: up and down through the forest, three hard stops
+  { layout: ARDENNES, length: [12000, 13200], lap: [36, 44], flatGap: 1.5, braking: 1.2 },
 ];
 
 describe('circuit list', () => {
@@ -37,7 +39,7 @@ describe('circuit list', () => {
   });
 });
 
-describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap }) => {
+describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap, braking = 0.5 }) => {
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
   const { grid, track } = circuit;
   const cellAt = (x: number, y: number) => circuit.cells[Math.floor(y / 16) * circuit.width + Math.floor(x / 16)];
@@ -119,7 +121,7 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap })
     };
     const line = lapWith(1);
     const flat = lapWith(10); // never brakes at all
-    expect(line.braking).toBeLessThan(0.5);
+    expect(line.braking).toBeLessThan(braking);
     expect(Math.abs(line.time - flat.time)).toBeLessThan(flatGap);
     expect(line.time).toBeLessThan(lap[1]);
   });
@@ -212,5 +214,55 @@ describe('the banking at Royal Park', () => {
       expect(c.cells).not.toContain('apron');
       expect(c.bank.every((b) => b === 0)).toBe(true);
     }
+  });
+});
+
+describe('Ardennes', () => {
+  const build = (l: CircuitLayout) => buildCircuit(l, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+  const circuits = LAYOUTS.map(build);
+  const ardennes = circuits[LAYOUTS.indexOf(ARDENNES)];
+  /** the steepest grade along the centreline, and the most it climbs in one go */
+  const hills = (c: ReturnType<typeof build>) => {
+    let steepest = 0;
+    let climb = 0;
+    let low = Infinity;
+    for (const p of c.track.samples) {
+      const g = groundAt(c.grid, p.x, p.y);
+      steepest = Math.max(steepest, Math.abs(g.gx * Math.sin(p.dir) - g.gy * Math.cos(p.dir)));
+      low = Math.min(low, g.h);
+      climb = Math.max(climb, g.h - low);
+    }
+    const heights = c.track.samples.map((p) => groundAt(c.grid, p.x, p.y).h);
+    return { steepest, climb, range: Math.max(...heights) - Math.min(...heights) };
+  };
+
+  it('is the longest lap of all', () => {
+    for (const c of circuits) if (c !== ardennes) expect(ardennes.track.length).toBeGreaterThan(c.track.length * 1.2);
+  });
+
+  it('goes up and down the most, and climbs the steepest (out of the bottom of the valley)', () => {
+    const a = hills(ardennes);
+    expect(a.range).toBeGreaterThan(100);
+    expect(a.steepest).toBeGreaterThan(0.16);
+    for (const c of circuits) {
+      if (c === ardennes) continue;
+      const h = hills(c);
+      expect(a.range).toBeGreaterThan(h.range * 1.5);
+      expect(a.steepest).toBeGreaterThan(h.steepest);
+    }
+    // the steepest climb: within the first fifth of the lap, after the plunge from the hairpin
+    let at = 0;
+    let most = 0;
+    for (const p of ardennes.track.samples) {
+      const g = groundAt(ardennes.grid, p.x, p.y);
+      const grade = g.gx * Math.sin(p.dir) - g.gy * Math.cos(p.dir);
+      if (grade > most) [most, at] = [grade, p.s];
+    }
+    expect(at / ardennes.track.length).toBeGreaterThan(0.12);
+    expect(at / ardennes.track.length).toBeLessThan(0.2);
+  });
+
+  it('has no bend tighter than the track is wide, its tightest opened out from the tracing (its edges never cross)', () => {
+    expect(Math.max(...ardennes.track.samples.map((p) => Math.abs(p.curve)))).toBeLessThan(1 / (HALF_WIDTH + 6));
   });
 });

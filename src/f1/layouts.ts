@@ -24,6 +24,8 @@ export interface CircuitLayout {
   street?: StreetSpec;
   /** a banked bend: px along the lap (from, to), and how steeply the track tilts up toward the outside (rise per px across, at its steepest) */
   banking?: { from: number; to: number; grade: number };
+  /** in a forest: trees packed all round beyond the barriers, on a dark forest floor */
+  forest?: boolean;
   /** the podium hangs over the main straight on a deck from the pit side, this many px up (else it stands on the run-off) */
   podiumDeck?: number;
 }
@@ -295,7 +297,56 @@ export const ROYAL_PARK: CircuitLayout = {
   podiumDeck: 46,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK];
+/**
+ * Ardennes. Clockwise, up and down through a forest in the Ardennes, traced
+ * from the most famous circuit in those hills (outline data from
+ * github.com/bacinger/f1-circuits, MIT), and the longest lap of all: from the
+ * line, the tight right of the hairpin, the plunge down past the pits to the
+ * bottom of the valley, the left–right–left of the steepest climb anywhere,
+ * the long climb of the straight to the top of the hill, the right–left
+ * chicane and the right after it, the long right of the second hairpin, down
+ * through the double-apex left, the right–left in the woods and the two
+ * rights at the bottom of the valley, the long, flat-out climb back through
+ * the left kinks, and the right–left of the last chicane onto the straight.
+ */
+export const ARDENNES: CircuitLayout = {
+  id: 'ardennes',
+  name: 'Ardennes',
+  about: 'clockwise · the longest, up and down through the forest',
+  points: ([
+    [384, 217], [318, 105], [292, 52], [296, 18], [322, 4], [356, 18], [425, 65], [468, 92], [514, 125], [554, 159], [587, 194], [760, 399], [793, 424], [831, 448], [847, 464], [861, 486], [875, 528], [884, 580], [984, 751], [1038, 837], [1053, 870], [1063, 894], [1074, 932], [1143, 1169], [1248, 1529], [1270, 1612], [1268, 1645], [1250, 1672], [1230, 1694], [1222, 1722], [1236, 1821], [1236, 1858], [1220, 1886], [1180, 1914], [968, 2043], [932, 2056], [898, 2046], [880, 2016], [884, 1982], [910, 1954], [950, 1930], [1025, 1892], [1042, 1869], [1044, 1839], [1000, 1713], [987, 1661], [956, 1502], [941, 1411], [930, 1379], [905, 1351], [870, 1332], [788, 1325], [764, 1328], [742, 1334], [720, 1343], [681, 1375], [668, 1394], [653, 1421], [594, 1568], [541, 1699], [526, 1724], [496, 1744], [462, 1750], [430, 1741], [404, 1728], [371, 1720], [338, 1726], [309, 1748], [212, 1898], [186, 1924], [150, 1934], [112, 1918], [69, 1880], [31, 1847], [11, 1819], [1, 1787], [3, 1748], [18, 1707], [31, 1671], [54, 1631], [79, 1596], [117, 1554], [180, 1493], [217, 1464], [248, 1446], [410, 1362], [434, 1347], [456, 1330], [476, 1311], [494, 1290], [510, 1268], [532, 1228], [550, 1190], [590, 1101], [601, 1060], [602, 1034], [598, 1011], [574, 950], [548, 883], [517, 799], [509, 768], [501, 731], [496, 696], [494, 667], [489, 580], [496, 545], [522, 524], [548, 500], [544, 466], [491, 404]
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1.8,
+  // (metres along the lap / 6954 m): the hairpin at the top, down to the bottom of the valley, straight up the
+  // steepest climb, on up the long straight to the top of the hill, down and down to the far end of the valley,
+  // and the long climb back
+  elevation: [
+    [0, 44],
+    [0.036, 48],
+    [0.08, 40],
+    [0.13, 0],
+    [0.168, 56],
+    [0.22, 74],
+    [0.324, 116],
+    [0.36, 110],
+    [0.417, 92],
+    [0.453, 76],
+    [0.53, 48],
+    [0.633, 24],
+    [0.712, 4],
+    [0.834, 22],
+    [0.92, 36],
+    [0.95, 42],
+    [1, 44],
+  ],
+  // on the outside of the straight, from the last chicane to the line
+  pit: { from: -480, to: 240, side: -1 },
+  // (the longest lap: a set lasts three laps, so a 5-lap race needs one stop at most)
+  tyreWear: 0.4,
+  forest: true,
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES];
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {
