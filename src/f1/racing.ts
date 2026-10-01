@@ -310,6 +310,10 @@ export interface Orders {
   limit?: number;
   /** stay in line behind the car ahead instead of moving over to pass */
   noOvertaking?: boolean;
+  /** blue flags: the car lapping this one, close behind, to be let through */
+  blue?: Car;
+  /** the cars shown blue flags for this one (moving over to let it by): it goes by them, not queueing behind */
+  lapping?: Car[];
 }
 
 /** px of straight a tow needs ahead to be used (room to brake from the extra speed), on top of 1.1 s at the car's speed */
@@ -336,6 +340,11 @@ export const RACECRAFT = {
   defendRange: 100,
   /** px a car alongside is left: a car's width and some */
   room: 22,
+  /** blue flags: px off the centreline a car being lapped moves over to (away from the car lapping it), and its pace on
+   * the straight while that car is within `blueClose` px behind */
+  blueLane: 24,
+  blueLift: 0.9,
+  blueClose: 90,
   /** a mistake. Braking too late: into the bend at this share of the line's own speed, then past the apex, run wide and
    * gather it up at `recover` of the pace for `recoverFor` px. Running wide: this far out, this slow, through the bend
    * and `recoverFor` px out of it */
@@ -469,6 +478,9 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
     const inTheWay = alongside.some((c) => Math.sign(c.across) === inside);
     if (closing && !inTheWay) move = { kind: 'defend', side: inside, car: closing.o };
   }
+  // blue flags: no defending against the car lapping us (nor passing anyone while it's coming through)
+  const lapper = orders.blue ? seen.find((c) => c.o === orders.blue) : undefined;
+  if (lapper) move = undefined;
   ai.move = move;
 
   // mistakes: going into a bend (where the braking for it starts), now and then a driver gets it wrong, and pays
@@ -503,6 +515,11 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const passing = passCar ? seen.find((c) => c.o === passCar) : undefined;
   if (move?.kind === 'pass' && passing) lane = passing.theirs + move.side * R.passGap;
   else if (move?.kind === 'defend') lane = move.side * R.cover * Math.min(1, (craft - R.defendFrom) / (1 - R.defendFrom) + 0.25);
+  // blue flags: over to the side away from the car lapping us, a touch off the pace on the straight while it's close
+  if (lapper) {
+    lane = (lapper.theirs >= mine ? -1 : 1) * R.blueLane;
+    if (straight && lapper.along > -R.blueClose) free *= R.blueLift;
+  }
   // wrecks are steered round, whatever the orders
   for (const c of seen) if (c.o.wrecked && c.along > 0 && c.along < 40 + v * 0.8 && Math.abs(c.across) < 18) lane = c.across > 0 ? mine - 26 : mine + 26;
   // running wide (or gathering up a lock-up): out toward the edge on the outside of the bend
@@ -524,6 +541,8 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   let follow = Infinity;
   const band = move?.kind === 'pass' ? 18 : 26;
   for (const c of seen) {
+    // (a car moved over to let us by: only in the way if it's still right in front)
+    if (orders.lapping?.includes(c.o) && Math.abs(c.across) >= 16) continue;
     const closing = v - c.speed;
     if (!c.o.wrecked && c.along > 0 && c.along < 44 + Math.max(0, closing) * 0.7 && Math.abs(c.across) < band) follow = Math.min(follow, c.speed);
   }

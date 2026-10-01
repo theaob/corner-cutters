@@ -262,3 +262,28 @@ describe('the virtual safety car', () => {
     expect(race.sc).toBeDefined();
   }, 30_000);
 });
+
+describe('blue flags', () => {
+  it('come out for a backmarker as the leader comes up to lap it, and it lets the leader by', () => {
+    const c = buildCircuit(SILVER_HEATH, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const field = c.slots.slice(0, 2).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: 0, pace: i === 0 ? 1 : 0.6 } }));
+    const race = newRace(c.track, c.grid, RACE_HANDLING, 8, field);
+    const n = race.track.samples.length;
+    const at = (i: number) => race.entrants[i].progress.lap * n + race.entrants[i].progress.idx;
+    let flagged: number | undefined;
+    let passed: number | undefined;
+    for (let t = 0; t < 400 && passed === undefined; t += dt) {
+      for (const e of stepRace(race, dt).race) if (e.kind === 'blue' && flagged === undefined) {
+        expect(e).toEqual({ kind: 'blue', who: 1, by: 0 });
+        flagged = race.clock;
+      }
+      // the leader a lap and a bit ahead: past it on the track
+      if (flagged !== undefined && at(0) - at(1) > n + 10) passed = race.clock;
+    }
+    expect(flagged).toBeDefined();
+    expect(passed).toBeDefined();
+    // (through in a few seconds: let by, not held up behind it; about 2.4 s from the flag at 140 px)
+    expect(passed! - flagged!).toBeLessThan(4);
+    expect(race.entrants[1].blue).toBeUndefined();
+  }, 30_000);
+});
