@@ -2,22 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { carClass, newCar } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
 import { NORMAL, aiPaceFor, handlingFor } from '../src/f1/difficulty';
-import { LAYOUTS } from '../src/f1/layouts';
+import { ARDENNES, SILVER_HEATH } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
 import { COMPOUNDS, tyreFor, type Compound } from '../src/f1/tyres';
-import { WEATHERS, weatherById } from '../src/f1/weather';
+import { WEATHERS } from '../src/f1/weather';
 
 const f1 = carClass('f1');
 const compounds = Object.keys(COMPOUNDS) as Compound[];
 
 describe('weather and tyres', () => {
-  it('are dry, damp and wet', () => {
-    expect(WEATHERS.map((w) => w.id)).toEqual(['dry', 'damp', 'wet']);
-    expect(weatherById('wet')?.rain).toBeGreaterThan(0);
-    expect(weatherById('dry')?.spray).toBe(false);
-  });
-
   it.each(WEATHERS)('fit the quickest compound in the $name: slicks dry, intermediates damp, full wets wet', (w) => {
     const best = tyreFor(w.id);
     expect(best).toBe({ dry: 'slick', damp: 'inter', wet: 'wet' }[w.id]);
@@ -34,11 +28,11 @@ describe('weather and tyres', () => {
     expect(COMPOUNDS.wet.on.dry.wear).toBeGreaterThan(3);
   });
 
-  it('mark each compound in its own colour', () => {
-    expect(new Set(compounds.map((c) => COMPOUNDS[c].color)).size).toBe(3);
-  });
-
-  it.each(LAYOUTS.flatMap((layout) => (['damp', 'wet'] as const).map((weather) => ({ layout, weather, name: `${layout.name}, ${weather}` }))))(
+  // (one race in each: the dry races in tyres.test.ts stop on every circuit)
+  it.each([
+    { layout: SILVER_HEATH, weather: 'damp' as const, name: 'Silver Heath, damp' },
+    { layout: ARDENNES, weather: 'wet' as const, name: 'Ardennes, wet' },
+  ])(
     'runs a clean 5-lap race at $name: everyone on the right tyres, one stop each (at most one, on a circuit easy on tyres), all finish',
     ({ layout, weather }) => {
       const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });

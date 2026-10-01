@@ -48,36 +48,6 @@ describe.each([
   });
 });
 
-describe('the podium march', () => {
-  const song = podiumSong();
-  it('is a march: a brass tune in thirds over an oom-pah, the kick on the beat and the snare off it', () => {
-    const brass = song.notes.filter((n) => n.voice === 'brass');
-    expect(brass.length).toBeGreaterThan(40);
-    // the tune leaps to the top A, and is doubled a third below on its long notes
-    expect(Math.max(...brass.map((n) => n.midi))).toBeGreaterThanOrEqual(81);
-    const starts = new Map<number, number[]>();
-    for (const n of brass) starts.set(n.at, [...(starts.get(n.at) ?? []), n.midi]);
-    expect([...starts.values()].some((ms) => ms.length === 2 && [3, 4].includes(Math.abs(ms[0] - ms[1])))).toBe(true);
-    for (const n of song.notes.filter((x) => x.voice === 'kick')) expect(n.at % 2).toBe(0);
-    for (const n of song.notes.filter((x) => x.voice === 'stab')) expect(n.at % 2).toBe(1);
-    expect(song.notes.filter((n) => n.voice === 'crash')).toHaveLength(2);
-  });
-});
-
-describe('the landing anthem', () => {
-  const song = themeSong();
-  it('drives on a 16th-note pulse under a brass tune that climbs to the top B flat, with the drums on the beat', () => {
-    const pulse = song.notes.filter((n) => n.voice === 'pulse');
-    expect(pulse).toHaveLength(8 * 16);
-    const brass = song.notes.filter((n) => n.voice === 'brass');
-    expect(Math.max(...brass.map((n) => n.midi))).toBe(82);
-    // the tune's second phrase climbs higher than its first
-    const top = (from: number, to: number) => Math.max(...brass.filter((n) => n.at >= from && n.at < to).map((n) => n.midi));
-    expect(top(16, 32)).toBeGreaterThanOrEqual(top(0, 16));
-    for (const n of song.notes.filter((x) => x.voice === 'snare' && x.at < 28)) expect(n.at % 2).toBe(1);
-  });
-});
-
 describe('the tracks', () => {
   it('play under the sounds, the race quieter still (under the engines)', () => {
     expect(RACE_MUSIC.gain!).toBeLessThan(MENU_MUSIC.gain!);

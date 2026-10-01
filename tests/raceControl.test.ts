@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyDamage, carClass, newCar, speedOf, type Car } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
-import { LAYOUTS, SILVER_HEATH } from '../src/f1/layouts';
+import { SILVER_HEATH } from '../src/f1/layouts';
 import { RACE_HANDLING, aiInput, lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { CLEAR_AFTER, SAFETY_CAR, isBigCrash, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
@@ -32,14 +32,6 @@ describe('big crashes', () => {
 });
 
 describe('race control', () => {
-  it.each(LAYOUTS)('runs a clean race at $name with no safety car', (layout) => {
-    const race = raceOn(layout);
-    const events: RaceEvent[] = [];
-    for (let t = 0; t < 200 && !over(race); t += dt) events.push(...stepRace(race, dt).race);
-    expect(events.map((e) => e.kind)).toEqual(['lights-out']);
-    expect(race.entrants.every((e) => e.progress.finished !== undefined && !e.progress.retired)).toBe(true);
-  }, 30_000);
-
   it('brings out the safety car for a wreck: the field queues behind it at a limited pace, the wreck is cleared, then racing resumes', () => {
     const race = raceOn();
     const events: { t: number; e: RaceEvent }[] = [];

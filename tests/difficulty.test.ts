@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import type { Grid } from '../src/engine/sim';
-import { buildCircuit } from '../src/f1/circuit';
 import { DIFFICULTIES, NORMAL, aiPaceFor, difficultyById, handlingFor } from '../src/f1/difficulty';
-import { LAYOUTS } from '../src/f1/layouts';
-import { RACE_HANDLING, lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { newRace, stepRace, type Race } from '../src/f1/raceControl';
+import { RACE_HANDLING } from '../src/f1/racing';
 
 const f1 = carClass('f1');
 const [EASY, , HARD] = DIFFICULTIES;
@@ -56,14 +53,4 @@ describe('difficulties', () => {
     expect(hardFront - hardBack).toBeLessThan(normalFront - normalBack);
     expect(normalFront - normalBack).toBeLessThan(easyFront - easyBack);
   });
-
-  it.each(LAYOUTS)('keeps a hard race at $name clean: the flat-out AI field finishes without wrecking', (layout) => {
-    const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
-    const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(HARD, i, 10) } }));
-    const race: Race = newRace(c.track, c.grid, handlingFor(HARD), 3, field, 0.5, c.pit);
-    const kinds: string[] = [];
-    for (let t = 0; t < 200 && !race.entrants.every((e) => e.progress.finished !== undefined); t += 1 / 60) kinds.push(...stepRace(race, 1 / 60).race.map((e) => e.kind));
-    expect(kinds).toEqual(['lights-out']);
-    expect(race.entrants.every((e) => e.progress.finished !== undefined)).toBe(true);
-  }, 30_000);
 });

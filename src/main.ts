@@ -14,6 +14,7 @@ import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
+import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
 import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, teamOf } from './f1/championship';
@@ -34,6 +35,8 @@ const layoutButton = document.querySelector<HTMLButtonElement>('[data-layout]');
 // this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
 useStore('cc:');
 useSave(CC_SAVE);
+// (records and ghosts on a circuit an update has reshaped were set on another track: forgotten)
+forgetChangedCircuits(LAYOUTS);
 
 // The layout: every device starts in the handheld one. The player can switch
 // to the desktop layout (a wide screen with the deck laid over it as a HUD)
@@ -143,6 +146,8 @@ async function route(): Promise<void> {
   const params = new URLSearchParams(window.location.search);
   // (a circuit straight from the track designer: ?circuit=designer-draft)
   const layout = params.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params.get('circuit'));
+  // (and a draft edited in the designer since it was last driven)
+  if (layout?.id === DESIGNER_DRAFT_ID) forgetChangedCircuits([layout], LAYOUTS);
   const mode = asMode(params.get('mode'));
   // a new player: the controls lap first, on the first circuit
   if (!layout && mode !== 'championship' && needsControlsLap()) {
