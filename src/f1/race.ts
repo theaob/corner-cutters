@@ -580,6 +580,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       saveRecords(records);
     }
     quali.over = { grid: gridOrder(times), times };
+    // (the session's held from here, on the times: the car falls quiet)
+    sounds.quiet();
     hud.setLabel('a', 'RACE');
     showQualifying();
   };
