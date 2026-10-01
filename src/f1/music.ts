@@ -345,5 +345,6 @@ export function placeholder(song: Song): Placeholder {
 
 export const MENU_MUSIC: Track = { id: 'menu', placeholder: placeholder(menuSong()), gain: 0.8 };
 export const RACE_MUSIC: Track = { id: 'race', placeholder: placeholder(raceSong()), gain: 0.45 };
-export const THEME_MUSIC: Track = { id: 'theme', placeholder: placeholder(themeSong()), gain: 0.8 };
+// (the composed theme, "Triumph in Motion"; the placeholder plays if it won't load)
+export const THEME_MUSIC: Track = { id: 'theme', file: 'music/theme.mp3', placeholder: placeholder(themeSong()), gain: 0.8 };
 export const PODIUM_MUSIC: Track = { id: 'podium', placeholder: placeholder(podiumSong()), gain: 0.95 };
