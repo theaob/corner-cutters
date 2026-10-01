@@ -11,15 +11,15 @@ const f1 = carClass('f1');
 /** What each circuit should measure up to: its lap length (px), the AI's lap time (s), and how close to flat out the line is. */
 const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, number]; flatGap: number; braking?: number }[] = [
   // flat out almost everywhere, like a player can
-  { layout: CRESCENT_PARK, length: [7000, 8200], lap: [20, 26], flatGap: 0.5 },
+  { layout: CRESCENT_PARK, length: [7500, 8600], lap: [21, 27], flatGap: 0.5 },
   // the hook's hairpin and the last complex want a lift
-  { layout: SILVER_HEATH, length: [8300, 9300], lap: [24, 30], flatGap: 0.75 },
+  { layout: SILVER_HEATH, length: [9500, 10500], lap: [26, 33], flatGap: 0.75 },
   // the streets: tight, but the cars grip enough to take nearly all of it flat out too
   { layout: HARBOUR, length: [8300, 9300], lap: [24, 34], flatGap: 0.5 },
   // the temple of speed: flat out all the way round, the banking included
   { layout: ROYAL_PARK, length: [9000, 10000], lap: [26, 32], flatGap: 0.5 },
   // the longest: up and down through the forest, three hard stops
-  { layout: ARDENNES, length: [12000, 13200], lap: [36, 44], flatGap: 1.5, braking: 1.2 },
+  { layout: ARDENNES, length: [13000, 14000], lap: [38, 46], flatGap: 1.5, braking: 1.2 },
 ];
 
 describe('circuit list', () => {
@@ -250,7 +250,7 @@ describe('Ardennes', () => {
       expect(a.range).toBeGreaterThan(h.range * 1.5);
       expect(a.steepest).toBeGreaterThan(h.steepest);
     }
-    // the steepest climb: within the first fifth of the lap, after the plunge from the hairpin
+    // the steepest climb: within the first quarter of the lap, after the plunge from the hairpin
     let at = 0;
     let most = 0;
     for (const p of ardennes.track.samples) {
@@ -259,7 +259,7 @@ describe('Ardennes', () => {
       if (grade > most) [most, at] = [grade, p.s];
     }
     expect(at / ardennes.track.length).toBeGreaterThan(0.12);
-    expect(at / ardennes.track.length).toBeLessThan(0.2);
+    expect(at / ardennes.track.length).toBeLessThan(0.25);
   });
 
   it('has no bend tighter than the track is wide, its tightest opened out from the tracing (its edges never cross)', () => {

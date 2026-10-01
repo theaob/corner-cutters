@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyDamage, carClass, newCar, speedOf } from '../src/engine/driving';
 import { HALF_WIDTH, TILE, buildCircuit, type Circuit } from '../src/f1/circuit';
 import { LAYOUTS, SILVER_HEATH, type CircuitLayout } from '../src/f1/layouts';
-import { GARAGE_ACROSS, PIT, entersPit, inLimitZone, stopTime, wantsPit } from '../src/f1/pits';
+import { GARAGE_ACROSS, PIT, PIT_LANE_MIN, PIT_STRAIGHT_MIN, entersPit, inLimitZone, stopTime, wantsPit } from '../src/f1/pits';
 import { freshTyres } from '../src/f1/tyres';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, nearestSample } from '../src/f1/racing';
 import { newRace, order, running, skipToParked, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
@@ -35,6 +35,18 @@ describe.each(LAYOUTS)('$name pit lane', (layout) => {
     expect(Math.max(...pit.points.map((p) => p.off))).toBeCloseTo(PIT.offset);
     expect(c.cells).toContain('pit');
     expect(c.cells).toContain('pitwall');
+  });
+
+  it('lies on the main straight, entry road to exit road, the straight long enough for the shortest lane', () => {
+    const n = track.samples.length;
+    const straight = (i: number) => Math.abs(track.samples[((i % n) + n) % n].curve) < 1 / 700;
+    let a = 0;
+    while (straight(a - 1) && a > -n) a--;
+    let b = 0;
+    while (straight(b + 1) && b < n) b++;
+    expect((b - a) * track.spacing).toBeGreaterThanOrEqual(PIT_STRAIGHT_MIN);
+    expect(layout.pit.to - layout.pit.from).toBeGreaterThanOrEqual(PIT_LANE_MIN);
+    for (const p of pit.points) expect(straight(p.idx)).toBe(true);
   });
 
   it('is clear of the rest of the circuit: each point of it is beside its own stretch of track', () => {

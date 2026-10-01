@@ -39,6 +39,8 @@ const LANE_LIMIT = 30;
 const PIT_APPROACH = 40;
 /** samples before the entry by which it has to have started over: after that, it stays out */
 const PIT_DECIDE = 15;
+/** px/s² a driver counts on slowing at behind a slower car ahead */
+const FOLLOW_DECEL = 260;
 
 /** The speed (px/s) to be doing now at `idx` so as to slow at `decel` px/s² to every bend within reach at `skill` of the line's speed. */
 export function speedToCarry(track: Track, idx: number, skill: number, decel: number): number {
@@ -54,9 +56,9 @@ export function speedToCarry(track: Track, idx: number, skill: number, decel: nu
 
 /**
  * A reference player's input at nearest sample `idx`, aiming `lane` px right of
- * the middle (a little way ahead, further the faster it goes).
+ * the middle (a little way ahead, further the faster it goes), no faster than `cap` px/s.
  */
-export function referenceInput(car: Car, track: Track, idx: number, player: ReferencePlayer, lane = 0): DriveInput {
+export function referenceInput(car: Car, track: Track, idx: number, player: ReferencePlayer, lane = 0, cap = Infinity): DriveInput {
   const n = track.samples.length;
   const v = speedOf(car);
   const t = track.samples[(idx + Math.round((40 + v * 0.3) / track.spacing)) % n];
@@ -64,13 +66,13 @@ export function referenceInput(car: Car, track: Track, idx: number, player: Refe
   const { skill } = player;
   if (player.device === 'touch') {
     // the stick toward the line ahead, pushed as far as the speed it wants (full over the top speed)
-    const want = speedToCarry(track, idx, skill, LIFT);
+    const want = Math.min(cap, speedToCarry(track, idx, skill, LIFT));
     const mag = Math.max(0.15, Math.min(1, want / car.cls.topSpeed));
     return playerInput({ stick: { x: Math.sin(heading) * mag, y: -Math.cos(heading) * mag }, a: false, b: false });
   }
   // the wheel: turn toward the line ahead (full lock past ~9°, as a quick hand on the keys does), gas unless over the
   // speed for what's coming, then brake
-  const want = speedToCarry(track, idx, skill, (car.cls.topSpeed / car.cls.brakeTime) * BRAKE_SHARE);
+  const want = Math.min(cap, speedToCarry(track, idx, skill, (car.cls.topSpeed / car.cls.brakeTime) * BRAKE_SHARE));
   const diff = Math.atan2(Math.sin(heading - car.heading), Math.cos(heading - car.heading));
   const turn = Math.max(-1, Math.min(1, diff / 0.15));
   const over = v > want + 6;
@@ -87,6 +89,7 @@ export function referenceDriver(race: Race, e: Entrant, player: ReferencePlayer)
   const n = track.samples.length;
   const { car, progress: p } = e;
   let lane = 0;
+  let cap = Infinity;
   const mine = lateralOffset(track, p.idx, car.x, car.y);
   // BOX, BOX: over to the pit side for the entry, when the call comes on the approach (not a late dive at the wall);
   // once it's heading over, on in
@@ -106,8 +109,11 @@ export function referenceDriver(race: Race, e: Entrant, player: ReferencePlayer)
       const along = (o.car.x - car.x) * f.x + (o.car.y - car.y) * f.y;
       const theirs = lateralOffset(track, p.idx, o.car.x, o.car.y);
       if (along > 0 && along < reach && Math.abs(theirs - mine) < 20) lane = theirs > 0 ? theirs - PASS_GAP : theirs + PASS_GAP;
+      // and a slower car right ahead in its line: no faster than it can slow to their speed behind them (as a
+      // driver lifts rather than run into the car braking in front)
+      if (along > 0 && along < reach && Math.abs(theirs - mine) < 16) cap = Math.min(cap, Math.sqrt(speedOf(o.car) ** 2 + 2 * FOLLOW_DECEL * Math.max(0, along - 30)));
     }
     lane = Math.max(-LANE_LIMIT, Math.min(LANE_LIMIT, lane));
   }
-  return referenceInput(car, track, p.idx, player, lane);
+  return referenceInput(car, track, p.idx, player, lane, cap);
 }

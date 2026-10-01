@@ -24,11 +24,13 @@ export const QUALI = {
   laps: 99,
 };
 
-/** Put entrant `i` on the run-up to a flying lap: `QUALI.runUp` px before the line, standing; the session under way. */
+/** Put entrant `i` on the run-up to a flying lap: `QUALI.runUp` px before the line (or where the straight before it starts, if that's nearer), standing; the session under way. */
 export function flyingStart(race: Race, i: number): void {
   const { track } = race;
   const n = track.samples.length;
-  const idx = n - Math.round(QUALI.runUp / track.spacing);
+  // (on the straight: where the run-up would start in the bend before it, a little further on)
+  let idx = n - Math.round(QUALI.runUp / track.spacing);
+  while (idx < n - 1 && Math.abs(track.samples[idx].curve) >= 1 / 500) idx++;
   const s = track.samples[idx];
   const e = race.entrants[i];
   Object.assign(e.car, { x: s.x, y: s.y, heading: s.dir, vx: 0, vy: 0 });
