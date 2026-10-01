@@ -3,7 +3,7 @@ import { applyDamage, carClass, newCar, speedOf, type Car } from '../src/engine/
 import { buildCircuit } from '../src/f1/circuit';
 import { SILVER_HEATH } from '../src/f1/layouts';
 import { RACE_HANDLING, aiInput, lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { CLEAR_AFTER, SAFETY_CAR, isBigCrash, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
+import { CLEAR_AFTER, SAFETY_CAR, VSC, isBigCrash, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -149,4 +149,79 @@ describe('race control', () => {
     expect(race.phase).toBe('lights');
     race.entrants.forEach((e: { car: Car }, i) => expect(Math.hypot(e.car.x - start[i].x, e.car.y - start[i].y)).toBeLessThan(1));
   });
+});
+
+describe('the virtual safety car', () => {
+  /**
+   * A race with the car at the back of the grid driven as the AI would, through the player's input (so a hit can be
+   * dealt inside a step, as a crash is): `hit(race)` once racing has run `at` s. The events with their times.
+   */
+  function runWith(at: number, hit: (race: Race) => void, seconds = 40, then?: (race: Race, t: number) => void) {
+    const you = 9;
+    const race = raceOn(SILVER_HEATH, 3, you);
+    const me = race.entrants[you];
+    let dealt = false;
+    const drive = () => {
+      if (!dealt && race.phase === 'racing' && race.clock > at) {
+        hit(race);
+        dealt = true;
+      }
+      // (minding the cars round it, and the orders when there are any, as an AI car does)
+      const others = race.entrants.filter((o) => o !== me && running(o)).map((o) => o.car);
+      return aiInput(me.car, race.track, me.progress.idx, { lane: 0, pace: 0.9 }, others, race.vsc || race.sc ? { noOvertaking: true } : {});
+    };
+    const events: { t: number; e: RaceEvent }[] = [];
+    for (let t = 0; t < seconds && !over(race); t += dt) {
+      for (const e of stepRace(race, dt, drive).race) events.push({ t: race.clock, e });
+      then?.(race, t);
+    }
+    return { race, events };
+  }
+  /** a big hit a car survives: half its health at once, mid-pack */
+  const bigHit = (race: Race) => {
+    const car = race.entrants[order(race)[4]].car;
+    car.health -= car.cls.health * 0.5;
+  };
+
+  it('comes out for a big crash a car survives: everyone on its limiter, nobody passing, the gaps held; its end called, then the green', () => {
+    let fastest = 0;
+    let spreadAt: number[] = [];
+    let orderAt: number[][] = [];
+    const { race, events } = runWith(12, bigHit, 40, (r) => {
+      if (!r.vsc) return;
+      const on = order(r).filter((i) => running(r.entrants[i]) && !r.entrants[i].pit);
+      const at = (i: number) => r.entrants[i].progress.lap * r.track.samples.length + r.entrants[i].progress.idx;
+      if (r.vsc.out < dt * 1.5 || r.vsc.out > VSC.length - dt * 1.5) {
+        spreadAt.push((at(on[0]) - at(on[on.length - 1])) * r.track.spacing);
+        orderAt.push(on);
+      }
+      // (once the field has had a moment to slow)
+      if (r.vsc.out > 2) for (const e of r.entrants) if (running(e) && !e.pit) fastest = Math.max(fastest, speedOf(e.car));
+    });
+    const kinds = events.map((x) => x.e.kind);
+    expect(kinds.slice(0, 5)).toEqual(['lights-out', 'crash', 'vsc', 'vsc-ending', 'green']);
+    expect(kinds).not.toContain('safety-car');
+    const at = (k: string) => events.find((x) => x.e.kind === k)!.t;
+    expect(at('vsc-ending') - at('vsc')).toBeCloseTo(VSC.length - VSC.warn, 1);
+    expect(at('green') - at('vsc')).toBeCloseTo(VSC.length, 1);
+    // on the limiter, and really running at it
+    expect(fastest).toBeLessThanOrEqual(VSC.limit + 5);
+    expect(fastest).toBeGreaterThan(VSC.limit - 15);
+    // the field neither closes up nor spreads out much, and keeps its order
+    [spreadAt, orderAt] = [spreadAt.slice(-2), orderAt.slice(-2)];
+    expect(spreadAt[1]).toBeGreaterThan(spreadAt[0] * 0.75);
+    expect(orderAt[1]).toEqual(orderAt[0]);
+    expect(race.entrants.every((e) => e.progress.penalty === 0)).toBe(true);
+    expect(race.vsc).toBeUndefined();
+  }, 30_000);
+
+  it('gives way to the safety car if a car is wrecked while it is out', () => {
+    const { race, events } = runWith(12, bigHit, 20, (r) => {
+      if (r.vsc && r.vsc.out > 3 && !r.sc) applyDamage(r.entrants[order(r)[2]].car, 1000, RACE_HANDLING);
+    });
+    const kinds = events.map((x) => x.e.kind).filter((k) => ['vsc', 'vsc-ending', 'safety-car', 'green'].includes(k));
+    expect(kinds).toEqual(['vsc', 'safety-car']);
+    expect(race.vsc).toBeUndefined();
+    expect(race.sc).toBeDefined();
+  }, 30_000);
 });

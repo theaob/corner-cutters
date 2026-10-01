@@ -41,6 +41,21 @@ export const SAFETY_CAR = {
   penalty: 5,
 };
 
+/**
+ * The virtual safety car: called for a big crash the car survives (its nose, maybe more, on the track), where a wreck
+ * brings out the safety car itself. Every car on a limiter and no overtaking (passing costs as under the safety car),
+ * but nobody to queue behind: the gaps hold. Out for a set time (as long as the debris lies), its end called a few
+ * seconds before the green.
+ */
+export const VSC = {
+  /** px/s: everyone's limiter while it's out (about 60% of an F1 car's top speed) */
+  limit: 190,
+  /** seconds it's out */
+  length: 10,
+  /** seconds before the green that its end is called */
+  warn: 3,
+};
+
 /** Seconds after lights out before the AI makes passing and defending moves: the pack sorts itself out first. */
 export const SETTLE = 15;
 
@@ -90,6 +105,9 @@ export type RaceEvent =
   | { kind: 'wreck'; who: number }
   | { kind: 'retired'; who: number }
   | { kind: 'safety-car' }
+  /** the virtual safety car out, and its end called (the green follows) */
+  | { kind: 'vsc' }
+  | { kind: 'vsc-ending' }
   | { kind: 'green' }
   | { kind: 'penalty'; who: number; seconds: number }
   | { kind: 'pit-in'; who: number }
@@ -117,7 +135,9 @@ export interface Race {
   /** the clock time the lights go out */
   lightsOut: number;
   sc?: SafetyCar;
-  /** per entrant: the entrants it has to stay behind while the safety car is out */
+  /** the virtual safety car, while it's out: seconds since it came out */
+  vsc?: { out: number };
+  /** per entrant: the entrants it has to stay behind while the safety car (or the virtual one) is out */
   holdBehind: Set<number>[];
 }
 
@@ -211,6 +231,7 @@ export function skipToParked(race: Race): number[] {
   const n = track.samples.length;
   race.phase = 'racing';
   race.sc = undefined;
+  race.vsc = undefined;
   race.holdBehind = entrants.map(() => new Set());
   for (const e of entrants) {
     const p = e.progress;
@@ -263,6 +284,14 @@ export function isBigCrash(car: Car, healthBefore: number, wreckedNow: boolean):
 /** Race order (indexes into `entrants`). */
 export const order = (race: Race) => standings(race.entrants.map((e) => e.progress), race.track);
 
+/** The virtual safety car out now: everyone on the limiter where they are, and nobody may pass anyone ahead of them now. */
+export function callVsc(race: Race): RaceEvent {
+  const ranked = order(race);
+  race.vsc = { out: 0 };
+  race.holdBehind = race.entrants.map((_, i) => new Set(ranked.slice(0, ranked.indexOf(i))));
+  return { kind: 'vsc' };
+}
+
 /** The safety car joins `ahead` px up the track from `car`, heading the way of the race at no more than its own speed. */
 function safetyCarAhead(track: Track, car: Car, idx: number): SafetyCar {
   const n = track.samples.length;
@@ -296,7 +325,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   }
   const racing = race.phase === 'racing';
   const sc = race.sc;
-  const orders: Orders = sc ? { limit: SAFETY_CAR.limit, noOvertaking: true } : {};
+  const vsc = race.vsc;
+  const orders: Orders = sc ? { limit: SAFETY_CAR.limit, noOvertaking: true } : vsc ? { limit: VSC.limit, noOvertaking: true } : {};
   const onTrack = entrants.filter(running);
   const n = track.samples.length;
   /** px along the track from an entrant up to the safety car (Infinity when it's not out) */
@@ -304,6 +334,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   // (a car in its garage after the race is out of everyone's way)
   const cars = [...onTrack.filter((e) => e.pit?.phase !== 'garage').map((e) => e.car), ...(sc ? [sc.car] : [])];
   const playerLimit = (e: Entrant) => {
+    if (vsc) return VSC.limit;
     if (!sc) return undefined;
     const behind = toSafetyCar(e);
     if (behind <= SAFETY_CAR.holdGap) return SAFETY_CAR.speed;
@@ -378,7 +409,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   // not in the pit lane, under the safety car, or after the flag
   entrants.forEach((e) => {
     if (!running(e)) return;
-    const towing = racing && !e.pit && !race.sc && e.progress.finished === undefined;
+    const towing = racing && !e.pit && !race.sc && !race.vsc && e.progress.finished === undefined;
     e.tow = stepTow(e.tow, towing ? towFrom(e.car, cars) : 0, dt);
     e.car.speedScale = (e.car.speedScale ?? 1) * towBoost(e.tow);
   });
@@ -406,12 +437,15 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   }
 
   // wrecks: cleared off the track after a moment; the car retires
+  // (a wreck brings out the safety car; a big crash a car survives, the virtual one)
+  let wreck = false;
   let bigCrash = false;
   entrants.forEach((e, i) => {
     if (!running(e)) return;
     const wreckedNow = events[i].wreckedNow || (e.car.wrecked && e.wreckedAt === undefined);
     if (isBigCrash(e.car, before[i], wreckedNow)) {
       bigCrash = true;
+      if (e.car.wrecked) wreck = true;
       out.push({ kind: 'crash', who: i, ...moving[i], hit: (before[i] - e.car.health) / e.car.cls.health, wrecked: e.car.wrecked });
     }
     if (e.car.wrecked && e.wreckedAt === undefined) {
@@ -426,14 +460,22 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
 
   const ranked = order(race);
   const leader = ranked.map((i) => entrants[i]).find((e) => running(e) && !e.car.wrecked && e.progress.finished === undefined);
-  if (!race.sc && racing && bigCrash && leader) {
+  /** no passing anyone ahead now (indexes of the entrants each must stay behind) */
+  const holdOrder = () => entrants.map((_, i) => new Set(ranked.slice(0, ranked.indexOf(i))));
+  if (!race.sc && racing && wreck && leader) {
     // safety car: it joins ahead of the leader, and nobody may pass anyone who is ahead of them now
+    // (it takes over from the virtual one, if that's out)
+    race.vsc = undefined;
     race.sc = safetyCarAhead(track, leader.car, leader.progress.idx);
-    race.holdBehind = entrants.map((_, i) => new Set(ranked.slice(0, ranked.indexOf(i))));
+    race.holdBehind = holdOrder();
     out.push({ kind: 'safety-car' });
-  } else if (sc) {
-    if (leader && toSafetyCar(leader) <= SAFETY_CAR.queueGap) sc.led += dt;
-    sc.out += dt;
+  } else if (!race.sc && !race.vsc && racing && bigCrash && leader) {
+    out.push(callVsc(race));
+  } else if (sc || vsc) {
+    if (sc) {
+      if (leader && toSafetyCar(leader) <= SAFETY_CAR.queueGap) sc.led += dt;
+      sc.out += dt;
+    }
     // no overtaking: passing a car that was ahead when it came out costs a penalty (a wreck, or a car in the pits, may be passed)
     entrants.forEach((e, i) => {
       if (e.pit) return;
@@ -447,9 +489,16 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
         }
       }
     });
-    // in once the field has run behind it for a while, or when there's no one left to lead
-    if (sc.led >= SAFETY_CAR.leadFor || sc.out >= SAFETY_CAR.maxOut || !leader) {
+    if (vsc) {
+      // its end called a few seconds before the green
+      const was = vsc.out;
+      vsc.out += dt;
+      if (was < VSC.length - VSC.warn && vsc.out >= VSC.length - VSC.warn) out.push({ kind: 'vsc-ending' });
+    }
+    // in once the field has run behind it for a while, or when there's no one left to lead (the virtual one: once its time is up)
+    if (sc ? sc.led >= SAFETY_CAR.leadFor || sc.out >= SAFETY_CAR.maxOut || !leader : vsc!.out >= VSC.length || !leader) {
       race.sc = undefined;
+      race.vsc = undefined;
       race.holdBehind = entrants.map(() => new Set());
       out.push({ kind: 'green' });
     }
