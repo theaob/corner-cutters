@@ -185,8 +185,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const medalLine = document.createElement('span');
   // track limits: your strikes, amber while they're warnings, red once they cost you
   const limitsLine = document.createElement('span');
-  // the speed, frame rate and picture quality, small and dim under the rest
+  // the speed, frame rate and picture quality, small and dim under the rest (with ?debug only: not for players)
   const statsLine = document.createElement('span');
+  const showStats = new URLSearchParams(window.location.search).has('debug');
   Object.assign(statsLine.style, { color: '#6c6a88', fontSize: '10px' });
   const banner = document.createElement('div');
   style(banner, {
@@ -1742,7 +1743,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the tyre line in its compound's colour
     tyreLine.textContent = `TYRE ${tyres}\n`;
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
-    statsLine.textContent = `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}`;
+    statsLine.textContent = showStats ? `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}` : '';
     towLine.textContent = me.tow > 0.1 && !done ? `TOW  ${'▶'.repeat(Math.ceil(me.tow * 5))}\n` : '';
     const strikes = me.limits.strikes;
     limitsLine.textContent = strikes && session === 'race' ? `LIMITS ${strikes > LIMITS.warnings ? `+${(strikes - LIMITS.warnings) * LIMITS.penalty}S` : `${strikes}/${LIMITS.warnings}`}\n` : '';
