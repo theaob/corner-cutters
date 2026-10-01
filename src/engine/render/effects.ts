@@ -3,6 +3,7 @@
 // wrecks. Driven each frame from the engine-free car state.
 
 import * as THREE from 'three';
+import { fling, gone, stepPiece, sunk, type Piece } from '../debris';
 import { canvas } from './sprites';
 import type { CarMesh } from './vehicles3d';
 
@@ -263,4 +264,92 @@ export class CarFx {
     const char = condition === 'wrecked' ? 0.22 : condition === 'burning' ? 0.6 : 1;
     this.mesh.userData.paint.forEach((m, i) => m.color.copy(this.original[i]).multiplyScalar(char));
   }
+}
+
+interface Shed {
+  obj: THREE.Object3D;
+  piece: Piece;
+  /** its resting pose (lying as it lands), which its tumble turns */
+  pose: THREE.Quaternion;
+  /** px its origin stands above the ground, lying in that pose */
+  lift: number;
+}
+
+/**
+ * Parts torn off cars in big crashes (the nose, a wheel): each hidden on its car, and a copy thrown clear from where
+ * it was, tumbling and bouncing (debris.ts) till it lies still, then sinking away. The car's paint is shared, so a
+ * burning car's parts char with it. The scene's x and z are the ground plane, y up.
+ */
+export class DebrisLayer {
+  readonly group = new THREE.Group();
+  private readonly shed: Shed[] = [];
+  private readonly turn = new THREE.Quaternion();
+  private readonly euler = new THREE.Euler();
+
+  /**
+   * Tear `part` off its car (if it's still on), moving with the car at (vx, vz) px/s; `power` (0…1) throws it harder.
+   * `lies` turns its resting pose from the way it sat on the car (a wheel lies on its side).
+   */
+  tear(part: THREE.Object3D, vx: number, vz: number, power: number, lies?: THREE.Quaternion): void {
+    if (!part.visible || !part.parent) return;
+    const car = part.parent;
+    car.updateWorldMatrix(true, true);
+    const at = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    part.matrixWorld.decompose(at, quat, scale);
+    const centre = car.getWorldPosition(new THREE.Vector3());
+    const ox = at.x - centre.x;
+    const oz = at.z - centre.z;
+    const d = Math.hypot(ox, oz) || 1;
+    const copy = part.clone();
+    copy.visible = true;
+    copy.scale.copy(scale);
+    // (how high its origin stands lying in its resting pose: from its lowest point there)
+    const pose = lies ? quat.clone().multiply(lies) : quat.clone();
+    copy.position.set(0, 0, 0);
+    copy.quaternion.copy(pose);
+    copy.updateMatrixWorld(true);
+    const lift = -new THREE.Box3().setFromObject(copy).min.y;
+    copy.position.copy(at);
+    copy.quaternion.copy(quat);
+    this.group.add(copy);
+    part.visible = false;
+    // (it leaves as it sat on the car: its tumble starts from there, eased toward the resting pose as it slides)
+    const piece = fling(at.x, at.z, at.y - lift, vx, vz, { x: ox / d, y: oz / d }, power);
+    this.shed.push({ obj: copy, piece, pose, lift });
+  }
+
+  /** Move the pieces on `dt` s, over ground `ground(x, z)` px high. */
+  update(dt: number, ground: (x: number, z: number) => number): void {
+    for (let i = this.shed.length - 1; i >= 0; i--) {
+      const s = this.shed[i];
+      const p = s.piece;
+      stepPiece(p, dt, ground);
+      if (gone(p)) {
+        this.group.remove(s.obj);
+        this.shed.splice(i, 1);
+        continue;
+      }
+      s.obj.position.set(p.x, p.h + s.lift - sunk(p) * (s.lift + 6), p.y);
+      this.euler.set(p.rot[0], p.rot[1], p.rot[2]);
+      s.obj.quaternion.copy(this.turn.setFromEuler(this.euler)).multiply(s.pose);
+    }
+  }
+
+  /** The pieces in the air or on the ground now. */
+  get count(): number {
+    return this.shed.length;
+  }
+
+  clear(): void {
+    for (const s of this.shed) this.group.remove(s.obj);
+    this.shed.length = 0;
+  }
+}
+
+/** Put back every part a crash tore off `mesh` (a repaired car). */
+export function refit(mesh: CarMesh): void {
+  const { nose, wheels } = mesh.userData.parts;
+  for (const p of [nose, ...wheels]) p.visible = true;
 }

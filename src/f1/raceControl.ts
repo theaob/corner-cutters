@@ -85,6 +85,8 @@ export interface SafetyCar {
 
 export type RaceEvent =
   | { kind: 'lights-out' }
+  /** a big crash (a wreck, or a big share of a car's health lost at once): `vx`, `vy` how it was moving into it (px/s), `hit` the share of its health lost, `wrecked` whether it's a wreck */
+  | { kind: 'crash'; who: number; vx: number; vy: number; hit: number; wrecked: boolean }
   | { kind: 'wreck'; who: number }
   | { kind: 'retired'; who: number }
   | { kind: 'safety-car' }
@@ -311,6 +313,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
 
   // drive
   const before = entrants.map((e) => e.car.health);
+  // (how each car was moving going into the step: a crash throws its parts on that way)
+  const moving = entrants.map((e) => ({ vx: e.car.vx, vy: e.car.vy }));
   const events = entrants.map((e, i): StepEvents => {
     const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
     if (!running(e)) return quiet;
@@ -405,7 +409,11 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   let bigCrash = false;
   entrants.forEach((e, i) => {
     if (!running(e)) return;
-    if (isBigCrash(e.car, before[i], events[i].wreckedNow || (e.car.wrecked && e.wreckedAt === undefined))) bigCrash = true;
+    const wreckedNow = events[i].wreckedNow || (e.car.wrecked && e.wreckedAt === undefined);
+    if (isBigCrash(e.car, before[i], wreckedNow)) {
+      bigCrash = true;
+      out.push({ kind: 'crash', who: i, ...moving[i], hit: (before[i] - e.car.health) / e.car.cls.health, wrecked: e.car.wrecked });
+    }
     if (e.car.wrecked && e.wreckedAt === undefined) {
       e.wreckedAt = race.clock;
       out.push({ kind: 'wreck', who: i });
