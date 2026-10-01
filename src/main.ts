@@ -14,6 +14,7 @@ import { unlockAudio } from './engine/audio';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
+import { lapsFrom } from './f1/laps';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
@@ -119,6 +120,7 @@ const savedTeam = () => teamById(choice('team')) ?? TEAMS[0];
 const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
+const savedLaps = () => lapsFrom(choice('laps'));
 const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'championship' ? v : 'race');
 const savedMode = (): GameMode => asMode(choice('mode'));
 
@@ -174,13 +176,14 @@ async function showMenu(id: number): Promise<void> {
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
-  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), openNow(), closed.signal);
+  const picked = await chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal);
   if (id !== routeId) return;
   save('choices', 'circuit', picked.layout.id);
   save('choices', 'team', picked.team.id);
   save('choices', 'difficulty', picked.difficulty.id);
   save('choices', 'weather', picked.weather.id);
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
+  save('choices', 'laps', String(picked.laps));
   save('choices', 'mode', picked.mode);
   if (picked.controlsLap) return navigate(withCircuit(LAYOUTS[0].id, 'tutorial'));
   // (a Championship picks its own circuits: to its screen)
@@ -272,7 +275,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
       }
     : mode === 'tutorial'
       ? { team: savedTeam(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
-      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), mode: mode === 'timetrial' ? 'timetrial' : 'race' };
+      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' ? 'timetrial' : 'race' };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();

@@ -18,6 +18,7 @@ import { COMPOUNDS, fitTyres } from './tyres';
 import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
+import { RACE_LAPS } from './laps';
 import { GRID_PAN, panAt, panLength } from './gridPan';
 import { landmarksOf } from './town3d';
 import { standsOf } from './stands';
@@ -82,6 +83,8 @@ export interface RaceOptions {
   weather?: Weather;
   /** a qualifying lap first, to set your grid slot */
   qualifying?: boolean;
+  /** how many laps the race is (a Championship round is always RACE_LAPS) */
+  laps?: number;
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
   mode?: 'race' | 'timetrial' | 'tutorial';
   /**
@@ -97,6 +100,7 @@ export interface RaceOptions {
  */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
   const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
+  const LAPS = championship ? RACE_LAPS : Math.max(1, Math.round(options.laps ?? RACE_LAPS));
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
@@ -501,7 +505,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const slot = circuit.slots[i];
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai: w.drivers[k].ai, box: w.drivers[k].box };
     });
-    race = newRace(track, grid, HANDLING, Math.round(t.laps), field, w.lightsOut, circuit.pit, weather.id);
+    race = newRace(track, grid, HANDLING, LAPS, field, w.lightsOut, circuit.pit, weather.id);
     // (on the ground from the start: the grid pan shows them before the first step puts them there)
     for (const e of race.entrants) e.car.z = groundAt(grid, e.car.x, e.car.y).h;
     hudState = { gaps: newGapTimer(slots.length), lastPos: 0, flashUntil: 0, lapsSeen: new Array(slots.length).fill(0), fastest: undefined };
@@ -981,8 +985,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       requestAnimationFrame(tick);
       return;
     }
-    // laps can be tuned live (TUNE), so the race picks up the current value
-    if (session === 'race') race.laps = Math.round(t.laps);
     const laps = race.laps;
 
     // the race: everyone drives, the rules run
