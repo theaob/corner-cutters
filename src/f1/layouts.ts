@@ -28,6 +28,8 @@ export interface StreetSpec {
   runoff: number;
   sea: Pt[];
   tunnel: [number, number];
+  /** where its landmarks stand (in `points` units): the casino, an open-air swimming pool, a tennis court */
+  landmarks?: { casino: Pt; pool: Pt; tennis: Pt };
 }
 
 /**
@@ -232,6 +234,8 @@ export const HARBOUR: CircuitLayout = {
       [3400, 700], [3400, 4200], [1000, 4200],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
     tunnel: [3500, 4500],
+    // the casino in the loop above the hairpin, the pool beside the pool section, the tennis court below the climb
+    landmarks: { casino: { x: 1880, y: 850 }, pool: { x: 745, y: 2700 }, tennis: { x: 1150, y: 1560 } },
   },
 };
 

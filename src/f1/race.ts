@@ -19,6 +19,7 @@ import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
 import { GRID_PAN, panAt, panLength } from './gridPan';
+import { landmarksOf } from './town3d';
 import { REPLAY, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
@@ -627,6 +628,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
+        /** a street circuit's landmarks (where they stand on the map), and the camera held on a point of the map (none: back on your car), for looking at the scenery */
+        landmarks: () => landmarksOf(circuit),
+        look: (x?: number, y?: number) => (lookAt = x === undefined || y === undefined ? undefined : { x, y }),
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
         replay: () => replay && { ...replay },
         /** the grid pan before the lights: whether it's on, and the car it's on */
@@ -919,6 +923,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   hud.setLabel('a', aLabel());
   hud.setLabel('b', 'DRIFT');
 
+  /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
+  let lookAt: { x: number; y: number } | undefined;
   /** the camera's zoom for the grid pan, eased */
   let panZoom = 1;
   /** the view has been closed: the loop stops */
@@ -1345,7 +1351,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const c = me.car;
     const drawn = pose(c, you, alpha);
     const mineThen = replay && replayPose(recorder, you, replay.t);
-    if (mineThen) {
+    if (lookAt) {
+      // (the debug hook's: the camera on a point of the map)
+      target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
+      focus.copy(target);
+    } else if (mineThen) {
       // the replay: on your car as it was, looking ahead along its way
       target.set(mineThen.x + Math.sin(mineThen.heading) * t.lead * 0.6, mineThen.z * 0.5, mineThen.y - Math.cos(mineThen.heading) * t.lead * 0.6);
     } else if (gridPan) {
@@ -1367,6 +1377,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
     camera.lookAt(focus.x, focus.y, focus.z);
     world.followSun(focus);
+    world.animate(performance.now() / 1000);
 
 
     if (settle > 0) settle--;
