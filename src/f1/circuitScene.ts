@@ -38,6 +38,9 @@ function rng(seed: number): () => number {
   };
 }
 
+/** px across each square of the chequered start/finish line (as near as fits the track's width evenly) */
+const START_SQUARE = 6;
+
 /** A forest's floor, past the barriers */
 const FOREST_FLOOR = '#2f5a2c';
 
@@ -261,20 +264,6 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       for (let k = from; k <= to; k += 3) x.fillRect(Math.round(edge[k].x) - 1, Math.round(edge[k].y) - 1, 3, 3);
     }
   }
-  // chequered start/finish line across the track at sample 0
-  const s0 = pts[0];
-  const rx = Math.cos(s0.dir);
-  const ry = Math.sin(s0.dir);
-  const fx = Math.sin(s0.dir);
-  const fy = -Math.cos(s0.dir);
-  for (let k = -HALF_WIDTH; k < HALF_WIDTH; k += 4) {
-    for (let row = 0; row < 2; row++) {
-      x.fillStyle = (Math.floor((k + HALF_WIDTH) / 4) + row) % 2 === 0 ? '#f4f4f8' : '#1b1b26';
-      const cx = s0.x + rx * k + fx * (row * 4 - 4);
-      const cy = s0.y + ry * k + fy * (row * 4 - 4);
-      x.fillRect(Math.round(cx), Math.round(cy), 4, 4);
-    }
-  }
   // grid boxes: a white bracket in front of each slot
   x.strokeStyle = '#f4f4f8';
   x.lineWidth = 2;
@@ -291,6 +280,22 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     x.lineTo(front.x + grx * 9 - gfx * 6, front.y + gry * 9 - gfy * 6);
     x.stroke();
   }
+  // the chequered start/finish line across the track at sample 0: squares in the track's own frame (turned with
+  // it, so as even on a straight at an angle as on one up the map), edge to edge, two rows centred on the line (over the pole's grid box, should they touch)
+  const s0 = pts[0];
+  const across = Math.round((HALF_WIDTH * 2) / START_SQUARE);
+  const sq = (HALF_WIDTH * 2) / across;
+  x.save();
+  x.translate(s0.x, s0.y);
+  // (local x: across the track, to the right of the way of the race; local y: back down the track)
+  x.rotate(s0.dir);
+  for (let k = 0; k < across; k++) {
+    for (let row = 0; row < 2; row++) {
+      x.fillStyle = (k + row) % 2 === 0 ? '#f4f4f8' : '#1b1b26';
+      x.fillRect(-HALF_WIDTH + k * sq, (row - 1) * sq, sq + 0.5, sq + 0.5);
+    }
+  }
+  x.restore();
   // the top three's parking spots past the line: a gold frame each, numbered 1, 2, 3 (read from behind)
   circuit.pit.podium.forEach((spot, k) => {
     const s = track.samples[spot.idx];
