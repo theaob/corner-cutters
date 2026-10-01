@@ -8,6 +8,7 @@ import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton, optionRow } from '../circuitSelect';
+import { confetti, trophy } from './celebrate';
 import { POINTS, pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
@@ -81,7 +82,7 @@ function standingsTable(s: Season): HTMLTableElement {
  * Show the Championship screen for `season` (none: no season yet) in `host`
  * until the player picks what next; `unlocked`, a circuit the season has just unlocked.
  */
-export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, unlocked: string | undefined, picked: SeasonChoices, closed?: AbortSignal): Promise<ChampionshipAction> {
+export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, unlocked: string | undefined, picked: SeasonChoices, closed?: AbortSignal, justWon = false): Promise<ChampionshipAction> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
@@ -100,6 +101,11 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     const settings = `${difficultyById(season.difficulty)?.name ?? ''} · ${weatherById(season.weather)?.name ?? ''} · QUALIFYING ${season.qualifying ? 'ON' : 'OFF'} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
     if (over) {
       const champ = season.drivers[table[0].driver];
+      // yours: the trophy (and, as the title's just been won, confetti)
+      if (champ.name === 'YOU') {
+        screen.append(trophy(96));
+        if (justWon) requestAnimationFrame(() => confetti(host, 4500));
+      }
       screen.append(line(champ.name === 'YOU' ? 'YOU ARE THE CHAMPION!' : `CHAMPION: ${champ.name} (${teamOf(champ).code})`, 'var(--gold)'));
     } else screen.append(line(`ROUND ${season.round + 1} OF ${season.rounds.length} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)'));
     screen.append(line(settings));
