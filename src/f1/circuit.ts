@@ -45,6 +45,8 @@ export interface Circuit {
   pit: PitLane;
   /** starting grid slots (px), pole first, all behind the line facing the way of the race */
   slots: { x: number; y: number; heading: number }[];
+  /** px the layout was moved by to put the map at (0, 0): a point of the layout (scaled) is here at its own minus this */
+  offset: { x: number; y: number };
 }
 
 export interface CircuitOptions {
@@ -57,6 +59,7 @@ export interface CircuitOptions {
 export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circuit {
   const control = layout.points.map((p) => ({ x: p.x * layout.scale, y: p.y * layout.scale }));
   const track = buildTrack(control, 8, opts.cornerSpeed, opts.decel);
+  track.tyreWear = layout.tyreWear;
   const margin = HALF_WIDTH + RUNOFF + 64;
   const minX = Math.min(...track.samples.map((p) => p.x)) - margin;
   const minY = Math.min(...track.samples.map((p) => p.y)) - margin;
@@ -109,6 +112,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     }
     return best && ((x - best.x) * Math.cos(best.dir) + (y - best.y) * Math.sin(best.dir)) * pit.side;
   };
+  /** px from the track's edge to the walls: the run-off, or a street circuit's pavement */
+  const runoff = layout.street?.runoff ?? RUNOFF;
   const cells: CircuitCell[] = [];
   for (let ty = 0; ty < H; ty++) {
     for (let tx = 0; tx < W; tx++) {
@@ -128,12 +133,22 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
           cells.push('pit');
           continue;
         }
+        // (on a street circuit, nothing walls the track off from its pit lane: pavement between, as on any circuit's run-off)
+        if (layout.street && side && between(i, pit.entry, pit.exit, n) && d <= PIT.offset) {
+          cells.push('grass');
+          continue;
+        }
       }
-      if (i < 0 || d > HALF_WIDTH + RUNOFF) {
+      if (i < 0 || d > HALF_WIDTH + runoff) {
         cells.push('wall');
         continue;
       }
       const tight = Math.abs(p.curve) > TIGHT;
+      // (a street circuit: pavement up to the walls, no gravel)
+      if (layout.street && d > HALF_WIDTH + 4) {
+        cells.push('grass');
+        continue;
+      }
       if (d <= HALF_WIDTH - 6) cells.push('track');
       else if (d <= HALF_WIDTH + 4) cells.push(tight ? 'kerb' : 'track');
       else {
@@ -182,5 +197,5 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });
 
-  return { layout, width: W, height: H, cells, grid, track, pit, slots };
+  return { layout, width: W, height: H, cells, grid, track, pit, slots, offset: { x: ox, y: oy } };
 }

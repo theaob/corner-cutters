@@ -18,6 +18,16 @@ export interface CircuitLayout {
   elevation: [number, number][];
   /** the pit lane, beside the main straight */
   pit: PitSpec;
+  /** how hard it is on tyres (1 unless given) */
+  tyreWear?: number;
+  /** a street circuit: walls `runoff` px off the track's edge (pavement between), the town all round, the sea (a polygon, in `points` units), and a tunnel (px along the lap, from and to) */
+  street?: StreetSpec;
+}
+
+export interface StreetSpec {
+  runoff: number;
+  sea: Pt[];
+  tunnel: [number, number];
 }
 
 /**
@@ -145,7 +155,87 @@ export const SILVER_HEATH: CircuitLayout = {
   pit: { from: -380, to: 220, side: -1 },
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH];
+/**
+ * Harbour. Clockwise through the streets of a harbour town, after the most
+ * famous street circuit of all (its corners in order, eased apart so our wider
+ * track fits between the walls; the outline after github.com/bacinger/f1-circuits,
+ * MIT): the main straight beside the harbour, a tight right at the first
+ * corner, the climb up the hill, a long left and a right flick across the
+ * square at the top, down to a tight right, the slowest hairpin anywhere, two
+ * rights to the sea front, the long right-curving tunnel, the chicane at its
+ * exit, a fast left along the quay, the pool's left–right and right–left, the
+ * tight right at the bottom and the last right onto the straight. Walls all
+ * the way round, a step off the track.
+ */
+export const HARBOUR: CircuitLayout = {
+  id: 'harbour',
+  name: 'Harbour',
+  about: 'clockwise · tight streets, walls close',
+  points: ([
+    // the main straight, north, the pits on the harbour side
+    [500, 2000], [500, 1760],
+    // the first corner: a right
+    [512, 1620], [560, 1535], [650, 1480],
+    // the climb up the hill, north-east
+    [800, 1400], [1050, 1250], [1300, 1080], [1480, 950],
+    // the long left
+    [1580, 860], [1630, 760], [1645, 660],
+    // the right flick across the square
+    [1680, 590], [1760, 560],
+    // down to the tight right
+    [1900, 565], [2010, 600], [2060, 680],
+    [2070, 800], [2060, 900],
+    // the hairpin: left, round to heading back north
+    [2080, 980], [2140, 1010], [2200, 990], [2225, 920],
+    // two rights to the sea front
+    [2240, 840], [2300, 790], [2380, 790],
+    [2450, 830], [2490, 920],
+    // the tunnel: a long right along the coast
+    [2500, 1100], [2470, 1350], [2390, 1600], [2260, 1830], [2100, 2000],
+    // the chicane: left, right
+    [1990, 2090], [1960, 2160], [1900, 2210], [1820, 2220],
+    // along the quay, then the fast left
+    [1500, 2210], [1150, 2190], [1000, 2210], [930, 2290],
+    // the pool: left–right, then right–left
+    [905, 2450], [915, 2560], [935, 2650], [935, 2740],
+    [915, 2830], [905, 2930], [905, 3030],
+    // down to the tight right at the bottom, and the last right
+    [905, 3250], [885, 3390], [830, 3470], [720, 3490],
+    [610, 3480], [530, 3430], [505, 3330],
+    // back up the straight
+    [500, 3000], [500, 2600], [500, 2300],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1,
+  // up from the harbour to the square at the top, down to the sea front, flat round the harbour
+  elevation: [
+    [0, 10],
+    [0.05, 12],
+    [0.16, 44],
+    [0.23, 62],
+    [0.28, 54],
+    [0.33, 38],
+    [0.39, 16],
+    [0.5, 8],
+    [0.6, 6],
+    [0.9, 8],
+    [1, 10],
+  ],
+  // on the harbour side of the straight
+  pit: { from: -1000, to: 380, side: 1 },
+  // slow streets, easy on tyres: track position is everything
+  tyreWear: 0.3,
+  street: {
+    runoff: 28,
+    // the harbour, beyond the quay and the pool, and the sea along the coast past the tunnel
+    sea: ([
+      [1000, 2300], [1750, 2300], [2150, 2130], [2420, 1820], [2580, 1300], [2620, 700],
+      [3400, 700], [3400, 4200], [1000, 4200],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+    tunnel: [3500, 4500],
+  },
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR];
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {

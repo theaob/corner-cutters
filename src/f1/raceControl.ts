@@ -357,7 +357,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   });
   // the tyres wear with the driving
   entrants.forEach((e, i) => {
-    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt, race.weather);
+    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt * (track.tyreWear ?? 1), race.weather);
   });
   // the slipstream: in a car's wake, a higher top speed for the next step (on top of the tyres'); racing only:
   // not in the pit lane, under the safety car, or after the flag

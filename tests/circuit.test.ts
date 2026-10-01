@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildCircuit } from '../src/f1/circuit';
-import { CRESCENT_PARK, LAYOUTS, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { CRESCENT_PARK, HARBOUR, LAYOUTS, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, coolDownInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
@@ -14,6 +14,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: CRESCENT_PARK, length: [7000, 8200], lap: [20, 26], flatGap: 0.5 },
   // the hook's hairpin and the last complex want a lift
   { layout: SILVER_HEATH, length: [8300, 9300], lap: [24, 30], flatGap: 0.75 },
+  // the streets: tight, but the cars grip enough to take nearly all of it flat out too
+  { layout: HARBOUR, length: [8300, 9300], lap: [24, 34], flatGap: 0.5 },
 ];
 
 describe('circuit list', () => {
@@ -38,10 +40,12 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap })
   const { grid, track } = circuit;
   const cellAt = (x: number, y: number) => circuit.cells[Math.floor(y / 16) * circuit.width + Math.floor(x / 16)];
 
-  it('is a lap of the right length with run-off, kerbs and gravel', () => {
+  it('is a lap of the right length with run-off (on the streets, pavement to the walls), kerbs and gravel (none on the streets)', () => {
     expect(track.length).toBeGreaterThan(length[0]);
     expect(track.length).toBeLessThan(length[1]);
-    for (const c of ['track', 'kerb', 'grass', 'gravel', 'wall'] as const) expect(circuit.cells).toContain(c);
+    for (const c of ['track', 'kerb', 'grass', 'wall'] as const) expect(circuit.cells).toContain(c);
+    if (layout.street) expect(circuit.cells).not.toContain('gravel');
+    else expect(circuit.cells).toContain('gravel');
   });
 
   it('lines the starting grid up on the track, behind the line', () => {

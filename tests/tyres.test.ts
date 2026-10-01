@@ -73,14 +73,16 @@ describe('when to stop for tyres', () => {
 });
 
 describe('a 5-lap race on tyres', () => {
-  it.each(LAYOUTS)('at $name: the whole field stops once for new tyres, teammates queuing at their box, and everyone finishes', (layout) => {
+  // (a circuit easy on its tyres, the streets: a stop pays for some and not for others)
+  it.each(LAYOUTS)('at $name: the whole field stops once for new tyres (on a circuit easy on them, at most once), teammates queuing at their box, and everyone finishes', (layout) => {
     const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
     const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
     const race = newRace(c.track, c.grid, handlingFor(NORMAL), 5, field, 0.5, c.pit);
     const events: RaceEvent[] = [];
     for (let t = 0; t < 400 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) events.push(...stepRace(race, 1 / 60).race);
     expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'safety-car')).toEqual([]);
-    expect(race.entrants.map((e) => e.stops)).toEqual(new Array(10).fill(1));
+    if ((layout.tyreWear ?? 1) < 1) expect(race.entrants.every((e) => e.stops <= 1)).toBe(true);
+    else expect(race.entrants.map((e) => e.stops)).toEqual(new Array(10).fill(1));
     expect(race.entrants.every((e) => e.progress.finished !== undefined && e.progress.lapTimes.length === 5)).toBe(true);
   }, 60_000);
 });
