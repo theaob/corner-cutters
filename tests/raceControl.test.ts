@@ -3,7 +3,7 @@ import { applyDamage, carClass, newCar, speedOf, type Car } from '../src/engine/
 import { buildCircuit } from '../src/f1/circuit';
 import { SILVER_HEATH } from '../src/f1/layouts';
 import { RACE_HANDLING, aiInput, lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { CLEAR_AFTER, SAFETY_CAR, VSC, isBigCrash, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
+import { CLEAR_AFTER, HOLD, SAFETY_CAR, VSC, isBigCrash, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -89,26 +89,63 @@ describe('race control', () => {
     expect(race.entrants.filter((e) => e.progress.finished !== undefined)).toHaveLength(9);
   }, 30_000);
 
-  it('penalises passing under the safety car, 5 s a place', () => {
-    // from the back of the grid, the player's car ignores the queue: it drives the line on its own, lane wide,
-    // as fast as the limiter allows
+  it('holds a player flat out on the queue in station: a gap behind the car ahead, no contact, no passing, no penalty', () => {
+    // from the back of the grid, the player's car goes at the queue flat out and wide of it, trying to pass (steering
+    // round what's in its way, a wreck and all, but never lifting for the queue: the limiter does the holding)
     const you = 9;
     const race = raceOn(SILVER_HEATH, 3, you);
     const me = race.entrants[you];
-    const reckless = () => aiInput(me.car, race.track, me.progress.idx, { lane: 30, pace: 1 });
+    const reckless = () => aiInput(me.car, race.track, me.progress.idx, { lane: 12, pace: 1, craft: 1 }, race.entrants.filter((o) => o !== me).map((o) => o.car));
+    const n = race.track.samples.length;
     let crashed = false;
-    let penalties = 0;
+    let health = 0;
+    let hurt = 0;
+    let out = 0;
+    const gaps: number[] = [];
     for (let t = 0; t < 200 && !over(race); t += dt) {
-      // (early, while the player is still behind most of the field)
       if (!crashed && race.phase === 'racing' && race.clock > 4) {
-        applyDamage(race.entrants[order(race)[0] === you ? order(race)[1] : order(race)[0]].car, 1000, RACE_HANDLING);
+        applyDamage(race.entrants[order(race)[0]].car, 1000, RACE_HANDLING);
         crashed = true;
       }
-      for (const e of stepRace(race, dt, reckless).race) if (e.kind === 'penalty' && e.who === you) penalties++;
+      stepRace(race, dt, reckless);
+      if (!race.sc) continue;
+      out += dt;
+      if (out < 1) health = me.car.health;
+      // (contact while it's out)
+      hurt = health - me.car.health;
+      // once it has had time to close up: the gap along the track to the car ahead of it
+      const ranked = order(race).filter((i) => running(race.entrants[i]) && !race.entrants[i].car.wrecked);
+      const ahead = race.entrants[ranked[ranked.indexOf(you) - 1]];
+      if (out > 10 && ahead) gaps.push(((((ahead.progress.idx - me.progress.idx) % n) + n) % n) * race.track.spacing);
     }
-    expect(penalties).toBeGreaterThan(0);
-    expect(me.progress.penalty).toBe(penalties * SAFETY_CAR.penalty);
-    // nobody else was penalised
+    expect(gaps.length).toBeGreaterThan(60);
+    expect(Math.min(...gaps)).toBeGreaterThan(HOLD.gap * 0.5);
+    expect(Math.max(...gaps.slice(-60))).toBeLessThan(HOLD.gap * 2.5);
+    expect(hurt).toBe(0);
+    expect(me.progress.penalty).toBe(0);
+  }, 30_000);
+
+  it('penalises passing under the safety car, 5 s a place', () => {
+    const you = 5;
+    const race = raceOn(SILVER_HEATH, 3, you);
+    const me = race.entrants[you];
+    const drive = () => aiInput(me.car, race.track, me.progress.idx, { lane: 0, pace: 0.9 });
+    let crashed = false;
+    let penalties = 0;
+    for (let t = 0; t < 40 && !over(race); t += dt) {
+      if (!crashed && race.phase === 'racing' && race.clock > 4) {
+        applyDamage(race.entrants[order(race)[9]].car, 1000, RACE_HANDLING);
+        crashed = true;
+      }
+      // (a pass however it came about: a car now behind the player that it had to stay behind)
+      if (race.sc && race.sc.out > 2 && !penalties) {
+        const behind = order(race).slice(order(race).indexOf(you) + 1).find((i) => !race.entrants[i].car.wrecked)!;
+        race.holdBehind[you].add(behind);
+      }
+      for (const e of stepRace(race, dt, drive).race) if (e.kind === 'penalty' && e.who === you) penalties++;
+    }
+    expect(penalties).toBe(1);
+    expect(me.progress.penalty).toBe(SAFETY_CAR.penalty);
     expect(race.entrants.filter((e) => e !== me).every((e) => e.progress.penalty === 0)).toBe(true);
   }, 30_000);
 
