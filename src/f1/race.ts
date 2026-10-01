@@ -28,7 +28,7 @@ import { LIGHTS, SAFETY_CAR, newRace, type RaceEvent, order as raceOrder, planLa
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
 import { createCeremony, podiumSpot } from './podium3d';
-import { PIT, between, wantsPit } from './pits';
+import { PIT, between, inLimitZone, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime as fmt, loadRecords, recordLap, recordQualifying, recordRace, saveRecords } from './records';
@@ -1274,7 +1274,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         : done && p.finished !== undefined && results.style.display !== 'block' ? inLapBanner(me.inLap?.to, order.indexOf(you))
         : done ? ['', '']
         : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']
-        : stop ? ['PIT LIMITER', '#f2c14e']
+        : stop ? [inLimitZone(circuit.pit, circuit.pit.points[stop.at].s) ? 'PIT LIMITER' : 'PIT LANE', '#f2c14e']
         : boxBox() ? [`BOX, BOX · PITS ${pitSide}`, '#f2c14e']
         : p.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
         : clock < 1.2 && session === 'race' ? ['GO!', '#5fe0d0']
@@ -1296,7 +1296,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const left = 1 - me.tyres.wear;
     const tyreBlocks = Math.ceil(left * 5);
     const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
-    const limiter = me.pit && !done ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
+    const limiter = me.pit && !done && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s) ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : '';
     // the gaps to the cars either side of you (by the timing points), while you're racing
     const gapLine = (other: number | undefined, mark: string) => {
       if (other === undefined || done) return '';

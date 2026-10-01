@@ -60,6 +60,8 @@ export interface Entrant {
   box: number;
   /** on its way through the pit lane */
   pit?: PitStop;
+  /** just out of the pits: px of track left to drive along the blend line (at the pit side's edge, no overtaking), up to speed before it crosses to the racing line */
+  blend?: number;
   /** pit stops made */
   stops: number;
   /** the set of tyres it's on */
@@ -145,6 +147,9 @@ function aiPits(race: Race, e: Entrant): boolean {
   const lapsLeft = race.laps - e.progress.lap - e.progress.idx / n;
   return wantsPit(e.car, e.tyres, lapsLeft, planLapTime(race, e), race.handling.damageSlow, track.length);
 }
+
+/** px of track a car just out of the pits drives along the blend line, at the pit side's edge */
+const BLEND_LINE = 400;
 
 /** Share of a lap a car drives after its flag before it heads for its parking place (at the pit entry, or the line). */
 const IN_LAP = 0.5;
@@ -324,7 +329,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       out.push({ kind: 'pit-in', who: i });
     }
     if (pit && e.pit) {
-      const r = pitStep(pit, e.pit, e.car, others, dt);
+      // (it keeps behind the cars in the pits with it; the cars racing past the entry and exit roads, on the track, aren't in its lane)
+      const r = pitStep(pit, e.pit, e.car, race.entrants.filter((o) => o !== e && o.pit).map((o) => o.car), dt);
       if (e.pit.phase === 'garage') {
         // in the crew's hands: pushed, not driven (and through the garage's walls)
         if (e.pit.push!.done >= PIT.garagePush) e.inLap!.parked = true;
@@ -338,6 +344,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       }
       if (!r.done) return stepCar(e.car, r.input, p, dt, grid);
       e.pit = undefined;
+      e.blend = BLEND_LINE;
       out.push({ kind: 'pit-out', who: i });
     }
     let input: DriveInput;
@@ -348,7 +355,11 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     // (no passing or defending moves while the pack is still bunched from the start)
     else if (e.ai) {
       const slip = e.ai.slip;
-      input = aiInput(e.car, track, e.progress.idx, e.ai, others, race.clock < SETTLE ? { ...orders, noOvertaking: true } : orders, towBoost(e.tow));
+      // (just out of the pits: along the blend line first)
+      const blending = pit && e.blend !== undefined && e.blend > 0;
+      if (blending) e.blend! -= speedOf(e.car) * dt;
+      const ai = blending ? { ...e.ai, lane: pit.side * PIT.joinAt } : e.ai;
+      input = aiInput(e.car, track, e.progress.idx, ai, others, race.clock < SETTLE || blending ? { ...orders, noOvertaking: true } : orders, towBoost(e.tow));
       if (e.ai.slip && e.ai.slip !== slip) out.push({ kind: 'mistake', who: i, what: e.ai.slip });
     }
     // the player's limiter: right behind the safety car, its speed; alongside or just past it, slower, to drop back

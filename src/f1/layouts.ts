@@ -109,7 +109,7 @@ export const CRESCENT_PARK: CircuitLayout = {
     [1, 22],
   ],
   // on the infield, from the chicane's exit to the run up to T1
-  pit: { from: -260, to: 560, side: -1 },
+  pit: { from: -672, to: 700, side: -1 },
 };
 
 /**
@@ -160,7 +160,7 @@ export const SILVER_HEATH: CircuitLayout = {
     [1, 10],
   ],
   // on the outside, along the start straight: out of the last complex's long right, back in before the fast right
-  pit: { from: -380, to: 220, side: -1 },
+  pit: { from: -712, to: 632, side: -1 },
 };
 
 /**
@@ -291,7 +291,7 @@ export const ROYAL_PARK: CircuitLayout = {
     [0.75, 6],
     [1, 8],
   ],
-  pit: { from: -300, to: 700, side: -1 },
+  pit: { from: -400, to: 1100, side: -1 },
   // (from the back straight's end round to the main straight)
   banking: { from: 7700, to: 9100, grade: 0.3 },
   podiumDeck: 46,
@@ -340,7 +340,7 @@ export const ARDENNES: CircuitLayout = {
     [1, 44],
   ],
   // on the outside of the straight, from the last chicane to the line
-  pit: { from: -480, to: 240, side: -1 },
+  pit: { from: -500, to: 560, side: -1 },
   // (the longest lap: a set lasts three laps, so a 5-lap race needs one stop at most)
   tyreWear: 0.4,
   forest: true,

@@ -15,6 +15,7 @@
 
 import { lateralOffset, playerInput, wheelInput, type Track } from './racing';
 import { speedOf, type Car, type DriveInput } from '../engine/driving';
+import { HALF_WIDTH } from './circuit';
 import { PIT, between, wantsPit } from './pits';
 import { planLapTime, type Entrant, type Race } from './raceControl';
 
@@ -92,13 +93,16 @@ export function referenceDriver(race: Race, e: Entrant, player: ReferencePlayer)
   const called = pit && p.lapStart !== undefined && p.finished === undefined
     && (between(p.idx, pit.entry - PIT_APPROACH, pit.entry - PIT_DECIDE, n) || (between(p.idx, pit.entry - PIT_DECIDE, pit.wallTo, n) && mine * pit.side > 16))
     && wantsPit(car, e.tyres, race.laps - p.lap - p.idx / n, planLapTime(race, e), race.handling.damageSlow, track.length);
-  if (called) lane = pit.side * (PIT.commit + 12);
+  // (over to the track's edge on the approach; onto the entry road once it leaves the track, not across the grass before it)
+  if (called) lane = pit.side * (between(p.idx, pit.entry, pit.wallTo, n) ? PIT.commit + 12 : HALF_WIDTH - 8);
   else {
     // a car in its way: out to the side with more room
     const reach = 50 + speedOf(car) * 0.5;
     const f = { x: Math.sin(car.heading), y: -Math.cos(car.heading) };
     for (const o of race.entrants) {
-      if (o === e || o.progress.retired || o.pit) continue;
+      if (o === e || o.progress.retired) continue;
+      // (a car in the pit lane is no matter while it's off the track; on the entry or exit road, still on it, it is)
+      if (o.pit && Math.abs(lateralOffset(track, p.idx, o.car.x, o.car.y)) > HALF_WIDTH) continue;
       const along = (o.car.x - car.x) * f.x + (o.car.y - car.y) * f.y;
       const theirs = lateralOffset(track, p.idx, o.car.x, o.car.y);
       if (along > 0 && along < reach && Math.abs(theirs - mine) < 20) lane = theirs > 0 ? theirs - PASS_GAP : theirs + PASS_GAP;
