@@ -13,6 +13,8 @@ import { groundAt } from '../engine/sim';
 import { HD2D_VIEW } from '../engine/look';
 import type { Pt } from './racing';
 import { HALF_WIDTH, TILE as T, type Circuit } from './circuit';
+import { GARAGE_ACROSS } from './pits';
+import { STAND, standsOf } from './stands';
 
 /** Whether (x, y) is inside the polygon `poly`. */
 export function inside(poly: Pt[], x: number, y: number): boolean {
@@ -67,16 +69,92 @@ export interface Landmark {
   w: number;
   d: number;
   h: number;
+  /** turned a quarter turn from its usual way round (its footprint's `w` and `d` are as it lies on the map) */
+  turned?: boolean;
 }
 
-/** The landmarks' footprints: the casino (its garden in front), the pool (its deck round it), the tennis court (its fence round it). */
-const LANDMARK = { casino: { w: 170, d: 150, h: 58 }, pool: { w: 110, d: 190, h: 0 }, tennis: { w: 84, d: 164, h: 12 } } as const;
+/** The landmarks' footprints: the casino (its garden in front), the pool (its deck round it), the tennis court (its fence round it); which may lie turned a quarter turn (the casino faces the camera). */
+const LANDMARK = { casino: { w: 170, d: 150, h: 58, turns: false }, pool: { w: 96, d: 150, h: 0, turns: true }, tennis: { w: 84, d: 164, h: 12, turns: true } } as const;
 
-/** A street circuit's landmarks, on the map. */
+/** px of pavement left between the barriers and a landmark's footprint */
+const LANDMARK_SET_BACK = 6;
+
+/**
+ * What the camera shows round your car on a phone, the narrowest screen (px of ground either side, across and up or
+ * down the screen): 195 game px wide, and most phones 300 high (a short one 216), at the camera's zoom (0.8), the
+ * height stretched on the ground by its pitch (about ±240 px; ±170 on a short phone). A landmark is in the picture
+ * when its middle is within this of somewhere on the track.
+ */
+export const IN_VIEW = { across: 120, along: 200 };
+
+/** px from footprint (x, y, w across, d deep) out to the nearest point of `points`, across or along (whichever is further). */
+function clearOf(points: Pt[], x: number, y: number, w: number, d: number): number {
+  let near = Infinity;
+  for (const p of points) near = Math.min(near, Math.max(Math.abs(p.x - x) - w / 2, Math.abs(p.y - y) - d / 2));
+  return near;
+}
+
+/** px round where the layout puts a landmark that it may move to fit, and to be seen better */
+const LANDMARK_REACH = 160;
+
+const placed = new WeakMap<Circuit, Landmark[]>();
+
+/**
+ * A street circuit's landmarks, on the map. Each stands as near as it can to where the layout puts it with its
+ * footprint behind the barriers (clear of every stretch of track), on land, clear of the pit lane, the grandstands and
+ * the other landmarks, low enough not to hide the track behind it, and in the picture as you drive by: the camera
+ * shows only so much round your car (IN_VIEW), more up and down the screen than across it.
+ */
 export function landmarksOf(circuit: Circuit): Landmark[] {
   const marks = circuit.layout.street?.landmarks;
   if (!marks) return [];
-  return (Object.keys(LANDMARK) as Landmark['kind'][]).map((kind) => ({ kind, ...onMap(circuit, marks[kind]), ...LANDMARK[kind] }));
+  const known = placed.get(circuit);
+  if (known) return known;
+  const samples = circuit.track.samples;
+  const clear = HALF_WIDTH + (circuit.layout.street?.runoff ?? 72) + LANDMARK_SET_BACK;
+  const sea = seaOf(circuit) ?? [];
+  const pits = circuit.pit.points;
+  const stands = standsOf(circuit);
+  const out: Landmark[] = [];
+  for (const kind of Object.keys(LANDMARK) as Landmark['kind'][]) {
+    const { h, turns } = LANDMARK[kind];
+    const want = onMap(circuit, marks[kind]);
+    let w: number = LANDMARK[kind].w;
+    let d: number = LANDMARK[kind].d;
+    const fits = (x: number, y: number) =>
+      clearOf(samples, x, y, w, d) >= clear &&
+      [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]].every(([u, v]) => !inside(sea, x + (u * w) / 2, y + (v * d) / 2)) &&
+      clearOf(pits, x, y, w, d) >= GARAGE_ACROSS + 24 &&
+      stands.every((st) => Math.abs(st.x - x) >= w / 2 + st.len / 2 + STAND.depth || Math.abs(st.y - y) >= d / 2 + st.len / 2 + STAND.depth) &&
+      out.every((o) => Math.abs(o.x - x) >= (w + o.w) / 2 + 12 || Math.abs(o.y - y) >= (d + o.d) / 2 + 12) &&
+      seeOver(circuit, x, y, w, d) >= h;
+    /** how squarely the camera sees it from the best place on the track (0: its middle at the picture's edge, 1: dead centre); below 0, out of the picture */
+    const seen = (x: number, y: number) => {
+      let best = -Infinity;
+      for (const p of samples) best = Math.max(best, Math.min(1 - Math.abs(p.x - x) / IN_VIEW.across, 1 - Math.abs(p.y - y) / IN_VIEW.along));
+      return best;
+    };
+    // (round where the layout puts it: the spot that fits and is seen best, a little in favour of the nearer; its
+    // usual way round unless turning it is better)
+    let at: (Pt & { turned: boolean; score: number }) | undefined;
+    for (const turned of turns ? [false, true] : [false]) {
+      [w, d] = turned ? [LANDMARK[kind].d, LANDMARK[kind].w] : [LANDMARK[kind].w, LANDMARK[kind].d];
+      for (let dx = -LANDMARK_REACH; dx <= LANDMARK_REACH; dx += 8) {
+        for (let dy = -LANDMARK_REACH; dy <= LANDMARK_REACH; dy += 8) {
+          const x = want.x + dx;
+          const y = want.y + dy;
+          const view = seen(x, y);
+          if (view < 0.2) continue;
+          const score = view - (0.6 * Math.hypot(dx, dy)) / LANDMARK_REACH - (turned ? 0.02 : 0);
+          if ((!at || score > at.score) && fits(x, y)) at = { x, y, turned, score };
+        }
+      }
+    }
+    [w, d] = at?.turned ? [LANDMARK[kind].d, LANDMARK[kind].w] : [LANDMARK[kind].w, LANDMARK[kind].d];
+    out.push(at ? { kind, x: at.x, y: at.y, w, d, h, ...(at.turned ? { turned: true } : {}) } : { kind, ...want, w, d, h });
+  }
+  placed.set(circuit, out);
+  return out;
 }
 
 /** px a bay of windows is wide, and a storey high */
@@ -539,9 +617,12 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
         low = Math.min(low, h);
       }
     }
-    const made = l.kind === 'casino' ? { group: casino(l, r) } : l.kind === 'pool' ? pool(l, r) : tennis(l);
+    // (built its usual way round, then turned into place if it lies turned)
+    const shape = l.turned ? { ...l, w: l.d, d: l.w } : l;
+    const made = l.kind === 'casino' ? { group: casino(shape, r) } : l.kind === 'pool' ? pool(shape, r) : tennis(shape);
     made.group.position.set(l.x, high, l.y);
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(l.w + 4, high - low + 2, l.d + 4), new THREE.MeshLambertMaterial({ color: 0xcfc4ae }));
+    if (l.turned) made.group.rotation.y = Math.PI / 2;
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(shape.w + 4, high - low + 2, shape.d + 4), new THREE.MeshLambertMaterial({ color: 0xcfc4ae }));
     plinth.position.y = -(high - low + 2) / 2;
     plinth.receiveShadow = true;
     made.group.add(plinth);
