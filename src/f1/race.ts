@@ -44,10 +44,12 @@ import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
 import { defaults } from '../engine/tuning';
 import { HALF_WIDTH, TILE, buildCircuit } from './circuit';
-import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
+import { vibrate } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
 import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
-import { RaceSounds, crowdNear } from './sounds';
+import { RaceSounds, crowdNear, menuPick } from './sounds';
+import { menuButton } from './circuitSelect';
+import { settingsRows } from './settingsRows';
 import { LAUNCH, kickOf, newLaunch, stepLaunch } from './launch';
 import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
@@ -501,6 +503,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     paused = on;
     setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
+    if (!on) openPauseSettings(false);
     hud.setLabel('a', on ? 'RESUME' : aLabel());
     if (!on) {
       last = performance.now();
@@ -1018,19 +1021,46 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const rumbleState = newRumble();
   /** the grandstands (where the crowd is heard) */
   const stands = standsOf(circuit);
-  const vibrationButton = pauseButton('', () => {
-    setVibration(!vibrationOn());
-    showVibration();
-    vibrate(40);
-  });
-  const showVibration = () => (vibrationButton.textContent = `VIBRATION: ${vibrationOn() ? 'ON' : 'OFF'}`);
-  showVibration();
+  // the settings, from the pause screen: the menu's (but difficulty, not changed mid-race), each remembered as it
+  // changes; tapped and swiped, or up/down and left/right on the deck, A, START or B back to the pause screen
+  const pauseSettings = document.createElement('div');
+  pauseSettings.className = 'circuit-menu pause-settings';
+  style(pauseSettings, { zIndex: '5', display: 'none', justifyContent: 'center', background: 'rgba(14,13,22,.9)' });
+  const settingsTitle = document.createElement('h2');
+  settingsTitle.textContent = 'SETTINGS';
+  const pauseRows = settingsRows();
+  const settingsDone = menuButton('DONE', () => openPauseSettings(false));
+  pauseSettings.append(settingsTitle, ...pauseRows.map((r) => r.el), settingsDone);
+  host.append(pauseSettings);
+  /** the settings are up, and the row the deck is on (the last place is DONE) */
+  let pauseSettingsOn = false;
+  let pauseFocus = 0;
+  const showPauseFocus = () => {
+    pauseRows.forEach((r, k) => r.el.classList.toggle('focused', k === pauseFocus));
+    settingsDone.classList.toggle('focused', pauseFocus === pauseRows.length);
+  };
+  pauseRows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
+    pauseFocus = k;
+    showPauseFocus();
+  }));
+  const openPauseSettings = (on: boolean) => {
+    if (on === pauseSettingsOn) return;
+    menuPick();
+    pauseSettingsOn = on;
+    pauseSettings.style.display = on ? 'flex' : 'none';
+    // (the pause screen's buttons out of the way under it)
+    pauseScreen.style.visibility = on ? 'hidden' : '';
+    hud.setLabel('a', on ? 'DONE' : paused ? 'RESUME' : aLabel());
+    hud.setLabel('b', on ? 'BACK' : 'DRIFT');
+    pauseFocus = 0;
+    showPauseFocus();
+  };
   pauseScreen.append(
     pauseTitle,
     pauseButton('RESUME', () => setPaused(false)),
     pauseButton('RESTART', () => restart()),
+    pauseButton('SETTINGS', () => openPauseSettings(true)),
     pauseButton('CIRCUITS', () => onQuit()),
-    vibrationButton,
     pauseHint,
   );
   // leaving the app or the tab pauses the race; so do Esc and P on a keyboard
@@ -1186,6 +1216,21 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (the first frame's timestamp can be a touch before mount time)
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
+    // the pause screen's settings: the deck moves through them (and nothing else)
+    if (pauseSettingsOn) {
+      const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
+      pressed('select');
+      const places = pauseRows.length + 1;
+      if (up || down) {
+        pauseFocus = (pauseFocus + (down ? 1 : -1) + places) % places;
+        showPauseFocus();
+      }
+      const row = pauseRows[pauseFocus];
+      if (row && (left || right)) row.step(right ? 1 : -1);
+      if (a || b || start) openPauseSettings(false);
+      requestAnimationFrame(tick);
+      return;
+    }
     const startPressed = pressed('start');
     // A pauses and resumes (not once the race is over: the results are up); in qualifying it skips it, or once it's
     // over goes to the grid
@@ -1826,7 +1871,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.dispose();
     renderer.forceContextLoss();
     renderer.domElement.remove();
-    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay]) el.remove();
+    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay]) el.remove();
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };

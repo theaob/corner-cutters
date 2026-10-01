@@ -12,10 +12,7 @@
 // or races, and B goes back.
 
 import type { Button } from '../engine/controls';
-import { holdTouches, setStickSide, stickSide, type StickSide } from '../engine/deck';
-import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
-import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
-import { musicVolume, setMusicVolume } from '../engine/music';
+import { holdTouches } from '../engine/deck';
 import { menuPick, menuTick } from './sounds';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
@@ -26,7 +23,7 @@ import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 import { DRY, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { distance } from './timeAttack';
-import { setShake, shakeOn } from './shake';
+import { settingsRows as settingsRowsNow } from './settingsRows';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
@@ -275,28 +272,9 @@ export function chooseCircuit(
   /** the rows on the circuit screen, for the mode picked */
   let rows = rowsOf(current.id).map((k) => ROWS[k]);
 
-  // the settings screen: difficulty, which side the thumbstick sits on, vibration, sound and music volumes
-  const deck = document.getElementById('deck');
+  // the settings screen: difficulty, then the rows the pause screen has too (src/f1/settingsRows.ts)
   const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
-  const sides: StickSide[] = ['left', 'right'];
-  const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'thumbstick left · A and B right' : 'thumbstick right · A and B left' }), (side) => {
-    if (deck) setStickSide(deck, side);
-  });
-  const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
-    setVibration(on);
-    vibrate(40);
-  });
-  // (the nearest step to the saved volume)
-  const volumeNow = VOLUMES.reduce((a, b) => (Math.abs(b - soundVolume()) < Math.abs(a - soundVolume()) ? b : a));
-  const soundRow = optionRow('SOUND', [...VOLUMES], volumeNow, (v) => ({ name: ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])], about: v ? 'engines, tyres, crashes, lights' : 'silence' }), (v) => {
-    setSoundVolume(v);
-  });
-  const musicNow = VOLUMES.reduce((a, b) => (Math.abs(b - musicVolume()) < Math.abs(a - musicVolume()) ? b : a));
-  const musicRow = optionRow('MUSIC', [...VOLUMES], musicNow, (v) => ({ name: ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])], about: v ? 'menu and race tracks' : 'silence' }), (v) => {
-    setMusicVolume(v);
-  });
-  const shakeRow = optionRow('SCREEN SHAKE', [true, false], shakeOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, kerbs and grass shake the camera' : 'the camera stays still' }), setShake);
-  const settingsRows = [difficultyRow, stickRow, vibrationRow, shakeRow, soundRow, musicRow];
+  const settingsRows = [difficultyRow, ...settingsRowsNow()];
   const settingsTitle = document.createElement('h2');
   settingsTitle.textContent = 'SETTINGS';
   const openSettings = () => {
