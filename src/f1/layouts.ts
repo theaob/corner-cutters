@@ -244,8 +244,9 @@ export const HARBOUR: CircuitLayout = {
       [3400, 700], [3400, 4200], [1000, 4200],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
     tunnel: [3500, 4500],
-    // the casino in the loop above the hairpin, the pool beside the pool section, the tennis court below the climb
-    landmarks: { casino: { x: 1880, y: 850 }, pool: { x: 745, y: 2700 }, tennis: { x: 1150, y: 1560 } },
+    // the casino above the hairpin, the pool at the foot of the pool section, the tennis court beside the climb: each
+    // beside a stretch of track that runs across the screen, where the camera has room to show it
+    landmarks: { casino: { x: 2240, y: 626 }, pool: { x: 756, y: 3220 }, tennis: { x: 846, y: 1584 } },
   },
 };
 

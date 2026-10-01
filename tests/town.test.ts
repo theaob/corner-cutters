@@ -3,7 +3,7 @@ import { carClass } from '../src/engine/driving';
 import { HD2D_VIEW } from '../src/engine/look';
 import { seededRandom } from '../src/engine/rng';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { inside, landmarksOf, seaOf, seeOver, townBlocks } from '../src/f1/town3d';
+import { IN_VIEW, inside, landmarksOf, seaOf, seeOver, townBlocks } from '../src/f1/town3d';
 import { HARBOUR } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 
@@ -20,7 +20,8 @@ describe('the harbour town', () => {
   it('is an old town: a few hundred houses, several storeys tall, packed in right behind the barriers, with towers and battlements among them', () => {
     expect(blocks.length).toBeGreaterThan(200);
     expect(blocks.filter((b) => b.h >= 36).length).toBeGreaterThan(80);
-    expect(blocks.filter((b) => fromTrack(b.x, b.y) < reach + 60).length).toBeGreaterThan(40);
+    // (the landmarks have some of the frontage)
+    expect(blocks.filter((b) => fromTrack(b.x, b.y) < reach + 60).length).toBeGreaterThan(30);
     expect(blocks.filter((b) => b.top === 'spire').length).toBeGreaterThan(3);
     expect(blocks.filter((b) => b.top === 'battlements').length).toBeGreaterThan(20);
   });
@@ -49,6 +50,12 @@ describe('the harbour town', () => {
       for (const l of marks) {
         for (const [dx, dy] of [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) expect(inside(sea, l.x + (dx * l.w) / 2, l.y + (dy * l.d) / 2)).toBe(false);
         for (const p of samples) expect(Math.abs(p.x - l.x) > l.w / 2 + reach || Math.abs(p.y - l.y) > l.d / 2 + reach).toBe(true);
+      }
+    });
+    it('are each in the picture as you drive by: the camera shows little either side of a phone, more up and down', () => {
+      for (const l of marks) {
+        const seen = Math.max(...samples.map((p) => Math.min(1 - Math.abs(p.x - l.x) / IN_VIEW.across, 1 - Math.abs(p.y - l.y) / IN_VIEW.along)));
+        expect(seen).toBeGreaterThan(0.15);
       }
     });
     it('the casino stands by the hairpin, and never hides the track from the camera', () => {
