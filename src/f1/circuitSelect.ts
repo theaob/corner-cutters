@@ -1,7 +1,10 @@
-// The menu shown before a race: each circuit's outline, name and a line about
-// it, then your team. On a phone it's all touch (the
-// deck is hidden): tap a circuit to race it, swipe a row (or tap its sides) to
-// change it. On a keyboard, up/down moves, left/right changes a row, Enter races.
+// The menu shown before a race, on one screen: the circuit (one card at a time:
+// its outline, name, a line about it and your lap record, dots for where it is
+// in the list), then a compact row each for the mode, team, weather and
+// qualifying, the big button that races, and SETTINGS. On a phone it's all touch
+// (the deck is hidden): swipe the card or a row (or tap its sides) to change
+// it, tap the card's middle or the race button to race. On a keyboard, up/down
+// moves, left/right changes the circuit or a row, Enter races.
 
 import type { Button } from '../engine/controls';
 import { holdTouches, setStickSide, stickSide, type StickSide } from '../engine/deck';
@@ -99,6 +102,21 @@ export interface MenuChoice {
 const SWIPE = 28;
 const TAP_SLOP = 12;
 
+const HINT = 'SWIPE TO CHANGE · TAP THE CIRCUIT TO RACE';
+
+/**
+ * What a gesture on the circuit card does: a swipe left is the next circuit and
+ * a swipe right the one before; a tap on its left or right edge (its ◀ ▶)
+ * steps back or on, and a tap in the middle races it; a short wobble does nothing.
+ */
+export function cardGesture(dx: number, at: number): -1 | 0 | 1 | 'race' {
+  if (Math.abs(dx) >= SWIPE) return dx < 0 ? 1 : -1;
+  if (Math.abs(dx) >= TAP_SLOP) return 0;
+  if (at < 0.2) return -1;
+  if (at > 0.8) return 1;
+  return 'race';
+}
+
 /**
  * What a gesture on an option row does: a swipe left is the next value and a
  * swipe right the previous (like a carousel); a tap on the row's left third
@@ -124,11 +142,15 @@ function optionRow<T>(
   const render = () => {
     const v = show(values[i]);
     el.innerHTML = '';
+    // one line: the label on the left; on the right the value (with its colours) and a line about it
+    const name = document.createElement('b');
+    name.textContent = label;
+    const right = document.createElement('div');
+    right.className = 'value';
     const top = document.createElement('strong');
-    top.textContent = `${label}  ◀ ${v.name} ▶`;
-    const about = document.createElement('span');
-    about.textContent = v.about;
-    el.append(top);
+    top.textContent = `◀ ${v.name} ▶`;
+    const line = document.createElement('div');
+    line.className = 'line';
     if (v.colors || v.icon) {
       const chips = document.createElement('div');
       chips.className = 'chips';
@@ -138,9 +160,13 @@ function optionRow<T>(
         chip.style.background = c;
         chips.append(chip);
       }
-      el.append(chips);
+      line.append(chips);
     }
-    el.append(about);
+    line.append(top);
+    const about = document.createElement('span');
+    about.textContent = v.about;
+    right.append(line, about);
+    el.append(name, right);
   };
   const step = (by: number) => {
     i = (i + by + values.length) % values.length;
@@ -203,24 +229,21 @@ export function chooseCircuit(
   const title = document.createElement('h1');
   title.textContent = 'CORNER CUTTERS';
   const hint = document.createElement('p');
-  hint.textContent = 'TAP A CIRCUIT TO RACE · SWIPE TO CHANGE';
-  const list = document.createElement('ul');
-  menu.append(title, hint, list);
+  hint.textContent = HINT;
+  menu.append(title, hint);
 
   /** the circuit A or START races (the last one moved to) */
   let selected = Math.max(0, layouts.indexOf(initial!));
   // (a circuit that's locked isn't highlighted first)
   if (!open.has(layouts[selected].id)) selected = Math.max(0, layouts.findIndex((l) => open.has(l.id)));
-  /** where up/down is: on the menu a circuit (0…), then the team, weather and qualifying rows, then SETTINGS; in the settings, a row, then DONE */
-  let focus = selected;
+  /** where up/down is: on the menu the circuit (0), then the mode, team, weather and qualifying rows, then the race button, then SETTINGS; in the settings, a row, then DONE */
+  let focus = 0;
   /** the menu, or the settings screen over it */
   let view: 'menu' | 'settings' = 'menu';
-  /** the button a press started on: lifting on the same button picks it */
-  let armed: number | undefined;
   let finish: (l: CircuitLayout, controlsLap?: boolean) => void = () => {};
 
   const modeRow = optionRow('MODE', MODES, MODES.find((m) => m.id === mode) ?? MODES[0], (m) => ({ name: m.name, about: m.about }));
-  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 30) }));
+  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   const rows = [modeRow, teamRow, weatherRow, qualifyingRow];
@@ -257,7 +280,7 @@ export function chooseCircuit(
   const closeSettings = () => {
     menuPick();
     view = 'menu';
-    focus = layouts.length + rows.length;
+    focus = SETTINGS_AT;
     show();
   };
   const settingsButton = menuButton('SETTINGS', openSettings);
@@ -265,16 +288,26 @@ export function chooseCircuit(
   // the controls lap again (a new player gets it on first launch)
   const controlsButton = menuButton('CONTROLS LAP', () => finish(layouts[0], true));
 
+  // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
+  // dots under it for where it is in the list
   const records = loadRecords();
-  const buttons = layouts.map((layout, i) => {
-    const li = document.createElement('li');
-    const b = document.createElement('button');
+  const card = document.createElement('button');
+  card.className = 'circuit-card';
+  const dots = document.createElement('div');
+  dots.className = 'dots';
+  const renderCard = () => {
+    const layout = layouts[selected];
+    const locked = !open.has(layout.id);
+    card.innerHTML = '';
+    card.classList.toggle('locked', locked);
+    const prev = document.createElement('em');
+    prev.textContent = '◀';
+    const next = document.createElement('em');
+    next.textContent = '▶';
     const name = document.createElement('strong');
     name.textContent = layout.name;
     const about = document.createElement('span');
-    const locked = !open.has(layout.id);
     about.textContent = locked ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : layout.about;
-    if (locked) b.classList.add('locked');
     const text = document.createElement('div');
     text.append(name, about);
     // your lap record here, once you have one
@@ -285,54 +318,86 @@ export function chooseCircuit(
       record.textContent = `LAP RECORD ${formatTime(best)}`;
       text.append(record);
     }
-    b.append(outline(layout, 56), text);
-    // picked on the pointer's press and release, not 'click': in a cross-origin frame on a phone
-    // the click a tap turns into can land on the wrong button
-    let downX = 0;
-    b.addEventListener('pointerdown', (e) => {
-      armed = i;
-      downX = e.clientX;
-      selected = focus = i;
-      show();
-      try {
-        b.releasePointerCapture(e.pointerId); // (touch captures to the button: let pointerup find where the finger lifts)
-      } catch {
-        // nothing to release
-      }
+    card.append(prev, outline(layout, 64), text, next);
+    dots.innerHTML = '';
+    layouts.forEach((l, k) => {
+      const d = document.createElement('i');
+      d.classList.toggle('on', k === selected);
+      d.classList.toggle('locked', !open.has(l.id));
+      dots.append(d);
     });
-    b.addEventListener('pointerup', (e) => {
-      // a tap races; a finger dragged across (a swipe that started here) doesn't
-      if (armed === i && Math.abs(e.clientX - downX) < TAP_SLOP) finish(layouts[i]);
-      armed = undefined;
-    });
-    b.addEventListener('pointerleave', () => (armed = undefined));
-    li.append(b);
-    list.append(li);
-    return b;
+  };
+  const stepCircuit = (by: number) => {
+    selected = (selected + by + layouts.length) % layouts.length;
+    hint.textContent = HINT;
+    menuTick();
+    renderCard();
+  };
+  let downX: number | undefined;
+  card.addEventListener('pointerdown', (e) => {
+    downX = e.clientX;
+    focus = 0;
+    show();
+    try {
+      card.releasePointerCapture(e.pointerId); // (touch captures to the card: let pointerup find where the finger lifts)
+    } catch {
+      // nothing to release
+    }
   });
+  card.addEventListener('pointercancel', () => (downX = undefined));
+  card.addEventListener('pointerleave', (e) => {
+    // (a swipe can carry the finger off the card: count it where it left)
+    if (downX !== undefined && Math.abs(e.clientX - downX) >= 28) {
+      stepCircuit(e.clientX < downX ? 1 : -1);
+      downX = undefined;
+    }
+  });
+  card.addEventListener('pointerup', (e) => {
+    if (downX === undefined) return;
+    const r = card.getBoundingClientRect();
+    const by = cardGesture(e.clientX - downX, (e.clientX - r.left) / Math.max(1, r.width));
+    downX = undefined;
+    if (by === 'race') finish(layouts[selected]);
+    else if (by) stepCircuit(by);
+  });
+  // the big button that races, named for the mode
+  const raceButton = menuButton('', () => finish(layouts[selected]));
+  raceButton.classList.add('race-button');
+  const renderRace = () => (raceButton.textContent = `${modeRow.value().name} ▶`);
+  rows[0].el.addEventListener('pointerup', () => setTimeout(renderRace));
   const tab = framed() ? ownTabButton() : undefined;
-  const menuParts: HTMLElement[] = [hint, list, ...rows.map((r) => r.el), settingsButton, ...(tab ? [tab] : [])];
+  /** the menu's places for up/down: the circuit, the rows, the race button, SETTINGS */
+  const RACE_AT = 1 + rows.length;
+  const SETTINGS_AT = RACE_AT + 1;
+  const menuParts: HTMLElement[] = [hint, card, dots, ...rows.map((r) => r.el), raceButton, settingsButton, ...(tab ? [tab] : [])];
   const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), controlsButton, doneButton];
   const show = () => {
     for (const el of menuParts) el.style.display = view === 'menu' ? '' : 'none';
     for (const el of settingsParts) el.style.display = view === 'settings' ? '' : 'none';
-    buttons.forEach((b, i) => b.classList.toggle('selected', i === selected));
-    rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'menu' && focus === layouts.length + k));
-    settingsButton.classList.toggle('focused', view === 'menu' && focus === layouts.length + rows.length);
+    card.classList.toggle('focused', view === 'menu' && focus === 0);
+    rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'menu' && focus === 1 + k));
+    raceButton.classList.toggle('focused', view === 'menu' && focus === RACE_AT);
+    settingsButton.classList.toggle('focused', view === 'menu' && focus === SETTINGS_AT);
     settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
     controlsButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
     doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length + 1);
   };
   // a tap on a row focuses it too
   rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
-    focus = layouts.length + k;
+    focus = 1 + k;
     show();
   }));
   settingsRows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
     focus = k;
     show();
   }));
-  menu.append(...rows.map((r) => r.el), settingsButton, ...settingsParts);
+  renderCard();
+  renderRace();
+  const options = document.createElement('div');
+  options.className = 'options';
+  options.append(...rows.map((r) => r.el));
+  menuParts.splice(menuParts.indexOf(rows[0].el), rows.length, options);
+  menu.append(card, dots, options, raceButton, settingsButton, ...settingsParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
@@ -387,15 +452,19 @@ export function chooseCircuit(
         if ((a || start) && focus === settingsRows.length) finish(layouts[0], true);
         else if (a || start) closeSettings();
       } else {
-        const places = layouts.length + rows.length + 1;
+        const places = SETTINGS_AT + 1;
         if (move) {
           focus = (focus + move + places) % places;
-          if (focus < layouts.length) selected = focus;
           show();
         }
-        const row = rows[focus - layouts.length];
-        if (row && (left || right)) row.step(right ? 1 : -1);
-        if ((a || start) && focus === layouts.length + rows.length) openSettings();
+        // left/right: the circuit, or the focused row
+        const row = rows[focus - 1];
+        if (focus === 0 && (left || right)) stepCircuit(right ? 1 : -1);
+        if (row && (left || right)) {
+          row.step(right ? 1 : -1);
+          renderRace();
+        }
+        if ((a || start) && focus === SETTINGS_AT) openSettings();
         else if (a || start) finish(layouts[selected]);
       }
       if (!done) requestAnimationFrame(tick);

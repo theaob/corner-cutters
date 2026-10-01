@@ -171,11 +171,12 @@
       }
       .circuit-menu .option-row {
         width: 100%;
-        padding: 8px 12px;
+        min-height: 0;
+        padding: 6px 12px;
         display: flex;
-        flex-direction: column;
         align-items: center;
-        gap: 4px;
+        justify-content: space-between;
+        gap: 8px;
         border: 1px dashed var(--key-edge);
         border-radius: 10px;
         background: transparent;
@@ -187,25 +188,103 @@
         border-style: solid;
         border-color: var(--accent-b);
       }
+      /* (its label on the left; the value and a line about it on the right) */
+      .circuit-menu .option-row b {
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--muted);
+        letter-spacing: 1px;
+      }
+      .circuit-menu .option-row .value {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        text-align: right;
+      }
+      .circuit-menu .option-row .line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
       .circuit-menu .option-row strong {
         font-size: 13px;
         font-weight: 400;
         color: var(--accent-b);
         white-space: pre;
       }
+      .circuit-menu .option-row span {
+        font-size: 10px;
+      }
       .circuit-menu .option-row .chips {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 3px;
       }
       .circuit-menu .option-row .chips svg {
-        margin-right: 4px;
+        margin-right: 2px;
       }
       .circuit-menu .option-row .chips i {
-        width: 22px;
-        height: 10px;
-        border-radius: 3px;
+        width: 12px;
+        height: 8px;
+        border-radius: 2px;
         border: 1px solid #5a577c;
+      }
+      .circuit-menu .options {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      /* the circuit: one card at a time, ◀ ▶ at its edges, dots under it */
+      .circuit-menu .circuit-card {
+        min-height: 96px;
+        border-color: var(--accent-a);
+      }
+      .circuit-menu .circuit-card.focused {
+        box-shadow: 0 0 0 1px var(--accent-a);
+      }
+      .circuit-menu .circuit-card strong {
+        color: var(--accent-a);
+        font-size: 16px;
+      }
+      .circuit-menu .circuit-card > div {
+        flex: 1;
+      }
+      .circuit-menu .circuit-card em {
+        font-style: normal;
+        font-size: 14px;
+        color: var(--accent-a);
+      }
+      .circuit-menu .dots {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: -2px;
+      }
+      .circuit-menu .dots i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--key-edge);
+      }
+      .circuit-menu .dots i.locked {
+        opacity: 0.45;
+      }
+      .circuit-menu .dots i.on {
+        background: var(--accent-a);
+        opacity: 1;
+      }
+      /* the big button that races */
+      .circuit-menu .menu-button.race-button {
+        padding: 14px 12px;
+        border-color: var(--gold);
+        background: var(--gold);
+        color: #1b1b26;
+        font-size: 17px;
+      }
+      .circuit-menu .menu-button.race-button.focused {
+        box-shadow: 0 0 0 2px var(--accent-b);
+        color: #1b1b26;
       }
       .desktop .circuit-menu {
         padding: 24px max(24px, calc(50% - 220px));
