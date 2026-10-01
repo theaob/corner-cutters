@@ -555,6 +555,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** every car through the race, for the replay after your flag; and the replay when it's on: the race time it's showing, its end, your finish */
   let recorder: ReplayRecorder = newReplay(0);
   let replay: { t: number; to: number; finish: number } | undefined;
+  /** when the results went up (ms, page time), for their rows sliding in */
+  let resultsUpAt = 0;
   /** the replay has been shown (or skipped) this race */
   let replayed = false;
   /** the grid pan before the lights: seconds in, and how long it lasts (undefined: it's over, or skipped) */
@@ -825,6 +827,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
 
   const showResults = (order: number[]) => {
+    // (the rows slide in one after another from when the results first went up: rebuilt as the others finish, each
+    // row's animation carries on where it was)
+    if (results.style.display !== 'block') {
+      resultsUpAt = performance.now();
+      results.style.animation = 'row-in 0.25s ease-out both';
+    }
+    const since = (performance.now() - resultsUpAt) / 1000;
     const first = race.entrants[order[0]].progress;
     const winner = (first.finished ?? 0) + first.penalty;
     const cell = (tag: 'td' | 'th', text: string, right = false) => {
@@ -837,7 +846,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: 'inherit', color: 'inherit' });
     const head = document.createElement('tr');
     head.style.color = '#9d9ab8';
-    head.append(cell('th', '', true), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'BEST', true), cell('th', ''));
+    head.append(cell('th', '', true), cell('th', ''), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'BEST', true), cell('th', ''));
     table.append(head);
     order.forEach((i, pos) => {
       const e = race.entrants[i];
@@ -854,9 +863,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const notes = [p.penalty ? `+${p.penalty}S` : '', e.stops ? `${e.stops}P` : ''].filter(Boolean).join(' ');
       const row = document.createElement('tr');
       if (i === you) row.style.color = '#f2c14e';
-      row.append(cell('td', `${pos + 1}`, true), cell('td', looks[i].name), cell('td', looks[i].team.code), cell('td', time, true), cell('td', best, true), cell('td', notes));
+      row.style.animation = `row-in 0.35s ease-out ${(0.15 + pos * 0.07 - since).toFixed(3)}s both`;
+      // places gained (green) or lost (red) from the grid slot (the entrants are in grid order)
+      const moved = i - pos;
+      const change = cell('td', moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '–');
+      change.style.color = moved > 0 ? '#5fe0d0' : moved < 0 ? '#d8323c' : '#6c6a88';
+      row.append(cell('td', `${pos + 1}`, true), change, cell('td', looks[i].name), cell('td', looks[i].team.code), cell('td', time, true), cell('td', best, true), cell('td', notes));
       // the race's fastest lap in purple
-      if (fastest) (row.children[4] as HTMLElement).style.color = '#b36bff';
+      if (fastest) (row.children[5] as HTMLElement).style.color = '#b36bff';
       table.append(row);
     });
     const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
@@ -868,7 +882,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     results.replaceChildren(
       line(championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
       table,
-      line('P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
+      line('▲▼ PLACES FROM THE GRID · P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
       line(`BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}${saved.newRace ? ' · NEW!' : ''}`, { color: saved.newRace ? '#f2c14e' : '#f4f2fa' }),
       ...(championship
@@ -903,6 +917,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (k === w.youDriver) row.style.color = '#f2c14e';
       const gap = time === undefined || pole === undefined ? '' : pos === 0 ? '' : `+${(time - pole).toFixed(3)}`;
       row.append(cell('td', `${pos + 1}`, true), cell('td', k === w.youDriver ? 'YOU' : d.livery.drivers[d.seat]), cell('td', d.livery.code), cell('td', time === undefined ? 'NO TIME' : fmt(time), true), cell('td', gap, true));
+      row.style.animation = `row-in 0.35s ease-out ${(0.15 + pos * 0.07).toFixed(2)}s both`;
       table.append(row);
     });
     const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
@@ -920,6 +935,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       line('A or START to the grid', { marginTop: '8px' }),
       line('SELECT for circuits'),
     );
+    results.style.animation = 'row-in 0.25s ease-out both';
     results.style.display = 'block';
   };
 
@@ -1695,7 +1711,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.dispose();
     renderer.forceContextLoss();
     renderer.domElement.remove();
-    for (const el of [rain, readout, banner, results, mini, teamCard, pauseScreen, flagOverlay]) el.remove();
+    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, teamCard, pauseScreen, flagOverlay]) el.remove();
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };

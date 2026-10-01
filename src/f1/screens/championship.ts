@@ -8,7 +8,7 @@ import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton, optionRow } from '../circuitSelect';
-import { pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
+import { POINTS, pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
 import { menuPick, menuTick } from '../sounds';
@@ -28,7 +28,18 @@ export interface SeasonChoices {
 
 const nameOf = (id: string) => layoutById(id)?.name.toUpperCase() ?? id.toUpperCase();
 
-/** The standings as a table: place, driver, team, points, wins; you in gold. */
+/** Count `el`'s number up from `from` to `to`, starting after `delay` ms, over most of a second. */
+function countUp(el: HTMLElement, from: number, to: number, delay: number): void {
+  const start = performance.now() + delay;
+  const tick = (now: number) => {
+    const k = Math.min(1, Math.max(0, (now - start) / 800));
+    el.textContent = `${Math.round(from + (to - from) * (1 - (1 - k) ** 3))}`;
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/** The standings as a table: place, driver, team, points (and what the last round brought), wins; you in gold. */
 function standingsTable(s: Season): HTMLTableElement {
   const points = pointsOf(s);
   const last = s.places[s.places.length - 1];
@@ -42,15 +53,23 @@ function standingsTable(s: Season): HTMLTableElement {
   Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
   const head = document.createElement('tr');
   head.style.color = 'var(--muted)';
-  head.append(cell('th', '', true), cell('th', 'DRIVER'), cell('th', 'TEAM'), cell('th', 'PTS', true), cell('th', 'WINS', true), cell('th', 'LAST', true));
+  head.append(cell('th', '', true), cell('th', 'DRIVER'), cell('th', 'TEAM'), cell('th', 'PTS', true), cell('th', ''), cell('th', 'WINS', true), cell('th', 'LAST', true));
   table.append(head);
   standings(s).forEach((r, pos) => {
     const d = s.drivers[r.driver];
     const row = document.createElement('tr');
     if (r.driver === s.you) row.style.color = 'var(--gold)';
+    // (sliding in one after another)
+    row.style.animation = `row-in 0.35s ease-out ${(0.1 + pos * 0.06).toFixed(2)}s both`;
     const lastPlace = last?.[r.driver];
+    // the points the last round brought: a +n beside the total, which counts up to it
+    const scored = lastPlace !== undefined && lastPlace >= 0 ? (POINTS[lastPlace] ?? 0) : 0;
+    const pts = cell('td', `${points[r.driver] - scored}`, true);
+    if (scored) countUp(pts, points[r.driver] - scored, points[r.driver], 700 + pos * 60);
+    const plus = cell('td', scored ? `+${scored}` : '');
+    Object.assign(plus.style, { color: 'var(--gold)', fontSize: '10px', animation: scored ? `score-in 1.6s ease-out ${(0.5 + pos * 0.06).toFixed(2)}s both` : '' });
     row.append(
-      cell('td', `${pos + 1}`, true), cell('td', d.name), cell('td', teamOf(d).code), cell('td', `${points[r.driver]}`, true), cell('td', `${r.wins}`, true),
+      cell('td', `${pos + 1}`, true), cell('td', d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
       cell('td', lastPlace === undefined ? '' : lastPlace < 0 ? 'DNF' : `P${lastPlace + 1}`, true),
     );
     table.append(row);
