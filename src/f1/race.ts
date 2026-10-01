@@ -1339,7 +1339,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const left = 1 - me.tyres.wear;
     const tyreBlocks = Math.ceil(left * 5);
     const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
-    const limiter = me.pit && !done && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s) ? ` · PIT ${PIT.limit}` : sc && !done ? ` · SC ${SAFETY_CAR.limit}` : race.vsc && !done ? ` · VSC ${VSC.limit}` : '';
+    const limiter = me.pit && !done && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s) ? ` · PIT ${PIT.limit}` : (sc || race.vsc) && !done ? ` · ${sc ? 'SC' : 'VSC'} ${Math.round(me.held ?? (sc ? SAFETY_CAR.limit : VSC.limit))}` : '';
     // the gaps to the cars either side of you (by the timing points), while you're racing
     const gapLine = (other: number | undefined, mark: string) => {
       if (other === undefined || done) return '';

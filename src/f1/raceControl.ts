@@ -29,8 +29,6 @@ export const SAFETY_CAR = {
   joinAhead: 160,
   /** px: the leader counts as lined up behind it within this gap */
   queueGap: 120,
-  /** px: a player this close behind it is held to its speed, so it can't be passed */
-  holdGap: 100,
   /** px: a player who has got this far alongside or ahead of it drops back behind it */
   dropBack: 300,
   /** seconds it stays out once the leader is lined up behind it */
@@ -39,6 +37,27 @@ export const SAFETY_CAR = {
   maxOut: 40,
   /** seconds added for each car passed while it's out */
   penalty: 5,
+};
+
+/**
+ * Holding station under the safety car (or the virtual one): the player's limiter follows the car they must stay
+ * behind (a car ahead of them when it came out, or the safety car itself), closing on it at its speed plus a little
+ * for each px past the gap, less once inside it, and brakes when well over: the car settles into place a gap behind
+ * instead of running into the queue or past it (and taking a penalty).
+ */
+export const HOLD = {
+  /** px from the car ahead (along the track, middle to middle: about a car and a half's daylight) to settle at */
+  gap: 72,
+  /** px ahead it looks for that car */
+  reach: 320,
+  /** px/s of closing speed for each px past the gap (1/s) */
+  close: 1.4,
+  /** px/s: the least the limiter asks, however close (it never stops the car dead) */
+  crawl: 40,
+  /** px/s over the limiter before the brakes go on */
+  over: 12,
+  /** inside this share of the gap and closing on the car ahead, the brakes go on whatever the limiter says */
+  tight: 0.7,
 };
 
 /**
@@ -85,6 +104,8 @@ export interface Entrant {
   tow: number;
   /** its track-limits strikes */
   limits: Limits;
+  /** the player's limiter this step under the safety car (or the virtual one): px/s, or undefined when there's none */
+  held?: number;
   /** after its flag: px driven on its in-lap, and where it's going once it's back at the pits (a podium spot 0–2, or its garage) */
   inLap?: { driven: number; to?: 'garage' | number; parked?: boolean };
 }
@@ -333,13 +354,28 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   const toSafetyCar = (e: Entrant) => (sc ? ((((sc.idx - e.progress.idx) % n) + n) % n) * track.spacing : Infinity);
   // (a car in its garage after the race is out of everyone's way)
   const cars = [...onTrack.filter((e) => e.pit?.phase !== 'garage').map((e) => e.car), ...(sc ? [sc.car] : [])];
-  const playerLimit = (e: Entrant) => {
-    if (vsc) return VSC.limit;
-    if (!sc) return undefined;
-    const behind = toSafetyCar(e);
-    if (behind <= SAFETY_CAR.holdGap) return SAFETY_CAR.speed;
-    if (n * track.spacing - behind <= SAFETY_CAR.dropBack) return SAFETY_CAR.speed * 0.6;
-    return SAFETY_CAR.limit;
+  /**
+   * The player's limiter under the safety car (or the virtual one): the field's limit, held to station behind the car
+   * ahead (HOLD); and whether it's too close and closing (brakes on).
+   */
+  const playerLimit = (e: Entrant, i: number): { limit?: number; tight: boolean } => {
+    if (!sc && !vsc) return { tight: false };
+    // alongside or just past the safety car: dropping back behind it
+    if (sc && n * track.spacing - toSafetyCar(e) <= SAFETY_CAR.dropBack) return { limit: SAFETY_CAR.speed * 0.6, tight: false };
+    let limit = sc ? SAFETY_CAR.limit : VSC.limit;
+    let tight = false;
+    const ahead = [...race.holdBehind[i]]
+      .map((j) => entrants[j])
+      .filter((o) => running(o) && !o.pit && !o.car.wrecked && o.progress.finished === undefined)
+      .map((o) => ({ car: o.car, idx: o.progress.idx }));
+    if (sc) ahead.push({ car: sc.car, idx: sc.idx });
+    for (const a of ahead) {
+      const d = ((((a.idx - e.progress.idx) % n) + n) % n) * track.spacing;
+      if (d > HOLD.reach) continue;
+      limit = Math.min(limit, Math.max(HOLD.crawl, speedOf(a.car) + HOLD.close * (d - HOLD.gap)));
+      if (d < HOLD.gap * HOLD.tight && speedOf(e.car) > speedOf(a.car)) tight = true;
+    }
+    return { limit, tight };
   };
 
   // drive
@@ -397,8 +433,13 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       input = aiInput(e.car, track, e.progress.idx, ai, others, race.clock < SETTLE || blending ? { ...orders, noOvertaking: true } : orders, towBoost(e.tow));
       if (e.ai.slip && e.ai.slip !== slip) out.push({ kind: 'mistake', who: i, what: e.ai.slip });
     }
-    // the player's limiter: right behind the safety car, its speed; alongside or just past it, slower, to drop back
-    else input = { ...player(e), limit: playerLimit(e) };
+    // the player's limiter: holding station behind the car ahead (or the safety car), and the brakes on when well over it
+    else {
+      const { limit, tight } = playerLimit(e, i);
+      e.held = limit;
+      const given = player(e);
+      input = limit !== undefined && (tight || speedOf(e.car) > limit + HOLD.over) ? { ...given, limit, brake: true } : { ...given, limit };
+    }
     return stepCar(e.car, input, p, dt, grid);
   });
   // the tyres wear with the driving
