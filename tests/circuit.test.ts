@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildCircuit } from '../src/f1/circuit';
-import { CRESCENT_PARK, HARBOUR, LAYOUTS, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { CRESCENT_PARK, HARBOUR, LAYOUTS, ROYAL_PARK, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, coolDownInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, standings, stepProgress } from '../src/f1/racing';
@@ -16,6 +16,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: SILVER_HEATH, length: [8300, 9300], lap: [24, 30], flatGap: 0.75 },
   // the streets: tight, but the cars grip enough to take nearly all of it flat out too
   { layout: HARBOUR, length: [8300, 9300], lap: [24, 34], flatGap: 0.5 },
+  // the temple of speed: flat out all the way round, the banking included
+  { layout: ROYAL_PARK, length: [9000, 10000], lap: [26, 32], flatGap: 0.5 },
 ];
 
 describe('circuit list', () => {
@@ -145,5 +147,70 @@ describe.each(EXPECT)('$layout.name circuit', ({ layout, length, lap, flatGap })
     expect(order).toHaveLength(10);
     const times = order.map((i) => field[i].p.finished!);
     for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+  });
+});
+
+describe('the banking at Royal Park', () => {
+  const circuit = buildCircuit(ROYAL_PARK, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+  const { track, grid, bank } = circuit;
+  const n = track.samples.length;
+  const { from, to, grade } = ROYAL_PARK.banking!;
+  const across = (i: number, a: number) => {
+    const p = track.samples[i];
+    return groundAt(grid, p.x + Math.cos(p.dir) * a, p.y + Math.sin(p.dir) * a).h;
+  };
+
+  it('is the long right onto the main straight', () => {
+    const mid = Math.round((from + to) / 2 / track.spacing);
+    let turn = 0;
+    for (let i = Math.round(from / track.spacing); i < Math.round(to / track.spacing); i++) turn += track.samples[i].curve * track.spacing;
+    // (a half circle, to the right)
+    expect(turn).toBeGreaterThan(Math.PI * 0.85);
+    expect(track.samples[mid].curve).toBeGreaterThan(0);
+  });
+
+  it('tilts the track up toward the outside, at its grade, from the inside edge to the walls', () => {
+    const mid = Math.round((from + to) / 2 / track.spacing);
+    // (a right-hander: the outside is on the left, at −across)
+    const inner = across(mid, 44);
+    const centre = across(mid, 0);
+    const outer = across(mid, -44);
+    expect((outer - centre) / 44).toBeGreaterThan(grade * 0.8);
+    expect((centre - inner) / 44).toBeGreaterThan(grade * 0.8);
+    expect(across(mid, -110)).toBeGreaterThan(outer + 15);
+    // the inside run-off stays flat
+    expect(Math.abs(across(mid, 100) - inner)).toBeLessThan(3);
+    expect(bank[mid]).toBeCloseTo(-grade, 5);
+  });
+
+  it('eases in and out, and nowhere else is banked', () => {
+    for (let i = 0; i < n; i++) {
+      const s = track.samples[i].s;
+      if (s < from || s > to) expect(Math.abs(bank[i])).toBe(0);
+    }
+    const first = Math.round(from / track.spacing) + 2;
+    expect(Math.abs(bank[first])).toBeLessThan(grade * 0.05);
+  });
+
+  it('has concrete run-off (smooth, not grass) up to the walls round it, and none anywhere else', () => {
+    expect(circuit.cells).toContain('apron');
+    circuit.cells.forEach((c, k) => {
+      if (c !== 'apron') return;
+      expect(grid.rough![k]).toBe(false);
+      const x = ((k % circuit.width) + 0.5) * 16;
+      const y = (Math.floor(k / circuit.width) + 0.5) * 16;
+      let best = 0;
+      let bestD = Infinity;
+      track.samples.forEach((p, i) => {
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < bestD) [best, bestD] = [i, d];
+      });
+      expect(bank[best]).not.toBe(0);
+    });
+    for (const l of LAYOUTS.filter((l) => l !== ROYAL_PARK)) {
+      const c = buildCircuit(l, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+      expect(c.cells).not.toContain('apron');
+      expect(c.bank.every((b) => b === 0)).toBe(true);
+    }
   });
 });

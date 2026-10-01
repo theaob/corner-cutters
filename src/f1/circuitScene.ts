@@ -12,11 +12,12 @@ import { addDaylight, type Daylight } from '../engine/render/daylight';
 import { groundAt } from '../engine/sim';
 import type { Pt } from './racing';
 import { GARAGE_ACROSS, PIT } from './pits';
-import { HALF_WIDTH, LANE_IN, LANE_OUT, TIGHT, TILE as T, type Circuit } from './circuit';
+import { HALF_WIDTH, LANE_IN, LANE_OUT, RUNOFF, TIGHT, TILE as T, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
 import { standsOf } from './stands';
+import { createPodiumDeck } from './podium3d';
 
 /** The flags on the grandstands: the teams' colours and white. */
 const FLAG_COLORS = [0xd8323c, 0xf2c14e, 0x3d7fc4, 0xf4f4f8, 0x5fe0d0, 0xff5fb8, 0x3d9a5a];
@@ -35,6 +36,10 @@ function rng(seed: number): () => number {
     return seed / 4294967296;
   };
 }
+
+/** The banking's concrete, and the seams along it */
+const CONCRETE = '#b4b2ac';
+const SEAM = '#99978f';
 
 /** The street circuits' colours: the pavement, the town's paving, the sea. */
 const STREET = { pavement: '#9b9ba3', joint: '#8a8a93', town: '#c8b48f', townDot: '#b9a47e', sea: '#2a6ca6', wave: '#4b8ccc' };
@@ -68,7 +73,16 @@ function paint(circuit: Circuit): HTMLCanvasElement {
         }
         continue;
       }
-      if (cell === 'gravel') {
+      // (the banking's concrete, also under the track's edge beside it)
+      const byApron = cell === 'apron' || ((cell === 'track' || cell === 'kerb') && [-1, 0, 1].some((dj) => [-1, 0, 1].some((di) => cells[(j + dj) * W + i + di] === 'apron')));
+      if (byApron) {
+        x.fillStyle = CONCRETE;
+        x.fillRect(px, py, T, T);
+        for (let k = 0; k < 3; k++) {
+          x.fillStyle = r() < 0.5 ? '#a8a6a0' : '#c0beb8';
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
+        }
+      } else if (cell === 'gravel') {
         x.fillStyle = '#d8c49a';
         x.fillRect(px, py, T, T);
         for (let k = 0; k < 10; k++) {
@@ -135,6 +149,26 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   x.lineWidth = HALF_WIDTH * 2;
   path(pts);
   x.stroke();
+  // the banking: seams in its concrete running along the track, so it reads as a slope, out to the walls
+  const banked = pts.map((_, i) => Math.abs(circuit.bank[i]) > 0.02);
+  if (banked.some(Boolean)) {
+    x.strokeStyle = SEAM;
+    x.lineWidth = 1;
+    // (a sample's banking rises toward its sign's side)
+    const outside = Math.sign(circuit.bank.find((b) => b !== 0)!);
+    for (const side of [-1, 1]) {
+      for (let off = HALF_WIDTH + 12; off < HALF_WIDTH + RUNOFF; off += side === outside ? 12 : 24) {
+        const line = offset(side * off);
+        x.beginPath();
+        pts.forEach((_, i) => {
+          if (!banked[i]) return;
+          if (banked[(i - 1 + pts.length) % pts.length]) x.lineTo(line[i].x, line[i].y);
+          else x.moveTo(line[i].x, line[i].y);
+        });
+        x.stroke();
+      }
+    }
+  }
   // white edge lines
   x.strokeStyle = '#e8e8ee';
   x.lineWidth = 2;
@@ -284,20 +318,24 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const cell = (i: number, j: number) => (i >= 0 && j >= 0 && i < W && j < H ? cells[j * W + i] : 'wall');
   const walls: [number, number][] = [];
   const pitWall: [number, number][] = [];
+  /** the banking's: a concrete wall with a catch fence on top */
+  const bankWall: [number, number][] = [];
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
       if (cells[j * W + i] === 'pitwall') pitWall.push([i, j]);
       if (cells[j * W + i] !== 'wall') continue;
       let near = false;
       let byPits = false;
+      let byApron = false;
       for (let dj = -1; dj <= 1; dj++) {
         for (let di = -1; di <= 1; di++) {
           const c = cell(i + di, j + dj);
           near ||= c !== 'wall' && c !== 'pitwall';
           byPits ||= c === 'pit';
+          byApron ||= c === 'apron';
         }
       }
-      if (near && !byPits) walls.push([i, j]);
+      if (near && !byPits) (byApron ? bankWall : walls).push([i, j]);
     }
   }
   // (a street circuit: steel barriers, grey with red and white bands, in place of tyre stacks)
@@ -314,6 +352,19 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   });
   tyres.castShadow = tyres.receiveShadow = true;
   scene.add(tyres);
+  if (bankWall.length) {
+    const concrete = new THREE.InstancedMesh(new THREE.BoxGeometry(T, 12, T), new THREE.MeshLambertMaterial({ color: 0xd4d2cc }), bankWall.length);
+    const fence = new THREE.InstancedMesh(new THREE.BoxGeometry(T, 10, T), new THREE.MeshLambertMaterial({ color: 0x5d6270, transparent: true, opacity: 0.45, depthWrite: false }), bankWall.length);
+    bankWall.forEach(([i, j], k) => {
+      const h = groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h;
+      m.makeTranslation((i + 0.5) * T, h + 6, (j + 0.5) * T);
+      concrete.setMatrixAt(k, m);
+      m.makeTranslation((i + 0.5) * T, h + 17, (j + 0.5) * T);
+      fence.setMatrixAt(k, m);
+    });
+    concrete.castShadow = concrete.receiveShadow = true;
+    scene.add(concrete, fence);
+  }
   const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(T, 8, T), new THREE.MeshLambertMaterial({ color: 0xc9ccd4 }), pitWall.length);
   pitWall.forEach(([i, j], k) => {
     m.makeTranslation((i + 0.5) * T, groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h + 4, (j + 0.5) * T);
@@ -363,6 +414,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     }
   });
   const town = street ? buildTown(scene, circuit) : undefined;
+  // (at a circuit whose podium hangs over the main straight: its deck)
+  const deck = createPodiumDeck(circuit);
+  if (deck) scene.add(deck);
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);

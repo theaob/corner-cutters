@@ -22,6 +22,10 @@ export interface CircuitLayout {
   tyreWear?: number;
   /** a street circuit: walls `runoff` px off the track's edge (pavement between), the town all round, the sea (a polygon, in `points` units), and a tunnel (px along the lap, from and to) */
   street?: StreetSpec;
+  /** a banked bend: px along the lap (from, to), and how steeply the track tilts up toward the outside (rise per px across, at its steepest) */
+  banking?: { from: number; to: number; grade: number };
+  /** the podium hangs over the main straight on a deck from the pit side, this many px up (else it stands on the run-off) */
+  podiumDeck?: number;
 }
 
 export interface StreetSpec {
@@ -239,7 +243,59 @@ export const HARBOUR: CircuitLayout = {
   },
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR];
+/**
+ * Royal Park. Clockwise through an old royal park, after the temple of speed
+ * (its corners in order, eased for the arcade handling): the longest straight
+ * of all, the first chicane (right–left), the long right of the big curve, the
+ * second chicane (left–right), the two rights of the woods, the straight under
+ * the trees, the fast left–right–left chicane, the back straight, and the
+ * banking: a long right of a half circle, tilted up to the outside, flat out
+ * onto the main straight. The podium hangs out over the main straight.
+ */
+export const ROYAL_PARK: CircuitLayout = {
+  id: 'royal-park',
+  name: 'Royal Park',
+  about: 'clockwise · the banking, the longest straight',
+  points: ([
+    // the main straight, east, the pits on the outside (north)
+    [1000, 300], [1500, 300], [2000, 300], [2440, 300],
+    // the first chicane: a hard right, then left
+    [2500, 304], [2530, 330], [2545, 370], [2565, 400], [2605, 414], [2680, 420], [2760, 430],
+    // the big curve: a long right, round to heading south
+    [2880, 475], [3000, 535], [3090, 625], [3140, 745], [3150, 875],
+    // the second chicane: left, right
+    [3150, 960], [3158, 990], [3185, 1010], [3208, 1035], [3215, 1075], [3200, 1125], [3180, 1170],
+    // the woods: two rights, round to heading west
+    [3150, 1225], [3100, 1275], [3030, 1305],
+    [2960, 1340], [2900, 1380], [2820, 1390],
+    // the straight under the trees
+    [2500, 1380], [2150, 1340],
+    // the fast chicane: left, right, left
+    [2050, 1330], [1980, 1360], [1900, 1380], [1820, 1360], [1760, 1310], [1680, 1280],
+    // the back straight, toward the main one
+    [1400, 1200], [1100, 1080],
+    // the banking: a half circle round to heading east
+    [880, 990], [700, 940], [530, 900], [420, 800], [380, 650], [410, 490], [500, 370], [620, 310],
+    // onto the main straight
+    [800, 300],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1.4,
+  // a park: nearly flat, a little rise through the woods
+  elevation: [
+    [0, 8],
+    [0.2, 10],
+    [0.4, 18],
+    [0.55, 14],
+    [0.75, 6],
+    [1, 8],
+  ],
+  pit: { from: -300, to: 700, side: -1 },
+  // (from the back straight's end round to the main straight)
+  banking: { from: 7700, to: 9100, grade: 0.3 },
+  podiumDeck: 46,
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK];
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {
