@@ -12,6 +12,11 @@ export const TILE = 16;
 export const HALF_WIDTH = 44;
 /** px of run-off (grass or gravel) beyond the track edge before the barriers */
 export const RUNOFF = 72;
+/**
+ * The barrier between two stretches side by side: tiles from px past the track's edge, within px of the line midway
+ * between them (a band a tile or so wide, so no gap is left where it runs at a slant across the grid)
+ */
+export const SPLIT = { clear: 8, band: 20 };
 /** |curvature| (1/px) from which a bend is tight: kerbed, with gravel on the outside, and a marked corner for track limits */
 export const TIGHT = 1 / 260;
 /**
@@ -181,6 +186,21 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   };
   /** px from the track's edge to the walls: the run-off, or a street circuit's pavement */
   const runoff = layout.street?.runoff ?? RUNOFF;
+  /** samples along the lap within which a sample is the same stretch (past them, another stretch, if it's near) */
+  const sameStretch = Math.ceil((3 * (HALF_WIDTH + runoff)) / track.spacing);
+  /** the nearest sample to (x, y) on another stretch of the lap than sample `i`'s, within the run-off, if any */
+  const otherStretch = (x: number, y: number, i: number) => {
+    let best = -1;
+    let bestD = (HALF_WIDTH + runoff + SPLIT.band) ** 2;
+    for (const j of near(x, y, HALF_WIDTH + runoff + SPLIT.band)) {
+      const along = Math.abs(j - i);
+      if (Math.min(along, n - along) <= sameStretch) continue;
+      const p = track.samples[j];
+      const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+      if (d < bestD) [best, bestD] = [j, d];
+    }
+    return best < 0 ? undefined : { i: best, d: Math.sqrt(bestD) };
+  };
   // a banked bend: how steeply the ground tilts across the track at each sample (easing in and out over
   // BANK_EASE px at its ends), up toward the outside of the bend
   const bank = new Float32Array(n);
@@ -228,6 +248,16 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
       if (i < 0 || d > HALF_WIDTH + runoff) {
         cells.push('wall');
         continue;
+      }
+      // two stretches of the lap side by side, their run-offs meeting (Suzuka's figure of eight round its crossing): a
+      // barrier down the middle between them, so no one drives across from one to the other (never on either road: at
+      // a bridge's crossing it stands in the angles between them)
+      if (d > HALF_WIDTH + SPLIT.clear) {
+        const o = otherStretch(x, y, i);
+        if (o && o.d - d <= SPLIT.band) {
+          cells.push('wall');
+          continue;
+        }
       }
       const tight = Math.abs(p.curve) > TIGHT;
       const kerb = kerbs[i];

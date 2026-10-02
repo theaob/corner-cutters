@@ -285,3 +285,32 @@ describe('the kerbs', () => {
     }
   }, 30_000);
 });
+
+describe('stretches side by side', () => {
+  it.each(LAYOUTS)("$name: a barrier between any two that run side by side, so no one drives across from one to the other (Suzuka's figure of eight)", (layout) => {
+    const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const s = c.track.samples;
+    const n = s.length;
+    const T = c.grid.tile;
+    const solid = (x: number, y: number) => c.grid.solid[Math.floor(y / T) * c.grid.width + Math.floor(x / T)];
+    const reach = HALF_WIDTH + (layout.street?.runoff ?? 72);
+    for (let i = 0; i < n; i += 6) {
+      for (let j = 0; j < n; j += 6) {
+        if (Math.min(Math.abs(i - j), n - Math.abs(i - j)) < 120) continue;
+        const d = Math.hypot(s[i].x - s[j].x, s[i].y - s[j].y);
+        if (d > 2 * reach || d < 2 * HALF_WIDTH) continue;
+        // (a way across the run-off only: over no road but at its ends)
+        const at = (t: number) => ({ x: s[i].x + (s[j].x - s[i].x) * t, y: s[i].y + (s[j].y - s[i].y) * t });
+        let road = false;
+        for (let t = 0.15; t < 0.85 && !road; t += 0.05) {
+          const p = at(t);
+          road = s.some((q, k) => k % 2 === 0 && Math.hypot(q.x - p.x, q.y - p.y) < HALF_WIDTH);
+        }
+        if (road) continue;
+        let wall = false;
+        for (let t = 0.02; t < 1 && !wall; t += 0.01) wall = solid(at(t).x, at(t).y);
+        expect(wall, `${layout.name}: samples ${i} and ${j}`).toBe(true);
+      }
+    }
+  }, 60_000);
+});

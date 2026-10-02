@@ -14,6 +14,19 @@ describe('the bridge at Suzuka', () => {
   const c = build(SUZUKA);
   const { track, grid } = c;
   const l = track.levels!;
+  it("walls the deck in where it's off the ground, with no gap a car can slip through (even where it runs at a slant across the grid)", () => {
+    const T = l.upper.tile;
+    const solid = (x: number, y: number) => l.upper.solid[Math.floor(y / T) * l.upper.width + Math.floor(x / T)];
+    for (let k = l.from; k !== (l.to + 1) % n; k = (k + 1) % n) {
+      if (liftAt(track, l, k) < BRIDGE.walled) continue;
+      const p = track.samples[k];
+      for (const side of [-1, 1]) {
+        let hit = false;
+        for (let a = BRIDGE.deck - 2; a <= BRIDGE.deck + T + 16 && !hit; a += 1) hit = solid(p.x + Math.cos(p.dir) * a * side, p.y + Math.sin(p.dir) * a * side);
+        expect(hit, `sample ${k}, side ${side}`).toBe(true);
+      }
+    }
+  });
   it("knows a car under the deck (its outline's then drawn through it), and not one up on it or away from it", () => {
     const under = track.samples[l.under];
     const over = track.samples[l.over];
