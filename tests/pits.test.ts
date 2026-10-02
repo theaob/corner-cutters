@@ -139,7 +139,7 @@ describe.each(LAYOUTS)('a pit stop at $name', (layout) => {
       }
     }
     const mine = events.filter((e) => 'who' in e && e.who === victim).map((e) => e.kind);
-    expect(mine).toEqual(['pit-in', 'pit-stop', 'pit-out']);
+    expect(mine).toEqual(['pit-in', 'pit-stop', 'pit-repaired', 'pit-out']);
     const e = race.entrants[victim];
     expect(e.stops).toBe(1);
     expect(e.car.health).toBe(f1.health);
@@ -170,7 +170,8 @@ describe('the player in the pits', () => {
     for (let t = 0; t < 20 && !kinds.includes('pit-out'); t += dt) {
       for (const e of stepRace(race, dt, () => ({ steer: { x: 1, y: 0 }, handbrake: false })).race) if ('who' in e && e.who === 0) kinds.push(e.kind);
     }
-    expect(kinds).toEqual(['pit-in', 'pit-stop', 'pit-out']);
+    // (repaired, its torn-off parts fitted back, before it pulls away from the box)
+    expect(kinds).toEqual(['pit-in', 'pit-stop', 'pit-repaired', 'pit-out']);
     expect(me.car.health).toBe(f1.health);
     // back on the track, beside the exit
     const at = nearestSample(c.track, me.car.x, me.car.y);

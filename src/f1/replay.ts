@@ -5,12 +5,17 @@
 // crash, the seconds round it, slowing through the impact (CRASH_REPLAY).
 // Engine-free.
 
-/** Where a car is: on the ground (x, y), its height, its heading. */
+/** A car's state as it shows: whole, smoking, burning or wrecked (as the driving rules' condition). */
+export type ReplayCondition = 'ok' | 'smoking' | 'burning' | 'wrecked';
+const CONDITIONS: ReplayCondition[] = ['ok', 'smoking', 'burning', 'wrecked'];
+
+/** Where a car is: on the ground (x, y), its height, its heading; and, recorded, its state then (so a replay shows it whole before the crash that set it alight). */
 export interface Pose {
   x: number;
   y: number;
   z: number;
   heading: number;
+  condition?: ReplayCondition;
 }
 
 export const REPLAY = {
@@ -27,8 +32,8 @@ export const REPLAY = {
   slow: 0.4,
 };
 
-/** numbers per car per frame: x, y, z, heading, and whether it's on the track (1) or not (0) */
-const STRIDE = 5;
+/** numbers per car per frame: x, y, z, heading, whether it's on the track (1) or not (0), and its condition (CONDITIONS' index) */
+const STRIDE = 6;
 
 export interface ReplayRecorder {
   /** cars recorded (each frame has them all, in order) */
@@ -46,7 +51,7 @@ export function recordReplay(r: ReplayRecorder, t: number, cars: (Pose | undefin
   while (r.start + r.frames.length / REPLAY.hz <= t + 1e-6) {
     const f = new Float32Array(r.cars * STRIDE);
     cars.forEach((c, i) => {
-      if (c) f.set([c.x, c.y, c.z, c.heading, 1], i * STRIDE);
+      if (c) f.set([c.x, c.y, c.z, c.heading, 1, Math.max(0, CONDITIONS.indexOf(c.condition ?? 'ok'))], i * STRIDE);
     });
     r.frames.push(f);
   }
@@ -70,7 +75,9 @@ export function replayPose(r: ReplayRecorder, i: number, t: number): Pose | unde
   const o = i * STRIDE;
   if (!a[o + 4] || !b[o + 4]) return undefined;
   const turn = Math.atan2(Math.sin(b[o + 3] - a[o + 3]), Math.cos(b[o + 3] - a[o + 3]));
-  return { x: a[o] + (b[o] - a[o]) * f, y: a[o + 1] + (b[o + 1] - a[o + 1]) * f, z: a[o + 2] + (b[o + 2] - a[o + 2]) * f, heading: a[o + 3] + turn * f };
+  // (its condition the nearer frame's: it changes at once, as it did)
+  const condition = CONDITIONS[(f < 0.5 ? a : b)[o + 5]] ?? 'ok';
+  return { x: a[o] + (b[o] - a[o]) * f, y: a[o + 1] + (b[o + 1] - a[o + 1]) * f, z: a[o + 2] + (b[o + 2] - a[o + 2]) * f, heading: a[o + 3] + turn * f, condition };
 }
 
 /** The race times a replay of your finish at `finish` runs between, within what's recorded. */

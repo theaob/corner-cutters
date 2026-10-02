@@ -274,12 +274,13 @@ function laneTarget(pit: PitLane, stop: PitStop, s: number): number {
  * stop on (the box, the repair, the way out); returns the input for this step
  * and whether the car has reached the exit.
  */
-export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt: number): { input: DriveInput; done: boolean; stopped: boolean } {
+export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt: number): { input: DriveInput; done: boolean; stopped: boolean; repaired?: boolean } {
   stop.at = nearestLanePoint(pit, car.x, car.y, stop.at);
   const here = pit.points[stop.at];
   const v = speedOf(car);
   const box = pit.boxes[stop.box];
   let stopped = false;
+  let repaired = false;
   if (stop.home !== undefined && stop.phase === 'in' && here.s >= box - 6 && v < 8) {
     // home after the race: a moment in the box, then the crew push it back into the garage
     stop.phase = 'stopped';
@@ -291,12 +292,12 @@ export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt
       stop.phase = 'garage';
       stop.push = { x: car.x, y: car.y, heading: car.heading, done: 0 };
     }
-    return { input: { handbrake: true, brake: true }, done: false, stopped };
+    return { input: { handbrake: true, brake: true }, done: false, stopped, repaired };
   }
   if (stop.phase === 'garage') {
     stop.push!.done = Math.min(PIT.garagePush, stop.push!.done + dt);
     pushIntoGarage(pit, stop, car);
-    return { input: { handbrake: true, brake: true }, done: false, stopped };
+    return { input: { handbrake: true, brake: true }, done: false, stopped, repaired };
   }
   if (stop.phase === 'in' && here.s >= box - 6 && v < 8) {
     stop.phase = 'stopped';
@@ -309,11 +310,13 @@ export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt
     const rate = car.cls.health / PIT.repair;
     car.health = Math.min(car.cls.health, car.health + rate * dt);
     stop.left -= dt;
-    if (stop.left > 0) return { input: { handbrake: true, brake: true }, done: false, stopped };
+    if (stop.left > 0) return { input: { handbrake: true, brake: true }, done: false, stopped, repaired };
     car.health = car.cls.health;
     stop.phase = 'out';
+    // (the crew done: the car whole again, the parts torn off it fitted back)
+    repaired = true;
   }
-  if (stop.at >= pit.points.length - 1 || (stop.phase === 'out' && here.s >= pit.length - 4)) return { input: { handbrake: false }, done: true, stopped };
+  if (stop.at >= pit.points.length - 1 || (stop.phase === 'out' && here.s >= pit.length - 4)) return { input: { handbrake: false }, done: true, stopped, repaired };
 
   // aim a little ahead along the lane, in this car's line across it
   const ahead = pit.points[Math.min(pit.points.length - 1, stop.at + Math.max(2, Math.round((20 + v * 0.25) / 8)))];
@@ -347,5 +350,5 @@ export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt
   const dy = ty - car.y;
   const d = Math.hypot(dx, dy) || 1;
   const mag = Math.max(0.05, Math.min(1, want / car.cls.topSpeed));
-  return { input: { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 6 || want === 0, limit: zone ? PIT.limit : here.s < pit.limitFrom ? PIT.road : undefined }, done: false, stopped };
+  return { input: { steer: { x: (dx / d) * mag, y: (dy / d) * mag }, handbrake: false, brake: v > want + 6 || want === 0, limit: zone ? PIT.limit : here.s < pit.limitFrom ? PIT.road : undefined }, done: false, stopped, repaired };
 }
