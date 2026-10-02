@@ -105,7 +105,7 @@ the same:
 
 | Circuit | Character | Idea |
 |---|---|---|
-| Crescent Park | flowing, flat out | done |
+| Crescent Park | over the hills, the long Turn 8 | done: retraced from the circuit in Istanbul |
 | Silver Heath | fast, two hard stops | done |
 | Harbour street circuit | tight, walls close, slow corners | done: after the famous harbour street circuit |
 | Royal Park | the longest straight, two hard chicanes, the banking | done: after the temple of speed, with a floating podium |
@@ -113,6 +113,7 @@ the same:
 | Alpine Ring | a short, steep lap on a mountainside | done: traced from the short circuit in the Austrian hills |
 | Twin Lakes | anticlockwise, a bowl, down and up | done: traced from the circuit in the big Brazilian city |
 | Oasis | the desert, under the lights, heavy stops | done: traced from the circuit in the sands of the Gulf |
+| Baku | streets: the castle section, then the longest run flat out | done: traced from the city circuit on the Caspian |
 | Mountain / hill track | big elevation, blind crests, jumps | shows off the height model and airborne physics |
 | Night desert track | long straights, slipstream battles | needs a slipstream effect (see below) |
 | Rain / forest track | low grip sections | introduces weather (later) |

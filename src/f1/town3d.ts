@@ -717,8 +717,8 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
     anchored++;
   }
 
-  // the tunnel's roof: concrete slabs over the track, see-through so the cars show under it
-  const [from, to] = street.tunnel.map((d) => Math.round(d / track.spacing));
+  // the tunnel's roof (if it has one): concrete slabs over the track, see-through so the cars show under it
+  const [from, to] = (street.tunnel ?? [0, 0]).map((d) => Math.round(d / track.spacing));
   const slab = new THREE.MeshLambertMaterial({ color: 0x9a948a, transparent: true, opacity: 0.32, depthWrite: false });
   const span = (HALF_WIDTH + street.runoff) * 2 + 24;
   for (let k = from; k < to; k += 4) {

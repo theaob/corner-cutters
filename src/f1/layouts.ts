@@ -20,7 +20,7 @@ export interface CircuitLayout {
   pit: PitSpec;
   /** how hard it is on tyres (1 unless given) */
   tyreWear?: number;
-  /** a street circuit: walls `runoff` px off the track's edge (pavement between), the town all round, the sea (a polygon, in `points` units), and a tunnel (px along the lap, from and to) */
+  /** a street circuit: walls `runoff` px off the track's edge (pavement between), the town all round, the sea (a polygon, in `points` units), and any tunnel (px along the lap, from and to) */
   street?: StreetSpec;
   /** a banked bend: px along the lap (from, to), and how steeply the track tilts up toward the outside (rise per px across, at its steepest) */
   banking?: { from: number; to: number; grade: number };
@@ -37,85 +37,82 @@ export interface CircuitLayout {
 export interface StreetSpec {
   runoff: number;
   sea: Pt[];
-  tunnel: [number, number];
+  tunnel?: [number, number];
   /** where its landmarks stand (in `points` units): the casino, an open-air swimming pool, a tennis court */
   landmarks?: { casino: Pt; pool: Pt; tennis: Pt };
 }
 
 /**
- * Crescent Park. Anticlockwise: a downhill Turn 1 left and Turn 2 right, a fast
- * sweeping Turn 3, a twisty middle section, the long four-apex Turn 8 left, the
- * Turn 9–10 esses, a long back straight with a kink, a heavy-braking Turn 12,
- * and the Turn 13–14 chicane onto the main straight. A lap is about 7600 px,
- * about 24 s.
+ * Crescent Park. Anticlockwise over the hills, after the one on the edge of the
+ * big city between two continents (outline data from the same source as Silver
+ * Heath's, its main straight eased straight for the pit lane and its tight
+ * bends opened out a little): the plunging downhill left of Turn 1 and the
+ * right of Turn 2 at the bottom, the climb through the fast Turns 3 to 6 to the
+ * hairpin, round onto the long climb to the famous Turn 8, the four-apex left
+ * on the hillside at the top, the Turns 9 and 10 esses down off it, the long
+ * back straight with its kink, the heavy stop at Turn 12, and the Turns 13 and
+ * 14 up onto the main straight. A lap is about 7900 px, about 24 s.
  */
 export const CRESCENT_PARK: CircuitLayout = {
   id: 'crescent-park',
   name: 'Crescent Park',
-  about: 'anticlockwise · flowing, flat out',
-  points: [
-    // main straight, running north up the east side
-    { x: 2300, y: 1000 },
-    { x: 2300, y: 750 },
-    { x: 2300, y: 500 },
-    // T1: downhill left
-    { x: 2270, y: 270 },
-    { x: 2170, y: 190 },
-    // T2: right
-    { x: 2040, y: 180 },
-    { x: 1960, y: 100 },
-    // T3: long fast left
-    { x: 1850, y: 10 },
-    { x: 1680, y: 10 },
-    { x: 1560, y: 90 },
-    // T4–T7: the twisty middle
-    { x: 1440, y: 220 },
-    { x: 1330, y: 360 },
-    { x: 1180, y: 400 },
-    { x: 1030, y: 340 },
-    { x: 890, y: 390 },
-    { x: 720, y: 500 },
-    // T8: the long four-apex left, round the west end
-    { x: 540, y: 520 },
-    { x: 380, y: 600 },
-    { x: 290, y: 780 },
-    { x: 288, y: 975 },
-    { x: 330, y: 1160 },
-    { x: 460, y: 1280 },
-    { x: 640, y: 1300 },
-    // T9–T10: right, left
-    { x: 790, y: 1360 },
-    { x: 900, y: 1450 },
-    // back straight with the T11 kink
-    { x: 1100, y: 1480 },
-    { x: 1500, y: 1460 },
-    { x: 1900, y: 1490 },
-    // T12: heavy braking, left
-    { x: 2140, y: 1500 },
-    { x: 2210, y: 1420 },
-    // T13–T14 chicane
-    { x: 2220, y: 1320 },
-    { x: 2290, y: 1260 },
-    { x: 2300, y: 1150 },
-  ],
-  scale: 1.35,
-  // the dip through T1, climbs round T3 and T8
+  about: 'anticlockwise · over the hills, the long Turn 8',
+  points: ([
+    [505, 1186], [532, 1180], [559, 1174], [587, 1168], [614, 1162], [641, 1156],
+    [669, 1150], [696, 1144], [723, 1137], [744, 1118], [752, 1092], [748, 1064],
+    [743, 1037], [737, 1009], [735, 982], [742, 955], [756, 931], [774, 909],
+    [794, 890], [818, 876], [843, 862], [867, 849], [894, 839], [920, 830],
+    [946, 820], [974, 814], [1001, 809], [1029, 804], [1056, 802], [1084, 803],
+    [1112, 803], [1140, 804], [1168, 804], [1196, 799], [1221, 788], [1238, 767],
+    [1247, 740], [1251, 712], [1249, 684], [1254, 657], [1273, 637], [1300, 629],
+    [1328, 631], [1355, 628], [1378, 613], [1390, 588], [1389, 560], [1382, 533],
+    [1364, 512], [1340, 498], [1315, 486], [1290, 473], [1265, 460], [1240, 448],
+    [1215, 435], [1190, 423], [1165, 410], [1140, 397], [1115, 385], [1090, 372],
+    [1065, 359], [1040, 347], [1015, 334], [991, 319], [978, 295], [979, 268],
+    [994, 245], [1019, 231], [1046, 225], [1073, 229], [1101, 233], [1129, 237],
+    [1157, 241], [1184, 246], [1211, 253], [1238, 260], [1266, 266], [1293, 273],
+    [1320, 279], [1347, 276], [1373, 264], [1397, 251], [1420, 235], [1431, 209],
+    [1440, 183], [1448, 156], [1448, 128], [1435, 103], [1422, 79], [1403, 58],
+    [1383, 38], [1364, 18], [1339, 6], [1312, 0], [1284, 3], [1257, 10],
+    [1230, 18], [1203, 26], [1176, 33], [1149, 41], [1123, 49], [1096, 57],
+    [1069, 65], [1042, 73], [1015, 81], [988, 89], [962, 97], [935, 105],
+    [908, 113], [881, 121], [854, 129], [827, 136], [802, 149], [787, 171],
+    [786, 199], [797, 224], [804, 251], [798, 278], [789, 305], [780, 331],
+    [772, 358], [763, 384], [754, 411], [746, 438], [738, 464], [729, 491],
+    [720, 518], [711, 544], [703, 571], [694, 597], [685, 624], [677, 651],
+    [668, 677], [659, 704], [647, 729], [628, 749], [607, 768], [583, 782],
+    [558, 795], [534, 809], [509, 822], [485, 836], [460, 849], [436, 863],
+    [411, 876], [386, 889], [362, 903], [337, 916], [313, 930], [288, 943],
+    [264, 957], [239, 970], [215, 984], [190, 997], [165, 1011], [141, 1024],
+    [116, 1038], [92, 1051], [67, 1065], [43, 1078], [18, 1092], [0, 1112],
+    [4, 1138], [28, 1151], [56, 1156], [73, 1176], [71, 1204], [68, 1232],
+    [74, 1258], [99, 1270], [126, 1265], [154, 1260], [181, 1255], [209, 1249],
+    [236, 1243], [264, 1238], [291, 1232], [318, 1226], [346, 1220], [373, 1214],
+    [400, 1208], [428, 1202], [455, 1196], [482, 1190],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2.0,
+  // (a share of the lap): the plunge into Turn 1, down to Turn 2, the climb through the fast bends to the hairpin,
+  // up to Turn 8 high on the hill, down the esses and the back straight, and the climb from Turn 12 to the line
   elevation: [
-    [0, 22],
-    [0.089, 24],
-    [0.127, 4],
-    [0.183, 2],
-    [0.257, 18],
-    [0.369, 14],
-    [0.463, 6],
-    [0.608, 20],
-    [0.72, 12],
-    [0.851, 10],
-    [0.944, 18],
-    [1, 22],
+    [0, 30],
+    [0.06, 26],
+    [0.12, 6],
+    [0.18, 4],
+    [0.26, 18],
+    [0.34, 26],
+    [0.4, 22],
+    [0.5, 32],
+    [0.58, 22],
+    [0.66, 10],
+    [0.76, 16],
+    [0.88, 30],
+    [0.94, 28],
+    [1, 30],
   ],
-  // on the infield, from the chicane's exit to the run up to T1
-  pit: { from: -232, to: 840, side: -1 },
+  // on the infield side of the main straight
+  pit: { from: -690, to: 370, side: -1 },
+  // (a 30 s lap: no harder on tyres than a race of five laps of 24 s was)
+  tyreWear: 0.7,
 };
 
 /**
@@ -561,7 +558,88 @@ export const OASIS: CircuitLayout = {
   night: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS];
+/**
+ * Baku. Anticlockwise through the old city on the Caspian, after the one there
+ * (outline data from the same source, its right-angled corners and the castle
+ * section opened out a little so the cars fit): from the line, the left and the
+ * right-angle rights and lefts of the new town, up through the narrow, twisting
+ * castle section under the old city walls to the top of the hill, round the old
+ * town and down again to the sea front, and the longest run flat out anywhere,
+ * curving along the sea front for 2000 px and more back to the line. Walls all
+ * the way round, the sea beyond the pits. About 11,500 px, about 36 s.
+ */
+export const BAKU: CircuitLayout = {
+  id: 'baku',
+  name: 'Baku',
+  about: 'anticlockwise · the castle, then flat out by the sea',
+  points: ([
+    [1893, 372], [1919, 361], [1945, 350], [1971, 339], [1996, 328], [2022, 317],
+    [2044, 300], [2051, 274], [2043, 247], [2034, 220], [2025, 194], [2013, 169],
+    [2000, 144], [1988, 118], [1976, 93], [1964, 68], [1952, 43], [1939, 18],
+    [1917, 1], [1890, 0], [1864, 10], [1838, 20], [1811, 30], [1785, 40],
+    [1759, 51], [1733, 61], [1707, 71], [1681, 81], [1655, 91], [1629, 101],
+    [1603, 111], [1577, 122], [1551, 134], [1526, 145], [1500, 157], [1475, 168],
+    [1449, 180], [1424, 192], [1398, 203], [1373, 215], [1347, 226], [1322, 237],
+    [1296, 248], [1271, 260], [1245, 272], [1220, 283], [1194, 295], [1168, 306],
+    [1145, 322], [1135, 347], [1141, 374], [1150, 401], [1160, 427], [1169, 453],
+    [1179, 480], [1188, 506], [1187, 534], [1169, 555], [1145, 569], [1121, 583],
+    [1097, 597], [1072, 611], [1048, 624], [1023, 638], [999, 651], [974, 665],
+    [950, 678], [925, 692], [910, 715], [898, 740], [875, 756], [853, 772],
+    [830, 789], [808, 807], [787, 824], [765, 842], [743, 859], [721, 876],
+    [699, 894], [677, 911], [654, 928], [630, 941], [603, 939], [583, 920],
+    [573, 894], [564, 867], [555, 841], [538, 819], [513, 808], [486, 800],
+    [459, 793], [441, 772], [424, 750], [397, 744], [370, 750], [343, 758],
+    [316, 767], [291, 779], [266, 791], [241, 804], [216, 816], [191, 828],
+    [166, 842], [142, 857], [119, 872], [95, 887], [72, 903], [58, 927],
+    [45, 952], [38, 979], [30, 1006], [23, 1033], [15, 1060], [8, 1087],
+    [0, 1114], [1, 1142], [4, 1170], [6, 1197], [9, 1225], [11, 1253],
+    [13, 1281], [16, 1309], [24, 1335], [45, 1353], [70, 1367], [94, 1380],
+    [119, 1393], [143, 1407], [168, 1421], [192, 1435], [217, 1448], [243, 1459],
+    [268, 1469], [294, 1480], [322, 1480], [346, 1467], [362, 1445], [377, 1421],
+    [391, 1397], [404, 1372], [418, 1348], [433, 1324], [451, 1303], [471, 1284],
+    [491, 1264], [512, 1245], [532, 1226], [553, 1207], [573, 1188], [593, 1168],
+    [611, 1147], [616, 1119], [622, 1092], [633, 1067], [654, 1048], [675, 1029],
+    [697, 1013], [719, 995], [741, 978], [763, 960], [785, 943], [807, 926],
+    [829, 908], [851, 891], [873, 873], [895, 856], [917, 840], [941, 824],
+    [962, 807], [982, 787], [1000, 765], [1021, 748], [1046, 735], [1072, 724],
+    [1098, 713], [1124, 702], [1149, 691], [1175, 680], [1201, 669], [1227, 658],
+    [1252, 647], [1278, 636], [1304, 625], [1330, 614], [1355, 603], [1381, 592],
+    [1407, 581], [1433, 570], [1458, 559], [1484, 547], [1510, 536], [1535, 525],
+    [1561, 515], [1587, 504], [1613, 492], [1638, 481], [1664, 470], [1690, 459],
+    [1716, 448], [1741, 437], [1767, 426], [1793, 415], [1819, 404], [1844, 393],
+    [1870, 382],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1.9,
+  // (a share of the lap): flat along the new town, the climb through the castle section to the old town at the top,
+  // down again to the sea front, and flat along it to the line
+  elevation: [
+    [0, 4],
+    [0.1, 4],
+    [0.2, 8],
+    [0.27, 14],
+    [0.34, 24],
+    [0.4, 30],
+    [0.48, 32],
+    [0.56, 26],
+    [0.64, 16],
+    [0.72, 6],
+    [0.8, 2],
+    [1, 4],
+  ],
+  // on the sea side of the straight
+  pit: { from: -950, to: 100, side: 1 },
+  // (a long lap of streets: easy on tyres)
+  tyreWear: 0.4,
+  street: {
+    runoff: 28,
+    // the Caspian, beyond the pits along the sea front
+    sea: ([
+    [734, 1139], [2897, -13], [4307, 2635], [2144, 3787],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  },
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU];
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {
