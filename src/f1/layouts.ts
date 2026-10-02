@@ -592,7 +592,7 @@ export const OASIS: CircuitLayout = {
  */
 export const BAKU: CircuitLayout = {
   id: 'baku',
-  name: 'Baku',
+  name: 'Caspian Shores',
   about: 'anticlockwise · the castle, then flat out by the sea',
   points: ([
     [1893, 372], [1919, 361], [1945, 350], [1971, 339], [1996, 328], [2022, 317],
@@ -680,7 +680,7 @@ export const BAKU: CircuitLayout = {
  */
 export const SUZUKA: CircuitLayout = {
   id: 'suzuka',
-  name: 'Suzuka',
+  name: 'Nippon',
   about: 'a figure of eight · the esses, over the bridge, 130R',
   points: ([
     [16731, 5575], [16911, 5790], [17090, 6005], [17270, 6220], [17449, 6435], [17629, 6650],
