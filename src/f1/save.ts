@@ -4,7 +4,8 @@
 //   choices   the menu's last mode ('race'/'timetrial'), circuit, team, difficulty and weather (by id), qualifying ('on'/'off'), a Quick Race's laps ('5'), and the time ('day'/'night')
 //   ghosts    your best Time Trial lap on each circuit (and weather), to race as a ghost (timeTrial.ts)
 //   championship  season: the Championship season in progress (or just over) (championship.ts)
-//   progress  unlocked: the circuits a Championship has unlocked (unlocks.ts); onboarded: the controls lap done or skipped
+//   progress  unlocked: the circuits a Championship has unlocked (unlocks.ts); onboarded: the controls lap done or skipped;
+//             championship: true once the Championship is bought (the Google Play build: purchase.ts)
 //   records   circuits: best race lap, best qualifying lap and best race times per circuit (records.ts)
 //   trophies  medals: your best Time Trial and Time Attack medal on each circuit; titles: Championships won (medals.ts)
 //             achievements: those unlocked, and raced: the circuits you've raced on (achievements.ts)

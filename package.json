@@ -13,6 +13,7 @@
     "test": "vitest run",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "android:play": "VITE_STORE=play npm run android:sync && cd android && ./gradlew bundleRelease",
     "android:art": "python3 tools/android-art.py"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.2",
     "@capacitor/haptics": "^8.0.2",
+    "cordova-plugin-purchase": "^13.18.0",
     "three": "^0.186.1"
   },
   "devDependencies": {
