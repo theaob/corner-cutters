@@ -204,11 +204,15 @@ with strategy, once out of scope, are now the Grand Prix mode in M6.)
 
 ### Release, ads and pricing
 
-The game is **free everywhere**. The same game in every build: no content locked behind
-payment.
+The game is **free to download everywhere**. On Google Play the **Championship is an in-app
+purchase** (`f1/purchase.ts`): free players get Crescent Park in Quick Race, Time Attack and
+Time Trial; the one-time purchase opens the Championship, and with it every other circuit as a
+season reaches it. The web game and the APK on itch.io stay fully open.
 
-- **Google Play (the main release):** free, with ads. A one-time **"Support the game"**
-  purchase (Play Billing) removes the ads for good, as a thank-you for supporting it.
+- **Google Play (the main release):** free, with Crescent Park open; the **Championship** (and the
+  other circuits, reached through it) is a one-time purchase (Play Billing: `f1/purchase.ts`, the
+  shop in `f1/screens/shop.ts`), kept on the device and restored on reinstall. (The ads below, and
+  a "Support the game" purchase removing them, are still only planned.)
 - **itch.io:** free, with the optional donation itch.io offers at download. No ads in the web
   build: web ad networks work poorly inside itch.io's frame, and itch.io players are a small,
   friendly audience worth keeping. The Android APK there has no ads either.
@@ -324,7 +328,7 @@ The goal: version 1.0 on Google Play and itch.io.
 Google Play:
 - [ ] Google Play developer account and app created in the Play Console
 - [x] Resume the Android workflow on push (done: it builds on every push and uploads the APK to itch.io)
-- [ ] Build an **AAB** (Play's upload format) as well as the APK
+- [x] Build an **AAB** (Play's upload format) as well as the APK (the Play build, `VITE_STORE=play`: the Championship an in-app purchase)
 - [ ] Release **upload key** in the repo's secrets, and Play App Signing turned on (Google holds
       the app signing key). The sideloaded APK signed with the repo key can't update to the
       Play version: say so on the itch.io page.
@@ -342,6 +346,8 @@ Google Play:
       developer website listed on Play (a small GitHub Pages site works)
 - [ ] Ads (see *Release, ads and pricing*): AdMob interstitial with the frequency rules,
       consent form, test IDs outside release builds
+- [x] The Championship as a one-time purchase in Play Billing (the Play build), restored on reinstall
+      (product id `championship`, to create in the Play Console)
 - [ ] "Support the game" one-time purchase in Play Billing that removes ads; restores on reinstall
 - [ ] Privacy policy page covering AdMob (advertising ID, device and usage data) and the
       purchase; Data safety form to match; ads declaration (**contains ads**)
@@ -431,7 +437,7 @@ time comes:
 | Store release | **Google Play** is a target for 1.0 (M5), alongside itch.io |
 | Race length | Short races (1–3 laps) first; longer **Grand Prix** races with tyres and pit stops after 1.0 (M6) |
 | Music | **Custom soundtrack** made for the game |
-| Pricing | **Free** everywhere. Google Play: ads, removed by a one-time "Support the game" purchase. itch.io: free with optional donation, no ads |
+| Pricing | **Free** to download everywhere. Google Play: the Championship (and the circuits beyond the first) is a one-time in-app purchase. itch.io: everything open, optional donation, no ads |
 | iOS / App Store | **Decided at the end.** A Mac is available; an Apple developer account isn't yet |
 
 ### Still open

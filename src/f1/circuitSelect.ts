@@ -23,6 +23,7 @@ import { formatTime, loadRecords } from './records';
 import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 import { DRY, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
+import { ownsChampionship } from './purchase';
 import { distance } from './timeAttack';
 import { settingsRows as settingsRowsNow } from './settingsRows';
 import { TIMES, type TimeOfDay } from './night';
@@ -442,7 +443,7 @@ export function chooseCircuit(
     const name = document.createElement('strong');
     name.textContent = layout.name;
     const about = document.createElement('span');
-    about.textContent = locked ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : layout.about;
+    about.textContent = locked ? (ownsChampionship() ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : 'LOCKED · COMES WITH THE CHAMPIONSHIP') : layout.about;
     const text = document.createElement('div');
     text.append(name, about);
     // your record here, once you have one: in a Time Attack the furthest you've got, else your fastest lap
@@ -542,7 +543,9 @@ export function chooseCircuit(
     const name = document.createElement('strong');
     name.textContent = m.name;
     const about = document.createElement('span');
-    about.textContent = m.about;
+    // (the Championship not bought yet, in the Google Play build: what unlocking it brings)
+    const locked = m.id === 'championship' && !ownsChampionship();
+    about.textContent = locked ? 'unlock: a season, and every circuit' : m.about;
     b.append(name, about);
     return b;
   });

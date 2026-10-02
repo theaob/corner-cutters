@@ -27,6 +27,7 @@ import { achievementToast, hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
 import { openCircuits, savedUnlocks, unlockCircuit } from './f1/unlocks';
+import { PAYWALL, circuitsOpen, openShop, ownsChampionship } from './f1/purchase';
 import { loadRecords } from './f1/records';
 import type { RaceOptions } from './f1/race';
 import { TEAMS, teamById } from './f1/teams';
@@ -241,8 +242,8 @@ function menuScreen(): void {
   onResize = fillScreen;
 }
 
-/** The circuits open for a Quick Race, a Time Attack or a Time Trial now. */
-const openNow = () => openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits));
+/** The circuits open for a Quick Race, a Time Attack or a Time Trial now (in the Google Play build, without the Championship bought: the first only). */
+const openNow = () => circuitsOpen(ownsChampionship(), LAYOUTS[0].id, openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits)));
 /** A new player: never done (or skipped) the controls lap, and nothing played yet (no records, no season, nothing unlocked). */
 const needsControlsLap = () => saved('progress', 'onboarded') !== true && !Object.keys(loadRecords().circuits).length && !loadSeason() && !savedUnlocks().length;
 /** A circuit the Championship just unlocked (said on its screen once). */
@@ -256,6 +257,14 @@ async function showSeason(id: number): Promise<void> {
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
+  // (the Google Play build, the Championship not bought yet: its shop first)
+  if (!ownsChampionship()) {
+    const { showShop } = await import('./f1/screens/shop');
+    curtainUp();
+    const got = await showShop(screen, services, openShop(), closed.signal);
+    if (id !== routeId) return;
+    if (got === 'back') return navigate(withCircuit(null));
+  }
   const season = loadSeason();
   const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal, justWon);
   justWon = false;
@@ -281,7 +290,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
   // a Championship round: the season's next round (any other circuit: back to its screen)
   if (layout.id === DESIGNER_DRAFT_ID && mode === 'championship') mode = 'race';
   const season = mode === 'championship' ? loadSeason() : undefined;
-  if (mode === 'championship' && (!season || seasonOver(season) || season.rounds[season.round] !== layout.id)) {
+  // (a round of a Championship not bought, or a circuit not open: to the Championship's screen, its shop first)
+  if (mode === 'championship' && (!ownsChampionship() || !season || seasonOver(season) || season.rounds[season.round] !== layout.id)) {
     history.replaceState(null, '', withCircuit(null, 'championship'));
     return route();
   }
@@ -342,4 +352,6 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
   curtainUp();
 }
 
+// (the Google Play build: the store up from the start, so a Championship bought on another install comes back)
+if (PAYWALL) openShop();
 void route();

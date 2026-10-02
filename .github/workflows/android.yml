@@ -6,6 +6,9 @@
 # Runs on every push and pull request (and by hand from the Actions tab); only
 # a push to the default branch (or a run by hand on it) uploads to itch.io.
 #
+# It also builds the Google Play version (the Championship an in-app purchase) as an AAB, kept as a download
+# on the run for uploading to the Play Console.
+#
 # Signing: with the four ANDROID_* secrets set (see the README), the APK is
 # signed with your release key. Without them, it's signed with the sideload key
 # in the repo, so every build still installs as an update over the last one.
@@ -73,6 +76,30 @@ jobs:
         with:
           name: corner-cutters-apk
           path: out/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      # the Google Play build: the same app, built with VITE_STORE=play (the Championship an in-app purchase,
+      # src/f1/purchase.ts), as an AAB, Play's upload format; a download on the run, uploaded to the Play
+      # Console by hand (after the itch.io upload below, which keeps the free APK)
+      - name: Build the Google Play AAB
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          (cd .. && VITE_STORE=play npm run build && npx cap sync android)
+          version="$(node -p "require('../package.json').version")"
+          ./gradlew --no-daemon bundleRelease -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version+${GITHUB_SHA::7}"
+          mkdir -p ../play
+          cp app/build/outputs/bundle/release/app-release.aab "../play/corner-cutters-play-$version-$GITHUB_RUN_NUMBER.aab"
+
+      - uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: corner-cutters-play-aab
+          path: play/*.aab
           if-no-files-found: error
           retention-days: 7
 
