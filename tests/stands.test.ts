@@ -19,7 +19,18 @@ describe.each(LAYOUTS)('the grandstands at $name', (layout) => {
     if (layout.street) expect(stands.filter((s) => s.at === 'bend')).toHaveLength(0);
     else expect(stands.filter((s) => s.at === 'bend').length).toBeGreaterThanOrEqual(5);
   });
-  it('stand clear of the track and its run-off, the pits and each other', () => {
+  it('stand clear of the track and its run-off, every one of them, the main straight\'s too (another stretch can pass behind it)', () => {
+    for (const s of stands) {
+      const ax = { x: Math.sin(s.dir), y: -Math.cos(s.dir) };
+      const ac = { x: Math.cos(s.dir), y: Math.sin(s.dir) };
+      for (const u of [-0.5, 0, 0.5]) for (const v of [-0.5, 0, 0.5]) {
+        const x = s.x + ax.x * u * s.len + ac.x * v * STAND.depth;
+        const y = s.y + ax.y * u * s.len + ac.y * v * STAND.depth;
+        expect(fromTrack(x, y)).toBeGreaterThan(reach);
+      }
+    }
+  });
+  it('stand clear of the pits and each other (by the bends)', () => {
     for (const s of stands.filter((x) => x.at === 'bend')) {
       expect(fromTrack(s.x, s.y)).toBeGreaterThan(reach + STAND.depth / 2);
       expect(c.pit.points.every((q) => Math.hypot(q.x - s.x, q.y - s.y) >= STAND.clearOfPits)).toBe(true);
