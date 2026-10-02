@@ -9,6 +9,7 @@ import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton, optionRow } from '../circuitSelect';
 import { confetti, trophy } from './celebrate';
+import { onBack } from '../../engine/backButton';
 import { POINTS, pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
@@ -129,9 +130,12 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
 
   return new Promise((resolve) => {
     let done = false;
+    // the phone's back button: back to the menu
+    const offBack = onBack(() => (finish('back'), true));
     const finish = (a: ChampionshipAction) => {
       if (done) return;
       done = true;
+      offBack();
       menuPick();
       screen.remove();
       resolve(a);
@@ -184,6 +188,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     hud.setLabel('b', '');
     closed?.addEventListener('abort', () => {
       done = true;
+      offBack();
       screen.remove();
     });
     const seen = new Map<Button, number>();

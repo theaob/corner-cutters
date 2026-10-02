@@ -312,6 +312,22 @@
           transform: translateX(-50%);
         }
       }
+      /* a short line at the bottom (PRESS BACK AGAIN TO EXIT) */
+      .hint-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 12%;
+        z-index: 60;
+        transform: translateX(-50%);
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: rgba(21, 20, 31, 0.92);
+        border: 1px solid var(--key-edge);
+        color: var(--text);
+        font: 11px var(--pixel);
+        white-space: nowrap;
+        pointer-events: none;
+      }
       /* an achievement unlocked: a toast down from the top */
       .achievement-toast {
         position: fixed;
