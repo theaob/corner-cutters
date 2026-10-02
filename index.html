@@ -860,6 +860,10 @@
         width: 30px;
         height: 30px;
       }
+      /* no drift button on the touch deck: B (DRIFT) is on the keys and a gamepad only (the wide layout shows its key) */
+      html:not(.desktop) .face .col.low {
+        display: none;
+      }
       /* a button that does nothing just now is out of sight (still in its place, so the others don't move) */
       #deck .idle {
         visibility: hidden;

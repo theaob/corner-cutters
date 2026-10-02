@@ -124,7 +124,7 @@ export interface RaceOptions {
 
 /**
  * The race on `layout` with `options` (your team, the difficulty, the weather, and whether you qualify first);
- * `onQuit` runs when the player leaves (EXIT on the deck, SELECT inside; or CIRCUITS on the pause screen).
+ * `onQuit` runs when the player leaves (EXIT on the deck, SELECT inside).
  */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
   const { team = TEAMS[0], seat: yourSeat = 0, difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
@@ -1083,7 +1083,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseButton('RESUME', () => setPaused(false)),
     pauseButton('RESTART', () => restart()),
     pauseButton('SETTINGS', () => openPauseSettings(true)),
-    pauseButton('CIRCUITS', () => onQuit()),
     pauseHint,
   );
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
@@ -1237,7 +1236,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /**
    * What each deck button does just now ('' for nothing), as the loop below reads them: A the session's own action
-   * (pause, skip, on to what's next), B drift while you're driving, START restart, SELECT exit.
+   * (pause, skip, on to what's next), B drift while you're driving (on the keys or a gamepad: the touch deck has no
+   * drift button), START restart, SELECT exit.
    */
   const deckLabels = (): Record<DeckButton, string> => {
     if (pauseSettingsOn) return { a: 'DONE', b: '', start: '', select: '' };
@@ -1451,7 +1451,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       fitTyres(me.tyres, me.car, weather.id);
       learn.bends += apexesPassed(race.corners.map((c) => c.apex), learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
-      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, lapDone: p.lapTimes.length > 0 };
+      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: device() !== 'touch', lapDone: p.lapTimes.length > 0 };
       if (nextPrompt(learn.o, facts)) sounds.record();
       if (me.car.wrecked) startTutorial();
     }
