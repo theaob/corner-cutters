@@ -129,8 +129,12 @@ export function buildTrack(control: Pt[], spacing: number, cornerSpeed: (absCurv
   return { samples, spacing, length: n * spacing };
 }
 
-/** Index of the sample nearest (x, y): a local search from `hint` when given, else the whole track. */
-export function nearestSample(track: Track, x: number, y: number, hint?: number): number {
+/**
+ * Index of the sample nearest (x, y): a local search from `hint` when given, else the whole track. Lost (far off the
+ * track near `hint`), a local search falls back to the whole track, unless `stay`: then the nearest near `hint` all
+ * the same (a racer's progress, which mustn't jump across the infield to another stretch).
+ */
+export function nearestSample(track: Track, x: number, y: number, hint?: number, stay = false): number {
   const n = track.samples.length;
   const d2 = (i: number) => {
     const p = track.samples[((i % n) + n) % n];
@@ -143,8 +147,8 @@ export function nearestSample(track: Track, x: number, y: number, hint?: number)
       const d = d2(hint + k);
       if (d < bestD) [best, bestD] = [(((hint + k) % n) + n) % n, d];
     }
-    // lost (reset, or cut across the infield): fall back to a full search
-    if (bestD < 200 * 200) return best;
+    // lost (reset, or cut across the infield): fall back to a full search (unless it must stay)
+    if (bestD < 200 * 200 || stay) return best;
   }
   for (let i = 0; i < n; i++) {
     const d = d2(i);
@@ -184,7 +188,10 @@ export const newProgress = (idx: number): RaceProgress => ({ lap: 0, idx, sector
  */
 export function stepProgress(p: RaceProgress, track: Track, car: Car, raceTime: number, laps: number, dt: number): RaceProgress {
   const n = track.samples.length;
-  const idx = nearestSample(track, car.x, car.y, p.idx);
+  // (only ever near where it was: a car that cuts across the infield to another stretch, as Suzuka's figure of eight
+  // allows, gains nothing; it's still where it left the track till it comes back round to it. Moved anywhere else, a
+  // car's progress is set there with it.)
+  const idx = nearestSample(track, car.x, car.y, p.idx, true);
   // after the flag only the position keeps updating (for the cool-down lap)
   if (p.finished !== undefined) return { ...p, idx };
   const next: RaceProgress = { ...p, idx };
