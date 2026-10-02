@@ -84,9 +84,13 @@ export const SETTLE = 15;
 export const CLEAR_AFTER = 2.5;
 /** Seconds of the start lights before the earliest lights-out. */
 export const LIGHTS = 3.6;
+/** px a car waiting on the grid may creep from its slot (on a sloping grid; on a flat one it never gets that far) */
+export const GRID_HOLD = 2;
 
 export interface Entrant {
   car: Car;
+  /** where it lined up on the grid (kept to it till the lights go out) */
+  slot?: { x: number; y: number; heading: number };
   /** the AI driving it; undefined for the player */
   ai?: AiDriver;
   progress: RaceProgress;
@@ -481,6 +485,18 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       e.held = limit;
       const given = player(e);
       input = limit !== undefined && (tight || speedOf(e.car) > limit + HOLD.over) ? { ...given, limit, brake: true } : { ...given, limit };
+    }
+    if (!racing) {
+      // waiting for the lights: kept to its grid slot (on a sloping grid, like Twin Lakes's, the brakes alone let it
+      // creep away), never more than GRID_HOLD px from where it lined up
+      const slot = (e.slot ??= { x: e.car.x, y: e.car.y, heading: e.car.heading });
+      const ev = stepCar(e.car, input, p, dt, gridFor(track, grid, e.progress.idx));
+      const off = Math.hypot(e.car.x - slot.x, e.car.y - slot.y);
+      if (off > GRID_HOLD) {
+        const k = GRID_HOLD / off;
+        Object.assign(e.car, { x: slot.x + (e.car.x - slot.x) * k, y: slot.y + (e.car.y - slot.y) * k, heading: slot.heading, vx: 0, vy: 0 });
+      }
+      return ev;
     }
     return stepCar(e.car, input, p, dt, gridFor(track, grid, e.progress.idx));
   });
