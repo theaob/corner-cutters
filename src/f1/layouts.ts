@@ -30,6 +30,9 @@ export interface CircuitLayout {
   desert?: boolean;
   /** its Championship round is raced at night, under the floodlights (as a street circuit's is) */
   night?: boolean;
+  /** the track crosses itself on a bridge: px along the lap where the stretch on the bridge (`over`) and the one
+   * underneath (`under`) cross, the deck `height` px up there (the elevation profile has both at the same height) */
+  bridge?: { over: number; under: number; height: number };
   /** the podium hangs over the main straight on a deck from the pit side, this many px up (else it stands on the run-off) */
   podiumDeck?: number;
 }
@@ -639,7 +642,87 @@ export const BAKU: CircuitLayout = {
   },
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU];
+/**
+ * Suzuka. The figure of eight, after the one in Japan (outline data from the
+ * same source, its tightest bends opened out a little; points in tenths of a
+ * metre): down the main straight into the fast right of Turns 1 and 2, up
+ * through the snaking esses to Dunlop, the two rights of Degner, under the
+ * bridge, the hairpin, the long right of 200R up to Spoon's double left, the
+ * back straight over the bridge, flat out through 130R, the chicane and the
+ * last bend onto the straight. The one circuit that crosses itself: the back
+ * straight climbs onto a bridge (bridge.ts) over the stretch after Degner. About
+ * 10,200 px, about 31 s.
+ */
+export const SUZUKA: CircuitLayout = {
+  id: 'suzuka',
+  name: 'Suzuka',
+  about: 'a figure of eight · the esses, over the bridge, 130R',
+  points: ([
+    [16731, 5575], [16911, 5790], [17090, 6005], [17270, 6220], [17449, 6435], [17629, 6650],
+    [17808, 6865], [17987, 7080], [18167, 7295], [18345, 7511], [18522, 7728], [18701, 7943],
+    [18879, 8159], [19055, 8376], [19233, 8593], [19412, 8808], [19527, 9056], [19580, 9331],
+    [19552, 9603], [19477, 9872], [19368, 10125], [19168, 10321], [18902, 10391], [18642, 10315],
+    [18418, 10154], [18256, 9925], [18097, 9694], [17942, 9461], [17782, 9231], [17621, 9003],
+    [17459, 8774], [17259, 8583], [16986, 8530], [16707, 8502], [16436, 8440], [16191, 8308],
+    [16057, 8065], [15950, 7806], [15841, 7548], [15732, 7290], [15622, 7033], [15416, 6854],
+    [15163, 6745], [14884, 6715], [14606, 6688], [14328, 6656], [14084, 6521], [13910, 6311],
+    [13796, 6057], [13777, 5778], [13846, 5507], [13923, 5238], [14000, 4969], [14067, 4698],
+    [13992, 4432], [13852, 4195], [13617, 4044], [13366, 3925], [13097, 3847], [12823, 3790],
+    [12545, 3769], [12267, 3801], [11987, 3799], [11733, 3902], [11504, 4062], [11275, 4223],
+    [11047, 4383], [10859, 4591], [10654, 4781], [10435, 4956], [10224, 5140], [10032, 5343],
+    [9844, 5551], [9589, 5651], [9311, 5679], [9032, 5705], [8753, 5731], [8474, 5749],
+    [8209, 5673], [8041, 5455], [7970, 5185], [7905, 4912], [7843, 4639], [7794, 4363],
+    [7747, 4087], [7700, 3811], [7652, 3536], [7604, 3260], [7557, 2984], [7538, 2706],
+    [7547, 2427], [7423, 2183], [7163, 2151], [6945, 2320], [6795, 2556], [6609, 2763],
+    [6400, 2949], [6167, 3099], [5900, 3185], [5623, 3164], [5347, 3119], [5070, 3079],
+    [4794, 3036], [4531, 2941], [4265, 2854], [4001, 2763], [3737, 2668], [3477, 2568],
+    [3238, 2422], [2996, 2281], [2763, 2129], [2554, 1943], [2351, 1750], [2191, 1524],
+    [2079, 1267], [1973, 1008], [1867, 749], [1759, 491], [1616, 252], [1409, 76],
+    [1141, 0], [862, 27], [584, 61], [327, 160], [100, 321], [0, 578],
+    [7, 853], [141, 1098], [313, 1316], [521, 1503], [731, 1688], [942, 1872],
+    [1170, 2035], [1399, 2196], [1617, 2370], [1824, 2559], [2019, 2760], [2238, 2934],
+    [2474, 3085], [2714, 3228], [2957, 3368], [3208, 3492], [3470, 3589], [3737, 3673],
+    [4002, 3765], [4265, 3861], [4530, 3950], [4804, 4009], [5081, 4044], [5359, 4081],
+    [5636, 4124], [5911, 4175], [6182, 4246], [6448, 4333], [6712, 4425], [6977, 4518],
+    [7241, 4610], [7506, 4699], [7772, 4788], [8036, 4881], [8302, 4965], [8579, 4933],
+    [8855, 4889], [9108, 4768], [9354, 4635], [9587, 4480], [9787, 4287], [9983, 4087],
+    [10186, 3894], [10386, 3698], [10603, 3521], [10836, 3366], [11069, 3210], [11299, 3052],
+    [11533, 2897], [11781, 2772], [12055, 2803], [12328, 2846], [12592, 2753], [12849, 2642],
+    [13107, 2546], [13385, 2571], [13665, 2587], [13933, 2654], [14191, 2764], [14423, 2918],
+    [14643, 3092], [14831, 3298], [15010, 3513], [15190, 3728], [15369, 3943], [15548, 4158],
+    [15728, 4373], [15907, 4588], [16087, 4803], [16266, 5017], [16446, 5232], [16625, 5447],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 0.185,
+  // (a share of the lap): down to Turn 1, up the esses to Dunlop, down through Degner to the crossing, the hairpin
+  // at the bottom, up 200R to Spoon at the top, down the back straight to the crossing (at the same height as the
+  // stretch it crosses: the bridge lifts the back straight over it), 130R, and up to the line
+  elevation: [
+    [0, 24],
+    [0.08, 18],
+    [0.12, 14],
+    [0.2, 26],
+    [0.28, 40],
+    [0.34, 34],
+    [0.4111, 20],
+    [0.46, 12],
+    [0.52, 20],
+    [0.6, 38],
+    [0.66, 42],
+    [0.74, 30],
+    [0.8015, 20],
+    [0.86, 16],
+    [0.92, 18],
+    [1, 24],
+  ],
+  // on the inside of the main straight
+  pit: { from: -500, to: 620, side: 1 },
+  // (a 31 s lap, the esses hard on them: a stop in five laps a choice, not a must)
+  tyreWear: 0.5,
+  // the back straight over the stretch after Degner
+  bridge: { over: 8188, under: 4200, height: 36 },
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA];
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {

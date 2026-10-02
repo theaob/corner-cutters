@@ -20,6 +20,7 @@ import { standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
 import { buildForest } from './forest3d';
 import { buildCamels } from './camels';
+import { BRIDGE, liftAt } from './bridge';
 import { FLOODLIGHT, floodlights, nightSky } from './night';
 
 /** The flags on the grandstands: the teams' colours and white. */
@@ -513,6 +514,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, nig
   };
 
   if (night) addFloodlights(scene, circuit);
+  // (where the track crosses itself: the bridge)
+  addBridge(scene, circuit);
   // (at a desert circuit: its camels)
   const camels = circuit.layout.desert ? buildCamels(scene, circuit) : undefined;
 
@@ -545,6 +548,94 @@ function poolTexture(): THREE.Texture {
 }
 
 /** Floodlight towers round the track (night.ts says where): a pole, a bank of lamps glowing at its top turned to the track, and a pool of light thrown on the track below. */
+/**
+ * The bridge where the track crosses itself (track.levels): the deck along the stretch on it, at the height the
+ * cars drive at, up its ramps and over the crossing, in the track's asphalt with its white edge lines; concrete
+ * sides down to the ground, low concrete walls along its edges where it's off the ground, and pillars under it,
+ * clear of the road that passes beneath.
+ */
+function addBridge(scene: THREE.Scene, circuit: Circuit): void {
+  const { track, grid } = circuit;
+  const l = track.levels;
+  if (!l) return;
+  const n = track.samples.length;
+  const half = BRIDGE.deck + T / 2;
+  const span: number[] = [];
+  for (let i = l.from; i !== (l.to + 1) % n; i = (i + 1) % n) if (liftAt(track, l, i) > 1) span.push(i);
+  // (its surface: the deck's own ground, a hair up, flat across)
+  const top = (i: number) => groundAt(l.upper, track.samples[i].x, track.samples[i].y).h + 0.6;
+  const base = (i: number) => groundAt(grid, track.samples[i].x, track.samples[i].y).h;
+  const side = (i: number, a: number) => {
+    const p = track.samples[i];
+    return { x: p.x + Math.cos(p.dir) * a, y: p.y + Math.sin(p.dir) * a };
+  };
+  /** a strip along the span, between `a` and `b` px across, at heights `ya`, `yb` */
+  const strip = (a: number, b: number, ya: (i: number) => number, yb: (i: number) => number, color: number) => {
+    const pos: number[] = [];
+    const idx: number[] = [];
+    span.forEach((i, k) => {
+      const p = side(i, a);
+      const q = side(i, b);
+      pos.push(p.x, ya(i), p.y, q.x, yb(i), q.y);
+      if (k) idx.push(2 * k - 2, 2 * k - 1, 2 * k, 2 * k - 1, 2 * k + 1, 2 * k);
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  };
+  // the deck, its white edge lines, and its sides down to the ground
+  strip(-half, half, top, top, 0x4a4d59);
+  for (const s of [-1, 1]) strip(s * (HALF_WIDTH - 3), s * (HALF_WIDTH - 1), (i) => top(i) + 0.1, (i) => top(i) + 0.1, 0xf4f4f8);
+  for (const s of [-1, 1]) strip(s * half, s * half, top, (i) => Math.min(top(i), base(i)), 0xb4b2ac);
+  // its walls, where it's off the ground: a low concrete wall each side, in blocks
+  const wall = new THREE.MeshLambertMaterial({ color: 0xd4d2cc });
+  const step = 2;
+  for (let k = 0; k + step < span.length; k += step) {
+    const i = span[k];
+    if (liftAt(track, l, i) < BRIDGE.walled) continue;
+    const p = track.samples[i];
+    for (const s of [-1, 1]) {
+      const at = side(i, s * (half + 3));
+      const block = new THREE.Mesh(new THREE.BoxGeometry(6, 8, track.spacing * step + 1), wall);
+      block.position.set(at.x, top(i) + 4, at.y);
+      block.rotation.y = -p.dir;
+      block.castShadow = true;
+      block.receiveShadow = true;
+      scene.add(block);
+    }
+  }
+  // pillars under it, wherever it's well off the ground and clear of the road beneath
+  const under = track.samples;
+  const pillar = new THREE.MeshLambertMaterial({ color: 0xa8a6a0 });
+  for (let k = 0; k < span.length; k += 6) {
+    const i = span[k];
+    const lift = liftAt(track, l, i);
+    if (lift < 14) continue;
+    for (const s of [-1, 1]) {
+      const at = side(i, s * (half - 6));
+      // (clear of the other stretch's track and a margin either side)
+      let clear = true;
+      for (let j = 0; j < n && clear; j += 2) {
+        if (Math.abs(j - i) < 60 || n - Math.abs(j - i) < 60) continue;
+        if (Math.hypot(under[j].x - at.x, under[j].y - at.y) < HALF_WIDTH + 30) clear = false;
+      }
+      if (!clear) continue;
+      const g = groundAt(grid, at.x, at.y).h;
+      const h = top(i) - g - 3;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(8, h, 8), pillar);
+      post.position.set(at.x, g + h / 2, at.y);
+      post.rotation.y = -track.samples[i].dir;
+      post.castShadow = true;
+      scene.add(post);
+    }
+  }
+}
+
 function addFloodlights(scene: THREE.Scene, circuit: Circuit): void {
   const towers = floodlights(circuit.track, HALF_WIDTH + RUNOFF);
   if (!towers.length) return;

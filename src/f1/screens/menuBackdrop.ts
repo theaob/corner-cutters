@@ -13,6 +13,7 @@ import { SIM_DT, lerp, lerpAngle } from '../../engine/fixedStep';
 import { HD2D_VIEW } from '../../engine/look';
 import { Hd2dPipeline } from '../../engine/render/hd2d';
 import { createCarMesh } from '../../engine/render/vehicles3d';
+import { gridFor } from '../bridge';
 import { buildCircuit } from '../circuit';
 import { createCircuitScene } from '../circuitScene';
 import { NORMAL, handlingFor } from '../difficulty';
@@ -120,7 +121,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, night: b
     const at = (car: Car, k: number) => ({ x: lerp(before[k].x, car.x, alpha), y: lerp(before[k].y, car.y, alpha), z: lerp(before[k].z, car.z, alpha), heading: lerpAngle(before[k].heading, car.heading, alpha) });
     race.entrants.forEach((e, k) => {
       const p = at(e.car, k);
-      const tilt = bodyTilt(e.car, circuit.grid);
+      const tilt = bodyTilt(e.car, gridFor(circuit.track, circuit.grid, e.progress.idx));
       meshes[k].position.set(p.x, p.z, p.y);
       meshes[k].rotation.set(tilt.pitch, -p.heading, tilt.roll, 'YXZ');
     });

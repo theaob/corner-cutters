@@ -6,6 +6,7 @@
 // wide, no two stretches of track too close together, and an AI lap round it.
 // Pure: no rendering.
 
+import { atCrossing } from '../f1/bridge';
 import { carClass, newCar, stepCar } from '../engine/driving';
 import { groundAt } from '../engine/sim';
 import { HALF_WIDTH, buildCircuit, type Circuit } from '../f1/circuit';
@@ -154,6 +155,8 @@ export function check(layout: CircuitLayout, circuit: Circuit): Check[] {
     for (let j = i + step; j < n; j += step) {
       const along = Math.min(j - i, n - (j - i)) * t.spacing;
       if (along < 700) continue;
+      // (the two stretches that cross on a bridge)
+      if (atCrossing(t, i, j)) continue;
       const d = Math.hypot(t.samples[i].x - t.samples[j].x, t.samples[i].y - t.samples[j].y);
       closest = Math.min(closest, d);
     }
