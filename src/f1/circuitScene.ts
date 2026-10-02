@@ -553,11 +553,11 @@ function addBridge(scene: THREE.Scene, circuit: Circuit): void {
     const p = track.samples[i];
     return { x: p.x + Math.cos(p.dir) * a, y: p.y + Math.sin(p.dir) * a };
   };
-  /** a strip along the span, between `a` and `b` px across, at heights `ya`, `yb` */
-  const strip = (a: number, b: number, ya: (i: number) => number, yb: (i: number) => number, color: number) => {
+  /** a strip along the span (or the run `over` of it), between `a` and `b` px across, at heights `ya`, `yb` */
+  const strip = (a: number, b: number, ya: (i: number) => number, yb: (i: number) => number, color: number, over: number[] = span) => {
     const pos: number[] = [];
     const idx: number[] = [];
-    span.forEach((i, k) => {
+    over.forEach((i, k) => {
       const p = side(i, a);
       const q = side(i, b);
       pos.push(p.x, ya(i), p.y, q.x, yb(i), q.y);
@@ -576,21 +576,24 @@ function addBridge(scene: THREE.Scene, circuit: Circuit): void {
   strip(-half, half, top, top, 0x4a4d59);
   for (const s of [-1, 1]) strip(s * (HALF_WIDTH - 3), s * (HALF_WIDTH - 1), (i) => top(i) + 0.1, (i) => top(i) + 0.1, 0xf4f4f8);
   for (const s of [-1, 1]) strip(s * half, s * half, top, (i) => Math.min(top(i), base(i)), 0xb4b2ac);
-  // its walls, where it's off the ground: a low concrete wall each side, in blocks
-  const wall = new THREE.MeshLambertMaterial({ color: 0xd4d2cc });
-  const step = 2;
-  for (let k = 0; k + step < span.length; k += step) {
-    const i = span[k];
-    if (liftAt(track, l, i) < BRIDGE.walled) continue;
-    const p = track.samples[i];
+  // its walls, where it's off the ground: a low concrete wall each side, unbroken (its faces and top following the
+  // deck round its bends, so no gap shows between blocks), where the walls that stop the cars are
+  const walled = span.filter((i) => liftAt(track, l, i) >= BRIDGE.walled);
+  const runs: number[][] = [];
+  for (const i of walled) {
+    const run = runs[runs.length - 1];
+    if (run && (run[run.length - 1] + 1) % n === i) run.push(i);
+    else runs.push([i]);
+  }
+  const up = (i: number) => top(i) + 8;
+  for (const run of runs) {
+    if (run.length < 2) continue;
     for (const s of [-1, 1]) {
-      const at = side(i, s * (half + 3));
-      const block = new THREE.Mesh(new THREE.BoxGeometry(6, 8, track.spacing * step + 1), wall);
-      block.position.set(at.x, top(i) + 4, at.y);
-      block.rotation.y = -p.dir;
-      block.castShadow = true;
-      block.receiveShadow = true;
-      scene.add(block);
+      const inner = s * half;
+      const outer = s * (half + 6);
+      strip(inner, inner, top, up, 0xd4d2cc, run);
+      strip(outer, outer, top, up, 0xc2c0ba, run);
+      strip(inner, outer, up, up, 0xe2e0da, run);
     }
   }
   // pillars under it, wherever it's well off the ground and clear of the road beneath
