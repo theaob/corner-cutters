@@ -144,3 +144,9 @@ export function buildLevels(track: Track, grid: Grid, spec: { over: number; unde
 export function deckHeight(levels: Levels, grid: Grid, x: number, y: number): number {
   return groundAt(levels.upper, x, y).h - groundAt(grid, x, y).h;
 }
+
+/** Whether a car at (x, y), `z` px up, is under the deck (hidden from the camera by it): the deck well above the ground there, and the car down on the ground, not up on it. */
+export function underDeck(levels: Levels, grid: Grid, x: number, y: number, z: number): boolean {
+  const lift = deckHeight(levels, grid, x, y);
+  return lift > BRIDGE.levels && z < groundAt(grid, x, y).h + lift / 2;
+}

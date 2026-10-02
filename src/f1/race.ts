@@ -4,7 +4,8 @@
 // this is the picture and the HUD. A pauses (so does leaving the app or tab); START restarts;
 // SELECT goes back to choose a circuit.
 
-import { gridFor } from './bridge';
+import { gridFor, underDeck } from './bridge';
+import { carOutline, type CarOutline } from './outline3d';
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
 import type { DeckButton } from '../engine/deck';
@@ -84,6 +85,8 @@ const TCAM_GREEN = '#39ff14';
 /** How each entrant looks: its name, team, colour, model and effects (index-matched with the race's entrants). */
 interface Look {
   name: string;
+  /** its outline, for when it's under a bridge (a circuit with one only) */
+  outline?: CarOutline;
   /** the driver's race number (yours: the seat's) */
   number?: number;
   team: Team;
@@ -621,7 +624,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const number = numberOf(livery.drivers[seat]);
     const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? 'gold' : undefined, number });
     world.scene.add(mesh);
-    return { name: mine ? 'YOU' : livery.drivers[seat], number, team: livery, mesh, fx: new CarFx(mesh), color: livery.body };
+    // (under a bridge, the deck hides it: its outline drawn through the deck, yours in gold)
+    const outline = track.levels ? carOutline(mesh, mine ? 0xf2c14e : 0xf4f4f8) : undefined;
+    if (outline) world.scene.add(outline.group);
+    return { name: mine ? 'YOU' : livery.drivers[seat], outline, number, team: livery, mesh, fx: new CarFx(mesh), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
   const resetSession = () => {
@@ -637,7 +643,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     radioQ = newRadio();
     radioPanel.style.display = 'none';
     playMusic(RACE_MUSIC);
-    for (const l of looks) world.scene.remove(l.mesh);
+    for (const l of looks) world.scene.remove(l.mesh, ...(l.outline ? [l.outline.group] : []));
     world.scene.remove(safetyCar.group);
     hud.setPositionChange(undefined);
     done = false;
@@ -1608,6 +1614,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
           ...raceAchievements({
             place: raceOrder(race).indexOf(you) + 1, field: race.entrants.length, grid: you + 1, fastest: hudState.fastest?.who === you,
             damaged: tookDamage, strikes: me.limits.strikes, laps: race.laps, difficulty: difficulty.id, weather: weather.id,
+            tyresLeft: Math.round((1 - me.tyres.wear) * 100), burning: me.car.burn !== undefined,
           }),
           ...(raced(layout.id, LAYOUTS.map((l) => l.id)) ? ['globetrotter'] : []),
         ]);
@@ -1623,7 +1630,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         if (then) {
           l.mesh.position.set(then.x, then.z, then.y);
           l.mesh.rotation.set(0, -then.heading, 0, 'YXZ');
-        }
+          l.outline?.update(l.mesh, !!track.levels && underDeck(track.levels, grid, then.x, then.y, then.z));
+        } else l.outline?.update(l.mesh, false);
         return;
       }
       const ev = step.cars[i];
@@ -1636,6 +1644,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const at = then || pose(e.car, i, alpha);
       l.mesh.position.set(at.x, at.z, at.y);
       l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
+      l.outline?.update(l.mesh, !!track.levels && underDeck(track.levels, grid, at.x, at.y, at.z));
       const speed = speedOf(e.car);
       // (in the replay, as it was then: whole before its crash, not burning before it caught fire)
       l.fx.update(dt, then ? (then.condition ?? 'ok') : condition(e.car), particles, !then && ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
