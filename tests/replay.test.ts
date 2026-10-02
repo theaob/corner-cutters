@@ -26,6 +26,16 @@ describe('the replay', () => {
     expect(replayPose(r, 0, 10)).toBeUndefined();
     expect(replayPose(r, 0, 31)).toBeUndefined();
   });
+  it('plays a car back as it was then: whole before the crash that set it alight', () => {
+    const r = newReplay(1);
+    // (a crash at t = 2: burning from then on)
+    for (let t = 0; t <= 4 + 1e-9; t += 1 / 60) recordReplay(r, t, [{ x: 0, y: -100 * t, z: 0, heading: 0, condition: t < 2 ? 'ok' : 'burning' }]);
+    expect(replayPose(r, 0, 1.5)!.condition).toBe('ok');
+    expect(replayPose(r, 0, 1.9)!.condition).toBe('ok');
+    expect(replayPose(r, 0, 2.5)!.condition).toBe('burning');
+    // (a car recorded without one: whole)
+    expect(replayPose(recorded(8), 0, 5)!.condition).toBe('ok');
+  });
   it("doesn't show a car where it wasn't on the track", () => {
     const r = recorded(8);
     expect(replayPose(r, 1, 2)).toBeUndefined();

@@ -138,6 +138,8 @@ export type RaceEvent =
   | { kind: 'pit-in'; who: number }
   | { kind: 'pit-stop'; who: number; seconds: number }
   | { kind: 'pit-out'; who: number }
+  /** the stop done: the car repaired, new parts on */
+  | { kind: 'pit-repaired'; who: number }
   | { kind: 'mistake'; who: number; what: 'late' | 'wide' }
   | { kind: 'blue'; who: number; by: number }
   /** a cut across a corner's inside: strike number `strike`, costing `seconds` (0: a warning) */
@@ -444,6 +446,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
         fitTyres(e.tyres, e.car, race.weather);
         out.push({ kind: 'pit-stop', who: i, seconds: e.pit.time });
       }
+      if (r.repaired) out.push({ kind: 'pit-repaired', who: i });
       if (!r.done) return stepCar(e.car, r.input, p, dt, gridFor(track, grid, e.progress.idx));
       e.pit = undefined;
       e.blend = BLEND_LINE;

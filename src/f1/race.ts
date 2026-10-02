@@ -1420,7 +1420,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (attack) stepTimeAttack(s.race.some((e) => e.kind === 'track-limits' && e.who === you));
       if (session === 'race' && race.phase === 'racing') {
         const scCar = race.sc?.car;
-        recordReplay(recorder, race.clock, [...race.entrants.map((e) => (running(e) && e.pit?.phase !== 'garage' ? e.car : undefined)), scCar]);
+        recordReplay(recorder, race.clock, [...race.entrants.map((e) => (running(e) && e.pit?.phase !== 'garage' ? { x: e.car.x, y: e.car.y, z: e.car.z, heading: e.car.heading, condition: condition(e.car) } : undefined)), scCar]);
       }
     }
     // a frame between steps (a screen faster than the simulation) carries on the last one's skids and ground
@@ -1550,9 +1550,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
           for (const k of lost) debris.tear(wheels[k], race.clock, e.vx, e.vy, power, onItsSide);
         }
       }
-      // (a stop repairs the car: a new nose on)
+      // (a stop repairs the car: the parts torn off it fitted back as the crew finish, before it pulls away)
+      else if (e.kind === 'pit-repaired') debris.refit(looks[e.who].mesh, race.clock);
       else if (e.kind === 'pit-out') {
-        debris.refit(looks[e.who].mesh, race.clock);
         if (e.who === you) {
           announce('PIT EXIT', '#5fe0d0', 1.5);
           sayRadio('pit-out');
@@ -1637,7 +1637,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       l.mesh.position.set(at.x, at.z, at.y);
       l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
       const speed = speedOf(e.car);
-      l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
+      // (in the replay, as it was then: whole before its crash, not burning before it caught fire)
+      l.fx.update(dt, then ? (then.condition ?? 'ok') : condition(e.car), particles, !then && ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
       // the tyres' compound colour, and spray off a wet track from behind the car at speed
       l.mesh.userData.tyreMark.color.set(COMPOUNDS[e.tyres.compound].color);
       // the rear light: lit while the car slows (braking, or lifting at speed: the hybrid harvesting, as in F1), and on a
