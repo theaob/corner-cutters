@@ -116,7 +116,7 @@ the same:
 | Baku | streets: the castle section, then the longest run flat out | done: traced from the city circuit on the Caspian |
 | Suzuka | the figure of eight, over its own bridge | done: traced from the one in Japan; a two-level bridge (`f1/bridge.ts`) |
 | Mountain / hill track | big elevation, blind crests, jumps | shows off the height model and airborne physics |
-| Night desert track | long straights, slipstream battles | needs a slipstream effect (see below) |
+| Desert track | long straights, slipstream battles | done: Oasis |
 | Rain / forest track | low grip sections | introduces weather (later) |
 
 Each layout stays a centreline + elevation profile in `f1/layouts.ts`; any traced outline must
@@ -309,11 +309,11 @@ The goal: a full first season.
 - [x] Harbour street circuit (tight, walls), after the most famous street circuit (`HARBOUR` in `f1/layouts.ts`): its corners in order, eased apart for our track width; street features in the layout data (walls 28 px off the track's edge with pavement between, the sea, the tunnel) drawn as steel barriers, a town of flats, the sea with yachts and a see-through tunnel roof; a pit lane on the harbour side; a per-circuit tyre wear (0.3 here: a stop pays for some, not others). To keep the AI clean between walls, it no longer sits far over on the inside of a tight bend (it was cutting them flat out). Third round of the Championship, unlocked by it
 - [x] Royal Park, after the temple of speed (`ROYAL_PARK` in `f1/layouts.ts`): the longest straight, two chicanes that need braking, a fast left–right–left and a banked half circle onto the straight (`banking` in the layout: the ground tilts up to the outside from the track's inside edge, concrete run-off and wall); the podium on a deck hanging over the main straight, the tifosi on the track below at the ceremony (`podiumDeck`, `f1/podium3d.ts`). Fourth round of the Championship, unlocked by it
 - [x] Ardennes, traced from the famous circuit in the Ardennes (`ARDENNES` in `f1/layouts.ts`): the longest lap (about 12,500 px), 116 px from hilltop to valley floor and the steepest climb of all (0.18) out of the bottom of the valley; a forest of spruces and broadleaves all round (`f1/forest3d.ts`), each tree only as tall as it can be without hiding the track, hillsides counted. Fifth round of the Championship, unlocked by it
-- [x] Alpine Ring, Twin Lakes and Oasis (`ALPINE_RING`, `TWIN_LAKES`, `OASIS` in `f1/layouts.ts`), traced from the same outline data, their tight bends opened out (so the touch stick keeps up with the wheel and the AI) and close stretches eased apart; rounds six to eight of the Championship, each unlocked by it. Oasis in the desert (`desert`: sand all round) and its round at night (`night`)
+- [x] Alpine Ring, Twin Lakes and Oasis (`ALPINE_RING`, `TWIN_LAKES`, `OASIS` in `f1/layouts.ts`), traced from the same outline data, their tight bends opened out (so the touch stick keeps up with the wheel and the AI) and close stretches eased apart; rounds six to eight of the Championship, each unlocked by it. Oasis in the desert (`desert`: sand all round)
 - [x] Pit lanes: wider than the track, long entry and exit roads, the limiter only between the speed-limit lines; a minimum pit lane (`PIT_LANE_MIN`, 1,040 px) and main straight (`PIT_STRAIGHT_MIN`, 1,120 px), every lane on its straight (Crescent Park, Silver Heath and Ardennes lengthened for it)
 - [x] Track designer, a tool of its own (`designer.html`, `src/designer/`, `npm run designer`): the circuit in 3D through a free first-person camera (fly or walk), control points dragged over the ground, heights per point, the pit lane and the rest in a panel, live checks and an AI lap, export as code for `layouts.ts` or JSON
 - [ ] Mountain circuit (elevation, crests, jumps)
-- [ ] Night desert circuit (straights, slipstream) with a night variant of `render/daylight.ts`
+- [x] Desert circuit (straights, slipstream): Oasis (night races were tried and taken out)
 - [x] Weather: dry, damp and wet, with three tyre compounds, rain and spray (done early)
 - [ ] Weather that changes during a race; the player picking tyres at a stop
 - [x] Start-of-race grid pan (`f1/gridPan.ts`): before the lights the camera glides from pole to the back of the grid, naming each car (yours in gold); A skips it

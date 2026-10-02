@@ -21,7 +21,6 @@ import { createPodiumDeck } from './podium3d';
 import { buildForest } from './forest3d';
 import { buildCamels } from './camels';
 import { BRIDGE, liftAt } from './bridge';
-import { FLOODLIGHT, floodlights, nightSky } from './night';
 
 /** The flags on the grandstands: the teams' colours and white. */
 const FLAG_COLORS = [0xd8323c, 0xf2c14e, 0x3d7fc4, 0xf4f4f8, 0x5fe0d0, 0xff5fb8, 0x3d9a5a];
@@ -353,20 +352,19 @@ function grandstand(len: number, roofColor = 0x3d7fc4): THREE.Mesh {
   return m;
 }
 
-/** The circuit in `weather`: its sky and light, and the ground darker when it's wet; at `night`, under floodlights. */
-export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, night = false): CircuitScene {
+/** The circuit in `weather`: its sky and light, and the ground darker when it's wet. */
+export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): CircuitScene {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#8fb8e8');
   const light = addDaylight(scene);
-  light.setSky(night ? nightSky(weather) : weather.sky);
+  light.setSky(weather.sky);
   const { width: W, height: H, cells, grid, track } = circuit;
 
   const geo = new THREE.PlaneGeometry(W * T, H * T, W, H).rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) pos.setY(i, grid.heights![i]);
   geo.computeVertexNormals();
-  // (at night the ground's colours go cool and dim, outside the floodlights' pools)
-  const tint = new THREE.Color(weather.groundTint).multiply(new THREE.Color(night ? NIGHT_TINT : 0xffffff));
+  const tint = new THREE.Color(weather.groundTint);
   const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: pixelTexture(paint(circuit)), color: tint }));
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
@@ -513,7 +511,6 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, nig
     return { canvas: mc, toMap };
   };
 
-  if (night) addFloodlights(scene, circuit);
   // (where the track crosses itself: the bridge)
   addBridge(scene, circuit);
   // (at a desert circuit: its camels)
@@ -532,22 +529,6 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, nig
   };
 }
 
-/** The ground's colours at night (multiplied in): cooler and dimmer. */
-const NIGHT_TINT = 0x7c84a8;
-
-/** A pool of light: white in the middle, fading out to nothing at the edge. */
-function poolTexture(): THREE.Texture {
-  const [c, x] = canvas(64, 64);
-  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,250,235,1)');
-  g.addColorStop(0.5, 'rgba(255,250,235,0.45)');
-  g.addColorStop(1, 'rgba(255,250,235,0)');
-  x.fillStyle = g;
-  x.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
-
-/** Floodlight towers round the track (night.ts says where): a pole, a bank of lamps glowing at its top turned to the track, and a pool of light thrown on the track below. */
 /**
  * The bridge where the track crosses itself (track.levels): the deck along the stretch on it, at the height the
  * cars drive at, up its ramps and over the crossing, in the track's asphalt with its white edge lines; concrete
@@ -634,31 +615,4 @@ function addBridge(scene: THREE.Scene, circuit: Circuit): void {
       scene.add(post);
     }
   }
-}
-
-function addFloodlights(scene: THREE.Scene, circuit: Circuit): void {
-  const towers = floodlights(circuit.track, HALF_WIDTH + RUNOFF);
-  if (!towers.length) return;
-  const H = FLOODLIGHT.height;
-  const poles = new THREE.InstancedMesh(new THREE.BoxGeometry(3, H, 3), new THREE.MeshLambertMaterial({ color: 0x4a4d5a }), towers.length);
-  // (bright past the tone mapping: the bloom makes them glow)
-  const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(18, 7, 3), new THREE.MeshBasicMaterial({ color: 0xfff4dc, toneMapped: false }), towers.length);
-  const pools = new THREE.InstancedMesh(
-    new THREE.PlaneGeometry(FLOODLIGHT.pool * 2, FLOODLIGHT.pool * 2).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false }),
-    towers.length,
-  );
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const one = new THREE.Vector3(1, 1, 1);
-  towers.forEach((t, k) => {
-    const h = groundAt(circuit.grid, t.x, t.y).h;
-    poles.setMatrixAt(k, m.makeTranslation(t.x, h + H / 2, t.y));
-    // the lamps face the track
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(t.lit.x - t.x, t.lit.y - t.y));
-    lamps.setMatrixAt(k, m.compose(new THREE.Vector3(t.x, h + H, t.y), q, one));
-    pools.setMatrixAt(k, m.makeTranslation(t.lit.x, groundAt(circuit.grid, t.lit.x, t.lit.y).h + 0.8, t.lit.y));
-  });
-  poles.castShadow = true;
-  scene.add(poles, lamps, pools);
 }

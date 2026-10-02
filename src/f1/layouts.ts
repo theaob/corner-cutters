@@ -28,8 +28,6 @@ export interface CircuitLayout {
   forest?: boolean;
   /** in the desert: sand all round, beyond the barriers and on the run-off */
   desert?: boolean;
-  /** its Championship round is raced at night, under the floodlights (as a street circuit's is) */
-  night?: boolean;
   /** the track crosses itself on a bridge: px along the lap where the stretch on the bridge (`over`) and the one
    * underneath (`under`) cross, the deck `height` px up there (the elevation profile has both at the same height) */
   bridge?: { over: number; under: number; height: number };
@@ -501,8 +499,8 @@ export const TWIN_LAKES: CircuitLayout = {
  * the right–left of Turns 2 and 3, the long run to Turn 4, the esses, the
  * hairpin at Turn 8, the downhill left of Turns 9 and 10 (the trickiest
  * braking of the lap), the back straight, the long right of Turns 11 to 13
- * and the last right onto the straight. Sand all round, its Championship
- * round under the floodlights. About 9300 px, about 30 s.
+ * and the last right onto the straight. Sand all round. About 9300 px,
+ * about 30 s.
  */
 export const OASIS: CircuitLayout = {
   id: 'oasis',
@@ -558,7 +556,6 @@ export const OASIS: CircuitLayout = {
   pit: { from: -660, to: 460, side: -1 },
   tyreWear: 0.6,
   desert: true,
-  night: true,
 };
 
 /**

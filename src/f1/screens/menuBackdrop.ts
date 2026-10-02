@@ -1,5 +1,5 @@
 // The menu's live backdrop: a race going on behind the menus. A handful of AI
-// cars lap a circuit (the one last picked, under floodlights if NIGHT was) in
+// cars lap a circuit (the one last picked) in
 // the race's own simulation, already spread out round the lap when it fades
 // in; the camera follows one car, and every few seconds pans over to another,
 // a little wider than in a race. Drawn small and at most 30 times a second, and
@@ -41,8 +41,8 @@ export const BACKDROP = {
 
 const deg = THREE.MathUtils.degToRad;
 
-/** Start the backdrop behind `host`'s contents, racing on `layout` (at `night`). Gives back a function that stops it. */
-export function startBackdrop(host: HTMLElement, layout: CircuitLayout, night: boolean): () => void {
+/** Start the backdrop behind `host`'s contents, racing on `layout`. Gives back a function that stops it. */
+export function startBackdrop(host: HTMLElement, layout: CircuitLayout): () => void {
   if (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return () => {};
   let renderer: THREE.WebGLRenderer;
   try {
@@ -53,7 +53,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, night: b
   const f1 = carClass('f1');
   const handling = handlingFor(NORMAL);
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, handling), decel: lineDecel(f1) });
-  const world = createCircuitScene(circuit, DRY, night);
+  const world = createCircuitScene(circuit, DRY);
   // the field: a car from each of the first teams, a touch apart in pace so they race
   const field = circuit.slots.slice(0, BACKDROP.cars).map((s, k) => ({
     car: newCar(f1, s.x, s.y, s.heading),

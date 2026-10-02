@@ -26,7 +26,6 @@ import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { ownsChampionship } from './purchase';
 import { distance } from './timeAttack';
 import { settingsRows as settingsRowsNow } from './settingsRows';
-import { TIMES, type TimeOfDay } from './night';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
@@ -100,8 +99,8 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
 ];
 
 /** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen). */
-export const rowsOf = (mode: GameMode): ('team' | 'weather' | 'time' | 'qualifying' | 'laps')[] =>
-  mode === 'race' ? ['team', 'weather', 'time', 'qualifying', 'laps'] : mode === 'championship' ? [] : ['team', 'weather', 'time'];
+export const rowsOf = (mode: GameMode): ('team' | 'weather' | 'qualifying' | 'laps')[] =>
+  mode === 'race' ? ['team', 'weather', 'qualifying', 'laps'] : mode === 'championship' ? [] : ['team', 'weather'];
 
 export interface MenuChoice {
   mode: GameMode;
@@ -111,8 +110,6 @@ export interface MenuChoice {
   team: Team;
   difficulty: Difficulty;
   weather: Weather;
-  /** day, or a night race under floodlights */
-  time: TimeOfDay;
   /** a qualifying lap before the race, to set your place on the grid */
   qualifying: boolean;
   /** a Quick Race's laps (a Championship round is always RACE_LAPS) */
@@ -246,8 +243,6 @@ export function chooseCircuit(
   open: ReadonlySet<string> = new Set(layouts.map((l) => l.id)),
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
   closed?: AbortSignal,
-  /** day or night, as last chosen */
-  time: TimeOfDay = 'day',
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
@@ -278,8 +273,7 @@ export function chooseCircuit(
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   // (a Quick Race's: a Championship round is always RACE_LAPS, and a Time Trial is laps until you stop)
   const lapsRow = optionRow('LAPS', [...LAP_CHOICES], laps, (n) => ({ name: `${n}`, about: lapsAbout(n) }));
-  const timeRow = optionRow('TIME', TIMES, time, (v) => ({ name: v === 'night' ? 'NIGHT' : 'DAY', about: v === 'night' ? 'under the floodlights' : 'in daylight' }));
-  const ROWS = { team: teamRow, weather: weatherRow, time: timeRow, qualifying: qualifyingRow, laps: lapsRow };
+  const ROWS = { team: teamRow, weather: weatherRow, qualifying: qualifyingRow, laps: lapsRow };
   /** the rows on the circuit screen, for the mode picked */
   let rows = rowsOf(current.id).map((k) => ROWS[k]);
 
@@ -630,7 +624,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), time: timeRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
+      resolve({ mode: current.id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;
