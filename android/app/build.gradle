@@ -27,20 +27,14 @@ android {
                 keyPassword System.getenv('ANDROID_KEY_PASSWORD')
             }
         }
-        // Without one, a fixed key committed to the repo (like Android's own debug key, not a secret),
-        // so sideloaded builds from any machine update each other instead of needing an uninstall
-        sideload {
-            storeFile file('sideload.keystore')
-            storePassword 'android'
-            keyAlias 'sideload'
-            keyPassword 'android'
-        }
+        // (without one, a build is signed with this machine's own debug key: fine to try out, but a build
+        // from another machine, or a fresh CI runner, won't install over it as an update)
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig System.getenv('ANDROID_KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.sideload
+            signingConfig System.getenv('ANDROID_KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

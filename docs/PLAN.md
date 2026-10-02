@@ -330,8 +330,8 @@ Google Play:
 - [x] Resume the Android workflow on push (done: it builds on every push and uploads the APK to itch.io)
 - [x] Build an **AAB** (Play's upload format) as well as the APK (the Play build, `VITE_STORE=play`: the Championship an in-app purchase)
 - [ ] Release **upload key** in the repo's secrets, and Play App Signing turned on (Google holds
-      the app signing key). The sideloaded APK signed with the repo key can't update to the
-      Play version: say so on the itch.io page.
+      the app signing key). The sideloaded APK (signed with the release key from the secrets; the
+      repo's old sideload key is retired) can't update to the Play version: say so on the itch.io page.
 - [ ] Target SDK level up to Play's current requirement; test on Android 8 up to the newest version
 - [ ] CI uploads the AAB to Play's **internal testing** track (Play Developer API with a service
       account key in the repo's secrets); promoting to closed/open testing and production stays manual

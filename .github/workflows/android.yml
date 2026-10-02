@@ -9,9 +9,10 @@
 # It also builds the Google Play version (the Championship an in-app purchase) as an AAB, kept as a download
 # on the run for uploading to the Play Console.
 #
-# Signing: with the four ANDROID_* secrets set (see the README), the APK is
-# signed with your release key. Without them, it's signed with the sideload key
-# in the repo, so every build still installs as an update over the last one.
+# Signing: with the four ANDROID_* secrets set (see the README), the APK and the
+# AAB are signed with your release key, so each build installs as an update over
+# the last. Without them, with the runner's throwaway debug key (and a warning):
+# such a build installs fresh, but not over one signed with another key.
 name: android
 
 on:
@@ -67,7 +68,8 @@ jobs:
           ./gradlew --no-daemon assembleRelease -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version+${GITHUB_SHA::7}"
           mkdir -p ../out
           cp app/build/outputs/apk/release/app-release.apk "../out/corner-cutters-$version-$GITHUB_RUN_NUMBER.apk"
-          echo "signed with: ${ANDROID_KEYSTORE_FILE:+release key}${ANDROID_KEYSTORE_FILE:-sideload key}"
+          if [ -n "${ANDROID_KEYSTORE_FILE:-}" ]; then echo "signed with: release key"
+          else echo "::warning title=Android signing::No release key (the ANDROID_* secrets): signed with this runner's throwaway debug key, so it won't install as an update over an earlier build. See the README's Signing."; fi
 
       # a download on the run; kept a week, and not fatal: the account's artifact storage can be full
       # (it's shared by every repo), and the itch.io upload below is the real way out
