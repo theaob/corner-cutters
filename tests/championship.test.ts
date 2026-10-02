@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { numberOf } from '../src/f1/drivers';
 import { TEAMS } from '../src/f1/teams';
-import { POINTS, newSeason, parseSeason, pointsFor, pointsOf, recordRound, roundSeed, seasonOver, standings } from '../src/f1/championship';
+import { POINTS, newSeason, numberIn, parseSeason, pointsFor, pointsOf, recordRound, roundSeed, seasonOver, standings } from '../src/f1/championship';
 
 const season = () => newSeason({ seed: 42, team: TEAMS[2], difficulty: 'normal', weather: 'dry', qualifying: false, rounds: ['crescent-park', 'silver-heath'], total: 10 });
 
@@ -25,6 +26,10 @@ describe('a championship season', () => {
     const second = newSeason({ seed: 42, team: TEAMS[2], seat: 1, difficulty: 'normal', weather: 'dry', qualifying: false, rounds: ['crescent-park'], total: 10 });
     expect(second.seat).toBe(1);
     expect(mateOf(second).name).toBe(TEAMS[2].drivers[0]);
+    // (your number: your car's driver's; each other driver their own)
+    expect(numberIn(first, first.you)).toBe(numberOf(TEAMS[2].drivers[0]));
+    expect(numberIn(second, second.you)).toBe(numberOf(TEAMS[2].drivers[1]));
+    second.drivers.forEach((d, k) => k !== second.you && expect(numberIn(second, k)).toBe(numberOf(d.name)));
     // (kept when saved and loaded; a season saved before the pick reads as the first car)
     expect(parseSeason(JSON.parse(JSON.stringify(second)))?.seat).toBe(1);
     const { seat: _, ...old } = first;
