@@ -40,6 +40,9 @@ export const TEAMS: Team[] = [
 ];
 
 /** How many teams race at once, two cars each. */
+/** A team's car: its first (0) or its second (1), each with its own driver. */
+export type Seat = 0 | 1;
+
 export const TEAMS_PER_RACE = 5;
 
 /** The team with this id, or undefined. */
@@ -48,13 +51,14 @@ export const teamById = (id: string | null | undefined) => TEAMS.find((t) => t.i
 /**
  * For each grid slot, which of its team's two seats it is (0 = the first
  * driver, 1 = the second, who has the bright green T-camera): you, in slot
- * `you`, take your team's first seat and your teammate the second; for the
- * other teams the car further up the grid is the first driver.
+ * `you`, take `yours` (the first unless you picked the second) and your
+ * teammate the other; for the other teams the car further up the grid is the
+ * first driver.
  */
-export function driverSeats(grid: Team[], you: number): (0 | 1)[] {
+export function driverSeats(grid: Team[], you: number, yours: Seat = 0): Seat[] {
   return grid.map((t, i) => {
-    if (i === you) return 0;
-    if (t === grid[you]) return 1;
+    if (i === you) return yours;
+    if (t === grid[you]) return yours === 0 ? 1 : 0;
     return grid.slice(0, i).includes(t) ? 1 : 0;
   });
 }

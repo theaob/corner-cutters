@@ -17,6 +17,19 @@ describe('a championship season', () => {
     expect(season()).toEqual(s);
     expect(roundSeed(s, 0)).not.toBe(roundSeed(s, 1));
   });
+  it('puts you in the car you picked, your teammate in the other, all season', () => {
+    const first = season();
+    const mateOf = (s: typeof first) => s.drivers.find((d, k) => k !== s.you && d.team === TEAMS[2].id)!;
+    expect(first.seat).toBe(0);
+    expect(mateOf(first).name).toBe(TEAMS[2].drivers[1]);
+    const second = newSeason({ seed: 42, team: TEAMS[2], seat: 1, difficulty: 'normal', weather: 'dry', qualifying: false, rounds: ['crescent-park'], total: 10 });
+    expect(second.seat).toBe(1);
+    expect(mateOf(second).name).toBe(TEAMS[2].drivers[0]);
+    // (kept when saved and loaded; a season saved before the pick reads as the first car)
+    expect(parseSeason(JSON.parse(JSON.stringify(second)))?.seat).toBe(1);
+    const { seat: _, ...old } = first;
+    expect(parseSeason(old)?.seat ?? 0).toBe(0);
+  });
   it('scores F1 points for the top ten, none for a DNF', () => {
     expect(POINTS.reduce((a, b) => a + b)).toBe(101);
     expect(pointsFor(0)).toBe(25);

@@ -29,7 +29,7 @@ import { openCircuits, savedUnlocks, unlockCircuit } from './f1/unlocks';
 import { PAYWALL, circuitsOpen, openShop, ownsChampionship } from './f1/purchase';
 import { loadRecords } from './f1/records';
 import type { RaceOptions } from './f1/race';
-import { TEAMS, teamById } from './f1/teams';
+import { TEAMS, teamById, type Seat } from './f1/teams';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, weatherById } from './f1/weather';
 
@@ -128,6 +128,7 @@ const choice = (name: string): string | null => {
   return typeof v === 'string' ? v : null;
 };
 const savedTeam = () => teamById(choice('team')) ?? TEAMS[0];
+const savedSeat = (): Seat => (choice('seat') === '1' ? 1 : 0);
 const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
@@ -204,7 +205,7 @@ async function showMenu(id: number): Promise<void> {
   let stopBackdrop = () => {};
   closed.signal.addEventListener('abort', () => stopBackdrop());
   current = { close: () => closed.abort() };
-  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal);
+  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal);
   curtainUp();
   const backdropOn = layoutById(choice('circuit')) && openNow().has(choice('circuit')!) ? layoutById(choice('circuit'))! : LAYOUTS[0];
   void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
@@ -215,6 +216,7 @@ async function showMenu(id: number): Promise<void> {
   if (id !== routeId) return;
   save('choices', 'circuit', picked.layout.id);
   save('choices', 'team', picked.team.id);
+  save('choices', 'seat', String(picked.seat));
   save('choices', 'difficulty', picked.difficulty.id);
   save('choices', 'weather', picked.weather.id);
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
@@ -259,7 +261,7 @@ async function showSeason(id: number): Promise<void> {
     if (got === 'back') return navigate(withCircuit(null));
   }
   const season = loadSeason();
-  const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal, justWon);
+  const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), seat: savedSeat(), weather: savedWeather(), qualifying: savedQualifying() }, closed.signal, justWon);
   justWon = false;
   curtainUp();
   const action = await showing;
@@ -269,11 +271,12 @@ async function showSeason(id: number): Promise<void> {
   else if (typeof action === 'object') {
     // a new season with the team, weather and qualifying picked for it (kept as the choices), and the difficulty from
     // the settings: a round on every circuit
-    const { team, weather, qualifying } = action.new;
+    const { team, seat, weather, qualifying } = action.new;
     save('choices', 'team', team.id);
+    save('choices', 'seat', String(seat));
     save('choices', 'weather', weather.id);
     save('choices', 'qualifying', qualifying ? 'on' : 'off');
-    saveSeason(newSeason({ seed: newSeed(), team, difficulty: savedDifficulty().id, weather: weather.id, qualifying, rounds: LAYOUTS.map((l) => l.id), total: 10 }));
+    saveSeason(newSeason({ seed: newSeed(), team, seat, difficulty: savedDifficulty().id, weather: weather.id, qualifying, rounds: LAYOUTS.map((l) => l.id), total: 10 }));
     void route();
   } else navigate(withCircuit(null));
 }
@@ -333,8 +336,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
         },
       }
     : mode === 'tutorial'
-      ? { team: savedTeam(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
-      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
+      ? { team: savedTeam(), seat: savedSeat(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
+      : { team: savedTeam(), seat: savedSeat(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();

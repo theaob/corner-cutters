@@ -32,7 +32,7 @@ import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
 import { createCeremony, podiumSpot } from './podium3d';
 import { PIT, between, inLimitZone, wantsPit } from './pits';
-import { TEAMS, driverSeats, teamGrid, type Team } from './teams';
+import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { distance, newAttack, stepAttack, type Attack } from './timeAttack';
@@ -104,8 +104,9 @@ const REAR_LIGHT = { decel: 140, hold: 0.18 };
 
 /** How a race weekend is set up. */
 export interface RaceOptions {
-  /** the team you drive for */
+  /** the team you drive for, and which of its cars (its first unless set) */
   team?: Team;
+  seat?: Seat;
   difficulty?: Difficulty;
   weather?: Weather;
   /** a qualifying lap first, to set your grid slot */
@@ -126,7 +127,7 @@ export interface RaceOptions {
  * `onQuit` runs when the player leaves (EXIT on the deck, SELECT inside; or CIRCUITS on the pause screen).
  */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
-  const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
+  const { team = TEAMS[0], seat: yourSeat = 0, difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
   const LAPS = championship ? RACE_LAPS : Math.max(1, Math.round(options.laps ?? RACE_LAPS));
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
@@ -582,8 +583,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /**
    * This weekend's field, drawn from its seed (so the same for the qualifying and the race after it): your team and four
-   * at random, two cars each, in their liveries; each car's seat in its team (you take your team's first, your teammate
-   * its second); each AI driver's pace, line, racecraft and dice; and the start lights' wait. Driver `k`'s grid slot is
+   * at random, two cars each, in their liveries; each car's seat in its team (you take the car you picked, your
+   * teammate the other); each AI driver's pace, line, racecraft and dice; and the start lights' wait. Driver `k`'s grid slot is
    * `k` unless qualifying sets another; you're `youDriver`, mid-grid.
    */
   const drawWeekend = () => {
@@ -593,7 +594,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const total = season ? season.drivers.length : Math.min(circuit.slots.length, 1 + Math.round(t.opponents));
     const youDriver = season ? season.you : Math.floor(total / 2);
     const teams = season ? season.drivers.map(teamOf) : teamGrid(team, total, youDriver, rng);
-    const seats = driverSeats(teams, youDriver);
+    const seats = driverSeats(teams, youDriver, season ? (season.seat ?? 0) : yourSeat);
     const ranks = season ? season.drivers.map((d) => d.rank) : paceRanks(total, rng);
     const boxes = [...new Set(teams)];
     const drivers = teams.map((livery, k) => {
