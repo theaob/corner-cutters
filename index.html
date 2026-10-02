@@ -847,10 +847,22 @@
         height: 62px;
         border-radius: 50%;
         border: none;
-        font-family: var(--pixel);
-        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
         color: var(--deck);
         touch-action: none;
+      }
+      /* each button shows what it does: its icon on it, its name under it (src/engine/deck.ts) */
+      .face .icon svg {
+        display: block;
+        width: 30px;
+        height: 30px;
+      }
+      /* a button that does nothing just now is out of sight (still in its place, so the others don't move) */
+      #deck .idle {
+        visibility: hidden;
       }
       .face button.pressed {
         transform: translateY(2px);
@@ -860,7 +872,7 @@
       .face .b { background: var(--accent-b); }
       .face .label {
         font-size: 12px;
-        color: var(--muted);
+        color: var(--text);
         min-height: 12px;
       }
       .sys {
@@ -872,9 +884,14 @@
         gap: 14px;
       }
       .sys button {
-        width: 72px;
-        height: 26px;
-        border-radius: 13px;
+        min-width: 72px;
+        height: 28px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border-radius: 14px;
         border: 1px solid var(--key-edge);
         background: var(--key);
         color: #a9a6c0;
@@ -884,6 +901,11 @@
       }
       .sys button.pressed {
         background: var(--key-held);
+      }
+      .sys .icon svg {
+        display: block;
+        width: 13px;
+        height: 13px;
       }
       .sys button.layout {
         width: auto;
@@ -949,7 +971,11 @@
         border-radius: 8px;
         background: rgba(21, 20, 31, 0.82);
       }
-      .desktop .face .col:has(.label:empty) {
+      .desktop .face .col:has(.label:empty),
+      .desktop #deck .idle {
+        display: none;
+      }
+      .desktop #deck .icon {
         display: none;
       }
       .desktop .face button {
@@ -993,22 +1019,21 @@
         margin-right: 4px;
       }
       .desktop .sys button {
-        width: auto;
+        min-width: 0;
         height: 24px;
         padding: 0 8px;
         border-radius: 6px;
-        font-size: 0;
+        font-size: 11px;
         pointer-events: auto;
         cursor: pointer;
       }
-      .desktop .sys button::after {
-        font-size: 11px;
+      .desktop .sys button[data-button='start']::before {
+        content: 'ENTER';
+        color: var(--muted);
       }
-      .desktop .sys button[data-button='start']::after {
-        content: 'ENTER START';
-      }
-      .desktop .sys button[data-button='select']::after {
-        content: 'BKSP SELECT';
+      .desktop .sys button[data-button='select']::before {
+        content: 'BKSP';
+        color: var(--muted);
       }
       .desktop .sys button.layout {
         font-size: 11px;
@@ -1103,19 +1128,19 @@
             <span class="knob"></span>
           </div>
           <div class="face">
-            <div class="col low">
-              <button class="b" data-button="b" aria-label="B">B</button>
+            <div class="col low idle">
+              <button class="b" data-button="b" aria-label="b"><span class="icon" data-hud="icon-b"></span></button>
               <span class="label" data-hud="label-b"></span>
             </div>
-            <div class="col">
-              <button class="a" data-button="a" aria-label="A">A</button>
+            <div class="col idle">
+              <button class="a" data-button="a" aria-label="a"><span class="icon" data-hud="icon-a"></span></button>
               <span class="label" data-hud="label-a"></span>
             </div>
           </div>
         </div>
         <div class="sys">
-          <button data-button="select">SELECT</button>
-          <button data-button="start">START</button>
+          <button class="idle" data-button="select" aria-label="select"><span class="icon" data-hud="icon-select"></span><span data-hud="label-select"></span></button>
+          <button class="idle" data-button="start" aria-label="start"><span class="icon" data-hud="icon-start"></span><span data-hud="label-start"></span></button>
           <!-- layout switch (handheld <-> wide desktop), shown only with a mouse or trackpad; V does the same -->
           <button class="layout" data-layout hidden>WIDE</button>
         </div>

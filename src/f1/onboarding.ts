@@ -21,7 +21,7 @@ export function prompt(step: Step, device: Device): string {
     case 'bend':
       return device === 'touch' ? 'EASE THE STICK IN BEFORE A BEND TO SLOW' : device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
     case 'drift':
-      return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : 'HOLD B IN A BEND TO DRIFT ROUND IT';
+      return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : device === 'touch' ? 'HOLD DRIFT IN A BEND TO SLIDE ROUND IT' : 'HOLD A IN A BEND TO DRIFT ROUND IT';
     case 'limits':
       return 'KEEP INSIDE THE WHITE LINES: CUTTING A CORNER COSTS TIME';
     case 'lap':
