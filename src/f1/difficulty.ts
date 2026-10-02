@@ -26,12 +26,14 @@ export interface Difficulty {
   aiCraft: number;
   /** the chance an AI driver makes a mistake going into a bend (a lock-up or a run wide), before its consistency */
   aiMistakes: number;
+  /** the chance an AI driver, close behind another AI car into a braking bend, misjudges it and dives into it (racing.ts), before its aggression */
+  aiIncidents: number;
 }
 
 export const DIFFICULTIES: Difficulty[] = [
-  { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15, aiCraft: 0.3, aiMistakes: 0.08 },
-  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.94, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3, aiCraft: 0.6, aiMistakes: 0.05 },
-  { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 0.99, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4, aiCraft: 0.9, aiMistakes: 0.025 },
+  { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15, aiCraft: 0.3, aiMistakes: 0.08, aiIncidents: 0.06 },
+  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.94, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3, aiCraft: 0.6, aiMistakes: 0.05, aiIncidents: 0.045 },
+  { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 0.99, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4, aiCraft: 0.9, aiMistakes: 0.025, aiIncidents: 0.03 },
 ];
 
 export const NORMAL = DIFFICULTIES[1];
@@ -44,6 +46,9 @@ export const handlingFor = (d: Difficulty): HandlingParams => ({ ...RACE_HANDLIN
 
 /** An AI driver's racecraft at this difficulty: its own, drawn from `rng`, within 0.15 either side, plus its style's aggression. */
 export const aiCraftFor = (d: Difficulty, rng: () => number, aggression = 0) => Math.max(0, Math.min(1, d.aiCraft + aggression + (rng() * 2 - 1) * 0.15));
+
+/** An AI driver's chance of diving into the AI car ahead, when it's close behind it into a braking bend, at this difficulty: the more aggressive its style, the likelier. */
+export const aiIncidentsFor = (d: Difficulty, aggression = 0) => d.aiIncidents * Math.max(0.3, 1 + 2 * aggression);
 
 /** An AI driver's chance of a mistake into each bend at this difficulty, for its style's consistency. */
 export const aiMistakesFor = (d: Difficulty, consistency = 0) => d.aiMistakes * (1 - 0.6 * consistency);
