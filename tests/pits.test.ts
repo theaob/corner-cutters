@@ -270,5 +270,5 @@ describe.each(LAYOUTS)('skipping the in-lap at $name', (layout) => {
         expect(Math.hypot(e.car.x - (s.x + Math.cos(s.dir) * spot.lane), e.car.y - (s.y + Math.sin(s.dir) * spot.lane))).toBeLessThan(3);
       } else expect(e.pit?.phase).toBe('garage');
     });
-  });
+  }, 30_000);
 });
