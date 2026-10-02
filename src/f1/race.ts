@@ -48,6 +48,7 @@ import { vibrate } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
 import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
 import { RaceSounds, crowdNear, menuPick } from './sounds';
+import { onBack } from '../engine/backButton';
 import { menuButton } from './circuitSelect';
 import { settingsRows } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
@@ -1081,6 +1082,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseButton('CIRCUITS', () => onQuit()),
     pauseHint,
   );
+  // the phone's back button: the pause screen's settings closed, the pause screen resumed, the race paused; once
+  // it's over, on (a Championship round with its results seen counts, as with A)
+  const offBack = onBack(() => {
+    if (pauseSettingsOn) openPauseSettings(false);
+    else if (paused) setPaused(false);
+    else if (!done) setPaused(true);
+    else if (championship && results.style.display === 'block') finishRound();
+    else onQuit();
+    return true;
+  });
   // leaving the app or the tab pauses the race; so do Esc and P on a keyboard
   const onHidden = () => {
     if (document.hidden && !done) setPaused(true);
@@ -1917,6 +1928,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.dispose();
     renderer.forceContextLoss();
     renderer.domElement.remove();
+    offBack();
     for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay]) el.remove();
     delete (window as { __cc?: unknown }).__cc;
   };

@@ -146,3 +146,13 @@ export const clearToasts = () => {
   toasts = [];
   toasting = false;
 };
+
+/** A short line at the bottom of the page for `ms` (PRESS BACK AGAIN TO EXIT). */
+export function hintToast(text: string, ms = 2000): void {
+  document.querySelector('.hint-toast')?.remove();
+  const el = document.createElement('div');
+  el.className = 'hint-toast';
+  el.textContent = text;
+  document.body.append(el);
+  setTimeout(() => el.remove(), ms);
+}

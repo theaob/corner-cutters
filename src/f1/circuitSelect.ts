@@ -12,6 +12,7 @@
 // or races, and B goes back.
 
 import type { Button } from '../engine/controls';
+import { onBack } from '../engine/backButton';
 import { holdTouches } from '../engine/deck';
 import { menuPick, menuTick } from './sounds';
 import type { Services } from '../engine/services';
@@ -604,6 +605,15 @@ export function chooseCircuit(
       return edge;
     };
     let done = false;
+    // the phone's back button: up to the modes from a mode's circuit screen, the settings or the cabinet; on the
+    // modes, nowhere to go (the app asks before it leaves)
+    const offBack = onBack(() => {
+      if (view === 'modes') return false;
+      if (view === 'settings') closeSettings();
+      else if (view === 'trophies') closeCabinet();
+      else toModes();
+      return true;
+    });
     finish = (layout, controlsLap = false) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
@@ -613,12 +623,14 @@ export function chooseCircuit(
         return;
       }
       done = true;
+      offBack();
       menuPick();
       menu.remove();
       resolve({ mode: current.id, controlsLap, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), time: timeRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;
+      offBack();
       menu.remove();
     });
     const tick = () => {

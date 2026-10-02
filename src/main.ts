@@ -23,7 +23,8 @@ import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, standings, 
 import { awardTitle } from './f1/medals';
 import { timeById } from './f1/night';
 import { unlock } from './f1/achievements';
-import { achievementToast } from './f1/screens/celebrate';
+import { achievementToast, hintToast } from './f1/screens/celebrate';
+import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
 import { openCircuits, savedUnlocks, unlockCircuit } from './f1/unlocks';
 import { loadRecords } from './f1/records';
@@ -69,6 +70,11 @@ const controls = new Controls();
 bindKeyboard(controls);
 bindGamepad(controls);
 unlockAudio();
+// the phone's back button (in the Android app): each screen's own back, and on the menu's first screen a second press
+// to leave
+void listenForBack(() => hintToast('PRESS BACK AGAIN TO EXIT'));
+// (with ?debug, a press of it by hand: __back())
+if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { __back: () => pressBack(performance.now() / 1000, () => hintToast('PRESS BACK AGAIN TO EXIT'), () => console.log('exit')) });
 bindDeck(deck, controls);
 setStickSide(deck, stickSide());
 guardInput(controls, () => releaseDeck(deck));
