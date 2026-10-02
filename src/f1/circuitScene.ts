@@ -19,6 +19,7 @@ import { buildTown, inside, seaOf } from './town3d';
 import { standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
 import { buildForest } from './forest3d';
+import { buildCamels } from './camels';
 import { FLOODLIGHT, floodlights, nightSky } from './night';
 
 /** The flags on the grandstands: the teams' colours and white. */
@@ -512,6 +513,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, nig
   };
 
   if (night) addFloodlights(scene, circuit);
+  // (at a desert circuit: its camels)
+  const camels = circuit.layout.desert ? buildCamels(scene, circuit) : undefined;
 
   return {
     scene,
@@ -519,6 +522,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, nig
     minimap,
     animate: (t) => {
       town?.animate(t);
+      camels?.animate(t);
       // the flags flap in the wind
       for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
     },
