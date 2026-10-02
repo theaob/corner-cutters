@@ -28,6 +28,8 @@ export interface CircuitLayout {
   forest?: boolean;
   /** in the desert: sand all round, beyond the barriers and on the run-off */
   desert?: boolean;
+  /** lakes beyond the barriers: polygons (in `points` units), their water flat in the hollows of the ground */
+  lakes?: Pt[][];
   /** the track crosses itself on a bridge: px along the lap where the stretch on the bridge (`over`) and the one
    * underneath (`under`) cross, the deck `height` px up there (the elevation profile has both at the same height) */
   bridge?: { over: number; under: number; height: number };
@@ -490,6 +492,21 @@ export const TWIN_LAKES: CircuitLayout = {
   // on the outside of the main straight
   pit: { from: -600, to: 460, side: 1 },
   tyreWear: 0.8,
+  // the two lakes it's named for: on the outside of the descent to the lake (Turn 4), and beyond the Curva do Sol
+  lakes: [
+    ([
+      [1228, 215], [1202, 297], [1188, 385], [1151, 473], [1071, 522], [975, 519],
+      [893, 500], [824, 475], [756, 453], [717, 391], [729, 310], [715, 263],
+      [668, 215], [541, 120], [655, 77], [720, 41], [746, -41], [800, -133],
+      [893, -150], [974, -85], [1031, -24], [1109, -1], [1197, 40], [1246, 120],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+    ([
+      [1204, 1214], [1177, 1305], [1120, 1377], [1062, 1437], [997, 1487], [922, 1523],
+      [839, 1534], [757, 1518], [684, 1482], [630, 1423], [592, 1357], [535, 1296],
+      [454, 1214], [414, 1100], [523, 1032], [609, 984], [721, 1010], [781, 997],
+      [839, 929], [927, 886], [1014, 911], [1076, 977], [1125, 1049], [1177, 1123],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  ],
 };
 
 /**

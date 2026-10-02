@@ -20,6 +20,7 @@ import { standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
 import { buildForest } from './forest3d';
 import { buildCamels } from './camels';
+import { buildLakes } from './lakes';
 import { BRIDGE, liftAt } from './bridge';
 
 /** The flags on the grandstands: the teams' colours and white. */
@@ -513,6 +514,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
 
   // (where the track crosses itself: the bridge)
   addBridge(scene, circuit);
+  // (its lakes, if it has any)
+  buildLakes(scene, circuit);
   // (at a desert circuit: its camels)
   const camels = circuit.layout.desert ? buildCamels(scene, circuit) : undefined;
 

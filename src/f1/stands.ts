@@ -9,6 +9,7 @@ import { HALF_WIDTH, RUNOFF, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
 import { seeOver } from './town3d';
 import { GARAGE_ACROSS, PIT } from './pits';
+import { inLake, lakesOf } from './lakes';
 
 export interface Stand {
   /** its middle on the map */
@@ -52,8 +53,9 @@ export function standsOf(circuit: Circuit): Stand[] {
   const runoff = layout.street?.runoff ?? RUNOFF;
   const out = HALF_WIDTH + runoff + STAND.gap + STAND.depth / 2;
   const fromTrack = (x: number, y: number) => Math.min(...samples.map((p) => Math.hypot(p.x - x, p.y - y)));
-  /** clear of every stretch of the track and its run-off (another can pass close behind a stand, round a bend) */
-  const clear = (s: Stand) => [...corners(s), s].every((c) => fromTrack(c.x, c.y) >= HALF_WIDTH + runoff + 8);
+  /** clear of every stretch of the track and its run-off (another can pass close behind a stand, round a bend), and out of any lake */
+  const lakes = lakesOf(circuit);
+  const clear = (s: Stand) => [...corners(s), s].every((c) => fromTrack(c.x, c.y) >= HALF_WIDTH + runoff + 8 && !inLake(lakes, c.x, c.y, 20));
   // the main straight's: three side by side behind the start line, across from the pits; one with another stretch
   // of track close behind it moves on back along the straight (and, as a last resort, over to the pit side, past
   // the garages)
