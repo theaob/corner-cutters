@@ -50,7 +50,7 @@ import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } fr
 import { RaceSounds, crowdNear, menuPick } from './sounds';
 import { menuButton } from './circuitSelect';
 import { settingsRows } from './settingsRows';
-import { LAUNCH, kickOf, newLaunch, stepLaunch } from './launch';
+import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
 import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
 import { musicPlaying, playMusic } from '../engine/music';
@@ -590,6 +590,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         lane: ((k * 7) % 11) - 5, pace: aiPaceFor(difficulty, ranks[k], total, t.aiPaceAdjust), craft: aiCraftFor(difficulty, rng, style.aggression),
         mistakes: aiMistakesFor(difficulty, style.consistency), rng: seededRandom(Math.floor(rng() * 4294967296)),
       };
+      // its reaction off the lights, on dice of its own from the seed and its slot (not drawn from the weekend's, so the
+      // rest of the field is drawn as it was)
+      if (ai) ai.reaction = aiReaction(seededRandom(((seed * 2654435761) ^ ((k + 1) * 40503)) >>> 0 || 1), ai.craft ?? 0.6, style.consistency);
       // each team its own box in the pit lane
       return { livery, seat: seats[k], ai, box: boxes.indexOf(livery) };
     });
@@ -809,7 +812,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         paused: () => paused,
         order: () => raceOrder(race).map((i) => looks[i].name),
         you: () => ({ ...race.entrants[you].progress, tow: race.entrants[you].tow, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
-        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, strikes: e.limits.strikes, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind, craft: e.ai?.craft, mistakes: e.ai?.mistakes, dice: !!e.ai?.rng })),
+        racers: () => race.entrants.map((e, i) => ({ name: looks[i].name, team: looks[i].team.code, react: e.ai?.reaction, speed: Math.round(speedOf(e.car)), lap: e.progress.lap, idx: e.progress.idx, finished: e.progress.finished, retired: !!e.progress.retired, penalty: e.progress.penalty, strikes: e.limits.strikes, health: e.car.health, stops: e.stops, pit: e.pit?.phase, move: e.ai?.move?.kind, craft: e.ai?.craft, mistakes: e.ai?.mistakes, dice: !!e.ai?.rng })),
         safetyCar: () => !!race.sc,
         /** the virtual safety car: seconds it's been out (undefined: it isn't) */
         vsc: () => race.vsc?.out,

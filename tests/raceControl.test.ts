@@ -287,3 +287,22 @@ describe('blue flags', () => {
     expect(race.entrants[1].blue).toBeUndefined();
   }, 30_000);
 });
+
+describe('the start', () => {
+  it('is a scramble: each AI car goes on its own reaction, and a bogged start loses places without the field piling into it', () => {
+    const race = raceOn(SILVER_HEATH, 3);
+    // pole bogs down; the rest react in a spread
+    race.entrants.forEach((e, i) => (e.ai!.reaction = i === 0 ? 1.1 : 0.16 + ((i * 37) % 10) * 0.026));
+    const crashes: RaceEvent[] = [];
+    let movedAt: (number | undefined)[] = race.entrants.map(() => undefined);
+    for (let t = 0; t < 30 && !(race.phase === 'racing' && race.clock > 5); t += dt) {
+      for (const e of stepRace(race, dt).race) if (e.kind === 'crash') crashes.push(e);
+      if (race.phase === 'racing') race.entrants.forEach((e, i) => { if (movedAt[i] === undefined && speedOf(e.car) > 5) movedAt[i] = race.clock; });
+    }
+    // each away about its reaction after lights out (and the bogged one last)
+    race.entrants.forEach((e, i) => expect(movedAt[i]!).toBeGreaterThanOrEqual(e.ai!.reaction! - dt));
+    expect(movedAt[0]).toBeGreaterThan(Math.max(...movedAt.slice(1).map((m) => m!)));
+    expect(order(race).indexOf(0)).toBeGreaterThan(0);
+    expect(crashes).toEqual([]);
+  });
+});
