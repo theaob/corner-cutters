@@ -220,7 +220,6 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
   save('choices', 'laps', String(picked.laps));
   save('choices', 'mode', picked.mode);
-  if (picked.controlsLap) return navigate(withCircuit(LAYOUTS[0].id, 'tutorial'));
   // (a Championship picks its own circuits: to its screen)
   navigate(withCircuit(picked.mode === 'championship' ? null : picked.layout.id, picked.mode));
 }
