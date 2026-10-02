@@ -709,9 +709,11 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
   for (let tries = 0, anchored = 0; tries < 400 && anchored < 6; tries++) {
     const x = r() * W * T;
     const y = r() * H * T;
-    if (!inside(sea, x, y) || fromTrack(x, y) < keep + 60) continue;
-    if (marina.piers.some((p) => Math.hypot(x - (p.x + (p.dx * p.length) / 2), y - (p.y + (p.dy * p.length) / 2)) < p.length + 60)) continue;
-    launch(x, y, r() * Math.PI * 2, 28 + r() * 16, r() < 0.5 ? 'sail' : 'motor');
+    if (!inside(sea, x, y) || fromTrack(x, y) < keep + 120) continue;
+    if (marina.piers.some((p) => Math.hypot(x - (p.x + (p.dx * p.length) / 2), y - (p.y + (p.dy * p.length) / 2)) < p.length + 160)) continue;
+    if (marina.cruises.some((c) => Math.hypot(x - c.x, y - c.y) < Math.max(c.rx, c.ry) + 120)) continue;
+    // (superyachts, 18–27 m)
+    launch(x, y, r() * Math.PI * 2, 100 + r() * 50, r() < 0.3 ? 'sail' : 'motor');
     anchored++;
   }
 
@@ -755,7 +757,9 @@ const TRIMS = [0x3d7fc4, 0xd8323c, 0x1f2a44, 0x2f8f6a];
  */
 function boat(length: number, kind: 'motor' | 'sail', r: () => number, underWay: boolean): THREE.Group {
   const group = new THREE.Group();
-  const beam = length * 0.34;
+  const beam = length * 0.32;
+  /** heights go with the length: a 40 px (7 m) boat's are the base */
+  const k = length / 40;
   const outline = new THREE.Shape();
   // (top view: the stern square at +y, the bow coming to a point at −y)
   outline.moveTo(-beam / 2, length / 2);
@@ -773,30 +777,30 @@ function boat(length: number, kind: 'motor' | 'sail', r: () => number, underWay:
     return g;
   };
   const hullColor = HULLS[Math.floor(r() * HULLS.length)];
-  const hull = new THREE.Mesh(slab(5), new THREE.MeshLambertMaterial({ color: hullColor }));
-  const stripe = new THREE.Mesh(slab(1, 1.01), new THREE.MeshLambertMaterial({ color: TRIMS[Math.floor(r() * TRIMS.length)] }));
-  stripe.position.y = 3;
+  const hull = new THREE.Mesh(slab(5 * k), new THREE.MeshLambertMaterial({ color: hullColor }));
+  const stripe = new THREE.Mesh(slab(1 * k, 1.01), new THREE.MeshLambertMaterial({ color: TRIMS[Math.floor(r() * TRIMS.length)] }));
+  stripe.position.y = 3 * k;
   const teak = new THREE.Mesh(slab(0.6, 0.62), new THREE.MeshLambertMaterial({ color: 0xb08050 }));
-  teak.position.y = 5;
+  teak.position.y = 5 * k;
   group.add(hull, stripe, teak);
   const white = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
   if (kind === 'motor') {
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.7, 5, length * 0.42), white);
-    cabin.position.set(0, 8, length * 0.05);
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.72, 1.6, length * 0.3), new THREE.MeshLambertMaterial({ color: 0x2a3446 }));
-    glass.position.set(0, 9, length * 0.02);
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.5, 2.5, length * 0.2), white);
-    bridge.position.set(0, 11.5, length * 0.1);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.7, 5 * k, length * 0.42), white);
+    cabin.position.set(0, 7.5 * k, length * 0.05);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.72, 1.6 * k, length * 0.3), new THREE.MeshLambertMaterial({ color: 0x2a3446 }));
+    glass.position.set(0, 8.5 * k, length * 0.02);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.5, 2.5 * k, length * 0.2), white);
+    bridge.position.set(0, 11 * k, length * 0.1);
     group.add(cabin, glass, bridge);
   } else {
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, length * 1.2, 5), new THREE.MeshLambertMaterial({ color: 0xd8d8de }));
-    mast.position.set(0, 5 + length * 0.6, -length * 0.08);
-    const boom = new THREE.Mesh(new THREE.BoxGeometry(1, 1, length * 0.45), new THREE.MeshLambertMaterial({ color: 0xd8d8de }));
-    boom.position.set(0, 9, length * 0.14);
-    const sail = new THREE.Mesh(new THREE.BoxGeometry(2, 2, length * 0.42), new THREE.MeshLambertMaterial({ color: 0x3d5f80 }));
-    sail.position.set(0, 10.2, length * 0.14);
-    const cockpit = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.55, 3, length * 0.22), white);
-    cockpit.position.set(0, 6.5, -length * 0.02);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.6 * k, 0.7 * k, length * 1.2, 5), new THREE.MeshLambertMaterial({ color: 0xd8d8de }));
+    mast.position.set(0, 5 * k + length * 0.6, -length * 0.08);
+    const boom = new THREE.Mesh(new THREE.BoxGeometry(1 * k, 1 * k, length * 0.45), new THREE.MeshLambertMaterial({ color: 0xd8d8de }));
+    boom.position.set(0, 9 * k, length * 0.14);
+    const sail = new THREE.Mesh(new THREE.BoxGeometry(2 * k, 2 * k, length * 0.42), new THREE.MeshLambertMaterial({ color: 0x3d5f80 }));
+    sail.position.set(0, 10.2 * k, length * 0.14);
+    const cockpit = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.55, 3 * k, length * 0.22), white);
+    cockpit.position.set(0, 5 * k + 1.5 * k, -length * 0.02);
     group.add(mast, boom, sail, cockpit);
   }
   for (const part of group.children) part.castShadow = true;

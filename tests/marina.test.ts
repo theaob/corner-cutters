@@ -26,18 +26,34 @@ describe("the Harbour's marina", () => {
     }
   });
 
-  it('is in the picture as you drive by: each pontoon (with its boats) a good part of it at once', () => {
+  it('is in the picture as you drive by: the inner half of each pontoon, by the quay, with the boats either side', () => {
+    const half = MARINA.length / 2;
+    const reach = (MARINA.stern + MARINA.boat[1]) * 2;
     for (const p of m.piers) {
-      const w = Math.abs(p.dx) * p.length + Math.abs(p.dy) * 40;
-      const d = Math.abs(p.dy) * p.length + Math.abs(p.dx) * 40;
-      expect(inView(samples, p.x + (p.dx * p.length) / 2, p.y + (p.dy * p.length) / 2, w, d)).toBeGreaterThan(0.3);
+      const w = Math.abs(p.dx) * half + Math.abs(p.dy) * reach;
+      const d = Math.abs(p.dy) * half + Math.abs(p.dx) * reach;
+      expect(inView(samples, p.x + (p.dx * half) / 2, p.y + (p.dy * half) / 2, w, d)).toBeGreaterThan(0.35);
     }
   });
 
-  it('has boats moored along both sides of each pontoon, in the sea and apart', () => {
-    expect(m.berths.length).toBeGreaterThan(MARINA.piers * 4);
+  it('has boats to scale with the cars (an F1 car is 30 px, 5.5 m): yachts 10–15 m, bigger ones going round', () => {
+    for (const b of m.berths) expect(b.length).toBeGreaterThanOrEqual(55);
+    for (const cr of m.cruises) expect(cr.length).toBeGreaterThanOrEqual(70);
+  });
+
+  it('has no two moored boats overlapping', () => {
+    // (each a box its length by a third of it, its bow pointing out from the pontoon: side by side along it)
+    for (const a of m.berths) for (const b of m.berths) {
+      if (a === b) continue;
+      const along = Math.abs((b.x - a.x) * Math.cos(a.heading) + (b.y - a.y) * Math.sin(a.heading));
+      const out = Math.abs((b.x - a.x) * Math.sin(a.heading) - (b.y - a.y) * Math.cos(a.heading));
+      expect(along >= (a.length + b.length) * 0.16 || out >= (a.length + b.length) / 2).toBe(true);
+    }
+  });
+
+  it('has boats moored along both sides of each pontoon, in the sea', () => {
+    expect(m.berths.length).toBeGreaterThan(MARINA.piers * 6);
     for (const b of m.berths) expect(inside(sea, b.x, b.y)).toBe(true);
-    for (const a of m.berths) for (const b of m.berths) if (a !== b) expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(12);
   });
 
   it('has boats going round out on the water, all the way round in the sea and clear of the track', () => {

@@ -1,5 +1,8 @@
 // The Harbour's marina: wooden pontoons out from the quay into the sea, yachts
-// moored along both sides of each, and a few boats out on the water going round.
+// moored stern-to along both sides of each (as in a Mediterranean harbour: the
+// stern to the pontoon, the bow out), and a few boats out on the water going
+// round. To scale with the cars (an F1 car is 30 px, about 5.5 m: 1 px ≈ 0.18 m):
+// the yachts 10–15 m (55–80 px), the boats going round bigger still.
 // It stands where the sea's edge is best seen from the track (on a phone the
 // camera shows little either side of a stretch running up the screen: see
 // IN_VIEW), its pontoons clear of the track and wholly in the sea. Where
@@ -11,15 +14,18 @@ import type { Pt } from './racing';
 import { inView, inside, seaOf } from './town3d';
 
 export const MARINA = {
-  /** pontoons, px long out from the quay, and px between them along it */
-  piers: 4,
-  length: 120,
-  apart: 70,
-  /** px between moored boats along a pontoon, and out from its middle to theirs */
-  berth: 26,
-  out: 14,
-  /** boats out on the water, going round */
+  /** pontoons, px long out from the quay, and px between them along it (room for a yacht either side of each) */
+  piers: 3,
+  length: 190,
+  apart: 190,
+  /** px between moored boats along a pontoon (their beams side by side, and a fender's gap), and their lengths */
+  berth: 30,
+  boat: [55, 80] as [number, number],
+  /** px from the pontoon's middle to a moored boat's stern */
+  stern: 6,
+  /** boats out on the water, going round, and their lengths */
   cruisers: 3,
+  cruiser: [70, 100] as [number, number],
 };
 
 export interface Pier {
@@ -80,12 +86,14 @@ export function marinaOf(circuit: Circuit): Marina {
     for (let k = 0; k < samples.length; k += 2) best = Math.min(best, (samples[k].x - x) ** 2 + (samples[k].y - y) ** 2);
     return Math.sqrt(best);
   };
+  /** px either side of a pontoon its moored boats reach */
+  const reachOut = MARINA.stern + MARINA.boat[1];
   /** a pontoon from (x, y) out along (dx, dy): wholly in the sea with room for its boats either side, and clear of the track */
   const fits = (x: number, y: number, dx: number, dy: number) => {
-    for (let a = 8; a <= MARINA.length + 12; a += 10) {
-      for (const side of [-1, 0, 1]) {
-        const px = x + dx * a - dy * side * (MARINA.out + 10);
-        const py = y + dy * a + dx * side * (MARINA.out + 10);
+    for (let a = 8; a <= MARINA.length + 12; a += 12) {
+      for (const side of [-1, -0.5, 0, 0.5, 1]) {
+        const px = x + dx * a - dy * side * reachOut;
+        const py = y + dy * a + dx * side * reachOut;
         if (!inside(sea, px, py) || fromTrack(px, py) < keep) return false;
       }
     }
@@ -95,8 +103,8 @@ export function marinaOf(circuit: Circuit): Marina {
   const seen = (x: number, y: number, dx: number, dy: number) => {
     const cx = x + (dx * MARINA.length) / 2;
     const cy = y + (dy * MARINA.length) / 2;
-    const w = Math.abs(dx) * MARINA.length + Math.abs(dy) * MARINA.apart * MARINA.piers + 30;
-    const d = Math.abs(dy) * MARINA.length + Math.abs(dx) * MARINA.apart * MARINA.piers + 30;
+    const w = Math.abs(dx) * MARINA.length + Math.abs(dy) * reachOut * 2;
+    const d = Math.abs(dy) * MARINA.length + Math.abs(dx) * reachOut * 2;
     return inView(samples, cx, cy, w, d);
   };
   // along every edge of the sea, the root of the best-seen run of pontoons
@@ -136,38 +144,42 @@ export function marinaOf(circuit: Circuit): Marina {
     const p = at(t);
     if (fits(p.x, p.y, nx, ny)) piers.push({ x: p.x, y: p.y, dx: nx, dy: ny, length: MARINA.length });
   }
-  // the boats moored along them: both sides, bows out to sea, now and then a berth empty
+  // the boats moored along them: stern-to on both sides, bows pointing away from the pontoon, now and then a berth
+  // empty (none so long it would reach the next pontoon's)
   const r = rng(53);
-  const out = Math.atan2(nx, -ny);
   const berths: Berth[] = [];
   for (const p of piers) {
-    for (let a2 = 24; a2 <= p.length - 6; a2 += MARINA.berth) {
+    for (let a2 = 20; a2 <= p.length - 10; a2 += MARINA.berth) {
       for (const side of [-1, 1]) {
         if (r() < 0.15) continue;
-        berths.push({
-          x: p.x + p.dx * a2 - p.dy * side * MARINA.out, y: p.y + p.dy * a2 + p.dx * side * MARINA.out,
-          heading: out, length: 18 + r() * 8, kind: r() < 0.4 ? 'sail' : 'motor',
-        });
+        const length = MARINA.boat[0] + r() * (MARINA.boat[1] - MARINA.boat[0]);
+        // (the way out from the pontoon on this side)
+        const ox = -p.dy * side;
+        const oy = p.dx * side;
+        const off = MARINA.stern + length / 2;
+        berths.push({ x: p.x + p.dx * a2 + ox * off, y: p.y + p.dy * a2 + oy * off, heading: Math.atan2(ox, -oy), length, kind: r() < 0.4 ? 'sail' : 'motor' });
       }
     }
   }
   // boats out on the water: each going round a loop past the marina, all of it in the sea and clear of the track
   const cruises: Cruise[] = [];
-  const reach = MARINA.length + 120;
+  const reach = MARINA.length + 200;
   const mid = at(best.t);
-  for (let tries = 0; tries < 400 && cruises.length < MARINA.cruisers; tries++) {
+  for (let tries = 0; tries < 2000 && cruises.length < MARINA.cruisers; tries++) {
     const along = (r() - 0.5) * MARINA.apart * MARINA.piers * 2.5;
     const x = mid.x + nx * (reach * (0.6 + r() * 0.8)) + ((b.x - a.x) / len) * along;
     const y = mid.y + ny * (reach * (0.6 + r() * 0.8)) + ((b.y - a.y) / len) * along;
-    const rx = 50 + r() * 60;
-    const ry = 30 + r() * 40;
-    let ok = true;
-    for (let k = 0; k < 16 && ok; k++) {
-      const px = x + Math.cos((k / 16) * Math.PI * 2) * (rx + 20);
-      const py = y + Math.sin((k / 16) * Math.PI * 2) * (ry + 20);
-      ok = inside(sea, px, py) && fromTrack(px, py) >= keep + 20 && piers.every((p) => Math.hypot(px - (p.x + p.dx * p.length / 2), py - (p.y + p.dy * p.length / 2)) > p.length / 2 + 40);
+    const rx = 100 + r() * 70;
+    const ry = 70 + r() * 40;
+    const length = MARINA.cruiser[0] + r() * (MARINA.cruiser[1] - MARINA.cruiser[0]);
+    // (all the way round with room for its length, clear of the pontoons and their boats, and of the others' loops)
+    let ok = cruises.every((o) => Math.hypot(o.x - x, o.y - y) > Math.max(o.rx, o.ry) + Math.max(rx, ry) + 40);
+    for (let k = 0; k < 24 && ok; k++) {
+      const px = x + Math.cos((k / 24) * Math.PI * 2) * (rx + length / 2 + 10);
+      const py = y + Math.sin((k / 24) * Math.PI * 2) * (ry + length / 2 + 10);
+      ok = inside(sea, px, py) && fromTrack(px, py) >= keep + 20 && piers.every((p) => Math.hypot(px - (p.x + p.dx * p.length / 2), py - (p.y + p.dy * p.length / 2)) > p.length / 2 + reachOut + 30);
     }
-    if (ok) cruises.push({ x, y, rx, ry, period: 16 + r() * 10, phase: r() * Math.PI * 2, length: 22 + r() * 10, kind: r() < 0.5 ? 'sail' : 'motor' });
+    if (ok) cruises.push({ x, y, rx, ry, period: 22 + r() * 14, phase: r() * Math.PI * 2, length, kind: r() < 0.5 ? 'sail' : 'motor' });
   }
   return { piers, berths, cruises };
 }
