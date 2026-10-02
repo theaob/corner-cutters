@@ -300,6 +300,9 @@ export function chooseCircuit(
   const settingsButton = menuButton('SETTINGS', openSettings);
   // the trophy cabinet: the Championships won, then each circuit's medals in a Time Trial and a Time Attack
   const trophies = loadTrophies();
+  /** the cabinet's tab up, and a way to switch (set once it's built) */
+  let cabinetTab: 'medals' | 'achievements' = 'medals';
+  let showTab: (tab: 'medals' | 'achievements') => void = () => {};
   const cabinetTitle = document.createElement('h2');
   cabinetTitle.textContent = 'TROPHIES';
   const cabinet = document.createElement('div');
@@ -325,7 +328,7 @@ export function chooseCircuit(
     const titleText = document.createElement('span');
     titleText.textContent = trophies.titles ? `× ${trophies.titles} CHAMPIONSHIP${trophies.titles === 1 ? '' : 'S'} WON` : 'NO CHAMPIONSHIPS WON YET';
     titleText.style.color = 'inherit';
-    if (trophies.titles) titles.append(trophy(40));
+    if (trophies.titles) titles.append(trophy(28));
     titles.append(titleText);
     const head = document.createElement('div');
     head.className = 'cabinet-row head';
@@ -347,7 +350,20 @@ export function chooseCircuit(
       c.append(medalBadge(m, 20), n);
       tally.append(c);
     }
-    cabinet.append(titles, tally, head, ...layouts.map((l) => {
+    // two tabs: the medals on each circuit, and the achievements
+    const medalsPanel = document.createElement('div');
+    medalsPanel.className = 'cabinet-panel';
+    const achievementsPanel = document.createElement('div');
+    achievementsPanel.className = 'cabinet-panel achievements';
+    const tabs = document.createElement('div');
+    tabs.className = 'cabinet-tabs';
+    const tabButton = (text: string, tab: 'medals' | 'achievements') => {
+      const b = menuButton(text, () => showTab(tab));
+      b.classList.add('cabinet-tab');
+      return b;
+    };
+    cabinet.append(titles, tally, tabs, medalsPanel, achievementsPanel);
+    medalsPanel.append(head, ...layouts.map((l) => {
       const row = document.createElement('div');
       row.className = 'cabinet-row';
       const name = document.createElement('span');
@@ -358,15 +374,23 @@ export function chooseCircuit(
     }));
     const how = document.createElement('p');
     how.textContent = 'A LAP OR A RUN AS QUICK AS THE QUICKEST AI ON EASY: BRONZE · NORMAL: SILVER · HARD: GOLD';
-    cabinet.append(how);
+    medalsPanel.append(how);
     // the achievements: those unlocked in gold (any already earned by medals and titles from before achievements were
     // kept are filled in quietly), the rest dimmed with what they take
     unlock(medalAchievements(trophies, layouts.map((l) => l.id)));
     const got = new Set(unlockedAchievements());
-    const listHead = document.createElement('div');
-    listHead.className = 'achievements-head';
-    listHead.textContent = `ACHIEVEMENTS  ${got.size}/${ACHIEVEMENTS.length}`;
-    cabinet.append(listHead, ...ACHIEVEMENTS.map((a, k) => {
+    const medalsTab = tabButton('MEDALS', 'medals');
+    const achievementsTab = tabButton(`ACHIEVEMENTS ${got.size}/${ACHIEVEMENTS.length}`, 'achievements');
+    tabs.append(medalsTab, achievementsTab);
+    showTab = (tab) => {
+      cabinetTab = tab;
+      medalsPanel.style.display = tab === 'medals' ? '' : 'none';
+      achievementsPanel.style.display = tab === 'achievements' ? '' : 'none';
+      medalsTab.classList.toggle('selected', tab === 'medals');
+      achievementsTab.classList.toggle('selected', tab === 'achievements');
+    };
+    showTab('medals');
+    achievementsPanel.append(...ACHIEVEMENTS.map((a, k) => {
       const row = document.createElement('div');
       row.className = `achievement${got.has(a.id) ? ' got' : ''}`;
       row.style.setProperty('--delay', `${0.2 + k * 0.03}s`);
@@ -614,7 +638,11 @@ export function chooseCircuit(
         if ((a || start) && focus === settingsRows.length) finish(layouts[0], true);
         else if (a || start) closeSettings();
       } else if (view === 'trophies') {
-        // the cabinet: A, START or B goes back
+        // the cabinet: left/right switches its tab; A, START or B goes back
+        if (left || right) {
+          menuTick();
+          showTab(cabinetTab === 'medals' ? 'achievements' : 'medals');
+        }
         if (a || start || b) closeCabinet();
       } else if (view === 'modes') {
         // the modes: up/down moves, A or START picks (or opens SETTINGS or TROPHIES)

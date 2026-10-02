@@ -74,18 +74,33 @@ export interface Landmark {
 }
 
 /** The landmarks' footprints: the casino (its garden in front), the pool (its deck round it), the tennis court (its fence round it); which may lie turned a quarter turn (the casino faces the camera). */
-const LANDMARK = { casino: { w: 170, d: 150, h: 58, turns: false }, pool: { w: 96, d: 150, h: 0, turns: true }, tennis: { w: 84, d: 164, h: 12, turns: true } } as const;
+const LANDMARK = {
+  casino: { w: 170, d: 150, h: 58, turns: false, seen: 0.25 },
+  pool: { w: 96, d: 150, h: 0, turns: true, seen: 0.5 },
+  tennis: { w: 84, d: 164, h: 12, turns: true, seen: 0.5 },
+} as const;
 
 /** px of pavement left between the barriers and a landmark's footprint */
 const LANDMARK_SET_BACK = 6;
 
 /**
  * What the camera shows round your car on a phone, the narrowest screen (px of ground either side, across and up or
- * down the screen): 195 game px wide, and most phones 300 high (a short one 216), at the camera's zoom (0.8), the
- * height stretched on the ground by its pitch (about ±240 px; ±170 on a short phone). A landmark is in the picture
- * when its middle is within this of somewhere on the track.
+ * down the screen), as measured on a 390 × 844 phone: about ±95 across and ±150 up and down past the readouts (the
+ * camera leads a little ahead of the car, so a touch less behind it). How well a landmark is seen is the most of its
+ * footprint in that picture at once, from anywhere on the track (`inView`); it must be at least `SEEN`, not a corner
+ * of it at the picture's edge as you flash by.
  */
-export const IN_VIEW = { across: 120, along: 200 };
+export const IN_VIEW = { across: 95, along: 150 };
+/** the share of a landmark's footprint that must be in the picture at once, from somewhere on the track (the big, tall casino is seen anyway: a quarter of it will do) */
+export const SEEN = { casino: LANDMARK.casino.seen, pool: LANDMARK.pool.seen, tennis: LANDMARK.tennis.seen };
+
+/** The most of footprint (x, y, w across, d deep) the camera shows at once from anywhere along `points` (0…1). */
+export function inView(points: Pt[], x: number, y: number, w: number, d: number): number {
+  const overlap = (a: number, half: number, b: number, view: number) => Math.max(0, Math.min(a + half, b + view) - Math.max(a - half, b - view));
+  let best = 0;
+  for (const p of points) best = Math.max(best, (overlap(x, w / 2, p.x, IN_VIEW.across) * overlap(y, d / 2, p.y, IN_VIEW.along)) / (w * d));
+  return best;
+}
 
 /** px from footprint (x, y, w across, d deep) out to the nearest point of `points`, across or along (whichever is further). */
 function clearOf(points: Pt[], x: number, y: number, w: number, d: number): number {
@@ -128,15 +143,13 @@ export function landmarksOf(circuit: Circuit): Landmark[] {
       stands.every((st) => Math.abs(st.x - x) >= w / 2 + st.len / 2 + STAND.depth || Math.abs(st.y - y) >= d / 2 + st.len / 2 + STAND.depth) &&
       out.every((o) => Math.abs(o.x - x) >= (w + o.w) / 2 + 12 || Math.abs(o.y - y) >= (d + o.d) / 2 + 12) &&
       seeOver(circuit, x, y, w, d) >= h;
-    /** how squarely the camera sees it from the best place on the track (0: its middle at the picture's edge, 1: dead centre); below 0, out of the picture */
-    const seen = (x: number, y: number) => {
-      let best = -Infinity;
-      for (const p of samples) best = Math.max(best, Math.min(1 - Math.abs(p.x - x) / IN_VIEW.across, 1 - Math.abs(p.y - y) / IN_VIEW.along));
-      return best;
-    };
+    /** how much of it the camera shows at once, from the best place on the track */
+    const seen = (x: number, y: number) => inView(samples, x, y, w, d);
     // (round where the layout puts it: the spot that fits and is seen best, a little in favour of the nearer; its
     // usual way round unless turning it is better)
     let at: (Pt & { turned: boolean; score: number }) | undefined;
+    /** (should nowhere it fits be seen well enough: where it fits and is seen best) */
+    let fallback: (Pt & { turned: boolean; view: number }) | undefined;
     for (const turned of turns ? [false, true] : [false]) {
       [w, d] = turned ? [LANDMARK[kind].d, LANDMARK[kind].w] : [LANDMARK[kind].w, LANDMARK[kind].d];
       for (let dx = -LANDMARK_REACH; dx <= LANDMARK_REACH; dx += 8) {
@@ -144,12 +157,35 @@ export function landmarksOf(circuit: Circuit): Landmark[] {
           const x = want.x + dx;
           const y = want.y + dy;
           const view = seen(x, y);
-          if (view < 0.2) continue;
+          if (view < LANDMARK[kind].seen) {
+            if (view > (fallback?.view ?? 0) && fits(x, y)) fallback = { x, y, turned, view };
+            continue;
+          }
           const score = view - (0.6 * Math.hypot(dx, dy)) / LANDMARK_REACH - (turned ? 0.02 : 0);
           if ((!at || score > at.score) && fits(x, y)) at = { x, y, turned, score };
         }
       }
     }
+    // nowhere round where the layout puts it is it seen well enough (on a phone the picture shows little either side
+    // of a stretch running up the screen: it's beside a stretch across it, above or below, that a landmark is seen):
+    // anywhere round the lap just behind the barriers, the nearest to where the layout puts it that's seen well enough
+    if (!at) {
+      for (const turned of turns ? [false, true] : [false]) {
+        [w, d] = turned ? [LANDMARK[kind].d, LANDMARK[kind].w] : [LANDMARK[kind].w, LANDMARK[kind].d];
+        for (let k = 0; k < samples.length; k += 4) {
+          const p = samples[k];
+          for (let extra = 0; extra <= 48; extra += 8) {
+            for (const [x, y] of [[p.x, p.y + clear + d / 2 + extra], [p.x, p.y - clear - d / 2 - extra], [p.x + clear + w / 2 + extra, p.y], [p.x - clear - w / 2 - extra, p.y]]) {
+              const view = seen(x, y);
+              if (view < LANDMARK[kind].seen) continue;
+              const score = view - Math.hypot(x - want.x, y - want.y) / 2000;
+              if ((!at || score > at.score) && fits(x, y)) at = { x, y, turned, score };
+            }
+          }
+        }
+      }
+    }
+    at ??= fallback && { ...fallback, score: 0 };
     [w, d] = at?.turned ? [LANDMARK[kind].d, LANDMARK[kind].w] : [LANDMARK[kind].w, LANDMARK[kind].d];
     out.push(at ? { kind, x: at.x, y: at.y, w, d, h, ...(at.turned ? { turned: true } : {}) } : { kind, ...want, w, d, h });
   }
