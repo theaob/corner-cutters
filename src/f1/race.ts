@@ -14,7 +14,7 @@ import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
 import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, nearestSample, playerInput, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
-import { styleOf } from './drivers';
+import { numberOf, styleOf } from './drivers';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS, fitTyres } from './tyres';
 import { LIMITS } from './trackLimits';
@@ -84,6 +84,8 @@ const TCAM_GREEN = '#39ff14';
 /** How each entrant looks: its name, team, colour, model and effects (index-matched with the race's entrants). */
 interface Look {
   name: string;
+  /** the driver's race number (yours: the seat's) */
+  number?: number;
   team: Team;
   mesh: CarMesh;
   fx: CarFx;
@@ -92,6 +94,9 @@ interface Look {
   was?: { speed: number; health: number };
   lit?: number;
 }
+
+/** A driver as the screens name them: their number first, when they have one (#44 HAM). */
+const numbered = (l: Pick<Look, 'name' | 'number'>) => (l.number === undefined ? l.name : `#${l.number} ${l.name}`);
 
 /** The rear light: lit while a car slows by more than this (px/s²: braking, or lifting at speed, as the hybrid harvests), held this long (s) so it doesn't flicker. */
 const REAR_LIGHT = { decel: 140, hold: 0.18 };
@@ -455,19 +460,21 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const place = order.indexOf(i) + 1;
       const gap = e.progress.retired ? 'OUT' : e.pit ? 'PIT' : e.blue !== undefined ? '▮ BLUE' : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
       style(row, {
-        display: 'grid', gridTemplateColumns: '16px 3px 28px 1fr', gap: '4px', alignItems: 'center', padding: '1px 6px 1px 4px',
+        display: 'grid', gridTemplateColumns: '16px 3px 14px 28px 1fr', gap: '4px', alignItems: 'center', padding: '1px 6px 1px 4px',
         background: i === you ? 'rgba(242,193,78,.18)' : '', color: i === you ? '#f2c14e' : e.progress.retired ? '#6c707a' : '#f4f2fa',
       });
       const bar = document.createElement('i');
       style(bar, { height: '9px', background: looks[i].color, boxShadow: `inset 0 -2px ${looks[i].team.trim}` });
-      const cells = [String(place), bar, looks[i].name, gap].map((c) => {
+      const cells = [String(place), bar, looks[i].number === undefined ? '' : String(looks[i].number), looks[i].name, gap].map((c) => {
         if (typeof c !== 'string') return c;
         const span = document.createElement('span');
         span.textContent = c;
         return span;
       });
-      (cells[3] as HTMLElement).style.textAlign = 'right';
-      (cells[3] as HTMLElement).style.color = e.blue !== undefined ? BLUE_COLOR : '#9d9ab8';
+      // (the number small and dim beside the name)
+      Object.assign((cells[2] as HTMLElement).style, { textAlign: 'right', fontSize: '8px', color: i === you ? '' : '#9d9ab8' });
+      (cells[4] as HTMLElement).style.textAlign = 'right';
+      (cells[4] as HTMLElement).style.color = e.blue !== undefined ? BLUE_COLOR : '#9d9ab8';
       row.append(...cells);
       return row;
     }));
@@ -610,9 +617,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   /** A car on the track in its team's livery (teammates: the team's second car has the bright green T-camera). */
   const addLook = (livery: Team, seat: number, mine: boolean): Look => {
-    const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? 'gold' : undefined });
+    const number = numberOf(livery.drivers[seat]);
+    const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? 'gold' : undefined, number });
     world.scene.add(mesh);
-    return { name: mine ? 'YOU' : livery.drivers[seat], team: livery, mesh, fx: new CarFx(mesh), color: livery.body };
+    return { name: mine ? 'YOU' : livery.drivers[seat], number, team: livery, mesh, fx: new CarFx(mesh), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
   const resetSession = () => {
@@ -940,7 +948,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: 'inherit', color: 'inherit' });
     const head = document.createElement('tr');
     head.style.color = '#9d9ab8';
-    head.append(cell('th', '', true), cell('th', ''), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'BEST', true), cell('th', ''));
+    head.append(cell('th', '', true), cell('th', ''), cell('th', 'NO', true), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'BEST', true), cell('th', ''));
     table.append(head);
     order.forEach((i, pos) => {
       const e = race.entrants[i];
@@ -962,9 +970,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const moved = i - pos;
       const change = cell('td', moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '–');
       change.style.color = moved > 0 ? '#5fe0d0' : moved < 0 ? '#d8323c' : '#6c6a88';
-      row.append(cell('td', `${pos + 1}`, true), change, cell('td', looks[i].name), cell('td', looks[i].team.code), cell('td', time, true), cell('td', best, true), cell('td', notes));
+      row.append(cell('td', `${pos + 1}`, true), change, cell('td', looks[i].number === undefined ? '' : `${looks[i].number}`, true), cell('td', looks[i].name), cell('td', looks[i].team.code), cell('td', time, true), cell('td', best, true), cell('td', notes));
       // the race's fastest lap in purple
-      if (fastest) (row.children[5] as HTMLElement).style.color = '#b36bff';
+      if (fastest) (row.children[6] as HTMLElement).style.color = '#b36bff';
       table.append(row);
     });
     const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
@@ -1774,7 +1782,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (gridPan) {
       // the grid pan: the car the camera's on, by grid place, name and team (you in gold)
       const k = panAt(circuit.slots, gridPan.t).car;
-      banner.textContent = `P${k + 1} ${looks[k].name} · ${looks[k].team.code}`;
+      banner.textContent = `P${k + 1} ${numbered(looks[k])} · ${looks[k].team.code}`;
       banner.style.color = k === you ? '#f2c14e' : '#f4f4f8';
     } else if (race.phase === 'lights') {
       const lit = Math.max(0, Math.min(5, Math.floor((clock + LIGHTS) / 0.6)));

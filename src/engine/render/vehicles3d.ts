@@ -24,6 +24,8 @@ export interface CarLook {
   tcam?: string;
   /** the driver's helmet: plain white unless set; 'gold' is shiny metallic gold (the player's) */
   helmet?: string | 'gold';
+  /** the driver's race number, on a white roundel on the engine cover (none when unset) */
+  number?: number;
 }
 
 /**
@@ -84,9 +86,52 @@ function canvasTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
   return t;
 }
 
-/** The engine-cover texture (`w` x `h` world px): the pattern, 8 texels to a world px. */
+/** The engine-cover texture (`w` x `h` world px): the pattern, 8 texels to a world px, and the race number on it. */
 function deckTexture(look: CarLook, second: string, w: number, h: number): THREE.CanvasTexture {
-  return canvasTexture(paintPattern(Math.round(w * 8), Math.round(h * 8), look.pattern ?? 'plain', look.body, second));
+  const c = paintPattern(Math.round(w * 8), Math.round(h * 8), look.pattern ?? 'plain', look.body, second);
+  if (look.number !== undefined) paintNumber(c, look.number);
+  return canvasTexture(c);
+}
+
+/** The digits as 3×5 pixel figures (rows top to bottom, 1 = lit): blocky, so they still read when the car is small. */
+const DIGITS: Record<string, string[]> = {
+  '0': ['111', '101', '101', '101', '111'],
+  '1': ['010', '110', '010', '010', '111'],
+  '2': ['111', '001', '111', '100', '111'],
+  '3': ['111', '001', '011', '001', '111'],
+  '4': ['101', '101', '111', '001', '001'],
+  '5': ['111', '100', '111', '001', '111'],
+  '6': ['111', '100', '111', '101', '111'],
+  '7': ['111', '001', '010', '010', '010'],
+  '8': ['111', '101', '111', '101', '111'],
+  '9': ['111', '101', '111', '001', '111'],
+};
+
+/**
+ * The race number on `c`, in its middle: dark pixel figures on a white roundel ringed in dark, so it reads on any
+ * livery. Upright with the canvas's top (the car's front) at the top.
+ */
+function paintNumber(c: HTMLCanvasElement, n: number): void {
+  const x = c.getContext('2d')!;
+  const r = Math.min(c.width, c.height) * 0.48;
+  const [cx, cy] = [c.width / 2, c.height / 2];
+  x.beginPath();
+  x.arc(cx, cy, r, 0, Math.PI * 2);
+  x.fillStyle = '#f4f4f8';
+  x.fill();
+  x.lineWidth = Math.max(2, r * 0.08);
+  x.strokeStyle = '#1b1b26';
+  x.stroke();
+  // the figures, a cell of the roundel to each of their pixels, a pixel apart
+  const text = String(n);
+  const wide = text.length * 4 - 1;
+  const cell = Math.floor((r * 1.45) / Math.max(wide, 5));
+  const left = Math.round(cx - (wide * cell) / 2);
+  const top = Math.round(cy - (5 * cell) / 2);
+  x.fillStyle = '#1b1b26';
+  [...text].forEach((d, k) =>
+    DIGITS[d]?.forEach((row, ry) => [...row].forEach((on, rx) => on === '1' && x.fillRect(left + (k * 4 + rx) * cell, top + ry * cell, cell, cell))),
+  );
 }
 
 export const CAR_LOOKS: Record<CarClassId, CarLook> = {
@@ -162,7 +207,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   box(3.5, 1.5, 5, 5.8, 0, [carbon, carbon, carbon, dark, carbon, carbon]); // cockpit
   // the engine cover, spanning the sidepods behind the cockpit: the biggest surface seen from above,
   // carrying the team's pattern
-  if (look.pattern) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8)), dark, pods, pods]);
+  if (look.pattern || look.number !== undefined) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8)), dark, pods, pods]);
   // the air intake above the driver's head, and the T-camera on it: dark, or bright green to mark the
   // team's second car (unlit, so it stays bright in shade and from afar)
   box(2.6, 2.4, 3, 7.6, 2.6, [body, body, body, dark, body, carbon]);
