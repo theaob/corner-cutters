@@ -7,6 +7,7 @@
 import { gridFor } from './bridge';
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
+import type { DeckButton } from '../engine/deck';
 import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { newSeed, seededRandom } from '../engine/rng';
@@ -117,7 +118,7 @@ export interface RaceOptions {
 
 /**
  * The race on `layout` with `options` (your team, the difficulty, the weather, and whether you qualify first);
- * `onQuit` runs when the player leaves (SELECT, or CIRCUITS on the pause screen).
+ * `onQuit` runs when the player leaves (EXIT on the deck, SELECT inside; or CIRCUITS on the pause screen).
  */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
   const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
@@ -289,7 +290,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     return b;
   };
   const pauseHint = document.createElement('div');
-  pauseHint.textContent = 'A RESUME · START RESTART · SELECT CIRCUITS';
+  pauseHint.textContent = 'OR ON THE DECK: RESUME · RESTART · EXIT';
   style(pauseHint, { color: '#9d9ab8', fontSize: '10px', marginTop: '6px', textAlign: 'center', padding: '0 12px' });
   // rain over the picture: streaks falling at a slant, under the readouts
   // the rush of speed: pale streaks flowing past the screen's edges near top speed and in a tow (none in the middle,
@@ -518,7 +519,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     if (!on) openPauseSettings(false);
-    hud.setLabel('a', on ? 'RESUME' : aLabel());
     if (!on) {
       last = performance.now();
       settle = 2;
@@ -540,8 +540,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let seed = 0;
   /** the session on track: qualifying (your flying lap, alone), the race, or a Time Trial (flying laps, alone, against your ghost) */
   let session: 'qualifying' | 'race' | 'timetrial' | 'timeattack' | 'tutorial' = 'race';
-  /** what A does while the session's running: skips qualifying, pauses the race */
-  const aLabel = () => (session === 'qualifying' || session === 'tutorial' || gridPan ? 'SKIP' : 'PAUSE');
   /** The replay over (or skipped): back to the in-lap, live. */
   const endReplay = () => {
     // (a crash's replay over, the race goes on; the finish's is shown once)
@@ -553,7 +551,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** The grid pan over: the lights come on (the camera swings back to your car). */
   const endPan = () => {
     gridPan = undefined;
-    hud.setLabel('a', 'PAUSE');
   };
   /** qualifying: your laps so far, this weekend's field, and once it's over, the grid it set (drivers by slot) and the times */
   let quali: { lap: QualiLap; weekend: ReturnType<typeof drawWeekend>; flying?: boolean; over?: { grid: number[]; times: (number | undefined)[] } } | undefined;
@@ -690,7 +687,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     replayed = false;
     crashDue = undefined;
     lastCrashReplay = -Infinity;
-    hud.setLabel('a', 'SKIP');
   };
 
   /** Qualifying: you on your own, on a flying lap (A skips it: you start mid-grid). */
@@ -708,7 +704,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     race = newQualifying(track, grid, HANDLING, weather.id);
     quali = { lap: newQualiLap(), weekend: w };
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
-    hud.setLabel('a', 'SKIP');
     announce('QUALIFYING · ONE FLYING LAP', '#f2c14e', 3);
   };
 
@@ -729,7 +724,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     reference ??= referenceLap(track, grid, HANDLING, weather.id);
     showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
-    hud.setLabel('a', 'PAUSE');
     announce(trial.record ? `TIME TRIAL · BEAT ${fmt(trial.record.time)}` : 'TIME TRIAL', '#f2c14e', 3);
   };
 
@@ -751,7 +745,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     attack = { a: newAttack(reference, difficulty), best };
     showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
-    hud.setLabel('a', 'PAUSE');
     announce(best ? `TIME ATTACK · BEAT ${distance(best)}` : 'TIME ATTACK · THE CLOCK STARTS AT THE LINE', '#f2c14e', 3);
   };
 
@@ -770,7 +763,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     race = newQualifying(track, grid, HANDLING, weather.id);
     learn = { o: newOnboarding(), bends: 0, lastIdx: race.entrants[0].progress.idx };
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
-    hud.setLabel('a', 'SKIP');
   };
 
   /** A reference lap for the AI's qualifying times (worked out once: it's the same all weekend). */
@@ -790,7 +782,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     quali.over = { grid: gridOrder(times), times };
     // (the session's held from here, on the times: the car falls quiet)
     sounds.quiet();
-    hud.setLabel('a', 'RACE');
     showQualifying();
   };
 
@@ -989,8 +980,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
       line(`BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}${saved.newRace ? ' · NEW!' : ''}`, { color: saved.newRace ? '#f2c14e' : '#f4f2fa' }),
       ...(championship
-        ? [line('A or START to the standings', { marginTop: '8px' }), line('SELECT to leave the round (not counted)')]
-        : [line(qualifying ? 'START to race again from the same grid' : 'START to race again', { marginTop: '8px' }), line('SELECT for circuits')]),
+        ? [line('NEXT: on to the standings', { marginTop: '8px' }), line('EXIT: leave the round (not counted)')]
+        : [line(qualifying ? 'RESTART: race again from the same grid' : 'RESTART: race again', { marginTop: '8px' }), line('EXIT: back to the circuits')]),
     );
     results.style.display = 'block';
   };
@@ -1035,8 +1026,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       table,
       line(place === 1 ? 'POLE POSITION!' : `YOU START P${place}`, { color: '#f2c14e', marginTop: '8px' }),
       line(`QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}${saved.newQualifying ? ' · NEW!' : ''}`, { color: saved.newQualifying ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
-      line('A or START to the grid', { marginTop: '8px' }),
-      line('SELECT for circuits'),
+      line('RACE: on to the grid', { marginTop: '8px' }),
+      line('EXIT: back to the circuits'),
     );
     results.style.animation = 'row-in 0.25s ease-out both';
     results.style.display = 'block';
@@ -1075,8 +1066,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseSettings.style.display = on ? 'flex' : 'none';
     // (the pause screen's buttons out of the way under it)
     pauseScreen.style.visibility = on ? 'hidden' : '';
-    hud.setLabel('a', on ? 'DONE' : paused ? 'RESUME' : aLabel());
-    hud.setLabel('b', on ? 'BACK' : 'DRIFT');
     pauseFocus = 0;
     showPauseFocus();
   };
@@ -1219,7 +1208,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       showMedal();
       if (record) sounds.record();
       sounds.quiet();
-      hud.setLabel('a', 'AGAIN');
     }
   };
   // your record lap's ghost: your car, see-through, driving it again from the line
@@ -1238,6 +1226,31 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   ghostMesh.visible = false;
   world.scene.add(ghostMesh);
 
+  /**
+   * What each deck button does just now ('' for nothing), as the loop below reads them: A the session's own action
+   * (pause, skip, on to what's next), B drift while you're driving, START restart, SELECT exit.
+   */
+  const deckLabels = (): Record<DeckButton, string> => {
+    if (pauseSettingsOn) return { a: 'DONE', b: '', start: '', select: '' };
+    const resultsUp = results.style.display === 'block';
+    const roundOver = !!championship && done;
+    let a = '';
+    if (roundOver && resultsUp) a = 'NEXT';
+    else if (quali?.over) a = 'RACE';
+    else if (attack?.result) a = 'AGAIN';
+    else if (session === 'qualifying') a = 'SKIP';
+    else if (session === 'tutorial') a = learn?.o.step === 'done' ? 'MENU' : 'SKIP';
+    else if (gridPan || replay) a = 'SKIP';
+    else if (!done) a = paused ? 'RESUME' : 'PAUSE';
+    else if (!resultsUp) a = 'SKIP';
+    const driving = !paused && !done && !replay && !gridPan && !quali?.over && !attack?.result;
+    return { a, b: driving ? 'DRIFT' : '', start: roundOver || quali?.over || attack?.result ? '' : 'RESTART', select: 'EXIT' };
+  };
+  const showDeckLabels = () => {
+    const labels = deckLabels();
+    for (const k of ['a', 'b', 'start', 'select'] as const) hud.setLabel(k, labels[k]);
+  };
+
   // ---------------------------------------------------------------- loop
   const focus = new THREE.Vector3(race.entrants[you].car.x, 0, race.entrants[you].car.y);
   const target = new THREE.Vector3();
@@ -1245,8 +1258,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let statTime = 0;
   let fps = 0;
   let miniTime = 0;
-  hud.setLabel('a', aLabel());
-  hud.setLabel('b', 'DRIFT');
 
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
   let lookAt: { x: number; y: number } | undefined;
@@ -1259,6 +1270,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (the first frame's timestamp can be a touch before mount time)
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
+    showDeckLabels();
     // the pause screen's settings: the deck moves through them (and nothing else)
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
@@ -1431,10 +1443,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       learn.bends += apexesPassed(race.corners.map((c) => c.apex), learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
       const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, lapDone: p.lapTimes.length > 0 };
-      if (nextPrompt(learn.o, facts)) {
-        sounds.record();
-        if (learn.o.step === 'done') hud.setLabel('a', 'MENU');
-      }
+      if (nextPrompt(learn.o, facts)) sounds.record();
       if (me.car.wrecked) startTutorial();
     }
     // your car's vibration: crashes, landings, grass and gravel, kerbs
@@ -1688,7 +1697,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const clock = race.clock;
     if (!done && session === 'race' && race.phase === 'racing' && (p.finished !== undefined || p.retired)) {
       done = true;
-      hud.setLabel('a', 'SKIP');
     }
     // your last lap: called, with a bell, as you start it
     if (race.phase === 'racing' && p.lapStart !== undefined && p.finished === undefined && !p.retired && p.lap === laps - 1 && !soundState.finalLap) {
@@ -1780,7 +1788,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const [text, color] =
         replay ? [`${Math.floor(performance.now() / 500) % 2 ? '●' : '○'} REPLAY`, '#d8323c']
         : podium && results.style.display !== 'block' ? [podium.top.map((i, k) => `P${k + 1} ${looks[i].name}`).join(' · '), '#f2c14e']
-        : me.car.wrecked || p.retired ? [championship ? 'DNF' : 'DNF · START to restart', '#d8323c']
+        : me.car.wrecked || p.retired ? [championship ? 'DNF' : 'DNF · RESTART to go again', '#d8323c']
         : done && p.finished !== undefined && results.style.display !== 'block' ? inLapBanner(me.inLap?.to, order.indexOf(you))
         : done ? ['', '']
         : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']

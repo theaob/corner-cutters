@@ -1,5 +1,7 @@
-// The control deck under the game screen: an analogue thumbstick, A/B,
-// Start/Select, and the status strip (race position, lap) plus A/B context labels.
+// The control deck under the game screen: an analogue thumbstick, two face
+// buttons and two small ones (A, B, START and SELECT inside), each showing what
+// it does now, an icon on it and the action's name (hidden when it does
+// nothing), and the status strip (race position, lap).
 
 import { thumbstick, type Button, type Controls } from './controls';
 import { vibrate } from './haptics';
@@ -133,7 +135,29 @@ export function releaseDeck(deck: HTMLElement): void {
   deck.querySelector<HTMLElement>('[data-dpad] .knob')?.style.setProperty('transform', 'translate(0px, 0px)');
 }
 
-/** Status strip (race position and lap) + button labels. */
+/** The deck's buttons that show what they do (the thumbstick aside). */
+export type DeckButton = 'a' | 'b' | 'start' | 'select';
+
+const stroke = (d: string) => `<path d="${d}" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+const fill = (d: string) => `<path d="${d}" fill="currentColor"/>`;
+/** An icon for each thing a deck button does (by its label), drawn on the button: 24×24, in the button's text colour. */
+export const DECK_ICONS: Record<string, string> = {
+  PAUSE: fill('M6 5h4v14H6zM14 5h4v14h-4z'),
+  RESUME: fill('M7 4l13 8-13 8z'),
+  RACE: fill('M7 4l13 8-13 8z'),
+  SKIP: fill('M4 5l10 7-10 7zM16 5h3.5v14H16z'),
+  NEXT: fill('M4 5l10 7-10 7zM16 5h3.5v14H16z'),
+  DRIFT: stroke('M5 20c0-8 5-13 13-13') + fill('M15 2.5l6.5 4.5-6.5 4.5z'),
+  AGAIN: stroke('M19 12a7 7 0 1 1-2.5-5.4') + fill('M14 3.5h7v7z'),
+  RESTART: stroke('M19 12a7 7 0 1 1-2.5-5.4') + fill('M14 3.5h7v7z'),
+  EXIT: stroke('M20 12H6') + fill('M11 5l-8 7 8 7z'),
+  MENU: stroke('M20 12H6') + fill('M11 5l-8 7 8 7z'),
+  BACK: stroke('M20 12H6') + fill('M11 5l-8 7 8 7z'),
+  DONE: stroke('M4.5 12.5l5 5L19.5 7'),
+  OK: stroke('M4.5 12.5l5 5L19.5 7'),
+};
+
+/** Status strip (race position and lap) + what each button does. */
 export class Hud {
   constructor(private readonly deck: HTMLElement) {}
 
@@ -163,7 +187,16 @@ export class Hud {
     this.set('lap', text);
   }
 
-  setLabel(button: 'a' | 'b', text: string): void {
-    this.set(`label-${button}`, text);
+  /** What `button` does now ('' for nothing: it's hidden), named under it and drawn on it. */
+  setLabel(button: DeckButton, text: string): void {
+    const label = this.el(`label-${button}`);
+    if (!label || label.textContent === text) return;
+    label.textContent = text;
+    const key = this.deck.querySelector<HTMLElement>(`[data-button="${button}"]`);
+    const icon = this.el(`icon-${button}`);
+    if (icon) icon.innerHTML = DECK_ICONS[text] ? `<svg viewBox="0 0 24 24" aria-hidden="true">${DECK_ICONS[text]}</svg>` : '';
+    key?.setAttribute('aria-label', text || button);
+    // (the button, and on the face its column with the name under it)
+    (key?.closest('.col') ?? key)?.classList.toggle('idle', !text);
   }
 }
