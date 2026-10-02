@@ -1,7 +1,9 @@
-// The replay after your flag: every car on the track (and the safety car) is
-// recorded through the race, 20 times a second, the last 15 seconds kept; a
-// few seconds after you take the flag the race holds and the 10 seconds up to
-// just past your finish play again, slowing as you cross the line. Engine-free.
+// The replays: every car on the track (and the safety car) is recorded through
+// the race, 20 times a second, the last 15 seconds kept. A few seconds after
+// you take the flag the race holds and the 10 seconds up to just past your
+// finish play again, slowing as you cross the line; and a moment after a big
+// crash, the seconds round it, slowing through the impact (CRASH_REPLAY).
+// Engine-free.
 
 /** Where a car is: on the ground (x, y), its height, its heading. */
 export interface Pose {
@@ -80,3 +82,39 @@ export function replayWindow(r: ReplayRecorder, finish: number): { from: number;
 
 /** How fast the replay plays at race time `t` (slow through the finish at `finish`). */
 export const replaySpeed = (t: number, finish: number) => (Math.abs(t - finish) <= REPLAY.slowWithin ? REPLAY.slow : 1);
+
+/**
+ * The replay of a big crash: a moment after it (seen live first), the race holds and the seconds round it play
+ * again, slowing through the impact, on the crashed car; then the race goes on from where it held. For your own
+ * big crash, or an AI car's wreck within sight of yours; in a race, not after your flag; none within `gap` s of the
+ * last.
+ */
+export const CRASH_REPLAY = {
+  /** s after the crash that its replay starts, and s replayed before and after it */
+  delay: 1.5,
+  before: 2.5,
+  after: 1.5,
+  /** within this many seconds of the impact it plays at this speed (and elsewhere at `speed`) */
+  slowWithin: 0.6,
+  slow: 0.3,
+  speed: 0.8,
+  /** px within which an AI car's wreck is in sight of yours */
+  near: 400,
+  /** s at least between crash replays */
+  gap: 20,
+};
+
+/** Whether a crash earns a replay: yours and big (a wreck, or a hit as big as `bigHit` of the car), or an AI car's wreck within sight of yours; none too soon after the last. */
+export function wantsCrashReplay(c: { mine: boolean; wrecked: boolean; hit: number; bigHit: number; distance: number; now: number; last: number }): boolean {
+  if (c.now - c.last < CRASH_REPLAY.gap) return false;
+  return c.mine ? c.wrecked || c.hit >= c.bigHit : c.wrecked && c.distance <= CRASH_REPLAY.near;
+}
+
+/** The race times a crash at `at` replays between, within what's recorded. */
+export function crashWindow(r: ReplayRecorder, at: number): { from: number; to: number } {
+  const end = r.start + (r.frames.length - 1) / REPLAY.hz;
+  return { from: Math.max(r.start, at - CRASH_REPLAY.before), to: Math.min(end, at + CRASH_REPLAY.after) };
+}
+
+/** How fast a crash replay plays at race time `t` (slow through the impact at `at`). */
+export const crashSpeed = (t: number, at: number) => (Math.abs(t - at) <= CRASH_REPLAY.slowWithin ? CRASH_REPLAY.slow : CRASH_REPLAY.speed);

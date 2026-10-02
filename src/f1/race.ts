@@ -22,7 +22,7 @@ import { RACE_LAPS } from './laps';
 import { GRID_PAN, panAt, panLength } from './gridPan';
 import { landmarksOf } from './town3d';
 import { standsOf } from './stands';
-import { REPLAY, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, type ReplayRecorder } from './replay';
+import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
@@ -545,8 +545,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const aLabel = () => (session === 'qualifying' || session === 'tutorial' || gridPan ? 'SKIP' : 'PAUSE');
   /** The replay over (or skipped): back to the in-lap, live. */
   const endReplay = () => {
+    // (a crash's replay over, the race goes on; the finish's is shown once)
+    if (replay?.kind === 'finish') replayed = true;
     replay = undefined;
-    replayed = true;
     before = undefined;
     debris.back();
   };
@@ -645,7 +646,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /** every car through the race, for the replay after your flag; and the replay when it's on: the race time it's showing, its end, your finish */
   let recorder: ReplayRecorder = newReplay(0);
-  let replay: { t: number; to: number; finish: number } | undefined;
+  let replay: { t: number; to: number; kind: 'finish' | 'crash'; at: number; follow: number } | undefined;
+  /** a big crash's replay to come (its race time, and the car), and when the last was */
+  let crashDue: { at: number; who: number } | undefined;
+  let lastCrashReplay = -Infinity;
   /** when the results went up (ms, page time), for their rows sliding in */
   let resultsUpAt = 0;
   /** the replay has been shown (or skipped) this race */
@@ -684,6 +688,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     recorder = newReplay(slots.length + 1);
     replay = undefined;
     replayed = false;
+    crashDue = undefined;
+    lastCrashReplay = -Infinity;
     hud.setLabel('a', 'SKIP');
   };
 
@@ -1082,10 +1088,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseButton('CIRCUITS', () => onQuit()),
     pauseHint,
   );
-  // the phone's back button: the pause screen's settings closed, the pause screen resumed, the race paused; once
+  // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
   const offBack = onBack(() => {
-    if (pauseSettingsOn) openPauseSettings(false);
+    if (replay && !paused) endReplay();
+    else if (pauseSettingsOn) openPauseSettings(false);
     else if (paused) setPaused(false);
     else if (!done) setPaused(true);
     else if (championship && results.style.display === 'block') finishRound();
@@ -1280,9 +1287,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (aPressed && session === 'tutorial') onQuit();
     // the grid pan: A skips it, straight to the lights
     else if (aPressed && gridPan) endPan();
-    else if (aPressed && !done) setPaused(!paused);
-    // the replay: A skips it, back to the in-lap
+    // a replay: A skips it, back to the race (or the in-lap)
     else if (aPressed && replay) endReplay();
+    else if (aPressed && !done) setPaused(!paused);
     // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
     else if (aPressed && done && results.style.display !== 'block') {
       if (!podium) startCeremony();
@@ -1354,10 +1361,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const mine = race.entrants[you].progress;
       if (!replay && !replayed && session === 'race' && mine.finished !== undefined && race.clock >= mine.finished + REPLAY.startAt && !podium && results.style.display !== 'block') {
         const w = replayWindow(recorder, mine.finished);
-        replay = { t: w.from, to: w.to, finish: mine.finished };
+        replay = { t: w.from, to: w.to, kind: 'finish', at: mine.finished, follow: you };
+      }
+      // a big crash's: a moment after it, the seconds round it, on the crashed car (then the race goes on)
+      if (!replay && crashDue && race.clock >= crashDue.at + CRASH_REPLAY.delay) {
+        const w = crashWindow(recorder, crashDue.at);
+        replay = { t: w.from, to: w.to, kind: 'crash', at: crashDue.at, follow: crashDue.who };
+        crashDue = undefined;
       }
       if (replay) {
-        replay.t += dt * replaySpeed(replay.t, replay.finish);
+        replay.t += dt * (replay.kind === 'crash' ? crashSpeed(replay.t, replay.at) : replaySpeed(replay.t, replay.at));
         if (replay.t >= replay.to) endReplay();
       }
     }
@@ -1495,6 +1508,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (e.kind === 'retired') looks[e.who].mesh.visible = false;
       // a big crash tears the nose off (the car keeps going, if it can); a wreck loses a wheel or two as well
       else if (e.kind === 'crash') {
+        // a big one: replayed in a moment (in a race, before your flag)
+        const me = race.entrants[you];
+        const them = race.entrants[e.who].car;
+        if (session === 'race' && !done && !crashDue && wantsCrashReplay({
+          mine: e.who === you, wrecked: e.wrecked, hit: e.hit, bigHit: SAFETY_CAR.bigHit, distance: Math.hypot(them.x - me.car.x, them.y - me.car.y), now: race.clock, last: lastCrashReplay,
+        })) {
+          crashDue = { at: race.clock, who: e.who };
+          lastCrashReplay = race.clock;
+        }
         // (a gasp from the stands)
         sounds.cheer(e.wrecked ? 0.55 : 0.3);
         if (e.who === you && e.wrecked) sayRadio('wreck');
@@ -1846,7 +1868,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
     const c = me.car;
     const drawn = pose(c, you, alpha);
-    const mineThen = replay && replayPose(recorder, you, replay.t);
+    const mineThen = replay && replayPose(recorder, replay.follow, replay.t);
     if (lookAt) {
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);

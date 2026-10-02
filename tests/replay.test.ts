@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REPLAY, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, type Pose } from '../src/f1/replay';
+import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type Pose } from '../src/f1/replay';
 
 /** Two cars driving north at 100 px/s; the second only from t = 3 (before that it's off the track). */
 const at = (t: number): (Pose | undefined)[] => [{ x: 0, y: -100 * t, z: 1, heading: 0 }, t >= 3 ? { x: 30, y: -100 * t, z: 1, heading: 0.1 } : undefined];
@@ -40,5 +40,35 @@ describe('the replay', () => {
     expect(replayWindow(recorded(5), 4).from).toBe(0);
     expect(replaySpeed(26.5, 26)).toBe(REPLAY.slow);
     expect(replaySpeed(22, 26)).toBe(1);
+  });
+});
+
+describe('the replay of a big crash', () => {
+  const base = { mine: true, wrecked: false, hit: 0, bigHit: 0.4, distance: 0, now: 60, last: -Infinity };
+
+  it('is for your big crash (a wreck, or a big hit), or an AI wreck in sight of you', () => {
+    expect(wantsCrashReplay({ ...base, wrecked: true })).toBe(true);
+    expect(wantsCrashReplay({ ...base, hit: 0.45 })).toBe(true);
+    expect(wantsCrashReplay({ ...base, hit: 0.2 })).toBe(false);
+    expect(wantsCrashReplay({ ...base, mine: false, wrecked: true, distance: 300 })).toBe(true);
+    expect(wantsCrashReplay({ ...base, mine: false, wrecked: true, distance: CRASH_REPLAY.near + 50 })).toBe(false);
+    // (an AI car's big hit that doesn't wreck it: no)
+    expect(wantsCrashReplay({ ...base, mine: false, hit: 0.9, distance: 10 })).toBe(false);
+  });
+
+  it('is not too soon after the last', () => {
+    expect(wantsCrashReplay({ ...base, wrecked: true, last: 60 - CRASH_REPLAY.gap + 1 })).toBe(false);
+    expect(wantsCrashReplay({ ...base, wrecked: true, last: 60 - CRASH_REPLAY.gap - 1 })).toBe(true);
+  });
+
+  it('plays the seconds round the impact, within what was recorded, slowest through the impact', () => {
+    const r = recorded(12);
+    expect(crashWindow(r, 8)).toEqual({ from: 8 - CRASH_REPLAY.before, to: 8 + CRASH_REPLAY.after });
+    // (a crash just recorded: it ends where the recording does)
+    expect(crashWindow(r, 11.5).to).toBeCloseTo(12, 1);
+    expect(crashSpeed(8, 8)).toBe(CRASH_REPLAY.slow);
+    expect(crashSpeed(6, 8)).toBe(CRASH_REPLAY.speed);
+    // (it starts once the seconds after the impact it shows are recorded)
+    expect(CRASH_REPLAY.delay).toBeGreaterThanOrEqual(CRASH_REPLAY.after);
   });
 });
