@@ -42,6 +42,19 @@ describe('teams', () => {
     }
   });
 
+  it('seat you in the car you picked, your teammate in the other', () => {
+    for (const seed of [11, 3, 7]) {
+      const grid = teamGrid(TEAMS[2], 10, 5, seeded(seed));
+      const seats = driverSeats(grid, 5, 1);
+      expect(seats[5]).toBe(1);
+      const mate = grid.findIndex((t, i) => i !== 5 && t === grid[5]);
+      expect(seats[mate]).toBe(0);
+      // (the other teams as before)
+      const before = driverSeats(grid, 5);
+      grid.forEach((t, i) => t !== grid[5] && expect(seats[i]).toBe(before[i]));
+    }
+  });
+
   it('each have two drivers with their own three-letter codes, 22 in all', () => {
     const codes = TEAMS.flatMap((t) => t.drivers);
     expect(codes).toHaveLength(TEAMS.length * 2);

@@ -17,7 +17,8 @@ import { holdTouches } from '../engine/deck';
 import { menuPick, menuTick } from './sounds';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
-import { TEAMS, type Team } from './teams';
+import { numberOf } from './drivers';
+import { TEAMS, type Seat, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime, loadRecords } from './records';
 import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
@@ -99,13 +100,15 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
 ];
 
 /** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen). */
-export const rowsOf = (mode: GameMode): ('team' | 'weather' | 'qualifying' | 'laps')[] =>
-  mode === 'race' ? ['team', 'weather', 'qualifying', 'laps'] : mode === 'championship' ? [] : ['team', 'weather'];
+export const rowsOf = (mode: GameMode): ('team' | 'car' | 'weather' | 'qualifying' | 'laps')[] =>
+  mode === 'race' ? ['team', 'car', 'weather', 'qualifying', 'laps'] : mode === 'championship' ? [] : ['team', 'car', 'weather'];
 
 export interface MenuChoice {
   mode: GameMode;
   layout: CircuitLayout;
   team: Team;
+  /** which of the team's two cars you drive */
+  seat: Seat;
   difficulty: Difficulty;
   weather: Weather;
   /** a qualifying lap before the race, to set your place on the grid */
@@ -203,7 +206,20 @@ export function optionRow<T>(
     if (by) step(by);
   });
   render();
-  return { el, step, value: () => values[i] };
+  // (refresh: draw it again, when what it shows depends on another row)
+  return { el, step, value: () => values[i], refresh: render };
+}
+
+/**
+ * The CAR row, under TEAM: which of the team's two cars you drive (`team()`, the team picked): you take that
+ * driver's seat and number, and their teammate races the other.
+ */
+export function carRow(team: () => Team, start: Seat) {
+  const named = (code: string) => {
+    const n = numberOf(code);
+    return n === undefined ? code : `#${n} ${code}`;
+  };
+  return optionRow<Seat>('CAR', [0, 1], start, (s) => ({ name: named(team().drivers[s]), about: `teammate ${named(team().drivers[s === 0 ? 1 : 0])}` }));
 }
 
 /** A menu button, picked on the press's release (not 'click': in a cross-origin frame on a phone a tap's click can go astray). */
@@ -237,6 +253,8 @@ export function chooseCircuit(
   mode: GameMode = 'race',
   /** a Quick Race's laps, as last chosen */
   laps: number = RACE_LAPS,
+  /** which of the team's cars you drive, as last chosen */
+  seat: Seat = 0,
   /** the circuits open for a Quick Race, a Time Attack or a Time Trial (the rest are reached in a Championship) */
   open: ReadonlySet<string> = new Set(layouts.map((l) => l.id)),
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
@@ -267,12 +285,14 @@ export function chooseCircuit(
   let view: 'modes' | 'circuit' | 'settings' | 'trophies' = 'modes';
   let finish: (l: CircuitLayout) => void = () => {};
 
-  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
+  // (the CAR row names the team's drivers: drawn again when the team changes)
+  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }), () => carChoice.refresh());
+  const carChoice = carRow(() => teamRow.value(), seat);
   const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   // (a Quick Race's: a Championship round is always RACE_LAPS, and a Time Trial is laps until you stop)
   const lapsRow = optionRow('LAPS', [...LAP_CHOICES], laps, (n) => ({ name: `${n}`, about: lapsAbout(n) }));
-  const ROWS = { team: teamRow, weather: weatherRow, qualifying: qualifyingRow, laps: lapsRow };
+  const ROWS = { team: teamRow, car: carChoice, weather: weatherRow, qualifying: qualifyingRow, laps: lapsRow };
   /** the rows on the circuit screen, for the mode picked */
   let rows = rowsOf(current.id).map((k) => ROWS[k]);
 
@@ -620,7 +640,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, layout, team: teamRow.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
+      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;
