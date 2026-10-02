@@ -1,7 +1,7 @@
 // A street circuit's town in 3D: an old, rich town of stone houses and towers
 // packed right up to the barriers, its landmarks (the casino by the hairpin,
-// an open-air swimming pool, a tennis court with a rally on), palms, yachts on
-// the sea, and the tunnel's see-through roof. Nothing in it is ever so tall it
+// an open-air swimming pool, a tennis court with a rally on), palms, a marina
+// and boats on the sea (marina.ts), and the tunnel's see-through roof. Nothing in it is ever so tall it
 // hides the track from the camera, which looks down from the south: a building
 // with track behind it is kept low enough to see over.
 
@@ -15,6 +15,7 @@ import type { Pt } from './racing';
 import { HALF_WIDTH, TILE as T, type Circuit } from './circuit';
 import { GARAGE_ACROSS } from './pits';
 import { STAND, standsOf } from './stands';
+import { cruiseAt, marinaOf, type Cruise } from './marina';
 
 /** Whether (x, y) is inside the polygon `poly`. */
 export function inside(poly: Pt[], x: number, y: number): boolean {
@@ -666,26 +667,52 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
     if ('animate' in made) moving.push(made);
   }
 
-  // yachts on the sea, clear of the quay
-  const hull = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
-  const cabin = new THREE.MeshLambertMaterial({ color: 0xc9ccd4 });
-  let boats = 0;
-  for (let tries = 0; tries < 400 && boats < 16; tries++) {
+  // the marina (marina.ts): wooden pontoons out from the quay, yachts moored along them, boats going round out on
+  // the water; and a few more at anchor further out
+  const marina = marinaOf(circuit);
+  const deck = new THREE.MeshLambertMaterial({ color: 0x9c7650 });
+  const post = new THREE.MeshLambertMaterial({ color: 0x4a3a2c });
+  for (const p of marina.piers) {
+    const h = groundAt(grid, p.x + p.dx * 30, p.y + p.dy * 30).h;
+    const pier = new THREE.Group();
+    const boards = new THREE.Mesh(new THREE.BoxGeometry(9, 2, p.length), deck);
+    boards.position.set(0, 2.5, -p.length / 2);
+    boards.receiveShadow = true;
+    pier.add(boards);
+    for (let a = 8; a <= p.length; a += 22) {
+      for (const side of [-1, 1]) {
+        const pole = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 2), post);
+        pole.position.set(side * 5, 3, -a);
+        pier.add(pole);
+      }
+    }
+    // (built running up the screen from the quay, then turned the way it runs out)
+    pier.position.set(p.x, h, p.y);
+    pier.rotation.y = -Math.atan2(p.dx, -p.dy);
+    scene.add(pier);
+  }
+  const floating: { group: THREE.Group; base: number; phase: number; cruise?: Cruise }[] = [];
+  const launch = (x: number, y: number, heading: number, length: number, kind: 'motor' | 'sail', cruise?: Cruise) => {
+    const group = boat(length, kind, r, !!cruise);
+    const base = groundAt(grid, x, y).h;
+    group.position.set(x, base, y);
+    group.rotation.y = -heading;
+    scene.add(group);
+    floating.push({ group, base, phase: r() * Math.PI * 2, cruise });
+  };
+  for (const b of marina.berths) launch(b.x, b.y, b.heading, b.length, b.kind);
+  for (const c of marina.cruises) {
+    const at = cruiseAt(c, 0);
+    launch(at.x, at.y, at.heading, c.length, c.kind, c);
+  }
+  // (at anchor: out on the sea, clear of the quay and of the marina)
+  for (let tries = 0, anchored = 0; tries < 400 && anchored < 6; tries++) {
     const x = r() * W * T;
     const y = r() * H * T;
-    if (!inside(sea, x, y) || fromTrack(x, y) < keep + 30) continue;
-    const yacht = new THREE.Group();
-    const length = 34 + r() * 22;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(length, 6, length * 0.32), hull);
-    body.position.y = 3;
-    const top = new THREE.Mesh(new THREE.BoxGeometry(length * 0.45, 6, length * 0.22), cabin);
-    top.position.set(-length * 0.08, 9, 0);
-    for (const part of [body, top]) part.castShadow = true;
-    yacht.add(body, top);
-    yacht.position.set(x, groundAt(grid, x, y).h, y);
-    yacht.rotation.y = Math.floor(r() * 4) * (Math.PI / 2) + 0.3;
-    scene.add(yacht);
-    boats++;
+    if (!inside(sea, x, y) || fromTrack(x, y) < keep + 60) continue;
+    if (marina.piers.some((p) => Math.hypot(x - (p.x + (p.dx * p.length) / 2), y - (p.y + (p.dy * p.length) / 2)) < p.length + 60)) continue;
+    launch(x, y, r() * Math.PI * 2, 28 + r() * 16, r() < 0.5 ? 'sail' : 'motor');
+    anchored++;
   }
 
   // the tunnel's roof: concrete slabs over the track, see-through so the cars show under it
@@ -703,6 +730,87 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
   return {
     animate(t) {
       for (const m of moving) m.animate(t);
+      // the boats bob on the water, and those going round go round
+      for (const f of floating) {
+        if (f.cruise) {
+          const at = cruiseAt(f.cruise, t);
+          f.group.position.set(at.x, f.base, at.y);
+          f.group.rotation.y = -at.heading;
+        }
+        f.group.position.y = f.base + Math.sin(t * 1.3 + f.phase) * 0.5;
+        f.group.rotation.z = Math.sin(t * 0.9 + f.phase) * 0.03;
+      }
     },
   };
+}
+
+/** Boats' colours: their hulls, now and then a dark one, and their trim. */
+const HULLS = [0xf4f4f8, 0xf4f4f8, 0xf4f4f8, 0x1f2a44, 0xe8e2d4];
+const TRIMS = [0x3d7fc4, 0xd8323c, 0x1f2a44, 0x2f8f6a];
+
+/**
+ * A boat `length` px long, its bow pointing up the screen (−z) and its keel at the water: a hull with a pointed bow,
+ * a teak deck and a stripe, then a motor yacht's cabin and flybridge or a sailboat's mast, boom and furled sail; with
+ * a white wake behind it if it's `under way`.
+ */
+function boat(length: number, kind: 'motor' | 'sail', r: () => number, underWay: boolean): THREE.Group {
+  const group = new THREE.Group();
+  const beam = length * 0.34;
+  const outline = new THREE.Shape();
+  // (top view: the stern square at +y, the bow coming to a point at −y)
+  outline.moveTo(-beam / 2, length / 2);
+  outline.lineTo(beam / 2, length / 2);
+  outline.lineTo(beam / 2, -length * 0.1);
+  outline.quadraticCurveTo(beam / 2, -length * 0.38, 0, -length / 2);
+  outline.quadraticCurveTo(-beam / 2, -length * 0.38, -beam / 2, -length * 0.1);
+  outline.closePath();
+  const slab = (depth: number, scale = 1) => {
+    const g = new THREE.ExtrudeGeometry(outline, { depth, bevelEnabled: false });
+    // (the outline lies flat, extruded up)
+    g.rotateX(Math.PI / 2);
+    g.scale(scale, 1, scale);
+    g.translate(0, depth, 0);
+    return g;
+  };
+  const hullColor = HULLS[Math.floor(r() * HULLS.length)];
+  const hull = new THREE.Mesh(slab(5), new THREE.MeshLambertMaterial({ color: hullColor }));
+  const stripe = new THREE.Mesh(slab(1, 1.01), new THREE.MeshLambertMaterial({ color: TRIMS[Math.floor(r() * TRIMS.length)] }));
+  stripe.position.y = 3;
+  const teak = new THREE.Mesh(slab(0.6, 0.62), new THREE.MeshLambertMaterial({ color: 0xb08050 }));
+  teak.position.y = 5;
+  group.add(hull, stripe, teak);
+  const white = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
+  if (kind === 'motor') {
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.7, 5, length * 0.42), white);
+    cabin.position.set(0, 8, length * 0.05);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.72, 1.6, length * 0.3), new THREE.MeshLambertMaterial({ color: 0x2a3446 }));
+    glass.position.set(0, 9, length * 0.02);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.5, 2.5, length * 0.2), white);
+    bridge.position.set(0, 11.5, length * 0.1);
+    group.add(cabin, glass, bridge);
+  } else {
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, length * 1.2, 5), new THREE.MeshLambertMaterial({ color: 0xd8d8de }));
+    mast.position.set(0, 5 + length * 0.6, -length * 0.08);
+    const boom = new THREE.Mesh(new THREE.BoxGeometry(1, 1, length * 0.45), new THREE.MeshLambertMaterial({ color: 0xd8d8de }));
+    boom.position.set(0, 9, length * 0.14);
+    const sail = new THREE.Mesh(new THREE.BoxGeometry(2, 2, length * 0.42), new THREE.MeshLambertMaterial({ color: 0x3d5f80 }));
+    sail.position.set(0, 10.2, length * 0.14);
+    const cockpit = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.55, 3, length * 0.22), white);
+    cockpit.position.set(0, 6.5, -length * 0.02);
+    group.add(mast, boom, sail, cockpit);
+  }
+  for (const part of group.children) part.castShadow = true;
+  if (underWay) {
+    // its wake: a white V spreading out behind it
+    const v = new THREE.Shape();
+    v.moveTo(-beam * 0.4, 0);
+    v.lineTo(beam * 0.4, 0);
+    v.lineTo(beam * 1.6, length * 1.6);
+    v.lineTo(-beam * 1.6, length * 1.6);
+    v.closePath();
+    const wake = new THREE.Mesh(new THREE.ShapeGeometry(v).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false }));
+    wake.position.set(0, 0.6, length * 0.45);
+    group.add(wake);
+  }
+  return group;
 }
