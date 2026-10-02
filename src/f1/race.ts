@@ -11,7 +11,7 @@ import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../eng
 import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
 import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
-import { NORMAL, aiCraftFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
+import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
 import { styleOf } from './drivers';
 import { DRY, type Weather } from './weather';
 import { COMPOUNDS, fitTyres } from './tyres';
@@ -601,6 +601,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const ai: AiDriver | undefined = k === youDriver ? undefined : {
         lane: ((k * 7) % 11) - 5, pace: aiPaceFor(difficulty, ranks[k], total, t.aiPaceAdjust), craft: aiCraftFor(difficulty, rng, style.aggression),
         mistakes: aiMistakesFor(difficulty, style.consistency), rng: seededRandom(Math.floor(rng() * 4294967296)),
+        incidents: aiIncidentsFor(difficulty, style.aggression),
       };
       // its reaction off the lights, on dice of its own from the seed and its slot (not drawn from the weekend's, so the
       // rest of the field is drawn as it was)

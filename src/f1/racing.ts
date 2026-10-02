@@ -254,6 +254,10 @@ export interface AiDriver {
   wasStraight?: boolean;
   /** s after lights out before it gets going (its reaction off the line); none: away at once */
   reaction?: number;
+  /** its chance, close behind another car into a braking bend, of misjudging it (a dive far too late, into the car ahead): none without */
+  incidents?: number;
+  /** the dive it's making: at the car ahead, from where on the lap (a sample), a bend's length at most */
+  lunge?: { car: Car; from: number };
 }
 
 /** The lateral offset (px, + = right of the centreline) of point (x, y) near sample i. */
@@ -316,6 +320,8 @@ export interface Orders {
   blue?: Car;
   /** the cars shown blue flags for this one (moving over to let it by): it goes by them, not queueing behind */
   lapping?: Car[];
+  /** a car it never dives at (the player's: incidents are between AI cars) */
+  spare?: Car;
 }
 
 /** px of straight a tow needs ahead to be used (room to brake from the extra speed), on top of 1.1 s at the car's speed */
@@ -342,6 +348,11 @@ export const RACECRAFT = {
   defendRange: 100,
   /** px a car alongside is left: a car's width and some */
   room: 22,
+  /** a misjudgement: from within this many px behind a car into a braking bend, the dive lasts at most `lungeFor` px of
+   * track, braking only to `lungeBrake` of its speed */
+  lungeFrom: 90,
+  lungeFor: 260,
+  lungeBrake: 1,
   /** blue flags: px off the centreline a car being lapped moves over to (away from the car lapping it), and its pace on
    * the straight while that car is within `blueClose` px behind */
   blueLane: 24,
@@ -493,6 +504,13 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
     for (let k = 0; k * track.spacing < 300; k += 2) slowest = Math.min(slowest, track.samples[(idx + k) % n].speed);
     return slowest < 0.8 * top;
   };
+  // a misjudgement, close behind a car into a braking bend: diving in far too late, at it (it seldom ends well)
+  if (ai.wasStraight && !straight && racing && ai.rng && ai.incidents && !ai.lunge && !ai.slip) {
+    const target = seen.find((c) => !c.o.wrecked && c.o !== orders.spare && c.along > 8 && c.along < R.lungeFrom && Math.abs(c.across) < 22);
+    if (target && braking() && ai.rng() < ai.incidents) ai.lunge = { car: target.o, from: idx };
+  }
+  const lungeAt = ai.lunge && seen.find((c) => c.o === ai.lunge!.car);
+  if (ai.lunge && (!racing || !lungeAt || lungeAt.along < -10 || ((idx - ai.lunge.from + n) % n) * track.spacing > R.lungeFor)) ai.lunge = undefined;
   if (ai.wasStraight && !straight && racing && ai.rng && ai.mistakes && braking() && ai.rng() < ai.mistakes) {
     ai.slip = ai.rng() < 0.5 ? 'late' : 'wide';
     ai.slipMin = Infinity;
@@ -517,6 +535,8 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const passing = passCar ? seen.find((c) => c.o === passCar) : undefined;
   if (move?.kind === 'pass' && passing) lane = passing.theirs + move.side * R.passGap;
   else if (move?.kind === 'defend') lane = move.side * R.cover * Math.min(1, (craft - R.defendFrom) / (1 - R.defendFrom) + 0.25);
+  // diving in: at the car ahead, off the brakes
+  if (lungeAt) lane = lungeAt.theirs;
   // blue flags: over to the side away from the car lapping us, a touch off the pace on the straight while it's close
   if (lapper) {
     lane = (lapper.theirs >= mine ? -1 : 1) * R.blueLane;
@@ -540,18 +560,21 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
 
   // too close to get by (a pack braking into a hairpin): don't drive into its gearbox. Watched across
   // nearly two car widths, so a car merging from the side counts too; pulled out to pass, only while overlapping it
+  // (diving in: hardly braking)
+  if (lungeAt) free = Math.max(free, v * R.lungeBrake);
   let follow = Infinity;
   const band = move?.kind === 'pass' ? 18 : 26;
   for (const c of seen) {
-    // (a car moved over to let us by: only in the way if it's still right in front)
+    // (a car moved over to let us by: only in the way if it's still right in front; the car being dived on, not at all)
     if (orders.lapping?.includes(c.o) && Math.abs(c.across) >= 16) continue;
+    if (c.o === ai.lunge?.car) continue;
     const closing = v - c.speed;
     if (!c.o.wrecked && c.along > 0 && c.along < 44 + Math.max(0, closing) * 0.7 && Math.abs(c.across) < band) follow = Math.min(follow, c.speed);
   }
   // side by side into a bend, a nose behind: give way, dropping in behind rather than both fighting for it
   // (not under the safety car, where the order holds; but while the pack settles from the start, yes: the first
   // corner is where cars are most often side by side)
-  if (!straight && orders.limit === undefined) for (const c of alongside) if (c.along > 4) follow = Math.min(follow, c.speed - YIELD);
+  if (!straight && orders.limit === undefined && !ai.lunge) for (const c of alongside) if (c.along > 4) follow = Math.min(follow, c.speed - YIELD);
   const tx = t.x + Math.cos(t.dir) * lane;
   const ty = t.y + Math.sin(t.dir) * lane;
   const dx = tx - car.x;

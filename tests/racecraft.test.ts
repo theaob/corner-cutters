@@ -3,11 +3,11 @@ import { carClass, newCar, type Car } from '../src/engine/driving';
 import { seededRandom } from '../src/engine/rng';
 import { buildCircuit, type Circuit } from '../src/f1/circuit';
 import { LAYOUTS, SILVER_HEATH } from '../src/f1/layouts';
-import { DIFFICULTIES, aiCraftFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks } from '../src/f1/difficulty';
+import { DIFFICULTIES, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks } from '../src/f1/difficulty';
 import { STYLES, styleOf } from '../src/f1/drivers';
 import { TEAMS } from '../src/f1/teams';
 import { RACE_HANDLING, aiInput, lateralOffset, lineCornerSpeed, lineDecel, type AiDriver } from '../src/f1/racing';
-import { SETTLE, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
+import { SETTLE, newRace, order, racingIncident, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -207,7 +207,7 @@ describe('a defence', () => {
 });
 
 describe.each(LAYOUTS)('races at $name with mixed grids', (layout) => {
-  it.each(DIFFICULTIES)('$name: the quicker cars race their way forward, and nobody wrecks', (d) => {
+  it.each(DIFFICULTIES)('$name: the quicker cars race their way forward, and with no incidents (aiIncidentsFor) nobody wrecks', (d) => {
     const c = build(layout);
     let gained = 0;
     for (const seed of [1, 2]) {
@@ -237,4 +237,54 @@ describe.each(LAYOUTS)('races at $name with mixed grids', (layout) => {
     // (from after the start's settling: overtakes, not the first-lap shuffle; on EASY nobody defends, so there are always some)
     if (d.id === 'easy') expect(gained).toBeGreaterThan(0);
   }, 60_000);
+});
+
+describe('racing incidents', () => {
+  it('are likelier for a more aggressive driver, and on an easier difficulty', () => {
+    const [easy, normal, hard] = DIFFICULTIES;
+    expect(aiIncidentsFor(normal, 0.2)).toBeGreaterThan(aiIncidentsFor(normal, 0));
+    expect(aiIncidentsFor(normal, -0.1)).toBeLessThan(aiIncidentsFor(normal, 0));
+    expect(aiIncidentsFor(easy)).toBeGreaterThan(aiIncidentsFor(normal));
+    expect(aiIncidentsFor(normal)).toBeGreaterThan(aiIncidentsFor(hard));
+    expect(aiIncidentsFor(normal, -1)).toBeGreaterThan(0);
+  });
+
+  it('are a dive at the AI car ahead into a bend that ends in a crash, never at your car', () => {
+    const c = build();
+    // (every chance taken, to see plenty; the player's car in the middle of the grid)
+    const field = c.slots.slice(0, 8).map((s, i) => ({
+      car: newCar(f1, s.x, s.y, s.heading), box: i >> 1,
+      ai: i === 3 ? undefined : { lane: ((i * 7) % 11) - 5, pace: 0.93 - i * 0.004, craft: 0.6, incidents: 1, rng: seededRandom(7 + i) },
+    }));
+    const you = field[3].car;
+    const race = newRace(c.track, c.grid, RACE_HANDLING, 3, field, 0.5, c.pit);
+    let dives = 0;
+    let crashes = 0;
+    for (let t = 0; t < 120; t += dt) {
+      const was = race.entrants.map((e) => e.ai?.lunge);
+      // (you: on the racing line at a steady pace, as a player might be)
+      const events = stepRace(race, dt, (e) => aiInput(e.car, race.track, e.progress.idx, { lane: 0, pace: 0.9 }, race.entrants.filter((o) => o !== e).map((o) => o.car))).race;
+      crashes += events.filter((e) => e.kind === 'crash' && e.who !== 3).length;
+      race.entrants.forEach((e, i) => {
+        if (e.ai?.lunge && !was[i]) {
+          dives++;
+          expect(e.ai.lunge.car).not.toBe(you);
+        }
+      });
+    }
+    expect(dives).toBeGreaterThan(2);
+    expect(crashes).toBeGreaterThan(0);
+  }, 60_000);
+
+  it('hit both cars hard and spin the one hit round', () => {
+    const diver = newCar(f1, 0, 40, 0);
+    const hit = newCar(f1, 3, 0, 0);
+    Object.assign(diver, { vy: -260 });
+    Object.assign(hit, { vy: -140 });
+    racingIncident(diver, hit, 120, RACE_HANDLING);
+    expect(diver.health).toBeLessThan(diver.cls.health * 0.6);
+    expect(hit.health).toBeLessThan(diver.health);
+    expect(Math.abs(hit.heading)).toBeGreaterThan(1.5);
+    expect(Math.hypot(hit.vx, hit.vy)).toBeLessThan(80);
+  });
 });

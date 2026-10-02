@@ -10,7 +10,7 @@
 // so a whole race, crashes and all, runs in a test exactly as in the game.
 
 import { blueFlags } from './blueFlags';
-import { carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
+import { applyDamage, carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
 import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
 import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
@@ -306,6 +306,19 @@ export function isBigCrash(car: Car, healthBefore: number, wreckedNow: boolean):
   return wreckedNow || healthBefore - car.health >= SAFETY_CAR.bigHit * car.cls.health;
 }
 
+/** A dive's contact: `closing` px/s into the car ahead. Both take a hard hit; the car hit spins half round and slows. */
+export const INCIDENT = { damage: 0.25, spin: 2.6, slow: 0.5 };
+
+export function racingIncident(diver: Car, hit: Car, closing: number, p: HandlingParams): void {
+  applyDamage(diver, closing * INCIDENT.damage, p);
+  applyDamage(hit, closing * INCIDENT.damage * 1.2, p);
+  // (spun the way the dive pushed it: its tail round)
+  const side = Math.sign((hit.x - diver.x) * Math.cos(hit.heading) + (hit.y - diver.y) * Math.sin(hit.heading)) || 1;
+  hit.heading += side * INCIDENT.spin * (0.7 + 0.3 * Math.min(1, closing / 150));
+  hit.vx *= INCIDENT.slow;
+  hit.vy *= INCIDENT.slow;
+}
+
 /** Race order (indexes into `entrants`). */
 export const order = (race: Race) => standings(race.entrants.map((e) => e.progress), race.track);
 
@@ -442,14 +455,18 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     else if (e.ai && race.clock < (e.ai.reaction ?? 0) && e.progress.lapStart === undefined) input = { handbrake: false, brake: true };
     else if (e.ai) {
       const slip = e.ai.slip;
+      const lunging = !!e.ai.lunge;
       // (just out of the pits: along the blend line first)
       const blending = pit && e.blend !== undefined && e.blend > 0;
       if (blending) e.blend! -= speedOf(e.car) * dt;
       const ai = blending ? { ...e.ai, lane: pit.side * PIT.joinAt } : e.ai;
       const lapping = entrants.filter((o) => o.blue === i).map((o) => o.car);
-      const given = e.blue === undefined && !lapping.length ? orders : { ...orders, blue: e.blue === undefined ? undefined : entrants[e.blue].car, lapping };
+      const spare = entrants.find((o) => !o.ai)?.car;
+      const given = { ...orders, spare, ...(e.blue === undefined && !lapping.length ? {} : { blue: e.blue === undefined ? undefined : entrants[e.blue].car, lapping }) };
       input = aiInput(e.car, track, e.progress.idx, ai, others, race.clock < SETTLE || blending ? { ...given, noOvertaking: true } : given, towBoost(e.tow));
       if (e.ai.slip && e.ai.slip !== slip) out.push({ kind: 'mistake', who: i, what: e.ai.slip });
+      // (a dive at the car ahead: a lock-up into the bend)
+      if (e.ai.lunge && !lunging) out.push({ kind: 'mistake', who: i, what: 'late' });
     }
     // the player's limiter: holding station behind the car ahead (or the safety car), and the brakes on when well over it
     else {
@@ -480,7 +497,21 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     sc.idx = nearestSample(track, sc.car.x, sc.car.y, sc.idx);
   }
   // contact (the safety car takes knocks but no damage)
-  for (let i = 0; i < cars.length; i++) for (let j = i + 1; j < cars.length; j++) collideCars(cars[i], cars[j], p);
+  // (a dive's first contact with the car it's diving at is a racing incident: a hard hit to both, the car hit
+  // spun round; and the dive's over)
+  const diving = new Map<Car, Entrant>();
+  for (const e of entrants) if (e.ai?.lunge) diving.set(e.car, e);
+  for (let i = 0; i < cars.length; i++) {
+    for (let j = i + 1; j < cars.length; j++) {
+      const closing = collideCars(cars[i], cars[j], p);
+      if (closing <= 0) continue;
+      const diver = diving.get(cars[i])?.ai?.lunge?.car === cars[j] ? diving.get(cars[i]) : diving.get(cars[j])?.ai?.lunge?.car === cars[i] ? diving.get(cars[j]) : undefined;
+      if (!diver?.ai?.lunge) continue;
+      const hit = diver.ai.lunge.car;
+      diver.ai.lunge = undefined;
+      racingIncident(diver.car, hit, closing, p);
+    }
+  }
   if (sc) sc.car.health = sc.car.cls.health;
   if (racing) for (const e of onTrack) e.progress = stepProgress(e.progress, track, e.car, race.clock, race.laps, dt);
 
