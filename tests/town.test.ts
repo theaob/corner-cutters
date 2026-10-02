@@ -4,7 +4,7 @@ import { HD2D_VIEW } from '../src/engine/look';
 import { seededRandom } from '../src/engine/rng';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
 import { SEEN, inView, inside, landmarksOf, seaOf, seeOver, townBlocks } from '../src/f1/town3d';
-import { HARBOUR } from '../src/f1/layouts';
+import { BAKU, HARBOUR } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 
 const f1 = carClass('f1');
@@ -67,5 +67,33 @@ describe('the harbour town', () => {
     it('have no houses built on them', () => {
       for (const l of marks) for (const b of blocks) expect(Math.abs(b.x - l.x) >= (b.w + l.w) / 2 || Math.abs(b.y - l.y) >= (b.d + l.d) / 2).toBe(true);
     });
+  });
+});
+
+describe('Baku', () => {
+  const c = buildCircuit(BAKU, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+  const samples = c.track.samples;
+  const fromTrack = (x: number, y: number) => Math.min(...samples.map((p) => Math.hypot(p.x - x, p.y - y)));
+  const reach = HALF_WIDTH + BAKU.street!.runoff;
+  const sea = seaOf(c)!;
+  const marks = landmarksOf(c);
+  const blocks = townBlocks(c, sea, fromTrack, reach + 40, seededRandom(29), marks);
+  it('has Qız Qalası (the Maiden Tower) and the Flame Towers', () => {
+    expect(marks.map((l) => l.kind).sort()).toEqual(['flames', 'maiden']);
+  });
+  it('stand on land, clear of the track, seen as you drive by, with no houses on them, never hiding the track', () => {
+    for (const l of marks) {
+      for (const [dx, dy] of [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) expect(inside(sea, l.x + (dx * l.w) / 2, l.y + (dy * l.d) / 2)).toBe(false);
+      for (const p of samples) expect(Math.abs(p.x - l.x) > l.w / 2 + reach || Math.abs(p.y - l.y) > l.d / 2 + reach).toBe(true);
+      expect(inView(samples, l.x, l.y, l.w, l.d), l.kind).toBeGreaterThanOrEqual(SEEN[l.kind]);
+      expect(l.h, l.kind).toBeLessThanOrEqual(seeOver(c, l.x, l.y, l.w, l.d));
+      for (const b of blocks) expect(Math.abs(b.x - l.x) >= (b.w + l.w) / 2 || Math.abs(b.y - l.y) >= (b.d + l.d) / 2).toBe(true);
+    }
+  });
+  it('stand where the layout puts them: the Maiden Tower by the castle section, the Flame Towers on the hill north-west of it', () => {
+    for (const l of marks) {
+      const want = BAKU.street!.landmarks![l.kind]!;
+      expect(Math.hypot(l.x - (want.x * BAKU.scale - c.offset.x), l.y - (want.y * BAKU.scale - c.offset.y)), l.kind).toBeLessThan(200);
+    }
   });
 });

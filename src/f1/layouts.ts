@@ -41,9 +41,12 @@ export interface StreetSpec {
   runoff: number;
   sea: Pt[];
   tunnel?: [number, number];
-  /** where its landmarks stand (in `points` units): the casino, an open-air swimming pool, a tennis court */
-  landmarks?: { casino: Pt; pool: Pt; tennis: Pt };
+  /** where its landmarks stand (in `points` units): any of the casino, an open-air swimming pool, a tennis court (Harbour), the Maiden Tower and the Flame Towers (Baku) */
+  landmarks?: Partial<Record<LandmarkKind, Pt>>;
 }
+
+/** The landmarks a street circuit can have (town3d.ts builds them). */
+export type LandmarkKind = 'casino' | 'pool' | 'tennis' | 'maiden' | 'flames';
 
 /**
  * Crescent Park. Anticlockwise over the hills, after the one on the edge of the
@@ -653,6 +656,9 @@ export const BAKU: CircuitLayout = {
     sea: ([
     [734, 1139], [2897, -13], [4307, 2635], [2144, 3787],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
+    // Qız Qalası, the Maiden Tower, by the castle section in the old town; the Flame Towers on the hill above it, to
+    // the north-west
+    landmarks: { maiden: { x: 720, y: 870 }, flames: { x: 210, y: 640 } },
   },
 };
 
