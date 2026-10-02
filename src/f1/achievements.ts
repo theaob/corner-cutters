@@ -27,6 +27,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'spotless', name: 'SPOTLESS', about: 'Finish a race with no damage and no track-limits warnings' },
   { id: 'purple', name: 'PURPLE PATCH', about: "Set a race's fastest lap" },
   { id: 'endurance', name: 'ENDURANCE', about: 'Finish a race of 15 laps or more' },
+  { id: 'bald', name: 'BALD', about: 'Finish a race on tyres worn down to 0%' },
+  { id: 'torch', name: 'TORCH', about: 'Finish a race with your car on fire' },
   { id: 'rocket', name: 'ROCKET START', about: 'Get a GREAT LAUNCH off the lights' },
   { id: 'too-keen', name: 'TOO KEEN', about: 'Jump the start' },
   { id: 'box', name: 'BOX, BOX', about: 'Make a pit stop' },
@@ -55,6 +57,10 @@ export interface RaceSummary {
   laps: number;
   difficulty: string;
   weather: string;
+  /** % of your tyres left at the flag, as the readout shows it */
+  tyresLeft?: number;
+  /** your car on fire as you took the flag */
+  burning?: boolean;
 }
 
 /** The achievements a finished race earns. */
@@ -71,6 +77,8 @@ export function raceAchievements(r: RaceSummary): string[] {
   if (!r.damaged && r.strikes === 0) out.push('spotless');
   if (r.fastest) out.push('purple');
   if (r.laps >= 15) out.push('endurance');
+  if (r.tyresLeft !== undefined && r.tyresLeft <= 0) out.push('bald');
+  if (r.burning) out.push('torch');
   return out;
 }
 

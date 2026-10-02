@@ -38,6 +38,14 @@ describe('achievements', () => {
     expect(raceAchievements(race({ laps: 15 }))).toContain('endurance');
   });
 
+  it('for a race: finishing on tyres worn to 0%, or with the car on fire', () => {
+    expect(raceAchievements(race({ tyresLeft: 0 }))).toContain('bald');
+    expect(raceAchievements(race({ tyresLeft: 1 }))).not.toContain('bald');
+    expect(raceAchievements(race({}))).not.toContain('bald');
+    expect(raceAchievements(race({ burning: true }))).toContain('torch');
+    expect(raceAchievements(race({ burning: false }))).not.toContain('torch');
+  });
+
   it('for the medals and titles in the cabinet', () => {
     expect(medalAchievements({ medals: { a: { attack: 'gold' }, b: { trial: 'silver' } }, titles: 0 }, ['a', 'b'])).toEqual(['golden']);
     expect(medalAchievements({ medals: { a: { trial: 'gold' }, b: { trial: 'gold' } }, titles: 1 }, ['a', 'b'])).toEqual(['golden', 'gold-standard', 'champion']);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { carClass, newCar, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
-import { BRIDGE, atCrossing, gridFor, liftAt, sameLevel } from '../src/f1/bridge';
+import { BRIDGE, atCrossing, gridFor, liftAt, sameLevel, underDeck } from '../src/f1/bridge';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
 import { LAYOUTS, SUZUKA } from '../src/f1/layouts';
 import { RACE_HANDLING, lateralOffset, lineCornerSpeed, lineDecel } from '../src/f1/racing';
@@ -14,6 +14,15 @@ describe('the bridge at Suzuka', () => {
   const c = build(SUZUKA);
   const { track, grid } = c;
   const l = track.levels!;
+  it("knows a car under the deck (its outline's then drawn through it), and not one up on it or away from it", () => {
+    const under = track.samples[l.under];
+    const over = track.samples[l.over];
+    const g = (x: number, y: number) => groundAt(c.grid, x, y).h;
+    expect(underDeck(l, c.grid, under.x, under.y, g(under.x, under.y))).toBe(true);
+    expect(underDeck(l, c.grid, over.x, over.y, g(over.x, over.y) + l.height)).toBe(false);
+    const away = track.samples[(l.under + 120) % track.samples.length];
+    expect(underDeck(l, c.grid, away.x, away.y, g(away.x, away.y))).toBe(false);
+  });
   const n = track.samples.length;
   const height = SUZUKA.bridge!.height;
 
