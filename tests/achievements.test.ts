@@ -23,6 +23,8 @@ describe('achievements', () => {
     expect(raceAchievements(race({ place: 1, grid: 2 }))).toEqual(expect.arrayContaining(['finish', 'podium', 'win']));
     expect(raceAchievements(race({ place: 1, difficulty: 'hard' }))).toContain('hard-win');
     expect(raceAchievements(race({ place: 1, weather: 'wet' }))).toContain('wet-win');
+    expect(raceAchievements(race({ place: 1, night: true }))).toContain('night-win');
+    expect(raceAchievements(race({ place: 2, night: true }))).not.toContain('night-win');
     expect(raceAchievements(race({ place: 1, grid: 6 }))).toContain('from-back');
     expect(raceAchievements(race({ place: 1, grid: 5 }))).not.toContain('from-back');
   });

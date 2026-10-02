@@ -102,6 +102,8 @@ export interface RaceOptions {
   weather?: Weather;
   /** a qualifying lap first, to set your grid slot */
   qualifying?: boolean;
+  /** under floodlights (night.ts) */
+  night?: boolean;
   /** how many laps the race is (a Championship round is always RACE_LAPS) */
   laps?: number;
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
@@ -118,7 +120,7 @@ export interface RaceOptions {
  * `onQuit` runs when the player leaves (SELECT, or CIRCUITS on the pause screen).
  */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
-  const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
+  const { team = TEAMS[0], difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship, night = false } = options;
   const LAPS = championship ? RACE_LAPS : Math.max(1, Math.round(options.laps ?? RACE_LAPS));
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
@@ -129,7 +131,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // the AI's line: flat out wherever the car can follow the bend, like a player can
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
   const { track, grid } = circuit;
-  const world = createCircuitScene(circuit, weather);
+  const world = createCircuitScene(circuit, weather, night);
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
   // (a bigger pool in the wet: every car throws up spray)
   const particles = new Particles(weather.spray ? 220 : 90);
@@ -1551,7 +1553,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         achieve([
           ...raceAchievements({
             place: raceOrder(race).indexOf(you) + 1, field: race.entrants.length, grid: you + 1, fastest: hudState.fastest?.who === you,
-            damaged: tookDamage, strikes: me.limits.strikes, laps: race.laps, difficulty: difficulty.id, weather: weather.id,
+            damaged: tookDamage, strikes: me.limits.strikes, laps: race.laps, difficulty: difficulty.id, weather: weather.id, night,
           }),
           ...(raced(layout.id, LAYOUTS.map((l) => l.id)) ? ['globetrotter'] : []),
         ]);
@@ -1589,7 +1591,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const was = l.was ?? { speed, health: e.car.health };
       if (!replay && dt > 0 && speed > 30 && (was.speed - speed) / dt > REAR_LIGHT.decel) l.lit = REAR_LIGHT.hold;
       else l.lit = Math.max(0, (l.lit ?? 0) - dt);
-      l.mesh.userData.rainLight.visible = l.lit > 0 || (weather.spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5);
+      l.mesh.userData.rainLight.visible = l.lit > 0 || night || (weather.spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5);
       // sparks: off a hit (a wall, another car), thrown back the way it was going, and off a hard landing, from under it
       if (!replay && !then) {
         const lost = was.health - e.car.health;
