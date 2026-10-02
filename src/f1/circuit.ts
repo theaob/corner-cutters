@@ -60,6 +60,14 @@ export function kerbed(track: Track): boolean[] {
     const short = Math.max(0, Math.ceil((KERB.shortest / sp - len(run)) / 2));
     for (let k = -lead - short; k < len(run) + lead + short; k++) out[(((run[0] + k) % n) + n) % n] = true;
   }
+  // (two kerbs led out and in to within a few px of each other: one kerb)
+  const joined = runsOf(out);
+  for (let r = 0; r < joined.length; r++) {
+    const [, end] = joined[r];
+    const [next] = joined[(r + 1) % joined.length];
+    const gap = ((((next - end) % n) + n) % n) - 1;
+    if (gap > 0 && gap * sp < KERB.gap - 2 * KERB.lead - sp) for (let k = 1; k <= gap; k++) out[(end + k) % n] = true;
+  }
   return out;
 }
 
