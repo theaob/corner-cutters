@@ -105,3 +105,44 @@ export function confetti(host: HTMLElement, ms = 3500): void {
   };
   requestAnimationFrame(frame);
 }
+
+/** ms an achievement's toast stays up. */
+export const TOAST_MS = 3200;
+let toasts: { name: string; about: string }[] = [];
+let toasting = false;
+
+/** An achievement unlocked: a toast slides down from the top of the page (one at a time, in turn). */
+export function achievementToast(a: { name: string; about: string }): void {
+  toasts.push(a);
+  if (!toasting) nextToast();
+}
+
+function nextToast(): void {
+  const a = toasts.shift();
+  toasting = !!a;
+  if (!a) return;
+  const el = document.createElement('div');
+  el.className = `achievement-toast${reduced() ? ' still' : ''}`;
+  const star = document.createElement('b');
+  star.textContent = '★';
+  const text = document.createElement('div');
+  const head = document.createElement('small');
+  head.textContent = 'ACHIEVEMENT';
+  const name = document.createElement('strong');
+  name.textContent = a.name;
+  const about = document.createElement('span');
+  about.textContent = a.about;
+  text.append(head, name, about);
+  el.append(star, text);
+  document.body.append(el);
+  setTimeout(() => {
+    el.remove();
+    nextToast();
+  }, TOAST_MS);
+}
+
+/** Forget any toasts still waiting (for tests). */
+export const clearToasts = () => {
+  toasts = [];
+  toasting = false;
+};

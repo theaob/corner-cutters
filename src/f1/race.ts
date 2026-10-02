@@ -57,7 +57,9 @@ import { musicPlaying, playMusic } from '../engine/music';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import { overtakeOf, towerGap, towerRows } from './tower';
-import { stampMedal } from './screens/celebrate';
+import { achievementToast, stampMedal } from './screens/celebrate';
+import { medalAchievements, raceAchievements, raced, unlock } from './achievements';
+import { LAYOUTS } from './layouts';
 /** the blue flag's colour on the screen */
 const BLUE_COLOR = '#4fa3ff';
 import { type Medal, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
@@ -502,6 +504,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let pendingHit = 0;
   /** your start off the lights (judged once, in a race) */
   let launch = newLaunch();
+  /** you've taken damage this session (for SPOTLESS) */
+  let tookDamage = false;
+  /** Unlock achievements `ids`: a toast for each new one. */
+  const achieve = (ids: string[]) => {
+    for (const a of unlock(ids)) achievementToast(a);
+  };
   const setPaused = (on: boolean) => {
     if (on === paused) return;
     paused = on;
@@ -609,6 +617,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const resetSession = () => {
     shake = newShake();
     launch = newLaunch();
+    tookDamage = false;
     medalLine.textContent = '';
     setPaused(false);
     resetClock(simClock);
@@ -1120,6 +1129,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       showMedal();
       stampMedal(host, medal, fmt(g.time));
       sounds.record();
+      achieve(medalAchievements(loadTrophies(), LAYOUTS.map((l) => l.id)));
     }
   };
   /** A Time Trial step (`cut`: you cut a corner): the lap's verdict at the line, its splits, and its frames for a ghost. */
@@ -1184,6 +1194,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (attack.result.newMedal && medal) {
         sounds.record();
         stampMedal(host, medal, distance(passed));
+        achieve(medalAchievements(loadTrophies(), LAYOUTS.map((l) => l.id)));
       }
       showMedal();
       if (record) sounds.record();
@@ -1302,12 +1313,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const verdict = stepLaunch(launch, race.phase === 'lights' && race.clock >= 0, race.phase === 'racing' ? race.clock : undefined, gas);
       if (verdict === 'jump') {
         race.entrants[you].progress.penalty += LAUNCH.jumpPenalty;
+        achieve(['too-keen']);
         announce(`JUMP START · +${LAUNCH.jumpPenalty} S`, '#d8323c', 3);
         sayRadio('jump-start');
       } else if (verdict && verdict !== 'slow') {
         const kick = kickOf(verdict);
         car.vx += Math.sin(car.heading) * kick;
         car.vy -= Math.cos(car.heading) * kick;
+        if (verdict === 'great') achieve(['rocket']);
         announce(`${verdict === 'great' ? 'GREAT' : 'GOOD'} LAUNCH · ${launch.reaction!.toFixed(2)} S`, verdict === 'great' ? '#b36bff' : '#5fe0d0', 2);
       }
     }
@@ -1409,6 +1422,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       stepShake(shake, replay || !running(me) ? { ...felt, healthLost: 0, wreckedNow: false, landed: 0, onRough: false, onKerb: false } : felt);
       // and its sounds: the engine, tyres, ground, the nearest rival, and hits
       const lost = healthBefore - me.car.health;
+      if (lost > 0) tookDamage = true;
       if (ev.wreckedNow) sounds.hit(1);
       else if (lost > 0.5) sounds.hit(Math.min(1, 0.25 + lost / 15));
       // (and the scrape of metal with the sparks)
@@ -1433,6 +1447,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     mistakeCount += step.race.filter((e) => e.kind === 'mistake').length;
     for (const e of step.race) {
+      // achievements as they happen: a stop, lapping a car, a wreck (in a race)
+      if (session === 'race') {
+        if (e.kind === 'pit-stop' && e.who === you) achieve(['box']);
+        if (e.kind === 'blue' && e.by === you) achieve(['lapped']);
+        if (e.kind === 'wreck' && e.who === you) achieve(['scrapheap']);
+      }
       if (e.kind === 'lights-out') {
         sounds.go();
         // (the crowd roars them away)
@@ -1526,6 +1546,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (mine.finished !== undefined && !saved.race) {
         saved.race = true;
         saved.newRace = recordRace(records, recordId, race.laps, mine.finished + mine.penalty);
+        // achievements for how the race went (and GLOBETROTTER once every circuit's been raced)
+        const me = race.entrants[you];
+        achieve([
+          ...raceAchievements({
+            place: raceOrder(race).indexOf(you) + 1, field: race.entrants.length, grid: you + 1, fastest: hudState.fastest?.who === you,
+            damaged: tookDamage, strikes: me.limits.strikes, laps: race.laps, difficulty: difficulty.id, weather: weather.id,
+          }),
+          ...(raced(layout.id, LAYOUTS.map((l) => l.id)) ? ['globetrotter'] : []),
+        ]);
       }
       saveRecords(records);
     }

@@ -26,6 +26,7 @@ import { distance } from './timeAttack';
 import { settingsRows as settingsRowsNow } from './settingsRows';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
+import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
 
 /** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
 function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
@@ -352,6 +353,26 @@ export function chooseCircuit(
     const how = document.createElement('p');
     how.textContent = 'A LAP OR A RUN AS QUICK AS THE QUICKEST AI ON EASY: BRONZE · NORMAL: SILVER · HARD: GOLD';
     cabinet.append(how);
+    // the achievements: those unlocked in gold (any already earned by medals and titles from before achievements were
+    // kept are filled in quietly), the rest dimmed with what they take
+    unlock(medalAchievements(trophies, layouts.map((l) => l.id)));
+    const got = new Set(unlockedAchievements());
+    const listHead = document.createElement('div');
+    listHead.className = 'achievements-head';
+    listHead.textContent = `ACHIEVEMENTS  ${got.size}/${ACHIEVEMENTS.length}`;
+    cabinet.append(listHead, ...ACHIEVEMENTS.map((a, k) => {
+      const row = document.createElement('div');
+      row.className = `achievement${got.has(a.id) ? ' got' : ''}`;
+      row.style.setProperty('--delay', `${0.2 + k * 0.03}s`);
+      const star = document.createElement('b');
+      star.textContent = got.has(a.id) ? '★' : '☆';
+      const name = document.createElement('strong');
+      name.textContent = a.name;
+      const about = document.createElement('span');
+      about.textContent = a.about.toUpperCase();
+      row.append(star, name, about);
+      return row;
+    }));
   }
   const openCabinet = () => {
     menuPick();

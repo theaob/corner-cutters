@@ -253,6 +253,44 @@
         z-index: 7;
         pointer-events: none;
       }
+      /* the cabinet's achievements: won in gold, the rest dimmed */
+      .circuit-menu .cabinet .achievements-head {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--key-edge);
+        text-align: center;
+        color: var(--gold);
+        font-size: 13px;
+        white-space: pre;
+      }
+      .circuit-menu .cabinet .achievement {
+        display: grid;
+        grid-template-columns: 16px 1fr;
+        column-gap: 6px;
+        align-items: baseline;
+        padding: 3px 0;
+        opacity: 0.45;
+      }
+      .circuit-menu .cabinet .achievement b {
+        grid-row: span 2;
+        color: var(--muted);
+      }
+      .circuit-menu .cabinet .achievement strong {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .circuit-menu .cabinet .achievement span {
+        font-size: 8px;
+      }
+      .circuit-menu .cabinet .achievement.got {
+        opacity: 1;
+        animation: medal-pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+        animation-delay: var(--delay, 0s);
+      }
+      .circuit-menu .cabinet .achievement.got b,
+      .circuit-menu .cabinet .achievement.got strong {
+        color: var(--gold);
+      }
       /* the cabinet: the medals pop in one after another */
       .circuit-menu .cabinet .medal.won {
         display: inline-flex;
@@ -266,11 +304,76 @@
         to { transform: none; opacity: 1; }
       }
       @media (prefers-reduced-motion: reduce) {
-        .medal-stamp, .trophy, .circuit-menu .cabinet .medal.won, .medal-badge .disc::after {
+        .medal-stamp, .trophy, .circuit-menu .cabinet .medal.won, .circuit-menu .cabinet .achievement.got, .medal-badge .disc::after {
           animation: none !important;
         }
         .medal-stamp {
           transform: translateX(-50%);
+        }
+      }
+      /* an achievement unlocked: a toast down from the top */
+      .achievement-toast {
+        position: fixed;
+        left: 50%;
+        top: 10px;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 220px;
+        max-width: calc(100% - 32px);
+        box-sizing: border-box;
+        padding: 8px 14px 8px 10px;
+        border: 1px solid var(--gold);
+        border-radius: 10px;
+        background: rgba(21, 20, 31, 0.95);
+        box-shadow: 0 4px 16px #0008;
+        color: var(--text);
+        font-family: var(--pixel);
+        pointer-events: none;
+        animation: toast-in 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both, toast-out 0.35s 2.85s ease-in both;
+      }
+      .achievement-toast.still {
+        animation: toast-out 0.35s 2.85s ease-in both;
+        transform: translateX(-50%);
+      }
+      .achievement-toast b {
+        color: var(--gold);
+        font-size: 22px;
+        line-height: 1;
+        animation: star-spin 0.8s 0.3s ease-out both;
+      }
+      .achievement-toast div {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .achievement-toast small {
+        color: var(--gold);
+        font-size: 9px;
+      }
+      .achievement-toast strong {
+        font-size: 13px;
+      }
+      .achievement-toast span {
+        color: var(--muted);
+        font-size: 9px;
+      }
+      @keyframes toast-in {
+        from { transform: translate(-50%, -120%); opacity: 0; }
+        to { transform: translate(-50%, 0); opacity: 1; }
+      }
+      @keyframes toast-out {
+        from { transform: translate(-50%, 0); opacity: 1; }
+        to { transform: translate(-50%, -40%); opacity: 0; }
+      }
+      @keyframes star-spin {
+        from { transform: rotate(-180deg) scale(0.3); }
+        to { transform: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .achievement-toast b {
+          animation: none;
         }
       }
       /* the trophy cabinet: the titles won, the medal tally, each circuit's medals */
