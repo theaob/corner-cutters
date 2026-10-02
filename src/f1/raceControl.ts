@@ -438,6 +438,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     else if (lap && typeof lap.to === 'number' && pit) input = podiumInput(race, e, lap.to, others);
     else if (e.progress.finished !== undefined) input = { ...coolDownInput(e.car, track, e.progress.idx, others), limit: orders.limit };
     // (no passing or defending moves while the pack is still bunched from the start)
+    // the start: an AI car still reacting to the lights going out sits on its brakes
+    else if (e.ai && race.clock < (e.ai.reaction ?? 0) && e.progress.lapStart === undefined) input = { handbrake: false, brake: true };
     else if (e.ai) {
       const slip = e.ai.slip;
       // (just out of the pits: along the blend line first)

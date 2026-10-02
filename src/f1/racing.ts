@@ -252,6 +252,8 @@ export interface AiDriver {
   slipApex?: number;
   /** it was on a straight last step (for spotting a bend's start) */
   wasStraight?: boolean;
+  /** s after lights out before it gets going (its reaction off the line); none: away at once */
+  reaction?: number;
 }
 
 /** The lateral offset (px, + = right of the centreline) of point (x, y) near sample i. */
