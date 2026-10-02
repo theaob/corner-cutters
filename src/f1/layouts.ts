@@ -43,6 +43,8 @@ export interface StreetSpec {
   tunnel?: [number, number];
   /** where its landmarks stand (in `points` units): any of the casino, an open-air swimming pool, a tennis court (Harbour), the Maiden Tower and the Flame Towers (Baku) */
   landmarks?: Partial<Record<LandmarkKind, Pt>>;
+  /** old city walls (Baku's): along the lap from `from` to `to` (shares of it), just behind the barriers on its `side` (+1: the right, going round), with round towers along them and a gate tower */
+  castle?: { from: number; to: number; side: 1 | -1 };
 }
 
 /** The landmarks a street circuit can have (town3d.ts builds them). */
@@ -659,6 +661,9 @@ export const BAKU: CircuitLayout = {
     // Qız Qalası, the Maiden Tower, by the castle section in the old town; the Flame Towers on the hill above it, to
     // the north-west
     landmarks: { maiden: { x: 720, y: 870 }, flames: { x: 210, y: 640 } },
+    // the old city walls along the castle section, on its far side from the camera (seen whole, over the track; on
+    // the near side they'd hide it)
+    castle: { from: 0.39, to: 0.53, side: 1 },
   },
 };
 

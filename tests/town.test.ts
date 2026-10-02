@@ -3,7 +3,7 @@ import { carClass } from '../src/engine/driving';
 import { HD2D_VIEW } from '../src/engine/look';
 import { seededRandom } from '../src/engine/rng';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { SEEN, inView, inside, landmarksOf, seaOf, seeOver, townBlocks } from '../src/f1/town3d';
+import { CASTLE, SEEN, castleFootprints, castleOf, inView, inside, landmarksOf, seaOf, seeOver, townBlocks } from '../src/f1/town3d';
 import { BAKU, HARBOUR } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 
@@ -77,7 +77,8 @@ describe('Baku', () => {
   const reach = HALF_WIDTH + BAKU.street!.runoff;
   const sea = seaOf(c)!;
   const marks = landmarksOf(c);
-  const blocks = townBlocks(c, sea, fromTrack, reach + 40, seededRandom(29), marks);
+  const castle = castleOf(c);
+  const blocks = townBlocks(c, sea, fromTrack, reach + 40, seededRandom(29), [...marks, ...castleFootprints(castle)]);
   it('has Qız Qalası (the Maiden Tower) and the Flame Towers', () => {
     expect(marks.map((l) => l.kind).sort()).toEqual(['flames', 'maiden']);
   });
@@ -95,5 +96,26 @@ describe('Baku', () => {
       const want = BAKU.street!.landmarks![l.kind]!;
       expect(Math.hypot(l.x - (want.x * BAKU.scale - c.offset.x), l.y - (want.y * BAKU.scale - c.offset.y)), l.kind).toBeLessThan(200);
     }
+  });
+  describe('its old city walls', () => {
+    it('run a long way along the castle section, with round towers along them and a gate tower', () => {
+      const length = castle.walls.reduce((a, w) => a + Math.hypot(w.x2 - w.x1, w.y2 - w.y1), 0);
+      expect(length).toBeGreaterThan(1000);
+      expect(castle.towers.length).toBeGreaterThanOrEqual(6);
+      expect(castle.towers.filter((t) => t.gate)).toHaveLength(1);
+    });
+    it('stand behind the barriers, clear of every stretch of track, and never hide the track from the camera', () => {
+      for (const w of castle.walls) {
+        for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) expect(fromTrack(x, y)).toBeGreaterThan(reach + CASTLE.thick / 2);
+        expect(w.h).toBeLessThanOrEqual(seeOver(c, (w.x1 + w.x2) / 2, (w.y1 + w.y2) / 2, Math.abs(w.x2 - w.x1) + CASTLE.thick, Math.abs(w.y2 - w.y1) + CASTLE.thick));
+      }
+      for (const t of castle.towers) {
+        expect(fromTrack(t.x, t.y)).toBeGreaterThan(reach);
+        expect(t.h).toBeLessThanOrEqual(seeOver(c, t.x, t.y, 2 * t.r, 2 * t.r));
+      }
+    });
+    it('have no houses built on them', () => {
+      for (const f of castleFootprints(castle)) for (const b of blocks) expect(Math.abs(b.x - f.x) >= (b.w + f.w) / 2 || Math.abs(b.y - f.y) >= (b.d + f.d) / 2).toBe(true);
+    });
   });
 });

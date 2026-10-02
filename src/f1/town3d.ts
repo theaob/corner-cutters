@@ -63,6 +63,14 @@ export function seeOver(circuit: Circuit, x: number, y: number, w: number, d: nu
   return Math.max(0, gap - 6) / HIDES;
 }
 
+/** Something's footprint on the map: its centre, px across and deep. */
+export interface Footprint {
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+}
+
 /** A landmark's footprint (centre, across, deep) on the map, and its height at the tallest. */
 export interface Landmark {
   kind: LandmarkKind;
@@ -199,6 +207,168 @@ export function landmarksOf(circuit: Circuit): Landmark[] {
   return out;
 }
 
+export const CASTLE = {
+  /** px from the run-off's edge to the wall's middle, and how thick it is */
+  set: 14,
+  thick: 9,
+  /** px high at most (lower where the track's behind it, so it never hides it), and the merlons on top */
+  h: 26,
+  merlon: 4,
+  /** a round tower every so many px along the wall, its radius, and how much it stands above the wall */
+  towerEvery: 130,
+  towerR: 11,
+  towerUp: 12,
+  /** samples between the wall's points */
+  step: 2,
+};
+
+/** A circuit's old city walls: straight lengths (each end, and its height) and the towers along them (the gate tower square, the rest round). */
+export interface CastleWalls {
+  walls: { x1: number; y1: number; x2: number; y2: number; h: number }[];
+  towers: { x: number; y: number; r: number; h: number; gate?: boolean }[];
+}
+
+const castles = new WeakMap<Circuit, CastleWalls>();
+
+/**
+ * A street circuit's old city walls (none for most): along its stretch of the lap, just behind the barriers on its
+ * side, wherever there's room (clear of every stretch of track, the sea, the pits, the grandstands and the landmarks),
+ * each length low enough not to hide the track behind it; a round tower every so often, and a gate tower in the
+ * middle.
+ */
+export function castleOf(circuit: Circuit): CastleWalls {
+  const known = castles.get(circuit);
+  if (known) return known;
+  const out: CastleWalls = { walls: [], towers: [] };
+  castles.set(circuit, out);
+  const spec = circuit.layout.street?.castle;
+  if (!spec) return out;
+  const samples = circuit.track.samples;
+  const n = samples.length;
+  const off = HALF_WIDTH + (circuit.layout.street?.runoff ?? 72) + CASTLE.set + CASTLE.thick / 2;
+  const sea = seaOf(circuit) ?? [];
+  const stands = standsOf(circuit);
+  const marks = landmarksOf(circuit);
+  const pits = circuit.pit.points;
+  /** the wall's point beside sample `k`, if there's room for it there */
+  const at = (k: number): Pt | undefined => {
+    const p = samples[k % n];
+    // (across the track: its direction's right, × side)
+    const x = p.x + Math.cos(p.dir) * off * spec.side;
+    const y = p.y + Math.sin(p.dir) * off * spec.side;
+    const room = (q: Pt) => (q.x - x) ** 2 + (q.y - y) ** 2 >= (off - 6) ** 2;
+    const pad = CASTLE.towerR + 4;
+    if (!samples.every(room) || inside(sea, x, y) || pits.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 30)) return undefined;
+    if (stands.some((st) => Math.abs(st.x - x) < st.len / 2 + STAND.depth + pad && Math.abs(st.y - y) < st.len / 2 + STAND.depth + pad)) return undefined;
+    if (marks.some((l) => Math.abs(l.x - x) < l.w / 2 + pad && Math.abs(l.y - y) < l.d / 2 + pad)) return undefined;
+    return { x, y };
+  };
+  const from = Math.round(spec.from * n);
+  const to = Math.round(spec.to * n);
+  let prev: Pt | undefined;
+  let along = CASTLE.towerEvery / 2;
+  const points: Pt[] = [];
+  for (let k = from; k <= to; k += CASTLE.step) {
+    const p = at(k);
+    if (p && prev) {
+      const len = Math.hypot(p.x - prev.x, p.y - prev.y);
+      const h = Math.min(CASTLE.h, seeOver(circuit, (p.x + prev.x) / 2, (p.y + prev.y) / 2, Math.abs(p.x - prev.x) + CASTLE.thick, Math.abs(p.y - prev.y) + CASTLE.thick));
+      if (h >= 10 && len < off) {
+        out.walls.push({ x1: prev.x, y1: prev.y, x2: p.x, y2: p.y, h });
+        along += len;
+        if (along >= CASTLE.towerEvery) {
+          along = 0;
+          points.push(p);
+        }
+      }
+    }
+    prev = p;
+  }
+  for (const p of points) {
+    const r = CASTLE.towerR;
+    const h = Math.min(CASTLE.h + CASTLE.towerUp, seeOver(circuit, p.x, p.y, 2 * r, 2 * r));
+    if (h >= 12) out.towers.push({ x: p.x, y: p.y, r, h });
+  }
+  // (the middle tower the gate: square, bigger)
+  if (out.towers.length) {
+    const g = out.towers[Math.floor(out.towers.length / 2)];
+    g.gate = true;
+    g.r = CASTLE.towerR + 4;
+    g.h = Math.min(CASTLE.h + CASTLE.towerUp + 4, seeOver(circuit, g.x, g.y, 2 * g.r, 2 * g.r));
+  }
+  return out;
+}
+
+/** The walls' and towers' footprints (for the town to build round them). */
+export function castleFootprints(c: CastleWalls): Footprint[] {
+  return [
+    ...c.walls.map((w) => ({ x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2, w: Math.abs(w.x2 - w.x1) + CASTLE.thick, d: Math.abs(w.y2 - w.y1) + CASTLE.thick })),
+    ...c.towers.map((t) => ({ x: t.x, y: t.y, w: 2 * t.r, d: 2 * t.r })),
+  ];
+}
+
+/** A texture of sandy limestone in courses, a darker course every so often. */
+function stoneCourses(): THREE.Texture {
+  const t = drawn(32, 32, (x) => {
+    x.fillStyle = '#cdb68a';
+    x.fillRect(0, 0, 32, 32);
+    x.fillStyle = '#b39d72';
+    for (let y = 0; y < 32; y += 8) x.fillRect(0, y, 32, 2);
+    x.fillStyle = '#c2aa7d';
+    for (let y = 0; y < 32; y += 4) for (let c = (y / 4) % 2 ? 0 : 4; c < 32; c += 8) x.fillRect(c, y, 1, 4);
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+/** The old city walls in `scene`: the lengths of wall with merlons along their tops, the round towers, the gate tower. */
+function buildCastle(scene: THREE.Scene, circuit: Circuit, c: CastleWalls): void {
+  if (!c.walls.length) return;
+  const { grid } = circuit;
+  const walls: THREE.BufferGeometry[] = [];
+  const tops: THREE.BufferGeometry[] = [];
+  for (const w of c.walls) {
+    const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1) + CASTLE.thick * 0.6;
+    const mx = (w.x1 + w.x2) / 2;
+    const my = (w.y1 + w.y2) / 2;
+    const turn = -Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
+    const ground = Math.min(groundAt(grid, w.x1, w.y1).h, groundAt(grid, w.x2, w.y2).h);
+    const g = new THREE.BoxGeometry(len, w.h, CASTLE.thick);
+    // (the stone tiles by the wall's size)
+    const uv = g.attributes.uv;
+    for (let v = 0; v < uv.count; v++) uv.setXY(v, uv.getX(v) * (len / 24), uv.getY(v) * (w.h / 24));
+    walls.push(g.rotateY(turn).translate(mx, ground + w.h / 2, my));
+    for (let a = -len / 2 + 2; a <= len / 2 - 2; a += CASTLE.merlon * 2) {
+      tops.push(new THREE.BoxGeometry(CASTLE.merlon, CASTLE.merlon, CASTLE.thick).translate(a, 0, 0).rotateY(turn).translate(mx, ground + w.h + CASTLE.merlon / 2, my));
+    }
+  }
+  for (const t of c.towers) {
+    const ground = groundAt(grid, t.x, t.y).h;
+    if (t.gate) {
+      walls.push(new THREE.BoxGeometry(2 * t.r, t.h, 2 * t.r).translate(t.x, ground + t.h / 2, t.y));
+      for (let a = -t.r + 2; a <= t.r - 2; a += CASTLE.merlon * 2) {
+        for (const [dx, dz] of [[a, -t.r + 1.5], [a, t.r - 1.5], [-t.r + 1.5, a], [t.r - 1.5, a]]) tops.push(new THREE.BoxGeometry(3, CASTLE.merlon, 3).translate(t.x + dx, ground + t.h + CASTLE.merlon / 2, t.y + dz));
+      }
+    } else {
+      walls.push(new THREE.CylinderGeometry(t.r, t.r * 1.08, t.h, 14).translate(t.x, ground + t.h / 2, t.y));
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        tops.push(new THREE.BoxGeometry(3, CASTLE.merlon, 3).translate(t.x + Math.cos(a) * (t.r - 1.5), ground + t.h + CASTLE.merlon / 2, t.y + Math.sin(a) * (t.r - 1.5)));
+      }
+    }
+  }
+  const stone = new THREE.MeshLambertMaterial({ map: stoneCourses() });
+  const wallMesh = new THREE.Mesh(mergeGeometries(walls.map((g) => g.toNonIndexed())), stone);
+  const topMesh = new THREE.Mesh(mergeGeometries(tops.map((g) => g.toNonIndexed())), new THREE.MeshLambertMaterial({ color: 0xc8b083 }));
+  // the gate's arch, dark, on the side toward the camera
+  const arches = c.towers.filter((t) => t.gate).map((t) => new THREE.BoxGeometry(t.r * 0.8, t.h * 0.45, 1).translate(t.x, groundAt(grid, t.x, t.y).h + t.h * 0.225, t.y + t.r + 0.5).toNonIndexed());
+  if (arches.length) scene.add(new THREE.Mesh(mergeGeometries(arches), new THREE.MeshLambertMaterial({ color: 0x3b3328 })));
+  for (const m of [wallMesh, topMesh]) {
+    m.castShadow = m.receiveShadow = true;
+    scene.add(m);
+  }
+}
+
 /** px a bay of windows is wide, and a storey high */
 const BAY = 12;
 const STOREY = 12;
@@ -258,7 +428,7 @@ export interface Block {
  * barriers; now and then a stone tower instead, taller and narrower. Each is
  * whole storeys tall, and never so tall it hides the track from the camera.
  */
-export function townBlocks(circuit: Circuit, sea: Pt[], fromTrack: (x: number, y: number) => number, keep: number, r: () => number, avoid: Landmark[] = []): Block[] {
+export function townBlocks(circuit: Circuit, sea: Pt[], fromTrack: (x: number, y: number) => number, keep: number, r: () => number, avoid: Footprint[] = []): Block[] {
   const { width: W, height: H, cells, track, pit } = circuit;
   const samples = track.samples;
   const n = samples.length;
@@ -442,16 +612,7 @@ function maidenTower(l: Landmark): THREE.Group {
   const g = new THREE.Group();
   const H = l.h - 6;
   const R = Math.min(l.w, l.d) / 2 - 10;
-  const courses = drawn(32, 32, (x) => {
-    x.fillStyle = '#cdb68a';
-    x.fillRect(0, 0, 32, 32);
-    // (darker courses every so often, and the joints of the blocks)
-    x.fillStyle = '#b39d72';
-    for (let y = 0; y < 32; y += 8) x.fillRect(0, y, 32, 2);
-    x.fillStyle = '#c2aa7d';
-    for (let y = 0; y < 32; y += 4) for (let c = (y / 4) % 2 ? 0 : 4; c < 32; c += 8) x.fillRect(c, y, 1, 4);
-  });
-  courses.wrapS = courses.wrapT = THREE.RepeatWrapping;
+  const courses = stoneCourses();
   courses.repeat.set(4, H / 16);
   const stone = new THREE.MeshLambertMaterial({ map: courses });
   const plain = new THREE.MeshLambertMaterial({ color: 0xc8b083 });
@@ -721,9 +882,12 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
   };
   const keep = HALF_WIDTH + street.runoff + 40;
   const marks = landmarksOf(circuit);
+  // the old city walls (Baku's), and the town built round them
+  const castle = castleOf(circuit);
+  buildCastle(scene, circuit, castle);
 
   // the old town: houses and towers, a mesh of walls per facade style and of each kind of top
-  const blocks = townBlocks(circuit, sea, fromTrack, keep, r, marks);
+  const blocks = townBlocks(circuit, sea, fromTrack, keep, r, [...marks, ...castleFootprints(castle)]);
   const tops: Record<'tiles' | 'flat' | 'stone', THREE.BufferGeometry[]> = { tiles: [], flat: [], stone: [] };
   FACADES.forEach((style, k) => {
     const list = blocks.filter((b) => b.style === k);
