@@ -7,9 +7,9 @@ describe('the menu', () => {
   });
 
   it("then shows each mode's own options with the circuit: a Quick Race's qualifying and laps, the time modes' team and weather", () => {
-    expect(rowsOf('race')).toEqual(['team', 'weather', 'time', 'qualifying', 'laps']);
-    expect(rowsOf('timeattack')).toEqual(['team', 'weather', 'time']);
-    expect(rowsOf('timetrial')).toEqual(['team', 'weather', 'time']);
+    expect(rowsOf('race')).toEqual(['team', 'weather', 'qualifying', 'laps']);
+    expect(rowsOf('timeattack')).toEqual(['team', 'weather']);
+    expect(rowsOf('timetrial')).toEqual(['team', 'weather']);
     // (a Championship has its own screen: a season races every circuit)
     expect(rowsOf('championship')).toEqual([]);
   });

@@ -21,7 +21,6 @@ import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
 import { loadSeason, newSeason, recordRound, saveSeason, seasonOver, standings, teamOf } from './f1/championship';
 import { awardTitle } from './f1/medals';
-import { timeById } from './f1/night';
 import { unlock } from './f1/achievements';
 import { achievementToast, hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
@@ -133,9 +132,6 @@ const savedDifficulty = () => difficultyById(choice('difficulty')) ?? NORMAL;
 const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
 const savedLaps = () => lapsFrom(choice('laps'));
-const savedTime = () => timeById(choice('time'));
-/** A Championship round is raced at night on a street circuit (under the floodlights, as in a city) or one raced at night (in the desert), by day elsewhere. */
-const roundAtNight = (layout: CircuitLayout) => !!layout.street || !!layout.night;
 const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' ? v : 'race');
 const savedMode = (): GameMode => asMode(choice('mode'));
 
@@ -158,7 +154,7 @@ async function route(): Promise<void> {
   // the curtain down over the screen going (going to a race, with its loading card), then the screen closed behind it
   const params0 = new URLSearchParams(window.location.search);
   const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
-  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode'), going) } : undefined);
+  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : undefined);
   if (id !== routeId) return;
   current?.close();
   current = undefined;
@@ -183,13 +179,12 @@ async function route(): Promise<void> {
 }
 
 /** The line under a race's name on its loading card: the mode (a Championship's round) and the weather. */
-function raceLine(mode: string | null, layout: CircuitLayout): string {
+function raceLine(mode: string | null): string {
   if (mode === 'tutorial') return 'CONTROLS LAP';
   const season = mode === 'championship' ? loadSeason() : undefined;
   const what = season ? `CHAMPIONSHIP · ROUND ${season.round + 1} OF ${season.rounds.length}` : mode === 'timetrial' ? 'TIME TRIAL' : mode === 'timeattack' ? 'TIME ATTACK' : 'QUICK RACE';
   const weather = season ? weatherById(season.weather) ?? DRY : savedWeather();
-  const night = season ? roundAtNight(layout) : savedTime() === 'night';
-  return `${what} · ${weather.name}${night ? ' · NIGHT' : ''}`;
+  return `${what} · ${weather.name}`;
 }
 
 /** Go to `url` (this page with other flags) and show its screen. */
@@ -209,11 +204,11 @@ async function showMenu(id: number): Promise<void> {
   let stopBackdrop = () => {};
   closed.signal.addEventListener('abort', () => stopBackdrop());
   current = { close: () => closed.abort() };
-  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal, savedTime());
+  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal);
   curtainUp();
   const backdropOn = layoutById(choice('circuit')) && openNow().has(choice('circuit')!) ? layoutById(choice('circuit'))! : LAYOUTS[0];
   void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
-    if (!closed.signal.aborted) stopBackdrop = startBackdrop(screen, backdropOn, savedTime() === 'night');
+    if (!closed.signal.aborted) stopBackdrop = startBackdrop(screen, backdropOn);
   });
   const picked = await picking;
   stopBackdrop();
@@ -224,7 +219,6 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'weather', picked.weather.id);
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
   save('choices', 'laps', String(picked.laps));
-  save('choices', 'time', picked.time);
   save('choices', 'mode', picked.mode);
   if (picked.controlsLap) return navigate(withCircuit(LAYOUTS[0].id, 'tutorial'));
   // (a Championship picks its own circuits: to its screen)
@@ -317,7 +311,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
       : () => navigate(withCircuit(null));
   const options: RaceOptions = season
     ? {
-        team: teamOf(season.drivers[season.you]), difficulty: difficultyById(season.difficulty) ?? NORMAL, weather: weatherById(season.weather) ?? DRY, qualifying: season.qualifying, night: roundAtNight(layout),
+        team: teamOf(season.drivers[season.you]), difficulty: difficultyById(season.difficulty) ?? NORMAL, weather: weatherById(season.weather) ?? DRY, qualifying: season.qualifying,
         championship: {
           season,
           onDone: (finish, out) => {
@@ -341,7 +335,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
       }
     : mode === 'tutorial'
       ? { team: savedTeam(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
-      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), night: savedTime() === 'night', qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
+      : { team: savedTeam(), difficulty: savedDifficulty(), weather: savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();

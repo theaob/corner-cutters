@@ -39,9 +39,8 @@ describe('circuit list', () => {
     expect(layoutById('nowhere')).toBeUndefined();
   });
 
-  it('puts only Oasis in the desert, and its Championship round (with the Harbour\'s) at night', () => {
+  it('puts only Oasis in the desert', () => {
     expect(LAYOUTS.filter((l) => l.desert)).toEqual([OASIS]);
-    expect(LAYOUTS.filter((l) => l.night)).toEqual([OASIS]);
     expect(LAYOUTS.filter((l) => l.forest)).toEqual([ARDENNES, ALPINE_RING]);
   });
 

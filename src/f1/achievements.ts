@@ -21,7 +21,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'win', name: 'WINNER', about: 'Win a race' },
   { id: 'hard-win', name: 'GIANT KILLER', about: 'Win a race on HARD' },
   { id: 'wet-win', name: 'RAIN MASTER', about: 'Win a race in the wet' },
-  { id: 'night-win', name: 'NIGHT OWL', about: 'Win a race under the floodlights' },
   { id: 'from-back', name: 'FROM THE BACK', about: 'Win from the back half of the grid' },
   { id: 'charge', name: 'CHARGE', about: 'Gain five places in a race' },
   { id: 'hat-trick', name: 'HAT TRICK', about: 'Pole, the win and the fastest lap in one race' },
@@ -56,8 +55,6 @@ export interface RaceSummary {
   laps: number;
   difficulty: string;
   weather: string;
-  /** raced at night */
-  night?: boolean;
 }
 
 /** The achievements a finished race earns. */
@@ -68,7 +65,6 @@ export function raceAchievements(r: RaceSummary): string[] {
   if (won) out.push('win');
   if (won && r.difficulty === 'hard') out.push('hard-win');
   if (won && r.weather === 'wet') out.push('wet-win');
-  if (won && r.night) out.push('night-win');
   if (won && r.grid > Math.ceil(r.field / 2)) out.push('from-back');
   if (r.grid - r.place >= 5) out.push('charge');
   if (won && r.grid === 1 && r.fastest) out.push('hat-trick');
