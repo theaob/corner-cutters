@@ -70,7 +70,7 @@ describe('the harbour town', () => {
   });
 });
 
-describe('Baku', () => {
+describe('Caspian Shores (Baku)', () => {
   const c = buildCircuit(BAKU, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
   const samples = c.track.samples;
   const fromTrack = (x: number, y: number) => Math.min(...samples.map((p) => Math.hypot(p.x - x, p.y - y)));
