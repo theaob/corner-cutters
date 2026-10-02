@@ -4,6 +4,11 @@
 // after costs seconds on the finish time. One strike per corner a car goes
 // through, however far it cuts. Engine-free (race control runs it for every
 // car, the AI's too).
+//
+// Against the clock (a qualifying lap, a Time Trial lap) the rule is the
+// strict one: a lap with all four wheels past the white line anywhere, on
+// either side (a cut, or running wide), is deleted (offTrack). In a race,
+// running wide is its own penalty: the time it costs.
 
 import { HALF_WIDTH, TIGHT } from './circuit';
 import { lateralOffset, type Track } from './racing';
@@ -32,6 +37,8 @@ export interface Limits {
   strikes: number;
   /** the corner it last cut (it's not struck again until it's through it) */
   corner?: number;
+  /** all four wheels past the white line right now (an excursion counts once, until it's back on the track) */
+  off?: boolean;
 }
 
 export const newLimits = (): Limits => ({ strikes: 0 });
@@ -104,4 +111,22 @@ export function judge(limits: Limits, track: Track, corners: Corner[], idx: numb
   limits.corner = c;
   limits.strikes++;
   return { strike: limits.strikes, seconds: limits.strikes > LIMITS.warnings ? LIMITS.penalty : 0 };
+}
+
+/** Whether a car at (x, y), nearest sample `idx`, `width` px across, has all four wheels past the white line, either side. */
+export function wholeCarOff(track: Track, idx: number, x: number, y: number, width: number): boolean {
+  return Math.abs(lateralOffset(track, idx, x, y)) > HALF_WIDTH + width / 2;
+}
+
+/**
+ * Whether a car has just gone off the track this step, all four wheels past the white line either side (true once
+ * per excursion: it's back on, a wheel inside the line, before it can count again). `excused`: off where it may be
+ * (onto the pit entry road), which neither counts nor ends an excursion.
+ */
+export function offTrack(limits: Limits, track: Track, idx: number, x: number, y: number, width: number, excused = false): boolean {
+  const off = wholeCarOff(track, idx, x, y, width);
+  if (excused) return false;
+  const went = off && !limits.off;
+  limits.off = off;
+  return went;
 }

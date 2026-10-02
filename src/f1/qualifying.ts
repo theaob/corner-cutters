@@ -1,8 +1,9 @@
 // Qualifying: one flying lap, on your own, sets your place on the grid. You
 // start standing on the straight before the line, with a few seconds to get
 // going (and your bearings) before it; the lap is timed from the line back
-// round to it. A cut across a marked corner (track limits) deletes the lap: the
-// next one is timed afresh. The AI's times come from a reference lap (one AI
+// round to it. Track limits delete the lap: all four wheels past the white
+// line anywhere, a cut or running wide (even in the step it crosses the line);
+// the next one is timed afresh. The AI's times come from a reference lap (one AI
 // car on the racing line, alone, on this track in this weather) scaled by each
 // driver's pace, with a little spread either way, as its good and its scrappy
 // laps. The grid is everyone in order of their times; no time starts at the
@@ -76,9 +77,9 @@ export interface QualiLap {
 export const newQualiLap = (): QualiLap => ({ laps: 0, deleted: false });
 
 /**
- * Judge your session this step (`cut`: you cut a corner): 'deleted' the moment
- * a timed lap is cut, 'void' as a deleted lap ends (the next one is timed
- * afresh), your time as a good one ends.
+ * Judge your session this step (`cut`: you broke track limits, all four wheels
+ * past the white line): 'deleted' the moment a timed lap is cut, 'void' as a
+ * deleted lap ends (the next one is timed afresh), your time as a good one ends.
  */
 export function judgeLap(q: QualiLap, p: RaceProgress, cut: boolean): 'deleted' | 'void' | { time: number } | undefined {
   if (p.lapTimes.length > q.laps) {
@@ -86,10 +87,10 @@ export function judgeLap(q: QualiLap, p: RaceProgress, cut: boolean): 'deleted' 
     const time = p.lapTimes[p.lapTimes.length - 1];
     if (q.deleted) {
       q.deleted = false;
-      // (a cut in the same step as the line starts the new lap deleted: rare, and fair)
-      if (cut) q.deleted = true;
       return 'void';
     }
+    // (a cut in the very step it crosses the line was on the way to it: that lap is deleted, the next one starts clean)
+    if (cut) return 'deleted';
     return { time };
   }
   // (a cut on the run-up, before the timed lap, doesn't count)

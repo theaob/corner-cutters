@@ -4,7 +4,7 @@ import { HALF_WIDTH, TIGHT, buildCircuit } from '../src/f1/circuit';
 import { LAYOUTS } from '../src/f1/layouts';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, type Track } from '../src/f1/racing';
 import { newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
-import { LIMITS, cutting, judge, markCorners, newLimits, type Corner } from '../src/f1/trackLimits';
+import { LIMITS, cutting, judge, markCorners, newLimits, offTrack, type Corner } from '../src/f1/trackLimits';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -92,5 +92,63 @@ describe('track limits in a race', () => {
       { kind: 'track-limits', who: 0, strike: 3, seconds: LIMITS.penalty },
     ]);
     expect(me.progress.penalty).toBe(LIMITS.penalty);
+  });
+});
+
+describe('going off the track', () => {
+  const { track } = build();
+  const w = f1.width;
+  const i = 40;
+  it('is all four wheels past the white line, either side, anywhere; once each time off', () => {
+    const l = newLimits();
+    const off = (lat: number, excused = false) => {
+      const p = at(track, i, lat);
+      return offTrack(l, track, i, p.x, p.y, w, excused);
+    };
+    // a wheel still on the line: on the track
+    expect(off(HALF_WIDTH + w / 2 - 2)).toBe(false);
+    expect(off(HALF_WIDTH + w / 2 + 2)).toBe(true);
+    // (still off: the same excursion)
+    expect(off(HALF_WIDTH + 30)).toBe(false);
+    expect(off(0)).toBe(false);
+    // the other side, a new excursion
+    expect(off(-(HALF_WIDTH + w / 2 + 2))).toBe(true);
+    expect(off(0)).toBe(false);
+    // off where it may be (onto the pit entry road): doesn't count
+    expect(off(HALF_WIDTH + 30, true)).toBe(false);
+  });
+});
+
+describe('going off in a race', () => {
+  const c = build();
+  const put = (race: ReturnType<typeof newRace>, idx: number, lat: number) => {
+    const me = race.entrants[0];
+    const s = c.track.samples[idx];
+    Object.assign(me.car, { ...at(c.track, idx, lat), heading: s.dir, vx: 0, vy: 0 });
+    me.progress = { ...me.progress, idx };
+  };
+  const racing = () => {
+    const race = newRace(c.track, c.grid, RACE_HANDLING, 5, [{ car: newCar(f1, c.slots[0].x, c.slots[0].y, c.slots[0].heading) }], 0, c.pit);
+    while (race.phase !== 'racing') stepRace(race, dt);
+    return race;
+  };
+  it('running wide, on the outside of a corner, is off the track (said once) but no strike: it costs its own time', () => {
+    const race = racing();
+    const k = race.corners[1];
+    put(race, k.apex, -k.side * (HALF_WIDTH + 20));
+    const events: RaceEvent[] = [];
+    for (let s = 0; s < 3; s++) events.push(...stepRace(race, dt).race);
+    expect(events.filter((e) => e.kind === 'off-track')).toEqual([{ kind: 'off-track', who: 0 }]);
+    expect(events.some((e) => e.kind === 'track-limits')).toBe(false);
+    expect(race.entrants[0].progress.penalty).toBe(0);
+  });
+  it('turning off onto the pit entry road is not', () => {
+    const race = racing();
+    const pit = c.pit;
+    const idx = (pit.entry + 6) % c.track.samples.length;
+    put(race, idx, pit.side * (HALF_WIDTH + 12));
+    const events: RaceEvent[] = [];
+    for (let s = 0; s < 3; s++) events.push(...stepRace(race, dt).race);
+    expect(events.some((e) => e.kind === 'off-track')).toBe(false);
   });
 });

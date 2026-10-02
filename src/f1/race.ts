@@ -886,12 +886,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
           ranked.forEach((i, k) => (race.entrants[i].progress = { ...race.entrants[i].progress, finished: race.clock + k * 0.5 }));
         },
         inLap: () => race.entrants.map((e, i) => ({ name: looks[i].name, to: e.inLap?.to, parked: !!e.inLap?.parked, pit: e.pit?.phase })),
-        /** put your car on the inside of marked corner `k` (off the track, at its apex), for trying out track limits */
-        cut: (k = 0) => {
+        /** put your car on the inside of marked corner `k` (off the track, at its apex), for trying out track limits; `wide`: on its outside instead */
+        cut: (k = 0, wide = false) => {
           const me = race.entrants[you];
           const corner = race.corners[k % race.corners.length];
           const s = track.samples[corner.apex];
-          const lat = (HALF_WIDTH + 16) * corner.side;
+          const lat = (HALF_WIDTH + 16) * corner.side * (wide ? -1 : 1);
           Object.assign(me.car, { x: s.x + Math.cos(s.dir) * lat, y: s.y + Math.sin(s.dir) * lat, heading: s.dir, vx: Math.sin(s.dir) * 120, vy: -Math.cos(s.dir) * 120 });
           me.progress = { ...me.progress, idx: corner.apex };
         },
@@ -1394,7 +1394,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       });
       // gaps at the timing points, timed to the step
       if (race.phase === 'racing') stepGaps(hudState.gaps, race.entrants.map((e) => e.progress), track, race.clock);
-      if (trial) stepTrial(s.race.some((e) => e.kind === 'track-limits' && e.who === you));
+      if (trial) stepTrial(s.race.some((e) => (e.kind === 'track-limits' || e.kind === 'off-track') && e.who === you));
       if (attack) stepTimeAttack(s.race.some((e) => e.kind === 'track-limits' && e.who === you));
       if (session === 'race' && race.phase === 'racing') {
         const scCar = race.sc?.car;
@@ -1407,7 +1407,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const step = { cars, race: raceEvents };
     // qualifying: a cut deletes the lap you're on; a good lap (or a wreck) ends it
     if (quali) {
-      const lap = judgeLap(quali.lap, race.entrants[you].progress, raceEvents.some((e) => e.kind === 'track-limits' && e.who === you));
+      // (track limits against the clock: a cut, or all four wheels past the white line anywhere)
+      const lap = judgeLap(quali.lap, race.entrants[you].progress, raceEvents.some((e) => (e.kind === 'track-limits' || e.kind === 'off-track') && e.who === you));
       if (lap === 'deleted') {
         announce('LAP DELETED · TRACK LIMITS', '#d8323c', 3);
         sounds.trackLimits(true);
