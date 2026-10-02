@@ -147,7 +147,6 @@ export const DECK_ICONS: Record<string, string> = {
   RACE: fill('M7 4l13 8-13 8z'),
   SKIP: fill('M4 5l10 7-10 7zM16 5h3.5v14H16z'),
   NEXT: fill('M4 5l10 7-10 7zM16 5h3.5v14H16z'),
-  DRIFT: stroke('M5 20c0-8 5-13 13-13') + fill('M15 2.5l6.5 4.5-6.5 4.5z'),
   AGAIN: stroke('M19 12a7 7 0 1 1-2.5-5.4') + fill('M14 3.5h7v7z'),
   RESTART: stroke('M19 12a7 7 0 1 1-2.5-5.4') + fill('M14 3.5h7v7z'),
   EXIT: stroke('M20 12H6') + fill('M11 5l-8 7 8 7z'),

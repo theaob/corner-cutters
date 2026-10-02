@@ -1,7 +1,7 @@
 // The controls lap: on first launch, a lap of the first circuit on your own
 // before the menu, with a prompt at a time for the controls on the device
 // you're using (the touch stick, keys, or a gamepad): go, full speed, slowing
-// for a bend, drifting, the track limits, and on round to the line. Each
+// for a bend, drifting (on the keys or a gamepad: not on touch), the track limits, and on round to the line. Each
 // prompt moves on once you've done it (or, for the ones that wait for a bend,
 // once you've been through one). Engine-free.
 
@@ -21,7 +21,7 @@ export function prompt(step: Step, device: Device): string {
     case 'bend':
       return device === 'touch' ? 'EASE THE STICK IN BEFORE A BEND TO SLOW' : device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
     case 'drift':
-      return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : device === 'touch' ? 'HOLD DRIFT IN A BEND TO SLIDE ROUND IT' : 'HOLD A IN A BEND TO DRIFT ROUND IT';
+      return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : 'HOLD A IN A BEND TO DRIFT ROUND IT';
     case 'limits':
       return 'KEEP INSIDE THE WHITE LINES: CUTTING A CORNER COSTS TIME';
     case 'lap':
@@ -45,6 +45,8 @@ export interface Facts {
   top: number;
   bends: number;
   drifting: boolean;
+  /** whether you can drift (on the keys or a gamepad: there's no drift button on the touch deck); the drift prompt is skipped if not */
+  canDrift?: boolean;
   lapDone: boolean;
 }
 
@@ -56,7 +58,7 @@ export function advance(o: Onboarding, f: Facts): boolean {
     : o.step === 'faster' ? f.speed > f.top * 0.8
     : o.step === 'bend' ? through >= 1
     // (a drift, or two bends without one: it's there when you want it)
-    : o.step === 'drift' ? (f.drifting && f.speed > 80) || through >= 2
+    : o.step === 'drift' ? f.canDrift === false || (f.drifting && f.speed > 80) || through >= 2
     : o.step === 'limits' ? through >= 1
     : o.step === 'lap' ? f.lapDone
     : false;
