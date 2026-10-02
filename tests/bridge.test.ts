@@ -27,6 +27,27 @@ describe('the bridge at Suzuka', () => {
       }
     }
   });
+  it('keeps a car that drives at its edge on the deck: none goes over the side, anywhere along it, at any angle or speed', () => {
+    for (let k = l.from; k !== (l.to + 1) % n; k = (k + 1) % n) {
+      if (liftAt(track, l, k) < 12) continue;
+      const p = track.samples[k];
+      for (const side of [-1, 1]) {
+        for (const turn of [0.3, 0.7, 1.2]) {
+          for (const v of [150, 300]) {
+            const heading = p.dir + side * turn;
+            const car = newCar(f1, p.x + Math.cos(p.dir) * 30 * side, p.y + Math.sin(p.dir) * 30 * side, heading);
+            Object.assign(car, { vx: Math.sin(heading) * v, vy: -Math.cos(heading) * v, z: groundAt(l.upper, car.x, car.y).h });
+            for (let s = 0; s < 90; s++) {
+              stepCar(car, { handbrake: false, steer: { x: Math.sin(heading), y: -Math.cos(heading) } }, RACE_HANDLING, 1 / 60, l.upper);
+              // (no deck under it, while it's still well up: it went over the side)
+              const g = groundAt(grid, car.x, car.y).h;
+              expect(groundAt(l.upper, car.x, car.y).h - g >= 1 || car.z - g <= 8, `sample ${k}, side ${side}, turn ${turn}, ${v} px/s`).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  }, 60_000);
   it("knows a car under the deck (its outline's then drawn through it), and not one up on it or away from it", () => {
     const under = track.samples[l.under];
     const over = track.samples[l.over];
