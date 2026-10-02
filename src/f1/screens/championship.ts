@@ -10,7 +10,7 @@ import type { Services } from '../../engine/services';
 import { carRow, menuButton, optionRow } from '../circuitSelect';
 import { confetti, trophy } from './celebrate';
 import { onBack } from '../../engine/backButton';
-import { POINTS, pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
+import { POINTS, numberIn, pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
 import { menuPick, menuTick } from '../sounds';
@@ -42,7 +42,7 @@ function countUp(el: HTMLElement, from: number, to: number, delay: number): void
   requestAnimationFrame(tick);
 }
 
-/** The standings as a table: place, driver, team, points (and what the last round brought), wins; you in gold. */
+/** The standings as a table: place, number, driver, team, points (and what the last round brought), wins; you in gold. */
 function standingsTable(s: Season): HTMLTableElement {
   const points = pointsOf(s);
   const last = s.places[s.places.length - 1];
@@ -56,7 +56,7 @@ function standingsTable(s: Season): HTMLTableElement {
   Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
   const head = document.createElement('tr');
   head.style.color = 'var(--muted)';
-  head.append(cell('th', '', true), cell('th', 'DRIVER'), cell('th', 'TEAM'), cell('th', 'PTS', true), cell('th', ''), cell('th', 'WINS', true), cell('th', 'LAST', true));
+  head.append(cell('th', '', true), cell('th', 'NO', true), cell('th', 'DRIVER'), cell('th', 'TEAM'), cell('th', 'PTS', true), cell('th', ''), cell('th', 'WINS', true), cell('th', 'LAST', true));
   table.append(head);
   standings(s).forEach((r, pos) => {
     const d = s.drivers[r.driver];
@@ -72,7 +72,7 @@ function standingsTable(s: Season): HTMLTableElement {
     const plus = cell('td', scored ? `+${scored}` : '');
     Object.assign(plus.style, { color: 'var(--gold)', fontSize: '10px', animation: scored ? `score-in 1.6s ease-out ${(0.5 + pos * 0.06).toFixed(2)}s both` : '' });
     row.append(
-      cell('td', `${pos + 1}`, true), cell('td', d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
+      cell('td', `${pos + 1}`, true), cell('td', `${numberIn(s, r.driver) ?? ''}`, true), cell('td', d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
       cell('td', lastPlace === undefined ? '' : lastPlace < 0 ? 'DNF' : `P${lastPlace + 1}`, true),
     );
     table.append(row);

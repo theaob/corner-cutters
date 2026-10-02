@@ -8,6 +8,7 @@
 import { save, saved } from '../engine/save';
 import { seededRandom } from '../engine/rng';
 import { paceRanks, type DifficultyId } from './difficulty';
+import { numberOf } from './drivers';
 import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import type { WeatherId } from './weather';
 
@@ -104,6 +105,10 @@ export function standings(s: Season): Standing[] {
 
 /** The team a season driver drives for. */
 export const teamOf = (d: SeasonDriver): Team => TEAMS.find((t) => t.id === d.team) ?? TEAMS[0];
+
+/** Driver `k`'s race number in season `s` (yours: the number of the car you drive). */
+export const numberIn = (s: Season, k: number): number | undefined =>
+  numberOf(k === s.you ? teamOf(s.drivers[k]).drivers[s.seat ?? 0] : s.drivers[k].name);
 
 /** A season from the save, if it's a sound one. */
 export function parseSeason(v: unknown): Season | undefined {
