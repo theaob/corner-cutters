@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ARDENNES, CRESCENT_PARK, HARBOUR, LAYOUTS, ROYAL_PARK, SILVER_HEATH, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, CRESCENT_PARK, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -19,6 +19,12 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: ROYAL_PARK, length: [9000, 10000], lap: [26, 32], flatGap: 0.5 },
   // the longest: up and down through the forest, three hard stops
   { layout: ARDENNES, length: [13000, 14000], lap: [38, 46], flatGap: 1.5, braking: 1.2 },
+  // short and steep: a lift for the hairpin at the top and the stop at the bottom of the back straight
+  { layout: ALPINE_RING, length: [8000, 9000], lap: [23, 29], flatGap: 1 },
+  // the esses and the infield want a lift or two
+  { layout: TWIN_LAKES, length: [7400, 8400], lap: [22, 28], flatGap: 1.5, braking: 1 },
+  // the heavy stops: Turn 1, the hairpin and the downhill Turn 10
+  { layout: OASIS, length: [8500, 9400], lap: [25, 31], flatGap: 1.5, braking: 1.2 },
 ];
 
 describe('circuit list', () => {
@@ -27,6 +33,12 @@ describe('circuit list', () => {
     expect(new Set(LAYOUTS.map((l) => l.id)).size).toBe(LAYOUTS.length);
     expect(layoutById('silver-heath')).toBe(SILVER_HEATH);
     expect(layoutById('nowhere')).toBeUndefined();
+  });
+
+  it('puts only Oasis in the desert, and its Championship round (with the Harbour\'s) at night', () => {
+    expect(LAYOUTS.filter((l) => l.desert)).toEqual([OASIS]);
+    expect(LAYOUTS.filter((l) => l.night)).toEqual([OASIS]);
+    expect(LAYOUTS.filter((l) => l.forest)).toEqual([ARDENNES, ALPINE_RING]);
   });
 
   it('starts and ends each elevation profile at the same height, in lap order', () => {

@@ -133,8 +133,8 @@ const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
 const savedLaps = () => lapsFrom(choice('laps'));
 const savedTime = () => timeById(choice('time'));
-/** A Championship round is raced at night on a street circuit (under the floodlights, as in a city), by day elsewhere. */
-const roundAtNight = (layout: CircuitLayout) => !!layout.street;
+/** A Championship round is raced at night on a street circuit (under the floodlights, as in a city) or one raced at night (in the desert), by day elsewhere. */
+const roundAtNight = (layout: CircuitLayout) => !!layout.street || !!layout.night;
 const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' ? v : 'race');
 const savedMode = (): GameMode => asMode(choice('mode'));
 

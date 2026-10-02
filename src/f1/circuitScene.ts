@@ -45,6 +45,9 @@ const START_SQUARE = 6;
 /** A forest's floor, past the barriers */
 const FOREST_FLOOR = '#2f5a2c';
 
+/** The desert's colours: the sand (its run-off, beyond the barriers, and the specks in it), and the gravel traps, redder so they stand out from it */
+const DESERT = { runoff: '#e4c896', runoffStripe: '#dcbf8a', sand: '#d8b47c', speck: '#c49e66', ripple: '#e8d0a2', gravel: '#c08a5e', gravelDot: ['#ad7a50', '#d29e72'] };
+
 /** The banking's concrete, and the seams along it */
 const CONCRETE = '#b4b2ac';
 const SEAM = '#99978f';
@@ -58,6 +61,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const r = rng(11);
   const street = !!circuit.layout.street;
   const forest = !!circuit.layout.forest;
+  const desert = !!circuit.layout.desert;
   const sea = seaOf(circuit);
   // run-off and surroundings, tile by tile
   for (let j = 0; j < H; j++) {
@@ -92,11 +96,19 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
         }
       } else if (cell === 'gravel') {
-        x.fillStyle = '#d8c49a';
+        x.fillStyle = desert ? DESERT.gravel : '#d8c49a';
         x.fillRect(px, py, T, T);
         for (let k = 0; k < 10; k++) {
-          x.fillStyle = r() < 0.5 ? '#c4ae82' : '#e6d6b0';
+          x.fillStyle = desert ? DESERT.gravelDot[r() < 0.5 ? 0 : 1] : r() < 0.5 ? '#c4ae82' : '#e6d6b0';
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
+        }
+      } else if (desert) {
+        // in the desert, sand: smoothed and striped on the run-off, rippled beyond the barriers
+        x.fillStyle = cell === 'wall' ? DESERT.sand : (i + j) % 4 < 2 ? DESERT.runoff : DESERT.runoffStripe;
+        x.fillRect(px, py, T, T);
+        for (let k = 0; k < 3; k++) {
+          x.fillStyle = cell === 'wall' && r() < 0.5 ? DESERT.ripple : DESERT.speck;
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), cell === 'wall' ? 3 : 1, 1);
         }
       } else {
         // grass everywhere else (the track is painted over it); mown stripes on the run-off; in a forest, its dark floor past the barriers
@@ -357,7 +369,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, nig
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : 0x4b9444).multiply(tint) }));
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : 0x4b9444).multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
   scene.add(ground, outer);

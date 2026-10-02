@@ -40,7 +40,7 @@ describe('the track designer', () => {
       const failed = check(layout, circuitOf(layout)).filter((c) => !c.ok);
       expect(failed.map((c) => `${layout.id}: ${c.label} ${c.value}`)).toEqual([]);
     }
-  });
+  }, 30_000);
 
   it('starts a new circuit from a blank that passes the checks, and an AI car laps it unhurt', () => {
     const layout = layoutFrom(blankDraft());

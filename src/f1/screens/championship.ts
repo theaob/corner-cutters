@@ -110,8 +110,8 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       screen.append(line(champ.name === 'YOU' ? 'YOU ARE THE CHAMPION!' : `CHAMPION: ${champ.name} (${teamOf(champ).code})`, 'var(--gold)'));
     } else screen.append(line(`ROUND ${season.round + 1} OF ${season.rounds.length} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)'));
     screen.append(line(settings));
-    // the rounds: raced (your place), next, to come
-    screen.append(line(season.rounds.map((id, k) => `${k < season.round ? (season.places[k][season.you] < 0 ? 'DNF' : `P${season.places[k][season.you] + 1}`) : k === season.round ? '▶' : '·'} ${nameOf(id)}`).join('   ')));
+    // the rounds: raced (your place), next, to come (each kept on one line as the list wraps)
+    screen.append(line(season.rounds.map((id, k) => `${k < season.round ? (season.places[k][season.you] < 0 ? 'DNF' : `P${season.places[k][season.you] + 1}`) : k === season.round ? '▶' : '·'}\u00a0${nameOf(id).replace(/ /g, '\u00a0')}`).join('   ')));
     // a circuit just unlocked: said once
     if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE, TIME ATTACK AND TIME TRIAL`, 'var(--accent-b)'));
     screen.append(standingsTable(season));

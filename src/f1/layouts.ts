@@ -26,6 +26,10 @@ export interface CircuitLayout {
   banking?: { from: number; to: number; grade: number };
   /** in a forest: trees packed all round beyond the barriers, on a dark forest floor */
   forest?: boolean;
+  /** in the desert: sand all round, beyond the barriers and on the run-off */
+  desert?: boolean;
+  /** its Championship round is raced at night, under the floodlights (as a street circuit's is) */
+  night?: boolean;
   /** the podium hangs over the main straight on a deck from the pit side, this many px up (else it stands on the run-off) */
   podiumDeck?: number;
 }
@@ -372,7 +376,192 @@ export const ARDENNES: CircuitLayout = {
   forest: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES];
+/**
+ * Alpine Ring. Clockwise, on a hillside in the mountains, after the short one
+ * there (outline data from the same source, its hairpins opened out a little):
+ * the climb to the uphill right of Turn 1, on up the long straight to the
+ * hairpin of Turn 3 at the top, the plunge down the back straight to the
+ * heavy stop at Turn 4, the sweeping lefts and rights down to the bottom of
+ * the valley, and the two fast rights onto the straight. A short lap, about
+ * 8500 px, about 27 s, so the field stays close.
+ */
+export const ALPINE_RING: CircuitLayout = {
+  id: 'alpine-ring',
+  name: 'Alpine Ring',
+  about: 'clockwise · short and steep, in the mountains',
+  points: ([
+    [803, 700], [776, 708], [749, 715], [721, 722], [694, 729], [667, 737],
+    [640, 744], [613, 751], [586, 759], [559, 766], [532, 773], [505, 778],
+    [480, 767], [462, 745], [447, 722], [431, 699], [415, 676], [399, 653],
+    [383, 630], [367, 607], [352, 583], [336, 560], [320, 537], [305, 514],
+    [292, 489], [279, 464], [266, 439], [253, 414], [240, 389], [228, 364],
+    [215, 340], [202, 315], [189, 290], [176, 265], [163, 240], [148, 217],
+    [129, 197], [110, 176], [90, 156], [71, 136], [51, 116], [32, 95],
+    [13, 75], [0, 51], [5, 24], [27, 7], [54, 2], [82, 1],
+    [110, 0], [138, 0], [166, 1], [194, 5], [221, 9], [249, 14],
+    [277, 18], [304, 23], [332, 27], [360, 32], [387, 36], [415, 40],
+    [442, 45], [470, 49], [498, 54], [525, 58], [553, 62], [581, 64],
+    [609, 66], [637, 68], [665, 70], [693, 72], [721, 74], [745, 86],
+    [757, 111], [750, 137], [734, 160], [712, 178], [689, 194], [665, 207],
+    [638, 214], [611, 220], [583, 222], [555, 218], [527, 214], [500, 210],
+    [472, 206], [444, 202], [417, 199], [389, 197], [362, 203], [339, 219],
+    [323, 241], [315, 268], [319, 296], [327, 322], [341, 346], [355, 370],
+    [369, 395], [383, 419], [397, 443], [418, 462], [442, 474], [470, 476],
+    [497, 469], [518, 452], [538, 433], [558, 413], [578, 393], [603, 382],
+    [630, 372], [656, 362], [683, 359], [711, 359], [739, 358], [767, 358],
+    [795, 357], [823, 356], [851, 355], [879, 355], [907, 354], [935, 354],
+    [963, 353], [991, 353], [1019, 352], [1047, 351], [1075, 350], [1103, 350],
+    [1130, 355], [1156, 367], [1171, 390], [1184, 415], [1192, 442], [1200, 468],
+    [1208, 495], [1216, 522], [1217, 550], [1201, 572], [1177, 586], [1152, 599],
+    [1127, 612], [1101, 620], [1074, 627], [1046, 634], [1019, 642], [992, 649],
+    [965, 656], [938, 664], [911, 671], [884, 678], [857, 685], [830, 693],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2.0,
+  // (a share of the lap): up to Turn 1, on up to the hairpin at the top, down the back straight and down the valley, and back up onto the straight
+  elevation: [
+    [0, 30],
+    [0.09, 46],
+    [0.3, 74],
+    [0.47, 50],
+    [0.55, 36],
+    [0.62, 22],
+    [0.7, 8],
+    [0.8, 4],
+    [0.9, 16],
+    [1, 30],
+  ],
+  // on the outside of the main straight, from the last bend to past the line
+  pit: { from: -600, to: 480, side: -1 },
+  forest: true,
+};
+
+/**
+ * Twin Lakes. Anticlockwise round a bowl between two lakes, after the one in
+ * the big city there (outline data from the same source, its main straight
+ * eased straight and its tightest bends opened out a little): down from the
+ * line into the left–right of the esses, the long curving back straight down
+ * to the lake, the twisty climb through the infield to its highest bends, the
+ * dip, the slow left onto the climb, and the long uphill drag flat out to the
+ * line. About 8000 px, about 26 s.
+ */
+export const TWIN_LAKES: CircuitLayout = {
+  id: 'twin-lakes',
+  name: 'Twin Lakes',
+  about: 'anticlockwise · a bowl of a circuit, down and up',
+  points: ([
+    [93, 729], [100, 756], [107, 784], [114, 811], [121, 838], [128, 865],
+    [135, 892], [142, 919], [149, 946], [156, 973], [168, 998], [192, 1011],
+    [219, 1005], [244, 993], [271, 999], [297, 1010], [323, 1020], [350, 1024],
+    [378, 1023], [405, 1018], [430, 1004], [454, 990], [471, 968], [487, 945],
+    [495, 918], [502, 891], [510, 864], [517, 837], [524, 810], [532, 783],
+    [539, 756], [547, 729], [554, 702], [561, 675], [568, 648], [576, 621],
+    [583, 594], [590, 567], [597, 540], [605, 513], [612, 486], [620, 459],
+    [628, 432], [635, 405], [642, 378], [649, 351], [654, 324], [648, 297],
+    [628, 278], [601, 270], [573, 265], [546, 261], [518, 259], [490, 263],
+    [465, 274], [443, 291], [424, 311], [405, 332], [388, 355], [372, 377],
+    [355, 400], [339, 423], [322, 445], [306, 468], [289, 490], [273, 513],
+    [256, 535], [240, 558], [221, 578], [197, 593], [169, 591], [147, 574],
+    [137, 549], [131, 521], [123, 495], [116, 468], [114, 440], [129, 417],
+    [155, 408], [179, 394], [188, 368], [181, 341], [163, 320], [144, 299],
+    [126, 278], [116, 253], [121, 226], [142, 208], [170, 208], [192, 224],
+    [212, 244], [236, 256], [263, 263], [291, 259], [317, 250], [339, 233],
+    [357, 212], [372, 188], [386, 165], [401, 141], [416, 117], [431, 94],
+    [440, 67], [430, 42], [407, 27], [380, 18], [354, 9], [327, 0],
+    [300, 2], [272, 7], [245, 12], [218, 20], [192, 31], [167, 43],
+    [141, 54], [118, 69], [95, 84], [71, 100], [53, 120], [40, 145],
+    [32, 172], [28, 200], [27, 228], [27, 256], [25, 284], [19, 311],
+    [9, 337], [0, 363], [6, 390], [12, 417], [19, 444], [26, 471],
+    [33, 498], [40, 525], [47, 552], [54, 580], [61, 607], [68, 634],
+    [75, 661], [82, 688], [89, 715],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2.0,
+  // (a share of the lap): down through the esses and the back straight to the lake, up through the infield, down the dip, and the long climb to the line
+  elevation: [
+    [0, 36],
+    [0.08, 26],
+    [0.15, 22],
+    [0.33, 4],
+    [0.4, 0],
+    [0.5, 10],
+    [0.62, 24],
+    [0.72, 30],
+    [0.8, 18],
+    [0.88, 10],
+    [1, 36],
+  ],
+  // on the outside of the main straight
+  pit: { from: -600, to: 460, side: 1 },
+  tyreWear: 0.8,
+};
+
+/**
+ * Oasis. Clockwise, in the desert, after the one in the sands there (outline
+ * data from the same source, its hairpins opened out a little and two
+ * stretches eased apart): the long main straight to the heavy stop at Turn 1,
+ * the right–left of Turns 2 and 3, the long run to Turn 4, the esses, the
+ * hairpin at Turn 8, the downhill left of Turns 9 and 10 (the trickiest
+ * braking of the lap), the back straight, the long right of Turns 11 to 13
+ * and the last right onto the straight. Sand all round, its Championship
+ * round under the floodlights. About 9300 px, about 30 s.
+ */
+export const OASIS: CircuitLayout = {
+  id: 'oasis',
+  name: 'Oasis',
+  about: 'clockwise · in the desert, under the lights, hard on the brakes',
+  points: ([
+    [32, 367], [33, 339], [34, 311], [35, 283], [36, 255], [38, 227],
+    [39, 199], [40, 171], [41, 143], [42, 115], [43, 87], [44, 59],
+    [49, 32], [68, 12], [95, 6], [120, 17], [147, 22], [174, 15],
+    [201, 7], [229, 1], [257, 0], [284, 4], [312, 10], [339, 15],
+    [367, 20], [394, 26], [422, 31], [449, 37], [476, 42], [504, 47],
+    [531, 52], [559, 58], [586, 63], [614, 68], [642, 73], [669, 79],
+    [697, 84], [724, 89], [752, 94], [777, 105], [791, 129], [789, 156],
+    [772, 178], [751, 196], [729, 214], [707, 231], [686, 250], [667, 270],
+    [647, 290], [630, 312], [618, 337], [605, 362], [589, 384], [564, 394],
+    [536, 391], [508, 388], [481, 391], [454, 398], [435, 418], [417, 440],
+    [399, 462], [381, 483], [356, 496], [329, 492], [309, 473], [304, 445],
+    [307, 418], [311, 390], [313, 362], [314, 334], [316, 306], [319, 278],
+    [313, 251], [292, 233], [265, 230], [241, 244], [230, 269], [226, 297],
+    [221, 325], [216, 352], [213, 380], [210, 408], [207, 436], [204, 464],
+    [201, 491], [199, 519], [199, 547], [202, 575], [206, 603], [209, 631],
+    [210, 659], [209, 687], [208, 715], [207, 743], [206, 771], [204, 799],
+    [205, 826], [217, 851], [241, 865], [269, 870], [296, 866], [321, 853],
+    [345, 839], [364, 818], [382, 797], [394, 772], [404, 746], [415, 720],
+    [428, 695], [448, 676], [472, 662], [498, 651], [525, 649], [553, 651],
+    [579, 660], [604, 672], [629, 684], [654, 697], [679, 710], [700, 728],
+    [712, 753], [709, 780], [692, 803], [671, 820], [647, 834], [622, 848],
+    [598, 861], [573, 874], [549, 888], [524, 902], [500, 916], [475, 929],
+    [451, 943], [426, 956], [402, 970], [377, 984], [353, 997], [328, 1010],
+    [304, 1024], [279, 1038], [255, 1051], [230, 1065], [206, 1079], [182, 1092],
+    [157, 1106], [133, 1120], [108, 1133], [84, 1147], [57, 1153], [31, 1143],
+    [16, 1120], [6, 1094], [0, 1067], [2, 1039], [3, 1011], [4, 983],
+    [5, 955], [7, 927], [8, 899], [9, 871], [10, 843], [12, 815],
+    [13, 787], [15, 759], [16, 731], [17, 703], [19, 675], [20, 647],
+    [21, 619], [22, 591], [24, 563], [25, 535], [26, 507], [27, 479],
+    [29, 451], [30, 423], [31, 395],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1.8,
+  // (a share of the lap): nearly flat, up a little to the esses and down the hill into Turns 9 and 10
+  elevation: [
+    [0, 10],
+    [0.1, 8],
+    [0.25, 16],
+    [0.36, 26],
+    [0.42, 12],
+    [0.5, 14],
+    [0.62, 10],
+    [0.75, 6],
+    [0.9, 8],
+    [1, 10],
+  ],
+  // on the outside of the main straight
+  pit: { from: -660, to: 460, side: -1 },
+  tyreWear: 0.6,
+  desert: true,
+  night: true,
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS];
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {
