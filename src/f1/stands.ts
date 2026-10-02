@@ -8,6 +8,7 @@
 import { HALF_WIDTH, RUNOFF, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
 import { seeOver } from './town3d';
+import { GARAGE_ACROSS, PIT } from './pits';
 
 export interface Stand {
   /** its middle on the map */
@@ -50,20 +51,33 @@ export function standsOf(circuit: Circuit): Stand[] {
   const n = samples.length;
   const runoff = layout.street?.runoff ?? RUNOFF;
   const out = HALF_WIDTH + runoff + STAND.gap + STAND.depth / 2;
-  // the main straight's: behind the start line, across from the pits
+  const fromTrack = (x: number, y: number) => Math.min(...samples.map((p) => Math.hypot(p.x - x, p.y - y)));
+  /** clear of every stretch of the track and its run-off (another can pass close behind a stand, round a bend) */
+  const clear = (s: Stand) => [...corners(s), s].every((c) => fromTrack(c.x, c.y) >= HALF_WIDTH + runoff + 8);
+  // the main straight's: three side by side behind the start line, across from the pits; one with another stretch
+  // of track close behind it moves on back along the straight (and, as a last resort, over to the pit side, past
+  // the garages)
   const side = -pit.side as -1 | 1;
-  const stands: Stand[] = [0, 1, 2].map((k) => {
-    const p = samples[(n - 20 - k * 16) % n];
-    const lat = (HALF_WIDTH + runoff + 40) * side;
-    return { x: p.x + Math.cos(p.dir) * lat, y: p.y + Math.sin(p.dir) * lat, dir: p.dir, side, len: 110, at: 'start' };
-  });
+  const stands: Stand[] = [];
+  const startStand = (k: number, sd: -1 | 1): Stand => {
+    const p = samples[(n - 20 - k * 16 + 4 * n) % n];
+    const lat = (sd === side ? HALF_WIDTH + runoff + 40 : PIT.offset + GARAGE_ACROSS + 60) * sd;
+    return { x: p.x + Math.cos(p.dir) * lat, y: p.y + Math.sin(p.dir) * lat, dir: p.dir, side: sd, len: 110, at: 'start' };
+  };
+  for (const sd of [side, -side as -1 | 1]) {
+    for (let k = 0; k < 12 && stands.length < 3; k++) {
+      // (on the straight: not round the bend before it)
+      if (Math.abs(samples[(n - 20 - k * 16 + 4 * n) % n].curve) >= 1 / 700) break;
+      const s = startStand(k, sd);
+      if (clear(s) && stands.every((o) => Math.hypot(o.x - s.x, o.y - s.y) >= s.len)) stands.push(s);
+    }
+  }
   // (a street circuit's bends have its town round them instead)
   if (layout.street) return stands;
-  const fromTrack = (x: number, y: number) => Math.min(...samples.map((p) => Math.hypot(p.x - x, p.y - y)));
   const fits = (s: Stand) => {
     const box = corners(s);
     // clear of the track and its run-off (another part of the track can pass close by, round a bend)
-    if ([...box, s].some((c) => fromTrack(c.x, c.y) < HALF_WIDTH + runoff + 8)) return false;
+    if (!clear(s)) return false;
     if (pit.points.some((q) => Math.hypot(q.x - s.x, q.y - s.y) < STAND.clearOfPits)) return false;
     if (stands.some((o) => Math.hypot(o.x - s.x, o.y - s.y) < STAND.apart)) return false;
     // and the camera sees over it, flags and all
