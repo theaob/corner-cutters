@@ -16,9 +16,13 @@ export const BRIDGE = {
   /** px up a ramp to the deck's full height, and px the deck stays at it either side of the crossing */
   ramp: 440,
   flat: 220,
-  /** px from the centreline to the deck's edge (the track's half-width, 44, and a little more; its walls just past it), and how thick the walls are */
+  /**
+   * px from the centreline to the deck's edge (the track's half-width, 44, and a little more; its walls just past it),
+   * and how thick the walls are: at least a tile and a half, so that, built of whole tiles, they leave no gap a car
+   * can slip through where the deck runs at a slant across the grid
+   */
   deck: 50,
-  wall: 14,
+  wall: 24,
   /** px of lift from which the deck needs its walls (lower, a car rolls off onto the ground) */
   walled: 4,
   /** px apart in height beyond which two cars are on different levels: they don't touch, or race each other */
