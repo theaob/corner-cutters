@@ -15,9 +15,9 @@ import type { Grid } from '../engine/sim';
 import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
 import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
 import { stepTow, towBoost, towFrom } from './slipstream';
-import { judge, markCorners, newLimits, type Corner, type Limits } from './trackLimits';
+import { judge, markCorners, newLimits, offTrack, type Corner, type Limits } from './trackLimits';
 import type { WeatherId } from './weather';
-import { aiInput, coolDownInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
+import { aiInput, coolDownInput, lateralOffset, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
 
 export const SAFETY_CAR = {
   /** px/s it leads the field at (an F1 car's top speed is 320) */
@@ -140,7 +140,9 @@ export type RaceEvent =
   | { kind: 'mistake'; who: number; what: 'late' | 'wide' }
   | { kind: 'blue'; who: number; by: number }
   /** a cut across a corner's inside: strike number `strike`, costing `seconds` (0: a warning) */
-  | { kind: 'track-limits'; who: number; strike: number; seconds: number };
+  | { kind: 'track-limits'; who: number; strike: number; seconds: number }
+  /** all four wheels past the white line, either side (anywhere: against the clock, it deletes the lap) */
+  | { kind: 'off-track'; who: number };
 
 export interface Race {
   track: Track;
@@ -520,6 +522,10 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     entrants.forEach((e, i) => {
       if (!running(e) || e.car.wrecked || e.pit || e.progress.finished !== undefined) return;
       const cut = judge(e.limits, track, race.corners, e.progress.idx, e.car.x, e.car.y, e.car.cls.width);
+      // (off onto the pit entry road, on its side within the pit zone, isn't off the track)
+      const pit = race.pit;
+      const toPits = !!pit && between(e.progress.idx, pit.entry, pit.wallTo, track.samples.length) && lateralOffset(track, e.progress.idx, e.car.x, e.car.y) * pit.side > 0;
+      if (offTrack(e.limits, track, e.progress.idx, e.car.x, e.car.y, e.car.cls.width, toPits)) out.push({ kind: 'off-track', who: i });
       if (!cut) return;
       if (cut.seconds) e.progress = { ...e.progress, penalty: e.progress.penalty + cut.seconds };
       out.push({ kind: 'track-limits', who: i, ...cut });

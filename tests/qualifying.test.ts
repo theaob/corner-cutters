@@ -81,6 +81,23 @@ describe('your lap', () => {
     expect(judgeLap(q, at({ lapStart: 30, lapTimes: [30] }), false)).toBe('void');
     expect(judgeLap(q, at({ lapStart: 62, lapTimes: [30, 32] }), false)).toEqual({ time: 32 });
   });
+  it('deletes a lap cut in the very step it crosses the line, and times the next one clean', () => {
+    const q = newQualiLap();
+    expect(judgeLap(q, at({ lapStart: 0 }), false)).toBeUndefined();
+    expect(judgeLap(q, at({ lapStart: 30, lapTimes: [30] }), true)).toBe('deleted');
+    expect(judgeLap(q, at({ lapStart: 61, lapTimes: [30, 31] }), false)).toEqual({ time: 31 });
+  });
+  it('running wide in the session (all four wheels past the white line, on the outside) goes off the track', () => {
+    const c = build();
+    const q = newQualifying(c.track, c.grid, RACE_HANDLING, 'dry');
+    const me = q.entrants[0];
+    const k = q.corners[0];
+    const s = c.track.samples[k.apex];
+    const lat = -k.side * (HALF_WIDTH + 20);
+    Object.assign(me.car, { x: s.x + Math.cos(s.dir) * lat, y: s.y + Math.sin(s.dir) * lat, vx: 0, vy: 0 });
+    me.progress = { ...me.progress, idx: k.apex, lapStart: 0 };
+    expect(stepRace(q, SIM_DT).race.some((e) => e.kind === 'off-track')).toBe(true);
+  });
   it('a cut in the session is judged by the track limits', () => {
     const c = build();
     const q = newQualifying(c.track, c.grid, RACE_HANDLING, 'dry');
