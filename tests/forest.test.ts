@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, RUNOFF, buildCircuit } from '../src/f1/circuit';
-import { ARDENNES, LAYOUTS } from '../src/f1/layouts';
+import { ARDENNES, LAYOUTS, OASIS } from '../src/f1/layouts';
 import { carClass } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { FOREST, treesOf } from '../src/f1/forest3d';
+import { FOREST, PALMS, treesOf, type Tree } from '../src/f1/forest3d';
 import { HIDES } from '../src/f1/town3d';
 import { standsOf } from '../src/f1/stands';
 
@@ -14,11 +14,14 @@ const build = (l: (typeof LAYOUTS)[number]) => buildCircuit(l, { cornerSpeed: li
 describe('the forest', () => {
   const circuit = build(ARDENNES);
   const trees = treesOf(circuit);
-  const reach = HALF_WIDTH + RUNOFF;
 
-  it('grows only round a circuit in a forest', () => {
-    for (const l of LAYOUTS) if (!l.forest) expect(treesOf(build(l))).toHaveLength(0);
-  });
+  it('grows only round a circuit in a forest (and palms only in the desert)', () => {
+    for (const l of LAYOUTS) {
+      if (l.forest || l.desert) continue;
+      expect(treesOf(build(l))).toHaveLength(0);
+    }
+    expect(trees.some((t) => t.kind === 'palm')).toBe(false);
+  }, 30_000);
 
   it('is thick: thousands of trees, mostly spruces, all round and out past the map', () => {
     expect(trees.length).toBeGreaterThan(8000);
@@ -33,6 +36,16 @@ describe('the forest', () => {
     }
   });
 
+});
+
+describe.each([
+  { name: 'the forest at the Ardennes', layout: ARDENNES, crown: FOREST.crown, clear: FOREST.clear },
+  { name: 'the palms at Oasis', layout: OASIS, crown: PALMS.crown, clear: PALMS.clear },
+])('$name', ({ layout, crown, clear }) => {
+  const circuit = build(layout);
+  const trees: Tree[] = treesOf(circuit);
+  const reach = HALF_WIDTH + RUNOFF;
+
   it('stands clear of the track and its run-off, the pits and the grandstands', () => {
     const stands = standsOf(circuit);
     const closest = (t: { x: number; y: number }, pts: { x: number; y: number }[]) => Math.min(...pts.map((p) => Math.hypot(p.x - t.x, p.y - t.y)));
@@ -44,7 +57,7 @@ describe('the forest', () => {
       pits = Math.min(pits, closest(t, circuit.pit.points));
       for (const s of stands) grandstand = Math.min(grandstand, Math.hypot(s.x - t.x, s.y - t.y) - s.len / 2);
     }
-    expect(track).toBeGreaterThan(reach + FOREST.clear - 1);
+    expect(track).toBeGreaterThan(reach + clear - 1);
     expect(pits).toBeGreaterThan(100);
     expect(grandstand).toBeGreaterThan(0);
   });
@@ -53,7 +66,7 @@ describe('the forest', () => {
     const ground = circuit.track.samples.map((p) => groundAt(circuit.grid, p.x, p.y).h);
     let worst = -Infinity;
     for (const t of trees) {
-      const cr = t.h * FOREST.crown;
+      const cr = t.h * crown;
       const top = groundAt(circuit.grid, t.x, t.y).h + t.h;
       circuit.track.samples.forEach((p, i) => {
         if (Math.abs(p.x - t.x) > cr + reach) return;
@@ -64,5 +77,33 @@ describe('the forest', () => {
       });
     }
     expect(worst).toBeLessThanOrEqual(0);
+  });
+});
+
+describe('the palms at Oasis', () => {
+  const circuit = build(OASIS);
+  const palms = treesOf(circuit);
+
+  it('stand in groves round the circuit and out over the sand, all palms, as tall as they may be', () => {
+    expect(palms.length).toBeGreaterThan(150);
+    expect(palms.every((t) => t.kind === 'palm')).toBe(true);
+    for (const t of palms) {
+      expect(t.h).toBeGreaterThanOrEqual(FOREST.shortest);
+      expect(t.h).toBeLessThanOrEqual(PALMS.tallest);
+    }
+    // (in groves: most have a neighbour within a grove's reach; but not a carpet like the forest)
+    const neighboured = palms.filter((t) => palms.some((o) => o !== t && Math.hypot(o.x - t.x, o.y - t.y) < PALMS.spread * 2)).length;
+    expect(neighboured / palms.length).toBeGreaterThan(0.8);
+    const W = circuit.width * 16;
+    const H = circuit.height * 16;
+    // (a scatter, not a carpet: far fewer than a forest would plant over the same ground)
+    expect(palms.length).toBeLessThan(((W + 2 * PALMS.beyond) * (H + 2 * PALMS.beyond)) / (FOREST.spacing * FOREST.spacing) / 4);
+    expect(palms.some((t) => t.x < 0 || t.y < 0 || t.x > W || t.y > H)).toBe(true);
+  });
+
+  it('line the circuit just past the barriers, where they are seen as you drive by', () => {
+    const reach = HALF_WIDTH + RUNOFF;
+    const near = palms.filter((t) => Math.min(...circuit.track.samples.map((p) => Math.hypot(p.x - t.x, p.y - t.y))) < reach + PALMS.clear + PALMS.liningOut[1] + 20);
+    expect(near.length).toBeGreaterThan(150);
   });
 });

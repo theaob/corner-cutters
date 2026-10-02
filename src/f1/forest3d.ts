@@ -6,6 +6,11 @@
 // stretch of track has less room than one below it. None stands on the pits,
 // the garages or a grandstand. Drawn as instanced meshes in square chunks, so
 // the chunks off screen (and out of the sun's shadow box) aren't drawn.
+//
+// In the desert (layout.desert), palms instead: in groves here and there round
+// the circuit and out over the sand, a curved trunk and a crown of drooping
+// fronds, by the same rules (clear of the track, the pits and the stands, and
+// never so tall they hide the track).
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -20,7 +25,7 @@ export interface Tree {
   y: number;
   /** px tall, from the ground at its foot */
   h: number;
-  kind: 'spruce' | 'broadleaf';
+  kind: 'spruce' | 'broadleaf' | 'palm';
   /** its crown's colour */
   color: number;
 }
@@ -41,7 +46,31 @@ export const FOREST = {
   chunk: 640,
 };
 
+export const PALMS = {
+  /** px between the spots a grove may stand (before a random nudge), and the share of them that have one */
+  every: 120,
+  groves: 0.7,
+  /** px past the run-off's edge (the barriers) before they start: closer than the forest, a palm being slender */
+  clear: 12,
+  /** palms in a grove (at least, and up to this many more), and px round its middle they stand within */
+  least: 3,
+  more: 6,
+  spread: 46,
+  /** px tall: the most a palm grows (taller than a spruce: a palm is mostly trunk) */
+  tallest: 60,
+  /** px out past the edge of the map the groves go on */
+  beyond: 300,
+  /** and lining the circuit, where they're seen as you drive by: every this many px along the lap, each side, the
+   * chance of a clump of one to three palms there, and px out past the barriers (at least, and up to this much more) */
+  liningEvery: 64,
+  lining: 0.55,
+  liningOut: [0, 50] as const,
+  /** a crown's reach, as a share of the palm's height */
+  crown: 0.34,
+};
+
 const SPRUCE = [0x24492a, 0x2d5a32, 0x1f4026, 0x335f38];
+const FRONDS = [0x3f8a34, 0x4c9a3a, 0x5a9e3c, 0x6f9a3a];
 const BROADLEAF = [0x4f8a3c, 0x5f9a44, 0x6b9a40, 0xc98a3a, 0xa8542c];
 
 function rng(seed: number): () => number {
@@ -51,12 +80,13 @@ function rng(seed: number): () => number {
   };
 }
 
-/** The forest's trees (none for a circuit that isn't in one). */
-export function treesOf(circuit: Circuit): Tree[] {
-  if (!circuit.layout.forest) return [];
+/**
+ * Where a tree may stand on `circuit`: for a spot and the height it would grow to (with its crown reaching
+ * `crown` of that), the height it may have there: none on or by the track and its run-off, the pit lane and its
+ * garages, or a grandstand, and no taller than lets its crown keep clear of hiding any of the track north of it.
+ */
+function growth(circuit: Circuit, clear: number) {
   const { track, grid, pit } = circuit;
-  const W = circuit.width * T;
-  const H = circuit.height * T;
   const reach = HALF_WIDTH + RUNOFF;
   // the track's samples in columns 64 px wide, with the ground under each
   const COL = 64;
@@ -66,6 +96,42 @@ export function treesOf(circuit: Circuit): Tree[] {
     (cols.get(k) ?? cols.set(k, []).get(k)!).push({ x: p.x, y: p.y, h: groundAt(grid, p.x, p.y).h });
   }
   const stands = standsOf(circuit);
+  return (x: number, y: number, want: number, crown: number): number => {
+    let near = Infinity;
+    for (let k = Math.floor((x - reach - clear) / COL); k <= Math.floor((x + reach + clear) / COL); k++) {
+      for (const p of cols.get(k) ?? []) near = Math.min(near, Math.hypot(p.x - x, p.y - y));
+    }
+    if (near < reach + clear) return 0;
+    if (pit.points.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 60)) return 0;
+    if (stands.some((s) => Math.hypot(s.x - x, s.y - y) < s.len / 2 + STAND.depth + 20)) return 0;
+    const foot = groundAt(grid, x, y).h;
+    const room = (h: number) => {
+      const cr = h * crown;
+      let most = Infinity;
+      for (let k = Math.floor((x - cr - reach) / COL); k <= Math.floor((x + cr + reach) / COL); k++) {
+        for (const p of cols.get(k) ?? []) {
+          if (Math.abs(p.x - x) > cr + reach) continue;
+          const gap = y - cr - (p.y + reach);
+          if (gap < 0) continue;
+          // (its top, seen over the track's edge: the gap it may hide, less how far its foot stands above the track)
+          most = Math.min(most, Math.max(0, gap - 6) / HIDES - (foot - p.h));
+        }
+      }
+      return most;
+    };
+    let h = Math.min(want, room(want));
+    if (h < want) h = Math.min(h, room(h)) * 0.95;
+    return h;
+  };
+}
+
+/** The forest's trees (none for a circuit that isn't in one); in the desert, its palms. */
+export function treesOf(circuit: Circuit): Tree[] {
+  if (circuit.layout.desert) return palmsOf(circuit);
+  if (!circuit.layout.forest) return [];
+  const W = circuit.width * T;
+  const H = circuit.height * T;
+  const grow = growth(circuit, FOREST.clear);
   const r = rng(29);
   const out: Tree[] = [];
   const S = FOREST.spacing;
@@ -75,36 +141,60 @@ export function treesOf(circuit: Circuit): Tree[] {
       const y = gy + (r() - 0.5) * S * 0.8;
       const pick = r();
       const want = FOREST.tallest * (0.6 + 0.4 * r());
-      // clear of the track and its run-off, the pit lane and its garages, and the grandstands
-      let near = Infinity;
-      for (let k = Math.floor((x - reach - FOREST.clear) / COL); k <= Math.floor((x + reach + FOREST.clear) / COL); k++) {
-        for (const p of cols.get(k) ?? []) near = Math.min(near, Math.hypot(p.x - x, p.y - y));
-      }
-      if (near < reach + FOREST.clear) continue;
-      if (pit.points.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 60)) continue;
-      if (stands.some((s) => Math.hypot(s.x - x, s.y - y) < s.len / 2 + STAND.depth + 20)) continue;
-      // as tall as it can be without its crown hiding any of the track north of it
-      const foot = groundAt(grid, x, y).h;
-      const room = (h: number) => {
-        const cr = h * FOREST.crown;
-        let most = Infinity;
-        for (let k = Math.floor((x - cr - reach) / COL); k <= Math.floor((x + cr + reach) / COL); k++) {
-          for (const p of cols.get(k) ?? []) {
-            if (Math.abs(p.x - x) > cr + reach) continue;
-            const gap = y - cr - (p.y + reach);
-            if (gap < 0) continue;
-            // (its top, seen over the track's edge: the gap it may hide, less how far its foot stands above the track)
-            most = Math.min(most, Math.max(0, gap - 6) / HIDES - (foot - p.h));
-          }
-        }
-        return most;
-      };
-      let h = Math.min(want, room(want));
-      if (h < want) h = Math.min(h, room(h)) * 0.95;
+      const h = grow(x, y, want, FOREST.crown);
       if (h < FOREST.shortest) continue;
       const kind = pick < 0.82 ? 'spruce' : 'broadleaf';
       const palette = kind === 'spruce' ? SPRUCE : BROADLEAF;
       out.push({ x, y, h, kind, color: palette[Math.floor(r() * palette.length)] });
+    }
+  }
+  return out;
+}
+
+/** The desert's palms: in groves, here and there round the circuit and out over the sand. */
+function palmsOf(circuit: Circuit): Tree[] {
+  const W = circuit.width * T;
+  const H = circuit.height * T;
+  const grow = growth(circuit, PALMS.clear);
+  const r = rng(53);
+  const out: Tree[] = [];
+  const plant = (x: number, y: number) => {
+    const want = PALMS.tallest * (0.55 + 0.45 * r());
+    const h = grow(x, y, want, PALMS.crown);
+    // (no two trunks on top of each other)
+    if (h < FOREST.shortest || out.some((t) => Math.hypot(t.x - x, t.y - y) < 9)) return;
+    out.push({ x, y, h, kind: 'palm', color: FRONDS[Math.floor(r() * FRONDS.length)] });
+  };
+  // lining the circuit, just past the barriers
+  const { samples, spacing } = circuit.track;
+  const step = Math.round(PALMS.liningEvery / spacing);
+  const reach = HALF_WIDTH + RUNOFF + PALMS.clear;
+  for (let i = 0; i < samples.length; i += step) {
+    const p = samples[i];
+    for (const side of [-1, 1]) {
+      if (r() > PALMS.lining) continue;
+      const clump = 1 + Math.floor(r() * 3);
+      const out0 = reach + PALMS.liningOut[0] + r() * PALMS.liningOut[1];
+      for (let k = 0; k < clump; k++) {
+        const along = (r() - 0.5) * 30;
+        const off = out0 + r() * 16;
+        plant(p.x + Math.cos(p.dir) * off * side + Math.sin(p.dir) * along, p.y + Math.sin(p.dir) * off * side - Math.cos(p.dir) * along);
+      }
+    }
+  }
+  // and the groves
+  const S = PALMS.every;
+  for (let gy = -PALMS.beyond; gy < H + PALMS.beyond; gy += S) {
+    for (let gx = -PALMS.beyond; gx < W + PALMS.beyond; gx += S) {
+      const cx = gx + (r() - 0.5) * S * 0.7;
+      const cy = gy + (r() - 0.5) * S * 0.7;
+      const count = PALMS.least + Math.floor(r() * (PALMS.more + 1));
+      if (r() > PALMS.groves) continue;
+      for (let k = 0; k < count; k++) {
+        const a = r() * Math.PI * 2;
+        const d = Math.sqrt(r()) * PALMS.spread;
+        plant(cx + Math.cos(a) * d, cy + Math.sin(a) * d);
+      }
     }
   }
   return out;
@@ -120,7 +210,24 @@ function shapes() {
   const spruce = mergeGeometries(tiers)!;
   const broadleaf = new THREE.IcosahedronGeometry(FOREST.crown * 0.9, 0).scale(1, 0.85, 1).translate(0, 0.66, 0);
   const trunk = new THREE.CylinderGeometry(0.05, 0.07, 0.36, 5).translate(0, 0.18, 0);
-  return { spruce, broadleaf, trunk };
+  // a palm: a slender trunk leaning a little and curving back up (two pieces), and at its top a crown of seven
+  // fronds, each a long flat leaf rising from the top and drooping at its tip (two pieces), round a few dates
+  const lean = 0.1;
+  const palmTrunk = mergeGeometries([
+    new THREE.CylinderGeometry(0.028, 0.042, 0.5, 5).rotateZ(-lean).translate(0.025, 0.25, 0),
+    new THREE.CylinderGeometry(0.024, 0.03, 0.42, 5).rotateZ(lean * 0.4).translate(0.04, 0.7, 0),
+  ])!;
+  const top = new THREE.Vector3(0.03, 0.9, 0);
+  const fronds: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 7; k++) {
+    const turn = (k / 7) * Math.PI * 2;
+    const inner = new THREE.BoxGeometry(PALMS.crown * 0.6, 0.012, 0.07).translate(PALMS.crown * 0.3, 0, 0).rotateZ(0.25);
+    const outer = new THREE.BoxGeometry(PALMS.crown * 0.5, 0.01, 0.055).translate(PALMS.crown * 0.25, 0, 0).rotateZ(-0.55).translate(PALMS.crown * 0.6 * Math.cos(0.25), PALMS.crown * 0.6 * Math.sin(0.25), 0);
+    fronds.push(mergeGeometries([inner, outer])!.rotateY(turn + (k % 2) * 0.2).translate(top.x, top.y, top.z));
+  }
+  const palm = mergeGeometries(fronds)!;
+  const dates = new THREE.IcosahedronGeometry(0.035, 0).translate(top.x, top.y - 0.03, top.z);
+  return { spruce, broadleaf, trunk, palm, palmTrunk, dates };
 }
 
 /** Plant the forest in `scene`, in chunks. */
@@ -130,6 +237,8 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): void {
   const geo = shapes();
   const crown = new THREE.MeshLambertMaterial({ color: 0xffffff });
   const bark = new THREE.MeshLambertMaterial({ color: 0x5a4030 });
+  const palmBark = new THREE.MeshLambertMaterial({ color: 0x9a7a52 });
+  const dates = new THREE.MeshLambertMaterial({ color: 0x8a4a22 });
   const chunks = new Map<string, Tree[]>();
   for (const t of trees) {
     const key = `${Math.floor(t.x / FOREST.chunk)},${Math.floor(t.y / FOREST.chunk)}`;
@@ -140,21 +249,30 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): void {
   const up = new THREE.Vector3(0, 1, 0);
   const c = new THREE.Color();
   for (const list of chunks.values()) {
+    const palms = list.filter((t) => t.kind === 'palm').length;
     const meshes = {
       spruce: new THREE.InstancedMesh(geo.spruce, crown, list.filter((t) => t.kind === 'spruce').length),
       broadleaf: new THREE.InstancedMesh(geo.broadleaf, crown, list.filter((t) => t.kind === 'broadleaf').length),
-      trunk: new THREE.InstancedMesh(geo.trunk, bark, list.length),
+      palm: new THREE.InstancedMesh(geo.palm, crown, palms),
+      trunk: new THREE.InstancedMesh(geo.trunk, bark, list.length - palms),
+      palmTrunk: new THREE.InstancedMesh(geo.palmTrunk, palmBark, palms),
+      dates: new THREE.InstancedMesh(geo.dates, dates, palms),
     };
-    const n = { spruce: 0, broadleaf: 0 };
-    list.forEach((t, k) => {
+    const n = { spruce: 0, broadleaf: 0, palm: 0, trunk: 0 };
+    list.forEach((t) => {
       const foot = groundAt(circuit.grid, t.x, t.y).h;
       // (each turned its own way, a little wider or narrower)
       q.setFromAxisAngle(up, (t.x * 7.3 + t.y * 3.1) % (Math.PI * 2));
       const wide = 0.9 + ((t.x * 13.7 + t.y * 5.3) % 1) * 0.25;
       m.compose(new THREE.Vector3(t.x, foot - 1, t.y), q, new THREE.Vector3(t.h * wide, t.h, t.h * wide));
+      if (t.kind === 'palm') {
+        // (a palm keeps its slender width)
+        m.compose(new THREE.Vector3(t.x, foot - 1, t.y), q, new THREE.Vector3(t.h, t.h, t.h));
+        meshes.palmTrunk.setMatrixAt(n.palm, m);
+        meshes.dates.setMatrixAt(n.palm, m);
+      } else meshes.trunk.setMatrixAt(n.trunk++, m);
       meshes[t.kind].setMatrixAt(n[t.kind], m);
       meshes[t.kind].setColorAt(n[t.kind]++, c.set(t.color));
-      meshes.trunk.setMatrixAt(k, m);
     });
     for (const mesh of Object.values(meshes)) {
       if (!mesh.count) continue;
