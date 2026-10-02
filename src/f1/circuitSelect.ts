@@ -29,33 +29,34 @@ import { TIMES, type TimeOfDay } from './night';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
+import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
 
-/** A small outline of the circuit: the centreline, fitted to size×size, with the start marked. */
-function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
+/** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
+function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
-  c.width = c.height = size * 2; // drawn at 2× for crisp lines
-  const x = c.getContext('2d')!;
-  const pts = layout.points;
-  const xs = pts.map((p) => p.x);
-  const ys = pts.map((p) => p.y);
-  const [minX, minY] = [Math.min(...xs), Math.min(...ys)];
-  const span = Math.max(Math.max(...xs) - minX, Math.max(...ys) - minY);
-  const pad = 8;
-  const k = (c.width - pad * 2) / span;
-  const ox = (c.width - (Math.max(...xs) - minX) * k) / 2;
-  const oy = (c.height - (Math.max(...ys) - minY) * k) / 2;
-  const at = (i: number) => [ox + (pts[i].x - minX) * k, oy + (pts[i].y - minY) * k] as const;
-  x.lineJoin = x.lineCap = 'round';
-  x.strokeStyle = '#f4f2fa';
-  x.lineWidth = 5;
-  x.beginPath();
-  pts.forEach((_, i) => (i ? x.lineTo(...at(i)) : x.moveTo(...at(i))));
-  x.closePath();
-  x.stroke();
-  const [sx, sy] = at(0);
-  x.fillStyle = '#f2c14e';
-  x.fillRect(sx - 6, sy - 6, 12, 12);
-  Object.assign(c.style, { width: `${size}px`, height: `${size}px` });
+  c.className = 'track-model';
+  c.width = w * 2; // drawn at 2× for crisp lines
+  c.height = h * 2;
+  Object.assign(c.style, { width: `${w}px`, height: `${h}px` });
+  const ctx = c.getContext('2d');
+  if (!ctx) return c;
+  const m = trackModel(layout);
+  const view = fitModel(m, c.width, c.height);
+  const still = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const yawAt = (now: number) => (still ? -0.35 : -0.35 + ((now / 1000) * 2 * Math.PI) / TRACK_MODEL.turn);
+  drawModel(ctx, m, view, c.width, c.height, yawAt(performance.now()));
+  if (still) return c;
+  let last = 0;
+  let waited = 0;
+  const frame = (now: number) => {
+    // (it isn't on the page until the card is put together: wait a moment for it, and stop once it's gone)
+    if (!c.isConnected && (last || ++waited > 60)) return;
+    requestAnimationFrame(frame);
+    if (!c.isConnected || document.hidden || now - last < 1000 / 30) return;
+    last = now;
+    drawModel(ctx, m, view, c.width, c.height, yawAt(now));
+  };
+  requestAnimationFrame(frame);
   return c;
 }
 
@@ -462,7 +463,7 @@ export function chooseCircuit(
       m.style.color = MEDAL_COLOR[medal];
       text.append(m);
     }
-    card.append(prev, outline(layout, 64), text, next);
+    card.append(prev, outline(layout, 112, 84), text, next);
     dots.innerHTML = '';
     layouts.forEach((l, k) => {
       const d = document.createElement('i');

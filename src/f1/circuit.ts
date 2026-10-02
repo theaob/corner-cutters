@@ -67,7 +67,7 @@ export function kerbed(track: Track): boolean[] {
 export const BANK_EASE = 240;
 
 /** Height (px) at a share of the lap, eased between the profile's points. */
-function elevationAt(profile: [number, number][], share: number): number {
+export function elevationAt(profile: [number, number][], share: number): number {
   for (let i = 1; i < profile.length; i++) {
     const [s0, h0] = profile[i - 1];
     const [s1, h1] = profile[i];
