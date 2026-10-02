@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { applyDamage, carClass, newCar, speedOf, type Car } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
-import { SILVER_HEATH } from '../src/f1/layouts';
+import { LAYOUTS, SILVER_HEATH } from '../src/f1/layouts';
 import { RACE_HANDLING, aiInput, lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { CLEAR_AFTER, HOLD, SAFETY_CAR, VSC, isBigCrash, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
+import { CLEAR_AFTER, GRID_HOLD, HOLD, SAFETY_CAR, VSC, isBigCrash, newRace, order, running, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -289,6 +289,18 @@ describe('blue flags', () => {
 });
 
 describe('the start', () => {
+  it('keeps every car on its grid slot through the lights, on every circuit (a sloping grid, like Twin Lakes\'s, included)', () => {
+    for (const layout of LAYOUTS) {
+      // (the player, mid-grid, holding the throttle: it waits all the same)
+      const race = raceOn(layout, 3, 5);
+      const start = race.entrants.map((e) => ({ x: e.car.x, y: e.car.y, heading: e.car.heading }));
+      while (race.clock + dt < race.lightsOut) stepRace(race, dt, () => ({ steer: { x: 0, y: -1 }, handbrake: false }));
+      race.entrants.forEach((e, i) => {
+        expect(Math.hypot(e.car.x - start[i].x, e.car.y - start[i].y), `${layout.name} slot ${i + 1}`).toBeLessThanOrEqual(GRID_HOLD + 1e-6);
+        expect(Math.abs(e.car.heading - start[i].heading)).toBeLessThan(0.05);
+      });
+    }
+  }, 60_000);
   it('is a scramble: each AI car goes on its own reaction, and a bogged start loses places without the field piling into it', () => {
     const race = raceOn(SILVER_HEATH, 3);
     // pole bogs down; the rest react in a spread
