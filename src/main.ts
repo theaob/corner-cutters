@@ -198,10 +198,18 @@ async function showMenu(id: number): Promise<void> {
   // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
+  // a race going on behind the menu (loaded once it's up), on the circuit last picked
+  let stopBackdrop = () => {};
+  closed.signal.addEventListener('abort', () => stopBackdrop());
   current = { close: () => closed.abort() };
   const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal, savedTime());
   curtainUp();
+  const backdropOn = layoutById(choice('circuit')) && openNow().has(choice('circuit')!) ? layoutById(choice('circuit'))! : LAYOUTS[0];
+  void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
+    if (!closed.signal.aborted) stopBackdrop = startBackdrop(screen, backdropOn, savedTime() === 'night');
+  });
   const picked = await picking;
+  stopBackdrop();
   if (id !== routeId) return;
   save('choices', 'circuit', picked.layout.id);
   save('choices', 'team', picked.team.id);
