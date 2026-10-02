@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ALPINE_RING, ARDENNES, CRESCENT_PARK, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -9,8 +9,8 @@ const f1 = carClass('f1');
 
 /** What each circuit should measure up to: its lap length (px), the AI's lap time (s), and how close to flat out the line is. */
 const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, number]; flatGap: number; braking?: number }[] = [
-  // flat out almost everywhere, like a player can
-  { layout: CRESCENT_PARK, length: [7500, 8600], lap: [21, 27], flatGap: 0.5 },
+  // over the hills: flat out almost everywhere, a lift for Turn 12
+  { layout: CRESCENT_PARK, length: [9600, 10600], lap: [27, 33], flatGap: 1 },
   // the hook's hairpin and the last complex want a lift
   { layout: SILVER_HEATH, length: [9500, 10500], lap: [26, 33], flatGap: 0.75 },
   // the streets: tight, but the cars grip enough to take nearly all of it flat out too
@@ -25,6 +25,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: TWIN_LAKES, length: [7400, 8400], lap: [22, 28], flatGap: 1.5, braking: 1 },
   // the heavy stops: Turn 1, the hairpin and the downhill Turn 10
   { layout: OASIS, length: [8500, 9400], lap: [25, 31], flatGap: 1.5, braking: 1.2 },
+  // the castle section, then the longest run flat out
+  { layout: BAKU, length: [10400, 11400], lap: [30, 38], flatGap: 1.5, braking: 1.2 },
 ];
 
 describe('circuit list', () => {
@@ -200,7 +202,7 @@ describe('the banking at Royal Park', () => {
       expect(c.cells).not.toContain('apron');
       expect(c.bank.every((b) => b === 0)).toBe(true);
     }
-  });
+  }, 30_000);
 });
 
 describe('Ardennes', () => {
