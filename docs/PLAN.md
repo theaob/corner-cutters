@@ -114,6 +114,7 @@ the same:
 | Twin Lakes | anticlockwise, a bowl, down and up | done: traced from the circuit in the big Brazilian city |
 | Oasis | the desert, under the lights, heavy stops | done: traced from the circuit in the sands of the Gulf |
 | Baku | streets: the castle section, then the longest run flat out | done: traced from the city circuit on the Caspian |
+| Suzuka | the figure of eight, over its own bridge | done: traced from the one in Japan; a two-level bridge (`f1/bridge.ts`) |
 | Mountain / hill track | big elevation, blind crests, jumps | shows off the height model and airborne physics |
 | Night desert track | long straights, slipstream battles | needs a slipstream effect (see below) |
 | Rain / forest track | low grip sections | introduces weather (later) |

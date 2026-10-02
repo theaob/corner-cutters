@@ -10,6 +10,7 @@
 // so a whole race, crashes and all, runs in a test exactly as in the game.
 
 import { blueFlags } from './blueFlags';
+import { gridFor, sameLevel } from './bridge';
 import { applyDamage, carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
 import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
@@ -414,7 +415,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   const events = entrants.map((e, i): StepEvents => {
     const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
     if (!running(e)) return quiet;
-    const others = cars.filter((c) => c !== e.car);
+    // (the cars on its level: not one on a bridge over it, or underneath it)
+    const others = cars.filter((c) => c !== e.car && sameLevel(c, e.car));
     // the pit lane: turning in at the entry commits a car; from there it drives itself through
     const pit = race.pit;
     // after the flag: the in-lap, and then to its parking place
@@ -442,7 +444,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
         fitTyres(e.tyres, e.car, race.weather);
         out.push({ kind: 'pit-stop', who: i, seconds: e.pit.time });
       }
-      if (!r.done) return stepCar(e.car, r.input, p, dt, grid);
+      if (!r.done) return stepCar(e.car, r.input, p, dt, gridFor(track, grid, e.progress.idx));
       e.pit = undefined;
       e.blend = BLEND_LINE;
       out.push({ kind: 'pit-out', who: i });
@@ -477,7 +479,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       const given = player(e);
       input = limit !== undefined && (tight || speedOf(e.car) > limit + HOLD.over) ? { ...given, limit, brake: true } : { ...given, limit };
     }
-    return stepCar(e.car, input, p, dt, grid);
+    return stepCar(e.car, input, p, dt, gridFor(track, grid, e.progress.idx));
   });
   // the tyres wear with the driving
   entrants.forEach((e, i) => {
@@ -488,14 +490,14 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   entrants.forEach((e) => {
     if (!running(e)) return;
     const towing = racing && !e.pit && !race.sc && !race.vsc && e.progress.finished === undefined;
-    e.tow = stepTow(e.tow, towing ? towFrom(e.car, cars) : 0, dt);
+    e.tow = stepTow(e.tow, towing ? towFrom(e.car, cars.filter((c) => sameLevel(c, e.car))) : 0, dt);
     e.car.speedScale = (e.car.speedScale ?? 1) * towBoost(e.tow);
   });
   if (sc) {
     // it drives the line at its own pace, moving round a slower car in its way (a backmarker it joined
     // behind, or a player dropping back) rather than queueing behind it
-    const inTheWay = cars.filter((c) => c !== sc.car);
-    stepCar(sc.car, aiInput(sc.car, track, sc.idx, { lane: 0, pace: 1 }, inTheWay, { limit: SAFETY_CAR.speed }), p, dt, grid);
+    const inTheWay = cars.filter((c) => c !== sc.car && sameLevel(c, sc.car));
+    stepCar(sc.car, aiInput(sc.car, track, sc.idx, { lane: 0, pace: 1 }, inTheWay, { limit: SAFETY_CAR.speed }), p, dt, gridFor(track, grid, sc.idx));
     sc.idx = nearestSample(track, sc.car.x, sc.car.y, sc.idx);
   }
   // contact (the safety car takes knocks but no damage)
@@ -505,6 +507,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   for (const e of entrants) if (e.ai?.lunge) diving.set(e.car, e);
   for (let i = 0; i < cars.length; i++) {
     for (let j = i + 1; j < cars.length; j++) {
+      // (one on a bridge, the other underneath it: they pass)
+      if (!sameLevel(cars[i], cars[j])) continue;
       const closing = collideCars(cars[i], cars[j], p);
       if (closing <= 0) continue;
       const diver = diving.get(cars[i])?.ai?.lunge?.car === cars[j] ? diving.get(cars[i]) : diving.get(cars[j])?.ai?.lunge?.car === cars[i] ? diving.get(cars[j]) : undefined;

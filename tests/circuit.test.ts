@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, SUZUKA, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -27,6 +27,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: OASIS, length: [8500, 9400], lap: [25, 31], flatGap: 1.5, braking: 1.2 },
   // the castle section, then the longest run flat out
   { layout: BAKU, length: [10400, 11400], lap: [30, 38], flatGap: 1.5, braking: 1.2 },
+  // the figure of eight: the esses, the hairpin and the chicane want a lift
+  { layout: SUZUKA, length: [9800, 10600], lap: [28, 35], flatGap: 1.5, braking: 1.2 },
 ];
 
 describe('circuit list', () => {

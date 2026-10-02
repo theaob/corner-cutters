@@ -5,6 +5,7 @@
 // (low cool, high warm), with a faint shadow of it on the ground and posts down
 // to it, nearer parts over farther ones.
 
+import { BRIDGE } from './bridge';
 import { elevationAt } from './circuit';
 import type { CircuitLayout } from './layouts';
 import { smoothLoop } from './racing';
@@ -51,7 +52,17 @@ export function trackModel(layout: CircuitLayout): TrackModel {
   const control = layout.points.map((p) => ({ x: p.x * layout.scale, y: p.y * layout.scale }));
   const line = smoothLoop(control, TRACK_MODEL.spacing);
   const n = line.length;
-  const pts = line.map((p, i) => ({ x: p.x, y: p.y, h: elevationAt(layout.elevation, i / n) }));
+  // (on a bridge, the stretch over it lifted as the cars are: up its ramp, over, and down)
+  const bridge = layout.bridge;
+  const lift = (i: number) => {
+    if (!bridge) return 0;
+    const len = n * TRACK_MODEL.spacing;
+    let d = Math.abs(i * TRACK_MODEL.spacing - bridge.over);
+    d = Math.min(d, len - d);
+    const t = d <= BRIDGE.flat ? 1 : 1 - (d - BRIDGE.flat) / BRIDGE.ramp;
+    return t <= 0 ? 0 : bridge.height * t * t * (3 - 2 * t);
+  };
+  const pts = line.map((p, i) => ({ x: p.x, y: p.y, h: elevationAt(layout.elevation, i / n) + lift(i) }));
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2;

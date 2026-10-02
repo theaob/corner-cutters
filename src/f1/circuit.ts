@@ -1,6 +1,7 @@
 // A circuit from its layout (layouts.ts). Pure layout (no rendering): the
 // track's tiles, run-off, heights and starting grid.
 
+import { buildLevels } from './bridge';
 import type { Grid } from '../engine/sim';
 import type { CircuitLayout } from './layouts';
 import { PIT, between, buildPitLane, type PitLane } from './pits';
@@ -296,6 +297,9 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     const lane = k % 2 === 0 ? -16 : 16;
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });
+
+  // a bridge, where the track crosses itself: the deck's own grid
+  if (layout.bridge) track.levels = buildLevels(track, grid, layout.bridge);
 
   return { layout, width: W, height: H, cells, grid, track, pit, slots, bank, offset: { x: ox, y: oy } };
 }

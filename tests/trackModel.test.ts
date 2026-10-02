@@ -10,7 +10,11 @@ describe('the circuit as a line in 3D', () => {
       expect(m.pts.length).toBeGreaterThan(100);
       // (the profile eases between its points, so the line's highest and lowest are the profile's)
       expect(m.hMin).toBeCloseTo(Math.min(...profile), 0);
-      expect(m.hMax).toBeCloseTo(Math.max(...profile), 0);
+      // (a bridge lifts the stretch over it, by up to its height)
+      if (layout.bridge) {
+        expect(m.hMax).toBeGreaterThan(Math.max(...profile));
+        expect(m.hMax).toBeLessThanOrEqual(Math.max(...profile) + layout.bridge.height);
+      } else expect(m.hMax).toBeCloseTo(Math.max(...profile), 0);
       expect(m.pts[0].h).toBeCloseTo(layout.elevation[0][1], 5);
     }
   });
@@ -32,7 +36,7 @@ describe('the circuit as a line in 3D', () => {
         }
       }
     }
-  });
+  }, 30_000);
 
   it('draws a higher point higher up the screen than the ground under it, by more than it is', () => {
     const ardennes = trackModel(LAYOUTS.find((l) => l.id === 'ardennes')!);

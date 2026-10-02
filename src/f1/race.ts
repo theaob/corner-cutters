@@ -4,13 +4,14 @@
 // this is the picture and the HUD. A pauses (so does leaving the app or tab); START restarts;
 // SELECT goes back to choose a circuit.
 
+import { gridFor } from './bridge';
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
 import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
-import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, playerInput, wheelInput, type AiDriver } from './racing';
+import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, nearestSample, playerInput, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
 import { styleOf } from './drivers';
 import { DRY, type Weather } from './weather';
@@ -1225,6 +1226,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   // your record lap's ghost: your car, see-through, driving it again from the line
   const ghostMesh = createCarMesh('f1', { body: '#f4f4f8', stripe: '#9d9ab8' });
+  /** the track sample the ghost is beside (followed round, for its level on a bridge) */
+  let ghostIdx: number | undefined;
   ghostMesh.traverse((o) => {
     const mesh = o as THREE.Mesh;
     for (const m of [mesh.material ?? []].flat() as THREE.Material[]) {
@@ -1613,7 +1616,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (in the replay, where it was then)
       const then = replay && replayPose(recorder, i, replay.t);
       l.mesh.visible = !replay || !!then;
-      const tilt = then ? { pitch: 0, roll: 0 } : bodyTilt(e.car, grid);
+      const tilt = then ? { pitch: 0, roll: 0 } : bodyTilt(e.car, gridFor(track, grid, e.progress.idx));
       const at = then || pose(e.car, i, alpha);
       l.mesh.position.set(at.x, at.z, at.y);
       l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
@@ -1645,7 +1648,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const pose = trial?.record && p0.lapStart !== undefined ? ghostPose(trial.record, race.clock - p0.lapStart - (1 - alpha) * SIM_DT) : undefined;
       ghostMesh.visible = !!pose;
       if (pose) {
-        ghostMesh.position.set(pose.x, groundAt(grid, pose.x, pose.y).h, pose.y);
+        // (on its level: followed round the lap, so on a bridge it's on the deck, or underneath)
+        const gi = nearestSample(track, pose.x, pose.y, ghostIdx);
+        ghostIdx = gi;
+        ghostMesh.position.set(pose.x, groundAt(gridFor(track, grid, gi), pose.x, pose.y).h, pose.y);
         ghostMesh.rotation.set(0, -pose.heading, 0);
       }
     }
@@ -1668,7 +1674,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       safetyCar.group.position.set(scThen.x, scThen.z, scThen.y);
       safetyCar.group.rotation.set(0, -scThen.heading, 0, 'YXZ');
     } else if (sc && !replay) {
-      const tilt = bodyTilt(sc.car, grid);
+      const tilt = bodyTilt(sc.car, gridFor(track, grid, sc.idx));
       // (drawn between its steps too, once it has been out for one)
       const at = before && before.length > race.entrants.length ? pose(sc.car, race.entrants.length, alpha) : sc.car;
       safetyCar.group.position.set(at.x, at.z, at.y);
