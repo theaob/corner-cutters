@@ -11,6 +11,7 @@ import { canvas } from '../engine/render/sprites';
 import { pixelTexture } from '../engine/render/textures';
 import { groundAt } from '../engine/sim';
 import { HD2D_VIEW } from '../engine/look';
+import type { LandmarkKind } from './layouts';
 import type { Pt } from './racing';
 import { HALF_WIDTH, TILE as T, type Circuit } from './circuit';
 import { GARAGE_ACROSS } from './pits';
@@ -64,7 +65,7 @@ export function seeOver(circuit: Circuit, x: number, y: number, w: number, d: nu
 
 /** A landmark's footprint (centre, across, deep) on the map, and its height at the tallest. */
 export interface Landmark {
-  kind: 'casino' | 'pool' | 'tennis';
+  kind: LandmarkKind;
   x: number;
   y: number;
   w: number;
@@ -75,11 +76,15 @@ export interface Landmark {
 }
 
 /** The landmarks' footprints: the casino (its garden in front), the pool (its deck round it), the tennis court (its fence round it); which may lie turned a quarter turn (the casino faces the camera). */
-const LANDMARK = {
+const LANDMARK: Record<LandmarkKind, { w: number; d: number; h: number; turns: boolean; seen: number }> = {
   casino: { w: 170, d: 150, h: 58, turns: false, seen: 0.25 },
   pool: { w: 96, d: 150, h: 0, turns: true, seen: 0.5 },
   tennis: { w: 84, d: 164, h: 12, turns: true, seen: 0.5 },
-} as const;
+  // Baku's: Qız Qalası, the Maiden Tower of the old town (its buttress to the east), and the three Flame Towers on the
+  // hill above it (tall: they stand where no track is behind them)
+  maiden: { w: 64, d: 56, h: 66, turns: false, seen: 0.5 },
+  flames: { w: 150, d: 96, h: 150, turns: false, seen: 0.25 },
+};
 
 /** px of pavement left between the barriers and a landmark's footprint */
 const LANDMARK_SET_BACK = 6;
@@ -93,7 +98,7 @@ const LANDMARK_SET_BACK = 6;
  */
 export const IN_VIEW = { across: 95, along: 150 };
 /** the share of a landmark's footprint that must be in the picture at once, from somewhere on the track (the big, tall casino is seen anyway: a quarter of it will do) */
-export const SEEN = { casino: LANDMARK.casino.seen, pool: LANDMARK.pool.seen, tennis: LANDMARK.tennis.seen };
+export const SEEN = Object.fromEntries(Object.entries(LANDMARK).map(([k, v]) => [k, v.seen])) as Record<LandmarkKind, number>;
 
 /** The most of footprint (x, y, w across, d deep) the camera shows at once from anywhere along `points` (0…1). */
 export function inView(points: Pt[], x: number, y: number, w: number, d: number): number {
@@ -132,9 +137,9 @@ export function landmarksOf(circuit: Circuit): Landmark[] {
   const pits = circuit.pit.points;
   const stands = standsOf(circuit);
   const out: Landmark[] = [];
-  for (const kind of Object.keys(LANDMARK) as Landmark['kind'][]) {
+  for (const kind of (Object.keys(LANDMARK) as LandmarkKind[]).filter((k) => marks[k])) {
     const { h, turns } = LANDMARK[kind];
-    const want = onMap(circuit, marks[kind]);
+    const want = onMap(circuit, marks[kind]!);
     let w: number = LANDMARK[kind].w;
     let d: number = LANDMARK[kind].d;
     const fits = (x: number, y: number) =>
@@ -429,6 +434,129 @@ function casino(l: Landmark, r: () => number): THREE.Group {
   return g;
 }
 
+/**
+ * Qız Qalası, the Maiden Tower: a round tower of sandy limestone, its courses banded with darker stone, narrow slit
+ * windows, a battlemented top, and its buttress (a tall half-round spur) to the east; on a paved square.
+ */
+function maidenTower(l: Landmark): THREE.Group {
+  const g = new THREE.Group();
+  const H = l.h - 6;
+  const R = Math.min(l.w, l.d) / 2 - 10;
+  const courses = drawn(32, 32, (x) => {
+    x.fillStyle = '#cdb68a';
+    x.fillRect(0, 0, 32, 32);
+    // (darker courses every so often, and the joints of the blocks)
+    x.fillStyle = '#b39d72';
+    for (let y = 0; y < 32; y += 8) x.fillRect(0, y, 32, 2);
+    x.fillStyle = '#c2aa7d';
+    for (let y = 0; y < 32; y += 4) for (let c = (y / 4) % 2 ? 0 : 4; c < 32; c += 8) x.fillRect(c, y, 1, 4);
+  });
+  courses.wrapS = courses.wrapT = THREE.RepeatWrapping;
+  courses.repeat.set(4, H / 16);
+  const stone = new THREE.MeshLambertMaterial({ map: courses });
+  const plain = new THREE.MeshLambertMaterial({ color: 0xc8b083 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x3b3328 });
+  const square = new THREE.Mesh(new THREE.BoxGeometry(l.w, 1, l.d), new THREE.MeshLambertMaterial({ color: 0xd9ccb0 }));
+  square.position.y = 0.5;
+  g.add(square);
+  // (a touch wider at the foot, as it is)
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 1.08, H, 24), stone);
+  tower.position.y = H / 2;
+  g.add(tower);
+  // the buttress: a half-round spur up the east side, nearly as tall
+  const spur = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.42, R * 0.46, H * 0.92, 12, 1, false, 0, Math.PI), stone);
+  spur.position.set(R * 0.92, (H * 0.92) / 2, 0);
+  spur.rotation.y = -Math.PI / 2;
+  g.add(spur);
+  // the battlements round the top
+  const merlons = 16;
+  for (let k = 0; k < merlons; k++) {
+    const a = (k / merlons) * Math.PI * 2;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 3), plain);
+    m.position.set(Math.cos(a) * (R - 1.5), H + 2, Math.sin(a) * (R - 1.5));
+    m.rotation.y = -a;
+    g.add(m);
+  }
+  // slit windows up the side toward the camera
+  for (let y = H * 0.3; y < H - 6; y += H * 0.22) {
+    const slit = new THREE.Mesh(new THREE.BoxGeometry(1.6, 5, 1), dark);
+    slit.position.set(0, y, R * 1.02 - (y / H) * R * 0.08);
+    g.add(slit);
+  }
+  // the door at its foot
+  const door = new THREE.Mesh(new THREE.BoxGeometry(5, 8, 1), dark);
+  door.position.set(-R * 0.5, 4, R * 0.9);
+  g.add(door);
+  g.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
+  });
+  return g;
+}
+
+/**
+ * The Flame Towers: three towers of blue glass, each a flame (round, swelling a little, then tapering to a point), the
+ * tallest at the back and two lower in front; flames of light run up them, as their LED skins show at night.
+ */
+function flameTowers(l: Landmark): { group: THREE.Group; animate(t: number): void } {
+  const g = new THREE.Group();
+  const glass = drawn(16, 16, (x) => {
+    x.fillStyle = '#3a72b0';
+    x.fillRect(0, 0, 16, 16);
+    x.fillStyle = '#6aa2d8';
+    for (let y = 0; y < 16; y += 4) x.fillRect(0, y, 16, 1);
+    x.fillStyle = '#28507f';
+    for (let c = 0; c < 16; c += 4) x.fillRect(c, 0, 1, 16);
+  });
+  glass.wrapS = glass.wrapT = THREE.RepeatWrapping;
+  glass.repeat.set(8, 16);
+  // the flames of light: warm tongues on black (only the warm shows, as light), run up the tower
+  const flame = drawn(32, 64, (x) => {
+    x.fillStyle = '#000';
+    x.fillRect(0, 0, 32, 64);
+    for (let k = 0; k < 4; k++) {
+      const cx = 4 + k * 8;
+      const grad = x.createLinearGradient(0, 64, 0, 0);
+      grad.addColorStop(0, '#ff7a1a');
+      grad.addColorStop(0.6, '#ffb23a');
+      grad.addColorStop(1, '#000');
+      x.fillStyle = grad;
+      x.beginPath();
+      x.moveTo(cx - 2.5, 64);
+      x.quadraticCurveTo(cx - 3.5, 32, cx + 0.5, 8 + (k % 3) * 10);
+      x.quadraticCurveTo(cx + 2.5, 32, cx + 2.5, 64);
+      x.fill();
+    }
+  });
+  flame.wrapS = flame.wrapT = THREE.RepeatWrapping;
+  flame.repeat.set(3, 1);
+  const material = new THREE.MeshLambertMaterial({ map: glass, emissive: 0xffffff, emissiveMap: flame, emissiveIntensity: 0.32 });
+  /** a flame `h` tall, `r` round at its widest */
+  const tower = (r: number, h: number) => {
+    const profile: THREE.Vector2[] = [];
+    for (let k = 0; k <= 16; k++) {
+      const t = k / 16;
+      // (round at the foot, swelling to its widest a third of the way up, then drawn in to a point)
+      const w = r * (0.82 + 0.3 * Math.sin(Math.min(1, t * 1.5) * Math.PI * 0.9)) * Math.sqrt(Math.max(0, 1 - t ** 2.2));
+      profile.push(new THREE.Vector2(Math.max(0.01, w), t * h));
+    }
+    return new THREE.Mesh(new THREE.LatheGeometry(profile, 20), material);
+  };
+  const plaza = new THREE.Mesh(new THREE.BoxGeometry(l.w, 1, l.d), new THREE.MeshLambertMaterial({ color: 0xbdb7aa }));
+  plaza.position.y = 0.5;
+  g.add(plaza);
+  const R = Math.min(l.w / 8, l.d / 4.2);
+  const H = l.h - 2;
+  for (const [x, z, k] of [[0, -l.d / 2 + R + 6, 1], [-l.w / 2 + R + 8, l.d / 2 - R - 6, 0.82], [l.w / 2 - R - 8, l.d / 2 - R - 6, 0.74]]) {
+    const t = tower(R, H * k);
+    t.position.set(x, 1, z);
+    g.add(t);
+  }
+  g.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
+  });
+  return { group: g, animate: (t: number) => (flame.offset.y = -t * 0.25) };
+}
+
 /** The open-air pool: a stone deck, the water with its lanes, loungers and umbrellas, palms, and swimmers doing lengths. */
 function pool(l: Landmark, r: () => number): { group: THREE.Group; animate(t: number): void } {
   const g = new THREE.Group();
@@ -656,7 +784,12 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
     }
     // (built its usual way round, then turned into place if it lies turned)
     const shape = l.turned ? { ...l, w: l.d, d: l.w } : l;
-    const made = l.kind === 'casino' ? { group: casino(shape, r) } : l.kind === 'pool' ? pool(shape, r) : tennis(shape);
+    const made =
+      l.kind === 'casino' ? { group: casino(shape, r) }
+      : l.kind === 'pool' ? pool(shape, r)
+      : l.kind === 'maiden' ? { group: maidenTower(shape) }
+      : l.kind === 'flames' ? flameTowers(shape)
+      : tennis(shape);
     made.group.position.set(l.x, high, l.y);
     if (l.turned) made.group.rotation.y = Math.PI / 2;
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(shape.w + 4, high - low + 2, shape.d + 4), new THREE.MeshLambertMaterial({ color: 0xcfc4ae }));
