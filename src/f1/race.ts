@@ -258,8 +258,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     boxSizing: 'border-box', maxHeight: 'calc(82% - var(--deck-cover, 0px) - 8px)', overflowY: 'auto',
     background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '11px Silkscreen, monospace', display: 'none',
   });
-  // the minimap fits the circuit in a 96 × 110 box, whatever its shape
-  const miniScale = Math.min(96 / circuit.width, 110 / circuit.height);
+  // the minimap fits the circuit in a 136 × 120 box, whatever its shape (on a phone, the room between RESTART and PAUSE)
+  const miniScale = Math.min(136 / circuit.width, 120 / circuit.height);
   const MINI_W = Math.round(circuit.width * miniScale);
   // your team's card under the start lights: its logo and name, gone at lights out
   const teamCard = document.createElement('div');
@@ -418,19 +418,21 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (desktop) {
       style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal' });
       style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none' });
-      style(tower, { right: '6px', top: `${46 + MINI_H}px` });
+      style(tower, { right: '6px', top: `${46 + MINI_H}px`, minWidth: `${Math.max(96, MINI_W)}px` });
       style(radioPanel, { left: '6px', right: '6px', top: 'auto', bottom: '8px' });
       banner.style.top = '30%';
     } else {
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
       style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px' });
       style(mini, { left: '50%', right: 'auto', top: '12px', transform: 'translateX(-50%)' });
-      style(tower, { right: '12px', top: '48px' });
+      style(tower, { right: '12px', top: '48px', minWidth: '0' });
       style(radioPanel, { left: '36px', right: '36px', top: '236px', bottom: 'auto' });
       banner.style.top = '198px';
     }
   };
   placeHud(fit.desktop);
+  // (your lap sits under the minimap, however tall it is on this circuit: index.html)
+  document.documentElement.style.setProperty('--mini-h', `${MINI_H}px`);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
