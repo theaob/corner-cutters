@@ -846,7 +846,7 @@
       html:not(.desktop) .sys [data-button='select'] {
         order: 2;
       }
-      /* the results up (or qualifying's times): RESTART and EXIT under the table, big, side by side (race.ts sets
+      /* the results up (or qualifying's times): EXIT and RESTART under the table, big, side by side (race.ts sets
          --results-bottom on the screen; the screen and the deck share their top on a phone) */
       html:not(.desktop) #deck.results-up .sys {
         top: calc(var(--results-bottom, 60%) + 12px);
@@ -871,6 +871,13 @@
       }
       html:not(.desktop) #deck.results-up .sys .idle {
         display: none;
+      }
+      /* (EXIT on the left, RESTART on the right, under the table) */
+      html:not(.desktop) #deck.results-up .sys [data-button='select'] {
+        order: 0;
+      }
+      html:not(.desktop) #deck.results-up .sys [data-button='start'] {
+        order: 2;
       }
       /* (TUNE, the dev sliders, between the controls at the bottom: the top corners are the deck's) */
       html:not(.desktop) .tune-toggle {
