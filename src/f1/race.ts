@@ -258,8 +258,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     boxSizing: 'border-box', maxHeight: 'calc(82% - var(--deck-cover, 0px) - 8px)', overflowY: 'auto',
     background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '11px Silkscreen, monospace', display: 'none',
   });
-  // the minimap fits the circuit in a 136 × 120 box, whatever its shape (on a phone, the room between RESTART and PAUSE)
-  const miniScale = Math.min(136 / circuit.width, 120 / circuit.height);
+  // the minimap fits the circuit in a 136 × 140 box, whatever its shape (on a phone, shrunk to the room between the
+  // readout and the timing tower: placeHud)
+  const miniScale = Math.min(136 / circuit.width, 140 / circuit.height);
   const MINI_W = Math.round(circuit.width * miniScale);
   // your team's card under the start lights: its logo and name, gone at lights out
   const teamCard = document.createElement('div');
@@ -417,22 +418,30 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     phoneHud = !desktop;
     if (desktop) {
       style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal' });
-      style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none' });
-      style(tower, { right: '6px', top: `${46 + MINI_H}px`, minWidth: `${Math.max(96, MINI_W)}px` });
+      style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none', width: `${MINI_W}px`, height: `${MINI_H}px` });
+      style(tower, { right: '6px', top: `${46 + MINI_H}px`, minWidth: `${Math.max(96, MINI_W)}px`, width: 'auto' });
       style(radioPanel, { left: '6px', right: '6px', top: 'auto', bottom: '8px' });
       banner.style.top = '30%';
     } else {
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
       style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px' });
-      style(mini, { left: '50%', right: 'auto', top: '12px', transform: 'translateX(-50%)' });
-      style(tower, { right: '12px', top: '48px', minWidth: '0' });
+      // the timing tower a set width at the right, and the minimap as big as fits between it and the readout (its usual
+      // width), with a gap either side; your lap centred under the minimap
+      const TOWER_W = 116;
+      const READOUT_W = 104;
+      const from = 12 + READOUT_W + 8;
+      const to = (host.clientWidth || 390) - 12 - TOWER_W - 8;
+      const fitMini = Math.min(1, (to - from) / MINI_W);
+      const centre = (from + to) / 2;
+      style(mini, { left: `${centre - (MINI_W * fitMini) / 2}px`, right: 'auto', top: '12px', transform: 'none', width: `${MINI_W * fitMini}px`, height: `${MINI_H * fitMini}px` });
+      style(tower, { right: '12px', top: '48px', minWidth: '0', width: `${TOWER_W}px`, boxSizing: 'border-box' });
+      document.documentElement.style.setProperty('--mini-x', `${centre}px`);
+      document.documentElement.style.setProperty('--mini-h', `${Math.round(MINI_H * fitMini)}px`);
       style(radioPanel, { left: '36px', right: '36px', top: '236px', bottom: 'auto' });
       banner.style.top = '198px';
     }
   };
   placeHud(fit.desktop);
-  // (your lap sits under the minimap, however tall it is on this circuit: index.html)
-  document.documentElement.style.setProperty('--mini-h', `${MINI_H}px`);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
