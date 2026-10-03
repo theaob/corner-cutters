@@ -259,7 +259,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
     // (its height capped to the room there is: placeHud; scrolled if it's longer)
     boxSizing: 'border-box', overflowY: 'auto',
-    background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '11px Silkscreen, monospace', display: 'none',
+    background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '12px Silkscreen, monospace', display: 'none',
   });
   // the minimap fits the circuit in a 136 × 140 box, whatever its shape (on a phone, shrunk to the room between the
   // readout and the timing tower: placeHud)
@@ -426,6 +426,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       style(radioPanel, { left: '6px', right: '6px', top: 'auto', bottom: '8px' });
       banner.style.top = '30%';
       results.style.maxHeight = 'calc(82% - 8px)';
+      results.style.fontSize = '12px';
     } else {
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
       style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px' });
@@ -445,6 +446,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       banner.style.top = '198px';
       // (the table, centred top to bottom with the buttons under it, clear of the stick above and below)
       results.style.maxHeight = 'calc(100% - 2 * var(--deck-cover, 0px) - 80px)';
+      // (as big as its widest row fits: 12 px on most phones, 11 on a narrow one)
+      results.style.fontSize = (host.clientWidth || 390) >= 380 ? '12px' : '11px';
     }
   };
   placeHud(fit.desktop);
@@ -1020,7 +1023,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const cell = (tag: 'td' | 'th', text: string, right = false) => {
       const c = document.createElement(tag);
       c.textContent = text;
-      Object.assign(c.style, { padding: '1px 3px', textAlign: right ? 'right' : 'left', fontWeight: 'normal', whiteSpace: 'nowrap' });
+      Object.assign(c.style, { padding: '1px 2px', textAlign: right ? 'right' : 'left', fontWeight: 'normal', whiteSpace: 'nowrap' });
       return c;
     };
     const table = document.createElement('table');
@@ -1061,7 +1064,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return d;
     };
     results.replaceChildren(
-      line(championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
+      line(championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px' }),
       table,
       line('▲▼ PLACES FROM THE GRID · P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
@@ -1108,7 +1111,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     };
     const place = slots.indexOf(w.youDriver) + 1;
     results.replaceChildren(
-      line(`QUALIFYING · ${difficulty.name} · ${weather.name}`, { fontSize: '13px', color: '#f2c14e', marginBottom: '8px' }),
+      line(`QUALIFYING · ${difficulty.name} · ${weather.name}`, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px' }),
       table,
       line(place === 1 ? 'POLE POSITION!' : `YOU START P${place}`, { color: '#f2c14e', marginTop: '8px' }),
       line(`QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}${saved.newQualifying ? ' · NEW!' : ''}`, { color: saved.newQualifying ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
@@ -1341,6 +1344,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // with the results (or qualifying's times) up, RESTART and EXIT go under the table, big (on a phone: index.html)
     const resultsUp = results.style.display === 'block' && !paused;
     deckEl?.classList.toggle('results-up', resultsUp);
+    // (and TUNE and the thumbstick go too while they're up: index.html)
+    document.documentElement.classList.toggle('results-up', resultsUp);
     // on a phone the results have the screen to themselves (no readout, minimap or timing tower), and the table with
     // the buttons under it (12 px gap, 52 px tall) sits in the middle of the screen, top to bottom
     const alone = resultsUp && phoneHud;
@@ -2084,6 +2089,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     offBack();
     for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay]) el.remove();
     deckEl?.classList.remove('results-up');
+    document.documentElement.classList.remove('results-up');
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };
