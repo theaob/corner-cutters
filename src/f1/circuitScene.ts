@@ -313,22 +313,6 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     }
   }
   x.restore();
-  // the top three's parking spots past the line: a gold frame each, numbered 1, 2, 3 (read from behind)
-  circuit.pit.podium.forEach((spot, k) => {
-    const s = track.samples[spot.idx];
-    x.save();
-    x.translate(s.x + Math.cos(s.dir) * spot.lane, s.y + Math.sin(s.dir) * spot.lane);
-    x.rotate(s.dir);
-    x.strokeStyle = '#f2c14e';
-    x.lineWidth = 2;
-    x.strokeRect(-10, -19, 20, 38);
-    x.fillStyle = '#f2c14e';
-    x.font = 'bold 14px monospace';
-    x.textAlign = 'center';
-    x.textBaseline = 'middle';
-    x.fillText(String(k + 1), 0, 28);
-    x.restore();
-  });
   return c;
 }
 

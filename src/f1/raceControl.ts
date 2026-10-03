@@ -115,8 +115,8 @@ export interface Entrant {
   held?: number;
   /** blue flags: the car lapping it, close behind (its index), while they're out */
   blue?: number;
-  /** after its flag: px driven on its in-lap, and where it's going once it's back at the pits (a podium spot 0–2, or its garage) */
-  inLap?: { driven: number; to?: 'garage' | number; parked?: boolean };
+  /** after its flag: px driven on its cool-down lap, and whether it has headed (and been pushed) into its garage */
+  inLap?: { driven: number; to?: 'garage'; parked?: boolean };
 }
 
 export interface SafetyCar {
@@ -252,54 +252,27 @@ const BLEND_LINE = 400;
 const IN_LAP = 0.5;
 
 /**
- * Where a car that has finished parks: at the pit entry on its in-lap, a top
- * three finisher carries on to its podium spot, and the rest head down the pit
- * lane to their garage (side by side with a teammate already there). Without a
- * pit lane everyone else just carries on cooling down.
+ * Where a car that has finished parks: at the pit entry on its in-lap it heads
+ * down the pit lane to its garage (side by side with a teammate already there).
+ * Without a pit lane it just carries on cooling down.
  */
 function parkAfterRace(race: Race, i: number): void {
   const e = race.entrants[i];
   const lap = e.inLap!;
   const { pit, track } = race;
   const n = track.samples.length;
-  if (lap.to !== undefined || lap.driven < track.length * IN_LAP) return;
-  const atEntry = pit ? between(e.progress.idx, pit.entry - PIT_CALL, pit.entry + 4, n) : between(e.progress.idx, n - PIT_CALL, n - 1, n);
-  if (!atEntry) return;
-  const place = order(race).filter((j) => race.entrants[j].progress.finished !== undefined).indexOf(i);
-  if (place < PIT.podium.length) lap.to = place;
-  else if (pit) {
-    lap.to = 'garage';
-    const first = !race.entrants.some((o) => o !== e && o.box === e.box && o.inLap?.to === 'garage');
-    e.pit = newPitStop(pit, e.car, e.box, PIT.garageSlots[first ? 0 : 1]);
-  }
-}
-
-/** px/s² a car brakes at into its podium spot, and px/s it drives there at most */
-const PARK = { decel: 220, speed: 160 };
-
-/** The input that drives a car to its podium spot `spot` and stops it there. */
-function podiumInput(race: Race, e: Entrant, spot: number, others: Car[]): DriveInput {
-  const { track, pit } = race;
-  const n = track.samples.length;
-  const lap = e.inLap!;
-  const at = pit!.podium[spot];
-  const ahead = ((at.idx - e.progress.idx + n) % n) * track.spacing;
-  // passed it (a sample or two over): stop where it is
-  const left = ahead > track.length / 2 ? 0 : ahead;
-  if (left < 6) {
-    if (speedOf(e.car) < 4) lap.parked = true;
-    return { handbrake: true, brake: true };
-  }
-  const want = Math.min(PARK.speed, Math.sqrt(2 * PARK.decel * left));
-  return { ...aiInput(e.car, track, e.progress.idx, { lane: at.lane, pace: 0.7 }, others), limit: want, brake: speedOf(e.car) > want + 10 };
+  if (!pit || lap.to !== undefined || lap.driven < track.length * IN_LAP) return;
+  if (!between(e.progress.idx, pit.entry - PIT_CALL, pit.entry + 4, n)) return;
+  lap.to = 'garage';
+  const first = !race.entrants.some((o) => o !== e && o.box === e.box && o.inLap?.to === 'garage');
+  e.pit = newPitStop(pit, e.car, e.box, PIT.garageSlots[first ? 0 : 1]);
 }
 
 /**
  * Skip to the end: every car still racing is given the finish its pace would
  * bring it (the laps it has left at its average lap), a wreck retires, and every
- * finisher is put where its in-lap would end: the top three stopped in their
- * spots on the straight, the rest in their garages. No safety car. Returns the
- * top three (indexes into `entrants`).
+ * finisher is put where its in-lap would end: in its garage. No safety car.
+ * Returns the top three (indexes into `entrants`), for the podium.
  */
 export function skipToParked(race: Race): number[] {
   const { track, pit, entrants } = race;
@@ -323,29 +296,20 @@ export function skipToParked(race: Race): number[] {
   }
   const finishers = order(race).filter((i) => entrants[i].progress.finished !== undefined);
   const home = new Set<number>();
-  finishers.forEach((i, place) => {
+  for (const i of finishers) {
     const e = entrants[i];
     const car = e.car;
     car.vx = car.vy = 0;
-    e.inLap = { driven: track.length, to: place < PIT.podium.length && pit ? place : 'garage', parked: true };
-    if (!pit) return;
-    if (place < PIT.podium.length) {
-      const spot = pit.podium[place];
-      const s = track.samples[spot.idx];
-      car.x = s.x + Math.cos(s.dir) * spot.lane;
-      car.y = s.y + Math.sin(s.dir) * spot.lane;
-      car.heading = s.dir;
-      e.pit = undefined;
-    } else {
-      const slot = PIT.garageSlots[home.has(e.box) ? 1 : 0];
-      home.add(e.box);
-      const q = pit.points.find((pt) => pt.s >= pit.boxes[e.box]) ?? pit.points[pit.points.length - 1];
-      e.pit = { phase: 'garage', at: 0, box: e.box, left: 0, time: 0, home: slot, push: { x: q.x, y: q.y, heading: q.dir, done: PIT.garagePush } };
-      pushIntoGarage(pit, e.pit, car);
-    }
+    e.inLap = { driven: track.length, to: 'garage', parked: true };
+    if (!pit) continue;
+    const slot = PIT.garageSlots[home.has(e.box) ? 1 : 0];
+    home.add(e.box);
+    const q = pit.points.find((pt) => pt.s >= pit.boxes[e.box]) ?? pit.points[pit.points.length - 1];
+    e.pit = { phase: 'garage', at: 0, box: e.box, left: 0, time: 0, home: slot, push: { x: q.x, y: q.y, heading: q.dir, done: PIT.garagePush } };
+    pushIntoGarage(pit, e.pit, car);
     e.progress = { ...e.progress, idx: nearestSample(track, car.x, car.y) };
-  });
-  return finishers.slice(0, PIT.podium.length);
+  }
+  return finishers.slice(0, 3);
 }
 
 /** Still on the track: not retired (a wreck counts until it's cleared). */
@@ -509,9 +473,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       out.push({ kind: 'pit-out', who: i });
     }
     let input: DriveInput;
-    const lap = e.inLap;
     if (!racing) input = { handbrake: true, brake: true };
-    else if (lap && typeof lap.to === 'number' && pit) input = podiumInput(race, e, lap.to, others);
     else if (e.progress.finished !== undefined) input = { ...coolDownInput(e.car, track, e.progress.idx, others), limit: orders.limit };
     // (no passing or defending moves while the pack is still bunched from the start)
     // the start: an AI car still reacting to the lights going out sits on its brakes
