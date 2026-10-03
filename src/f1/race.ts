@@ -32,7 +32,7 @@ import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame,
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
-import { createCeremony, podiumSpot } from './podium3d';
+import { CEREMONY, createCeremony, podiumSpot } from './podium3d';
 import { between, inLimitZone, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { logoSvg } from './logos';
@@ -76,7 +76,7 @@ type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
 /** Seconds of the champagne ceremony before the results (A shows them at once). */
-const PODIUM_HOLD = 7;
+const PODIUM_HOLD = CEREMONY.len;
 /** How much closer the camera comes for the ceremony. */
 const CEREMONY_ZOOM = 2.6;
 
@@ -91,6 +91,8 @@ interface Look {
   /** the driver's race number (yours: the seat's) */
   number?: number;
   team: Team;
+  /** its livery (for its car again in the parc fermé) */
+  livery: Parameters<typeof createCarMesh>[1];
   mesh: CarMesh;
   fx: CarFx;
   color: string;
@@ -412,7 +414,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       }
     }
   };
-  host.append(streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay);
+  // the name plates under the cars' boards: the place in gold, the number and the name (YOU in gold)
+  const plates = [0, 1, 2].map(() => {
+    const plate = document.createElement('div');
+    style(plate, {
+      position: 'absolute', transform: 'translate(-50%, 0)', padding: '3px 8px', borderRadius: '6px', background: 'rgba(21,20,31,.85)',
+      color: '#f4f4f8', fontSize: '11px', whiteSpace: 'nowrap', textAlign: 'center', zIndex: '2', pointerEvents: 'none', display: 'none',
+    });
+    return plate;
+  });
+  host.append(streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay, ...plates);
   // the wide screen: the readout top left, the minimap and timing tower top right (TUNE above them), the radio along the
   // bottom. The phone (the layout drawn in the HUD Lab): RESTART and PAUSE in the top corners (index.html) with the
   // minimap between them, the readout down the left, the timing tower down the right, your lap under the minimap, the
@@ -493,14 +504,28 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     chequered.group.visible = false;
     world.scene.add(chequered.group);
   }
-  // the champagne ceremony: a podium on the run-off across the straight from the top three's spots, or up on the deck over it
+  // the champagne ceremony: parc fermé, a set of its own by the main straight (the camera on it sees nothing else: on
+  // layer 1, with the lights, while the circuit stays on layer 0)
   const spot = podiumSpot(circuit);
-  const ceremony = createCeremony(spot.raise);
+  const ceremony = createCeremony(layout.name.toUpperCase());
   ceremony.group.position.set(spot.x, spot.h, spot.y);
-  // (facing the camera, which always looks from the south: the backboard behind the drivers)
+  // (facing the camera's side, the south: the wall behind the cars)
   ceremony.group.rotation.y = 0;
   ceremony.group.visible = false;
   world.scene.add(ceremony.group);
+  const CEREMONY_LAYER = 1;
+  world.scene.traverse((o) => {
+    if (o instanceof THREE.Light) o.layers.enable(CEREMONY_LAYER);
+  });
+  /** Show the ceremony's set alone (or the circuit again). */
+  const ceremonySet = (on: boolean) => {
+    if (camera.layers.isEnabled(CEREMONY_LAYER) === on && camera.layers.isEnabled(0) === !on) return;
+    camera.layers.set(on ? CEREMONY_LAYER : 0);
+    // (and the shadows: cast by the set alone)
+    world.scene.traverse((o) => {
+      if (o instanceof THREE.DirectionalLight) o.shadow.camera.layers.set(on ? CEREMONY_LAYER : 0);
+    });
+  };
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
@@ -649,7 +674,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     podium = { top: skipToParked(race), time: 0 };
     before = undefined;
     hudState.flashUntil = 0;
-    ceremony.setDrivers(podium.top.map((i) => ({ body: looks[i].team.body, trim: looks[i].team.trim, helmet: i === you ? '#f2c14e' : '#f4f4f8' })));
+    ceremony.setDrivers(podium.top.map((i) => ({ body: looks[i].team.body, trim: looks[i].team.trim, helmet: i === you ? '#f2c14e' : '#f4f4f8', car: createCarMesh('f1', looks[i].livery) })));
+    ceremony.group.traverse((o) => o.layers.enable(CEREMONY_LAYER));
+    podium.top.forEach((i, k) => {
+      const gold = (text: string) => `<span style="color:#f2c14e">${text}</span>`;
+      plates[k].innerHTML = `${gold(`P${k + 1}`)} ${looks[i].number === undefined ? '' : `#${looks[i].number} `}${i === you ? gold('YOU') : looks[i].name}`;
+    });
   };
 
   /**
@@ -690,12 +720,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** A car on the track in its team's livery (teammates: the team's second car has the bright green T-camera). */
   const addLook = (livery: Team, seat: number, mine: boolean): Look => {
     const number = numberOf(livery.drivers[seat]);
-    const mesh = createCarMesh('f1', { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? 'gold' : undefined, number });
+    const look = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? ('gold' as const) : undefined, number };
+    const mesh = createCarMesh('f1', look);
     world.scene.add(mesh);
     // (under a bridge, the deck hides it: its outline drawn through the deck, yours in gold)
     const outline = track.levels ? carOutline(mesh, mine ? 0xf2c14e : 0xf4f4f8) : undefined;
     if (outline) world.scene.add(outline.group);
-    return { name: mine ? 'YOU' : livery.drivers[seat], outline, number, team: livery, mesh, fx: new CarFx(mesh), color: livery.body };
+    return { name: mine ? 'YOU' : livery.drivers[seat], outline, number, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
   const resetSession = () => {
@@ -929,6 +960,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** the circuit's grandstands */
         stands: () => standsOf(circuit),
         look: (x?: number, y?: number) => (lookAt = x === undefined || y === undefined ? undefined : { x, y }),
+        /** the champagne ceremony: s it's been on (undefined: it isn't) */
+        ceremony: () => podium?.time,
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
         replay: () => replay && { ...replay },
         /** the grid pan before the lights: whether it's on, and the car it's on */
@@ -1354,8 +1387,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // on a phone the results have the screen to themselves (no readout, minimap or timing tower), and the table with
     // the buttons under it (12 px gap, 52 px tall) sits in the middle of the screen, top to bottom
     const alone = resultsUp && phoneHud;
-    // (the champagne ceremony on a phone likewise: the podium and its banner, nothing else)
-    const clear = phoneHud && (resultsUp || (!!podium && !paused));
+    // (and the champagne ceremony, on any screen: the set and its name plates, nothing else)
+    const clear = (phoneHud && resultsUp) || (!!podium && !resultsUp && !paused);
     for (const el of [readout, mini, tower]) el.style.visibility = clear ? 'hidden' : '';
     if (alone) results.style.top = `${Math.max(8, (host.clientHeight - results.offsetHeight - 64) / 2)}px`;
     else if (results.style.top !== '18%') results.style.top = '18%';
@@ -1851,9 +1884,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const others = race.entrants.filter((e) => e !== me && running(e));
     if (!podium && p.finished !== undefined && replayed) startCeremony();
     ceremony.group.visible = !!podium && results.style.display !== 'block';
+    ceremonySet(ceremony.group.visible);
     if (podium) {
       podium.time += dt;
-      ceremony.update(podium.time, dt);
+      const beat = ceremony.update(podium.time, dt);
+      if (beat.pop) {
+        sounds.cork();
+        sounds.cheer(0.6);
+      }
+      if (beat.firework) sounds.firework();
     }
     // the ceremony to a march
     if (podium) playMusic(PODIUM_MUSIC, 1);
@@ -1918,7 +1957,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const stop = me.pit;
       const [text, color] =
         replay ? [`${Math.floor(performance.now() / 500) % 2 ? '●' : '○'} REPLAY`, '#d8323c']
-        : podium && results.style.display !== 'block' ? [podium.top.map((i, k) => `P${k + 1} ${looks[i].name}`).join(' · '), '#f2c14e']
+        // (the ceremony's names are on its plates)
+        : podium && results.style.display !== 'block' ? ['', '']
         : me.car.wrecked || p.retired ? [championship ? 'DNF' : 'DNF · RESTART to go again', '#d8323c']
         : done && p.finished !== undefined && results.style.display !== 'block' ? [`FINISHED · P${order.indexOf(you) + 1}`, order.indexOf(you) < 3 ? '#f2c14e' : '#f4f4f8']
         : done ? ['', '']
@@ -2028,8 +2068,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       target.set(at.x, groundAt(grid, at.x, at.y).h * 0.5, at.y);
       focus.copy(target);
     } else if (podium) {
-      // on the ceremony, close in
-      target.copy(ceremony.focus);
+      // on the ceremony's set (the results over it: from above, as ever)
+      target.copy(ceremony.view(CEREMONY.len, camera.aspect, camera.fov).at);
       ceremony.group.localToWorld(target);
       if (podium.time <= dt) focus.copy(target);
     } else target.set(drawn.x + (c.vx / c.cls.topSpeed) * t.lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * t.lead);
@@ -2054,6 +2094,26 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       camera.translateX(o.x);
       camera.translateY(o.y);
     }
+    // the ceremony: its own camera, from third across to the three of them (the plates under them)
+    const onSet = ceremony.group.visible && !!podium;
+    if (onSet) {
+      const v = ceremony.view(podium!.time, camera.aspect, camera.fov);
+      ceremony.group.localToWorld(v.eye);
+      ceremony.group.localToWorld(v.at);
+      camera.position.copy(v.eye);
+      camera.lookAt(v.at);
+      focus.copy(v.at);
+      camera.updateMatrixWorld();
+    }
+    plates.forEach((plate, k) => {
+      const at = ceremony.group.localToWorld(ceremony.plate(k)).project(camera);
+      // (not one out of the picture, as the camera holds on third)
+      const show = onSet && !paused && k < podium!.top.length && Math.abs(at.x) < 0.9 && Math.abs(at.y) < 0.9;
+      plate.style.display = show ? 'block' : 'none';
+      if (!show) return;
+      plate.style.left = `${((at.x + 1) / 2) * host.clientWidth}px`;
+      plate.style.top = `${((1 - at.y) / 2) * host.clientHeight}px`;
+    });
     world.followSun(focus);
     world.animate(performance.now() / 1000);
     // the weather's look, eased as the track wets and dries and the rain comes and goes (redone only as it changes)
@@ -2071,7 +2131,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const q = QUALITY_LEVELS[governor.level];
     applySize();
     world.setShadowMapSize(q.shadowMap);
-    post.render(dt, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur });
+    post.render(dt, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !onSet });
 
     requestAnimationFrame(tick);
   };
@@ -2098,7 +2158,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.forceContextLoss();
     renderer.domElement.remove();
     offBack();
-    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay]) el.remove();
+    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay, ...plates]) el.remove();
     deckEl?.classList.remove('results-up');
     document.documentElement.classList.remove('results-up', 'ceremony', 'paused');
     delete (window as { __cc?: unknown }).__cc;
