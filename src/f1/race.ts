@@ -193,6 +193,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     viewW = f.width;
     viewH = f.height;
     camera.aspect = viewW / f.height;
+    // on a phone the deck floats over the bottom of the picture: the view's centre (your car) moved up to the middle
+    // of what's left above it, and the sharp band with it
+    const cover = Math.min(f.cover ?? 0, f.height / 2);
+    if (cover > 0) camera.setViewOffset(viewW, viewH, 0, cover / 2, viewW, viewH);
+    else camera.clearViewOffset();
+    post.setFocus(0.5 + cover / (2 * viewH));
     // (without this the camera keeps its first shape, and a wider screen stretches the picture)
     camera.updateProjectionMatrix();
     applySize();
@@ -228,7 +234,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // the team radio: your engineer's line in a panel in your team's colour, keyed with a click and a squelch
   const radioPanel = document.createElement('div');
   style(radioPanel, {
-    position: 'absolute', left: '6px', right: '6px', bottom: '8px', zIndex: '2', padding: '4px 8px', borderRadius: '6px',
+    // (above the deck, which floats over the bottom of the picture on a phone)
+    position: 'absolute', left: '6px', right: '6px', bottom: 'calc(var(--deck-cover, 0px) + 8px)', zIndex: '2', padding: '4px 8px', borderRadius: '6px',
     background: 'rgba(21,20,31,.88)', borderLeft: `3px solid ${team.body}`, color: '#f4f2fa', font: '11px Silkscreen, monospace',
     pointerEvents: 'none', display: 'none',
   });
@@ -252,6 +259,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const results = document.createElement('div');
   style(results, {
     position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
+    // (kept clear of the deck, which floats over the bottom of the picture on a phone: scrolled if it's longer)
+    boxSizing: 'border-box', maxHeight: 'calc(82% - var(--deck-cover, 0px) - 8px)', overflowY: 'auto',
     background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '11px Silkscreen, monospace', display: 'none',
   });
   // the minimap fits the circuit in a 96 × 110 box, whatever its shape
@@ -291,7 +300,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const pauseScreen = document.createElement('div');
   style(pauseScreen, {
     position: 'absolute', inset: '0', zIndex: '4', display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    gap: '10px', background: 'rgba(14,13,22,.72)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
+    boxSizing: 'border-box', paddingBottom: 'var(--deck-cover, 0px)', gap: '10px', background: 'rgba(14,13,22,.72)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
   });
   const pauseTitle = document.createElement('div');
   pauseTitle.textContent = 'PAUSED';

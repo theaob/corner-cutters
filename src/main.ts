@@ -88,7 +88,10 @@ function sizeScreen(): ScreenFit {
   const fit = measureFit(layout);
   screen.style.width = `${fit.width * fit.scale}px`;
   screen.style.height = `${fit.height * fit.scale}px`;
-  return fit;
+  // (on a phone the deck floats over the screen's lower part: what it covers, for the race's panels to keep clear of)
+  const cover = fit.desktop ? 0 : deck.offsetHeight;
+  screen.style.setProperty('--deck-cover', `${cover}px`);
+  return { ...fit, cover: cover / fit.scale };
 }
 
 /** What a window resize (or a layout switch) does: re-fit the screen and tell the running view. */

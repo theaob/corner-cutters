@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DESKTOP_GAME_HEIGHT, GAME_WIDTH, MAX_GAME_HEIGHT, MIN_GAME_HEIGHT, fitDesktop, fitScreen, startLayout } from '../src/engine/layout';
+import { DESKTOP_GAME_HEIGHT, GAME_WIDTH, MAX_GAME_HEIGHT, MAX_HANDHELD_HEIGHT, MIN_GAME_HEIGHT, fitDesktop, fitHandheld, fitScreen, startLayout } from '../src/engine/layout';
 
 describe('fitScreen', () => {
   it('fills the width edge to edge, whatever the pixel ratio', () => {
@@ -30,6 +30,24 @@ describe('fitScreen on a phone', () => {
     const fit = fitScreen(390, 844 - 220);
     expect(fit.width).toBe(GAME_WIDTH);
     expect(fit.desktop).toBe(false);
+  });
+});
+
+describe('fitHandheld', () => {
+  it('fills a phone top to bottom and edge to edge (the deck floats over it)', () => {
+    for (const [w, h] of [[390, 844], [375, 667], [412, 915], [360, 780]]) {
+      const fit = fitHandheld(w, h);
+      expect(GAME_WIDTH * fit.scale).toBeCloseTo(w);
+      expect(fit.height * fit.scale).toBeGreaterThanOrEqual(h);
+      expect(fit.height * fit.scale).toBeLessThan(h + fit.scale);
+    }
+  });
+
+  it('stops at its tallest on a tablet held upright, and narrows on a short screen', () => {
+    expect(fitHandheld(430, 2000).height).toBe(MAX_HANDHELD_HEIGHT);
+    const short = fitHandheld(430, 300);
+    expect(short.height).toBe(MIN_GAME_HEIGHT);
+    expect(GAME_WIDTH * short.scale).toBeLessThan(430);
   });
 });
 
