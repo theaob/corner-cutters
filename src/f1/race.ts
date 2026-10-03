@@ -193,12 +193,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     viewW = f.width;
     viewH = f.height;
     camera.aspect = viewW / f.height;
-    // on a phone the deck floats over the bottom of the picture: the view's centre (your car) moved up to the middle
-    // of what's left above it, and the sharp band with it
-    const cover = Math.min(f.cover ?? 0, f.height / 2);
-    if (cover > 0) camera.setViewOffset(viewW, viewH, 0, cover / 2, viewW, viewH);
-    else camera.clearViewOffset();
-    post.setFocus(0.5 + cover / (2 * viewH));
     // (without this the camera keeps its first shape, and a wider screen stretches the picture)
     camera.updateProjectionMatrix();
     applySize();
