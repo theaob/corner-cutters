@@ -170,7 +170,15 @@ export function check(layout: CircuitLayout, circuit: Circuit): Check[] {
     const g = groundAt(circuit.grid, p.x, p.y);
     grade = Math.max(grade, Math.abs(g.gx * Math.sin(p.dir) - g.gy * Math.cos(p.dir)));
   }
+  // a bridge: both stretches at the same height where they cross (the deck's lift does the rest)
+  const bridgeCheck: Check[] = [];
+  if (layout.bridge) {
+    const at = (px: number) => heightAt(layout.elevation, (((px / t.length) % 1) + 1) % 1);
+    const gap = Math.abs(at(layout.bridge.over) - at(layout.bridge.under));
+    bridgeCheck.push({ label: 'bridge', value: `the two stretches ${gap.toFixed(1)} px apart in height where they cross (under 2: give their points the same height there)`, ok: gap < 2 });
+  }
   return [
+    ...bridgeCheck,
     { label: 'lap', value: `${Math.round(t.length)} px`, ok: t.length > 3000 },
     { label: 'main straight', value: `${Math.round(straightLen)} px (${Math.round(straight.from)} to ${Math.round(straight.to)}; ${PIT_STRAIGHT_MIN} needed)`, ok: straightLen >= PIT_STRAIGHT_MIN },
     { label: 'pit lane', value: `${Math.round(pitLen)} px (${PIT_LANE_MIN} needed)${pitOnStraight ? ', on the straight' : ', off the straight'}`, ok: pitLen >= PIT_LANE_MIN && pitOnStraight },
@@ -222,3 +230,54 @@ export function blankDraft(): Draft {
     scale: 1.4, points: clean, pit: { from: -380, to: 680, side: -1 }, extras: {},
   };
 }
+
+/** Where the lap crosses itself (for a bridge): px along the lap of the two stretches that cross, the first the one met first; none if it doesn't. */
+export function findCrossing(circuit: Circuit): { a: number; b: number } | undefined {
+  const t = circuit.track;
+  const s = t.samples;
+  const n = s.length;
+  /** whether segment p→q crosses segment r→u */
+  const cross = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }, u: { x: number; y: number }) => {
+    const d = (q.x - p.x) * (u.y - r.y) - (q.y - p.y) * (u.x - r.x);
+    if (Math.abs(d) < 1e-9) return false;
+    const ta = ((r.x - p.x) * (u.y - r.y) - (r.y - p.y) * (u.x - r.x)) / d;
+    const tb = ((r.x - p.x) * (q.y - p.y) - (r.y - p.y) * (q.x - p.x)) / d;
+    return ta >= 0 && ta <= 1 && tb >= 0 && tb <= 1;
+  };
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 20; j < n; j++) {
+      if (n - (j - i) < 20) continue;
+      if (cross(s[i], s[(i + 1) % n], s[j], s[(j + 1) % n])) return { a: i * t.spacing, b: j * t.spacing };
+    }
+  }
+  return undefined;
+}
+
+/** The middle of the draft's control points (layout units), and how far they reach from it. */
+export function draftCentre(draft: Draft): { x: number; y: number; r: number } {
+  const xs = draft.points.map((p) => p.x);
+  const ys = draft.points.map((p) => p.y);
+  const x = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const y = (Math.min(...ys) + Math.max(...ys)) / 2;
+  return { x, y, r: Math.max(Math.max(...xs) - x, Math.max(...ys) - y) };
+}
+
+/** What a circuit stands in: parkland (grass), a forest, the desert (palms and camels), or a street circuit's town. */
+export type Setting = 'park' | 'forest' | 'desert' | 'street';
+
+export const settingOf = (draft: Draft): Setting => (draft.extras.street ? 'street' : draft.extras.forest ? 'forest' : draft.extras.desert ? 'desert' : 'park');
+
+/** Put the draft in `setting` (a street circuit keeps its town's settings if it had them; else gets new ones: run-off, no sea yet). */
+export function setSetting(draft: Draft, setting: Setting): void {
+  const street = draft.extras.street;
+  delete draft.extras.forest;
+  delete draft.extras.desert;
+  delete draft.extras.street;
+  if (setting === 'forest') draft.extras.forest = true;
+  if (setting === 'desert') draft.extras.desert = true;
+  if (setting === 'street') draft.extras.street = street ?? { runoff: 28, sea: [] };
+}
+
+/** A square of `size` (layout units) round (x, y): a new sea's or lake's outline, to drag into shape. */
+export const square = (x: number, y: number, size: number) =>
+  [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => ({ x: Math.round(x + (u * size) / 2), y: Math.round(y + (v * size) / 2) }));
