@@ -89,8 +89,11 @@ function sizeScreen(): ScreenFit {
   screen.style.width = `${fit.width * fit.scale}px`;
   screen.style.height = `${fit.height * fit.scale}px`;
   // (on a phone the deck floats over the screen's lower part: what it covers, for the race's panels to keep clear of)
-  const cover = fit.desktop ? 0 : deck.offsetHeight;
+  // (and the strip along its top, for the race's readouts to sit under)
+  const controls = deck.querySelector<HTMLElement>('.controls');
+  const cover = fit.desktop || !controls ? 0 : deck.offsetHeight - controls.offsetTop;
   screen.style.setProperty('--deck-cover', `${cover}px`);
+  screen.style.setProperty('--hud-top', `${fit.desktop ? 0 : (deck.querySelector<HTMLElement>('.strip')?.offsetHeight ?? 0)}px`);
   return fit;
 }
 
