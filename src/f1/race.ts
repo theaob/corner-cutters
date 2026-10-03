@@ -258,7 +258,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   style(results, {
     position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
     // (kept clear of the deck, which floats over the bottom of the picture on a phone: scrolled if it's longer)
-    boxSizing: 'border-box', maxHeight: 'calc(82% - var(--deck-cover, 0px) - 8px)', overflowY: 'auto',
+    // (and room under it for RESTART and EXIT, which sit there on a phone once the results are up)
+    boxSizing: 'border-box', maxHeight: 'calc(82% - var(--deck-cover, 0px) - 76px)', overflowY: 'auto',
     background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '11px Silkscreen, monospace', display: 'none',
   });
   // the minimap fits the circuit in a 136 × 140 box, whatever its shape (on a phone, shrunk to the room between the
@@ -1333,9 +1334,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const racing = a === 'PAUSE';
     return { a: racing ? '' : a, b: driving ? 'DRIFT' : '', start: roundOver || quali?.over || attack?.result ? '' : 'RESTART', select: racing ? 'PAUSE' : 'EXIT' };
   };
+  const deckEl = document.getElementById('deck');
   const showDeckLabels = () => {
     const labels = deckLabels();
     for (const k of ['a', 'b', 'start', 'select'] as const) hud.setLabel(k, labels[k]);
+    // with the results (or qualifying's times) up, RESTART and EXIT go under the table, big (on a phone: index.html)
+    const resultsUp = results.style.display === 'block' && !paused;
+    deckEl?.classList.toggle('results-up', resultsUp);
+    if (resultsUp) document.documentElement.style.setProperty('--results-bottom', `${results.offsetTop + results.offsetHeight}px`);
   };
 
   // ---------------------------------------------------------------- loop
@@ -2071,6 +2077,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.domElement.remove();
     offBack();
     for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay]) el.remove();
+    deckEl?.classList.remove('results-up');
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };
