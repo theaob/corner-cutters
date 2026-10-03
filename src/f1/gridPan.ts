@@ -1,8 +1,21 @@
 // The grid pan before a race: the camera glides down the starting grid from
 // pole to the last car, a moment on each, naming them as it passes; then the
-// start lights. Where the camera is at each moment is worked out here.
+// start lights. Where the camera is at each moment is worked out here. GRID
+// WALK in the settings can skip it every time (straight to the lights).
 
+import { save, saved } from '../engine/save';
 import type { Pt } from './racing';
+
+let walk: boolean | undefined;
+/** GRID WALK in the settings: the pan before each race, on unless turned off (remembered). */
+export function gridWalkOn(): boolean {
+  walk ??= saved('settings', 'gridWalk') !== false;
+  return walk;
+}
+export function setGridWalk(on: boolean): void {
+  walk = on;
+  save('settings', 'gridWalk', on);
+}
 
 export const GRID_PAN = {
   /** seconds on pole before moving off, a car's worth of time between slots, and a moment on the last */

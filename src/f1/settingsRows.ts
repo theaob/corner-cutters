@@ -1,6 +1,6 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
-// which side the thumbstick sits on, vibration, screen shake, and the sound and
-// music volumes, each changed with left/right (or a tap or swipe) and remembered
+// which side the thumbstick sits on, vibration, screen shake, the grid walk
+// before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race).
 
 import { setStickSide, stickSide, type StickSide } from '../engine/deck';
@@ -9,6 +9,7 @@ import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
 import { optionRow } from './circuitSelect';
 import { setShake, shakeOn } from './shake';
+import { gridWalkOn, setGridWalk } from './gridPan';
 
 /** The nearest volume step to `v`. */
 const nearest = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
@@ -30,5 +31,6 @@ export function settingsRows(): SettingsRow[] {
   const soundRow = optionRow('SOUND', [...VOLUMES], nearest(soundVolume()), (v) => ({ name: volumeName(v), about: v ? 'engines, tyres, crashes, lights' : 'silence' }), setSoundVolume);
   const musicRow = optionRow('MUSIC', [...VOLUMES], nearest(musicVolume()), (v) => ({ name: volumeName(v), about: v ? 'menu and race tracks' : 'silence' }), setMusicVolume);
   const shakeRow = optionRow('SCREEN SHAKE', [true, false], shakeOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, kerbs and grass shake the camera' : 'the camera stays still' }), setShake);
-  return [stickRow, vibrationRow, shakeRow, soundRow, musicRow] as SettingsRow[];
+  const gridWalkRow = optionRow('GRID WALK', [true, false], gridWalkOn(), (on) => ({ name: on ? 'ON' : 'SKIP', about: on ? 'the camera down the grid before the lights' : 'straight to the start lights' }), setGridWalk);
+  return [stickRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow] as SettingsRow[];
 }

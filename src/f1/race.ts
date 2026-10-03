@@ -23,7 +23,7 @@ import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
 import { RACE_LAPS } from './laps';
-import { GRID_PAN, panAt, panLength } from './gridPan';
+import { GRID_PAN, gridWalkOn, panAt, panLength } from './gridPan';
 import { landmarksOf } from './town3d';
 import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
@@ -157,11 +157,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** how the circuit looks now (wetness and rain), last put on the scene, so it's only redone as it changes */
   let shownLook = { wetness: -1, rain: -1 };
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
+  // (a bridge: the marks of cars up on its deck on a layer of their own at the deck's height, over the road beneath)
+  const deckSkids = track.levels ? new SkidLayer((x, y) => groundAt(track.levels!.upper, x, y).h) : undefined;
   // (a bigger pool in the wet: every car throws up spray)
   const particles = new Particles(weather.spray || changeable ? 220 : 90);
   // parts torn off in big crashes: the nose, and wheels off a wreck
   const debris = new DebrisLayer();
   world.scene.add(skids.group, particles.group, debris.group);
+  if (deckSkids) world.scene.add(deckSkids.group);
   /** a wheel torn off lies on its side */
   const onItsSide = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
 
@@ -708,6 +711,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     saved = { laps: 0, race: false, newLap: false, newRace: false, newQualifying: false };
     notice = { text: '', color: '', until: 0 };
     skids.clear();
+    deckSkids?.clear();
     particles.clear();
     debris.clear();
     results.style.display = 'none';
@@ -752,7 +756,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     for (const e of race.entrants) e.car.z = groundAt(grid, e.car.x, e.car.y).h;
     hudState = { gaps: newGapTimer(slots.length), lastPos: 0, flashUntil: 0, lapsSeen: new Array(slots.length).fill(0), fastest: undefined };
     // the grid pan first (A skips it), then the lights
-    gridPan = { t: 0, length: panLength(slots.length) };
+    // (unless GRID WALK is off in the settings: straight to the lights)
+    gridPan = gridWalkOn() ? { t: 0, length: panLength(slots.length) } : undefined;
     // (every car and the safety car recorded, for the replay)
     recorder = newReplay(slots.length + 1);
     replay = undefined;
@@ -1710,8 +1715,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         return;
       }
       const ev = step.cars[i];
-      if (ev.skidding && !replay) skids.mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
-      else skids.lift(i);
+      const onDeck = !!deckSkids && gridFor(track, grid, e.progress.idx) !== grid;
+      if (ev.skidding && !replay) (onDeck ? deckSkids! : skids).mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
+      // (lifted on the other level, so a slide onto or off the deck doesn't join the two)
+      if (!ev.skidding || replay || onDeck) skids.lift(i);
+      if (!ev.skidding || replay || !onDeck) deckSkids?.lift(i);
       // (in the replay, where it was then)
       const then = replay && replayPose(recorder, i, replay.t);
       l.mesh.visible = !replay || !!then;
@@ -1973,6 +1981,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       drawStreaks(dt, rushNow, c.vx / len, sy / len);
     }
     skids.update(dt);
+    deckSkids?.update(dt);
 
     // camera: follow your car, looking ahead along its motion; or, at the ceremony, on the podium
     const c = me.car;
