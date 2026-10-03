@@ -222,10 +222,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const medalLine = document.createElement('span');
   // track limits: your strikes, amber while they're warnings, red once they cost you
   const limitsLine = document.createElement('span');
-  // the speed, frame rate and picture quality, small and dim under the rest (with ?debug only: not for players)
-  const statsLine = document.createElement('span');
-  const showStats = new URLSearchParams(window.location.search).has('debug');
-  Object.assign(statsLine.style, { color: '#6c6a88', fontSize: '10px' });
   const banner = document.createElement('div');
   style(banner, {
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
@@ -1334,9 +1330,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // ---------------------------------------------------------------- loop
   const focus = new THREE.Vector3(race.entrants[you].car.x, 0, race.entrants[you].car.y);
   const target = new THREE.Vector3();
-  let frames = 0;
-  let statTime = 0;
-  let fps = 0;
   let miniTime = 0;
 
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
@@ -1932,7 +1925,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const wrong = session === 'race' && !done && race.forecast && wrongTyres(race, you);
     tyreLine.textContent = `TYRE ${tyres}\n${wrong ? `BOX  FOR ${COMPOUNDS[tyreCall(race, me)].name}\n` : ''}`;
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
-    statsLine.textContent = showStats ? `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}` : '';
     towLine.textContent = me.tow > 0.1 && !done ? `TOW  ${'▶'.repeat(Math.ceil(me.tow * 5))}\n` : '';
     const strikes = me.limits.strikes;
     limitsLine.textContent = strikes && session === 'race' ? `LIMITS ${strikes > LIMITS.warnings ? `+${(strikes - LIMITS.warnings) * LIMITS.penalty}S` : `${strikes}/${LIMITS.warnings}`}\n` : '';
@@ -1942,7 +1934,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const ghostGap = ghostAt === undefined ? undefined : clock - p.lapStart! - ghostAt;
     ghostLine.textContent = ghostGap === undefined ? '' : `GAP  ${ghostGap < 0 ? '−' : '+'}${Math.abs(ghostGap).toFixed(2)}\n`;
     ghostLine.style.color = (ghostGap ?? 0) < 0 ? '#5fe0d0' : '#d8323c';
-    readout.append(medalLine, ghostLine, towLine, tyreLine, limitsLine, statsLine);
+    readout.append(medalLine, ghostLine, towLine, tyreLine, limitsLine);
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;
@@ -2038,13 +2030,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     world.setShadowMapSize(q.shadowMap);
     post.render(dt, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur });
 
-    frames++;
-    statTime += dt;
-    if (statTime >= 0.5) {
-      fps = Math.round(frames / statTime);
-      frames = 0;
-      statTime = 0;
-    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
