@@ -300,7 +300,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const pauseScreen = document.createElement('div');
   style(pauseScreen, {
     position: 'absolute', inset: '0', zIndex: '4', display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    boxSizing: 'border-box', paddingBottom: 'var(--deck-cover, 0px)', gap: '10px', background: 'rgba(14,13,22,.72)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
+    gap: '10px', background: 'rgba(14,13,22,.72)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
   });
   const pauseTitle = document.createElement('div');
   pauseTitle.textContent = 'PAUSED';
@@ -1283,8 +1283,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /**
    * What each deck button does just now ('' for nothing), as the loop below reads them: A the session's own action
-   * (pause, skip, on to what's next), B drift while you're driving (on the keys or a gamepad: the touch deck has no
-   * drift button), START restart, SELECT exit.
+   * (skip, on to what's next, resume), B drift while you're driving (on the keys or a gamepad: the touch deck has no
+   * drift button), START restart, SELECT pause while racing (A still pauses on the keys and a gamepad), else exit.
    */
   const deckLabels = (): Record<DeckButton, string> => {
     if (pauseSettingsOn) return { a: 'DONE', b: '', start: '', select: '' };
@@ -1300,7 +1300,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (!done) a = paused ? 'RESUME' : 'PAUSE';
     else if (!resultsUp) a = 'SKIP';
     const driving = !paused && !done && !replay && !gridPan && !quali?.over && !attack?.result;
-    return { a, b: driving ? 'DRIFT' : '', start: roundOver || quali?.over || attack?.result ? '' : 'RESTART', select: 'EXIT' };
+    // (while racing the small button pauses, in EXIT's place: you leave from the pause screen)
+    const racing = a === 'PAUSE';
+    return { a: racing ? '' : a, b: driving ? 'DRIFT' : '', start: roundOver || quali?.over || attack?.result ? '' : 'RESTART', select: racing ? 'PAUSE' : 'EXIT' };
   };
   const showDeckLabels = () => {
     const labels = deckLabels();
@@ -1343,6 +1345,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return;
     }
     const startPressed = pressed('start');
+    // (SELECT pauses while racing, as its label says; otherwise it exits)
+    const selectPauses = deckLabels().select === 'PAUSE';
     // A pauses and resumes (not once the race is over: the results are up); in qualifying it skips it, or once it's
     // over goes to the grid
     const aPressed = pressed('a');
@@ -1365,10 +1369,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (!podium) startCeremony();
       else podium.time = PODIUM_HOLD;
     }
-    // SELECT goes back to the circuits once it's let go: leaving the page with a finger still down
-    // can leave the next page deaf to touch on a phone (in itch.io's frame the lifting finger's
+    // SELECT pauses while racing; otherwise it goes back to the circuits once it's let go: leaving the page with a
+    // finger still down can leave the next page deaf to touch on a phone (in itch.io's frame the lifting finger's
     // events go to a page that's gone)
-    if (pressed('select')) quitting = true;
+    if (pressed('select')) {
+      if (selectPauses) setPaused(true);
+      else quitting = true;
+    }
     if (quitting && !controls.isDown('select')) {
       quitting = false;
       onQuit();
