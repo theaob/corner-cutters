@@ -10,22 +10,21 @@ import type { Services } from '../../engine/services';
 import { carRow, menuButton, optionRow } from '../circuitSelect';
 import { confetti, trophy } from './celebrate';
 import { onBack } from '../../engine/backButton';
-import { POINTS, numberIn, pointsOf, seasonOver, standings, teamOf, type Season } from '../championship';
+import { POINTS, numberIn, pointsOf, roundSeed, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
 import { menuPick, menuTick } from '../sounds';
-import { WEATHERS, weatherById, type Weather } from '../weather';
+import { roundForecast } from '../forecast';
 import { TEAMS, type Seat, type Team } from '../teams';
 import { logoSvg } from '../logos';
 
-/** What next: the next round, a new season (with the team, weather and qualifying picked for it), or back to the menu. */
-export type ChampionshipAction = 'race' | 'back' | { new: { team: Team; seat: Seat; weather: Weather; qualifying: boolean } };
+/** What next: the next round, a new season (with the team and qualifying picked for it), or back to the menu. */
+export type ChampionshipAction = 'race' | 'back' | { new: { team: Team; seat: Seat; qualifying: boolean } };
 
 /** A new season's choices, as last picked. */
 export interface SeasonChoices {
   team: Team;
   seat: Seat;
-  weather: Weather;
   qualifying: boolean;
 }
 
@@ -100,7 +99,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
   const over = !!season && seasonOver(season);
   if (season) {
     const table = standings(season);
-    const settings = `${difficultyById(season.difficulty)?.name ?? ''} · ${weatherById(season.weather)?.name ?? ''} · QUALIFYING ${season.qualifying ? 'ON' : 'OFF'} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
+    const settings = `${difficultyById(season.difficulty)?.name ?? ''} · QUALIFYING ${season.qualifying ? 'ON' : 'OFF'} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
     if (over) {
       const champ = season.drivers[table[0].driver];
       // yours: the trophy (and, as the title's just been won, confetti)
@@ -109,20 +108,23 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
         if (justWon) requestAnimationFrame(() => confetti(host, 4500));
       }
       screen.append(line(champ.name === 'YOU' ? 'YOU ARE THE CHAMPION!' : `CHAMPION: ${champ.name} (${teamOf(champ).code})`, 'var(--gold)'));
-    } else screen.append(line(`ROUND ${season.round + 1} OF ${season.rounds.length} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)'));
+    } else {
+      screen.append(line(`ROUND ${season.round + 1} OF ${season.rounds.length} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)'));
+      // the round's weather: its own, drawn from the season (its name doesn't hang on the race's length)
+      screen.append(line(`FORECAST: ${roundForecast(roundSeed(season, season.round), 1).name}`, 'var(--accent-b)'));
+    }
     screen.append(line(settings));
     // the rounds: raced (your place), next, to come (each kept on one line as the list wraps)
     screen.append(line(season.rounds.map((id, k) => `${k < season.round ? (season.places[k][season.you] < 0 ? 'DNF' : `P${season.places[k][season.you] + 1}`) : k === season.round ? '▶' : '·'}\u00a0${nameOf(id).replace(/ /g, '\u00a0')}`).join('   ')));
     // a circuit just unlocked: said once
     if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE, TIME ATTACK AND TIME TRIAL`, 'var(--accent-b)'));
     screen.append(standingsTable(season));
-  } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('PICK YOUR TEAM AND CAR, THE WEATHER AND QUALIFYING (DIFFICULTY IN SETTINGS)'));
-  // a new season's team, weather and qualifying: shown when one can be started (mid-season, once NEW SEASON is pressed)
+  } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('PICK YOUR TEAM AND CAR AND QUALIFYING (DIFFICULTY IN SETTINGS)'), line('EACH ROUND HAS ITS OWN WEATHER: RAIN MAY COME OR GO, BOX FOR THE RIGHT TYRES'));
+  // a new season's team and qualifying: shown when one can be started (mid-season, once NEW SEASON is pressed)
   const teamRow = optionRow('TEAM', TEAMS, picked.team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }), () => carChoice.refresh());
   const carChoice = carRow(() => teamRow.value(), picked.seat);
-  const weatherRow = optionRow('WEATHER', WEATHERS, picked.weather, (w) => ({ name: w.name, about: w.about }));
   const qualifyingRow = optionRow('QUALIFYING', [false, true], picked.qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
-  const rows = [teamRow, carChoice, weatherRow, qualifyingRow];
+  const rows = [teamRow, carChoice, qualifyingRow];
   const options = document.createElement('div');
   options.className = 'options';
   options.append(...rows.map((r) => r.el));
@@ -151,7 +153,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
         layOut();
         return;
       }
-      finish({ new: { team: teamRow.value(), seat: carChoice.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value() } });
+      finish({ new: { team: teamRow.value(), seat: carChoice.value(), qualifying: qualifyingRow.value() } });
     };
     const newButton = menuButton(season && !over ? 'NEW SEASON' : 'START A SEASON', pickNew);
     const choices: { el: HTMLButtonElement; pick: () => void }[] = [

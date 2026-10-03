@@ -8,8 +8,10 @@
 // Three compounds, each at its best in its own weather: slicks on a dry track,
 // intermediates on a damp one, full wets in the rain. The wrong tyre for the
 // track grips less, is slower, and (a wet tyre on a dry track) wears out fast;
-// a wet track is slower than a dry one even on the right tyres. The crew fits
-// the right compound for the weather at the start and at every stop.
+// a wet track is slower than a dry one even on the right tyres. In between
+// (the track wetting in the rain or drying after it: forecast.ts) each does as
+// it would between the two. The crew fits the right compound for the weather
+// at the start and, at every stop, for the weather a lap on.
 // Engine-free and unit-tested.
 
 import { speedOf, type Car, type StepEvents } from '../engine/driving';
@@ -40,8 +42,24 @@ export const COMPOUNDS: Record<Compound, { name: string; short: string; color: s
   },
 };
 
-/** The compound for a weather: the one that's quickest there. */
-export const tyreFor = (weather: WeatherId): Compound => (weather === 'wet' ? 'wet' : weather === 'damp' ? 'inter' : 'slick');
+/** A weather, or a track's wetness (0 dry … 1 damp … 2 wet: forecast.ts), as a wetness. */
+const wetnessOf = (w: WeatherId | number): number => (typeof w === 'number' ? Math.max(0, Math.min(2, w)) : w === 'wet' ? 2 : w === 'damp' ? 1 : 0);
+
+/** How `compound` does on a track `w` wet: its fit there, eased between the dry, damp and wet ones. */
+export function fitAt(compound: Compound, w: WeatherId | number): Fit {
+  const x = wetnessOf(w);
+  const on = COMPOUNDS[compound].on;
+  const [a, b, t] = x <= 1 ? [on.dry, on.damp, x] : [on.damp, on.wet, x - 1];
+  return { grip: a.grip + (b.grip - a.grip) * t, speed: a.speed + (b.speed - a.speed) * t, wear: a.wear + (b.wear - a.wear) * t };
+}
+
+const ALL: Compound[] = ['slick', 'inter', 'wet'];
+
+/** The compound for a weather (or a track's wetness): the one that grips best there. */
+export const tyreFor = (w: WeatherId | number): Compound => ALL.reduce((best, c) => (fitAt(c, w).grip > fitAt(best, w).grip ? c : best));
+
+/** The grip `compound` gives up on a track `w` wet against the right compound there (0: it is the right one). */
+export const wrongTyreLoss = (compound: Compound, w: WeatherId | number): number => 1 - fitAt(compound, w).grip / fitAt(tyreFor(w), w).grip;
 
 export const TYRES = {
   /** wear per second at top speed, driving cleanly */
@@ -85,22 +103,22 @@ export const tyreGrip = (wear: number) => 1 - TYRES.gripLoss * wear - TYRES.clif
 /** The share of top speed left at `wear`. */
 export const tyreSpeed = (wear: number) => 1 - TYRES.speedLoss * wear - TYRES.cliffSpeedLoss * overCliff(wear);
 
-/** Wear the tyres for one driving step of `car` (with that step's events) in `weather`, and put their state on the car. */
-export function wearTyres(set: TyreSet, car: Car, events: StepEvents, dt: number, weather: WeatherId = 'dry'): void {
+/** Wear the tyres for one driving step of `car` (with that step's events) in `weather` (or on a track that wet), and put their state on the car. */
+export function wearTyres(set: TyreSet, car: Car, events: StepEvents, dt: number, weather: WeatherId | number = 'dry'): void {
   if (!car.airborne && !car.wrecked) {
     const v = speedOf(car);
     const f = { x: Math.sin(car.heading), y: -Math.cos(car.heading) };
     const slide = Math.abs(car.vx * -f.y + car.vy * f.x);
     const rate = TYRES.base * Math.min(1, v / car.cls.topSpeed) + TYRES.slide * Math.min(1, slide / TYRES.slideFull) + (events.onRough && v > 20 ? TYRES.rough : 0);
-    set.wear = Math.min(1, set.wear + rate * COMPOUNDS[set.compound].on[weather].wear * dt);
+    set.wear = Math.min(1, set.wear + rate * fitAt(set.compound, weather).wear * dt);
     set.driven += v * dt;
   }
   fitTyres(set, car, weather);
 }
 
-/** Put the set's grip and speed in `weather` on the car. */
-export function fitTyres(set: TyreSet, car: Car, weather: WeatherId = 'dry'): void {
-  const fit = COMPOUNDS[set.compound].on[weather];
+/** Put the set's grip and speed in `weather` (or on a track that wet) on the car. */
+export function fitTyres(set: TyreSet, car: Car, weather: WeatherId | number = 'dry'): void {
+  const fit = fitAt(set.compound, weather);
   car.tyreGrip = tyreGrip(set.wear) * fit.grip;
   car.speedScale = tyreSpeed(set.wear) * fit.speed;
 }

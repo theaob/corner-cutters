@@ -16,8 +16,9 @@ import { groundAt } from '../engine/sim';
 import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, nearestSample, playerInput, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
 import { numberOf, styleOf } from './drivers';
-import { DRY, type Weather } from './weather';
-import { COMPOUNDS, fitTyres } from './tyres';
+import { DRY, lookAt as weatherLook, type Weather, type WeatherId } from './weather';
+import { changeableForecast, conditionOf, fixedForecast, roundForecast, type Forecast } from './forecast';
+import { COMPOUNDS, fitTyres, tyreFor, type Compound } from './tyres';
 import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
@@ -28,7 +29,7 @@ import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
-import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
+import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
 import { createCeremony, podiumSpot } from './podium3d';
@@ -142,9 +143,22 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
   const { track, grid } = circuit;
   const world = createCircuitScene(circuit, weather);
+  /**
+   * the weekend's weather: the one picked, the same all session, or (a changeable one, or a Championship round's)
+   * a forecast drawn with the weekend; the race runs to it, qualifying in the weather it starts in
+   */
+  const changeable = !!championship || weather.id === 'changeable';
+  /** about how long the race runs (s: its laps at a typical pace), for the forecast's timing */
+  const raceSeconds = (LAPS * track.length) / 300;
+  const roundWeather = championship && roundForecast(roundSeed(championship.season, championship.season.round), raceSeconds);
+  let forecast: Forecast = roundWeather || fixedForecast(weather.id === 'changeable' ? 'dry' : weather.id);
+  /** the weather for a session on your own (it doesn't change there): the race's at the start */
+  const sessionWeather = (): WeatherId => conditionOf(forecast.start);
+  /** how the circuit looks now (wetness and rain), last put on the scene, so it's only redone as it changes */
+  let shownLook = { wetness: -1, rain: -1 };
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
   // (a bigger pool in the wet: every car throws up spray)
-  const particles = new Particles(weather.spray ? 220 : 90);
+  const particles = new Particles(weather.spray || changeable ? 220 : 90);
   // parts torn off in big crashes: the nose, and wheels off a wreck
   const debris = new DebrisLayer();
   world.scene.add(skids.group, particles.group, debris.group);
@@ -253,7 +267,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   });
   const cardLogo = logoSvg(team.id, 36);
   if (cardLogo) teamCard.append(cardLogo);
-  teamCard.append(`${team.name.toUpperCase()} · ${difficulty.name} · ${weather.name}`);
+  const weatherTag = document.createElement('span');
+  teamCard.append(`${team.name.toUpperCase()} · ${difficulty.name} · `, weatherTag);
   const MINI_H = Math.round(circuit.height * miniScale);
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
   const mini = document.createElement('canvas');
@@ -339,18 +354,21 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     streakCtx.stroke();
   };
   const rain = document.createElement('canvas');
-  style(rain, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none', display: weather.rain > 0 ? 'block' : 'none' });
+  style(rain, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none', display: 'none' });
   const rainCtx = rain.getContext('2d')!;
-  const drops = Array.from({ length: Math.round(90 * weather.rain) }, () => ({ x: Math.random(), y: Math.random(), v: 0.9 + Math.random() * 0.6 }));
+  // (as many drops as the heaviest rain has: as many of them drawn as it's raining now)
+  const drops = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), v: 0.9 + Math.random() * 0.6 }));
   const drawRain = (dt: number) => {
-    if (weather.rain <= 0) return;
+    const falling = Math.round(drops.length * race.rain);
+    rain.style.display = falling > 0 ? 'block' : 'none';
+    if (falling <= 0) return;
     const w = (rain.width = rain.clientWidth);
     const h = (rain.height = rain.clientHeight);
     rainCtx.clearRect(0, 0, w, h);
     rainCtx.strokeStyle = 'rgba(210,220,236,.45)';
     rainCtx.lineWidth = 1;
     rainCtx.beginPath();
-    for (const d of drops) {
+    for (const d of drops.slice(0, falling)) {
       d.y += d.v * dt * 1.6;
       d.x -= d.v * dt * 0.25;
       if (d.y > 1) Object.assign(d, { y: d.y - 1, x: Math.random() + 0.1 });
@@ -498,7 +516,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
   const records = loadRecords();
   // (kept apart for each weather: a wet lap is slower)
-  const recordId = weather.id === 'dry' ? layout.id : `${layout.id}:${weather.id}`;
+  // (a changeable weekend's apart from them all: a Championship round's too, unless its weather's the same all race)
+  const recordKind = championship ? (forecast.fixed ? sessionWeather() : 'changeable') : weather.id;
+  const recordId = recordKind === 'dry' ? layout.id : `${layout.id}:${recordKind}`;
   const rec = () => records.circuits[recordId];
   /** your laps saved so far this race, whether your finish is saved, and the records this race (or qualifying) set */
   let saved = { laps: 0, race: false, newLap: false, newRace: false, newQualifying: false };
@@ -509,7 +529,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let settle = 0;
   let last = performance.now();
   // the race's sounds (silent until the first tap or key: browsers require one)
-  const sounds = new RaceSounds(weather.rain);
+  const sounds = new RaceSounds(0);
   /** start lights lit so far (a beep for each), and whether your flag has been sounded */
   let soundState = { lights: 0, flag: false, finalLap: false, boxLap: -1 };
   /** the camera's shake, and the hit-stop of a big hit */
@@ -690,7 +710,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const slot = circuit.slots[i];
       return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai: w.drivers[k].ai, box: w.drivers[k].box };
     });
-    race = newRace(track, grid, HANDLING, LAPS, field, w.lightsOut, circuit.pit, weather.id);
+    race = newRace(track, grid, HANDLING, LAPS, field, w.lightsOut, circuit.pit, forecast);
     // (on the ground from the start: the grid pan shows them before the first step puts them there)
     for (const e of race.entrants) e.car.z = groundAt(grid, e.car.x, e.car.y).h;
     hudState = { gaps: newGapTimer(slots.length), lastPos: 0, flashUntil: 0, lapsSeen: new Array(slots.length).fill(0), fastest: undefined };
@@ -716,7 +736,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     you = 0;
     const d = w.drivers[w.youDriver];
     looks = [addLook(d.livery, d.seat, true)];
-    race = newQualifying(track, grid, HANDLING, weather.id);
+    race = newQualifying(track, grid, HANDLING, sessionWeather());
     quali = { lap: newQualiLap(), weekend: w };
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
     announce('QUALIFYING · ONE FLYING LAP', '#f2c14e', 3);
@@ -733,10 +753,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     you = 0;
     const d = w.drivers[w.youDriver];
     looks = [addLook(d.livery, d.seat, true)];
-    race = newQualifying(track, grid, HANDLING, weather.id);
+    race = newQualifying(track, grid, HANDLING, sessionWeather());
     trial = { recorder: newRecorder(), sector: 0, lap: newQualiLap(), record: loadGhost(recordId) };
     // (the medals' laps are shares of it)
-    reference ??= referenceLap(track, grid, HANDLING, weather.id);
+    reference ??= referenceLap(track, grid, HANDLING, sessionWeather());
     showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
     announce(trial.record ? `TIME TRIAL · BEAT ${fmt(trial.record.time)}` : 'TIME TRIAL', '#f2c14e', 3);
@@ -754,8 +774,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     you = 0;
     const d = w.drivers[w.youDriver];
     looks = [addLook(d.livery, d.seat, true)];
-    race = newQualifying(track, grid, HANDLING, weather.id);
-    reference ??= referenceLap(track, grid, HANDLING, weather.id);
+    race = newQualifying(track, grid, HANDLING, sessionWeather());
+    reference ??= referenceLap(track, grid, HANDLING, sessionWeather());
     const best = rec()?.bestAttack;
     attack = { a: newAttack(reference, difficulty), best };
     showMedal();
@@ -775,7 +795,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     you = 0;
     const d = w.drivers[w.youDriver];
     looks = [addLook(d.livery, d.seat, true)];
-    race = newQualifying(track, grid, HANDLING, weather.id);
+    race = newQualifying(track, grid, HANDLING, sessionWeather());
     learn = { o: newOnboarding(), bends: 0, lastIdx: race.entrants[0].progress.idx };
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
   };
@@ -786,7 +806,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const endQualifying = (time: number | undefined) => {
     if (!quali) return;
     const w = quali.weekend;
-    reference ??= referenceLap(track, grid, HANDLING, weather.id);
+    reference ??= referenceLap(track, grid, HANDLING, sessionWeather());
     const times = aiTimes(w.drivers.map((d) => d.ai?.pace), reference, seededRandom(seed + 1));
     times[w.youDriver] = time;
     // your qualifying record here (apart from the race's lap record)
@@ -804,6 +824,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const newWeekend = () => {
     seed = championship ? roundSeed(championship.season, championship.season.round) : Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
     reference = undefined;
+    // (a Championship round's weather is its own; a changeable weekend's drawn afresh)
+    forecast = roundWeather || (weather.id === 'changeable' ? changeableForecast(seed, raceSeconds) : fixedForecast(weather.id));
+    weatherTag.textContent = forecast.name;
     if (mode === 'tutorial') startTutorial();
     else if (mode === 'timetrial') startTimeTrial();
     else if (mode === 'timeattack') startTimeAttack();
@@ -868,6 +891,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
         /** the team radio's line up now, and the camera's shake (trauma) and the rush of speed */
         radio: () => radioQ.now?.text,
+        /** the weather: the forecast, the track's wetness and the rain now, and your tyres (and whether they're the wrong ones) */
+        weather: () => ({ forecast: { ...forecast }, wetness: race.wetness, rain: race.rain, condition: race.weather, tyres: race.entrants[you].tyres.compound, wrong: !!race.forecast && wrongTyres(race, you), compounds: race.entrants.map((e) => e.tyres.compound) }),
         feel: () => ({ trauma: shake.trauma, hold: shake.hold, rush: rushNow, battle: battleNow }),
         /** your start off the lights, judged */
         launch: () => ({ ...launch }),
@@ -922,7 +947,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const p = me.progress;
     const n = track.samples.length;
     if (!race.pit || p.lapStart === undefined || p.finished !== undefined || !between(p.idx, circuit.pit.entry - 60, circuit.pit.entry + 4, n)) return false;
-    return wantsPit(me.car, me.tyres, race.laps - p.lap - p.idx / n, planLapTime(race, me), HANDLING.damageSlow, track.length);
+    const lapsLeft = race.laps - p.lap - p.idx / n;
+    return (lapsLeft > 0.4 && wrongTyres(race, you)) || wantsPit(me.car, me.tyres, lapsLeft, planLapTime(race, me), HANDLING.damageSlow, track.length);
+  };
+  /** The radio's box call: for the tyres the weather wants (when it's turned), or plain. */
+  const boxCue = (): RadioCue => {
+    const me = race.entrants[you];
+    const call: Compound = tyreCall(race, me);
+    return call === me.tyres.compound ? 'box' : `box-${call}`;
   };
 
   /**
@@ -1162,7 +1194,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const p = me.progress;
     // no tyre wear against the clock: every lap on fresh tyres
     me.tyres.wear = 0;
-    fitTyres(me.tyres, me.car, weather.id);
+    fitTyres(me.tyres, me.car, race.wetness);
     const verdict = judgeLap(trial.lap, p, cut);
     if (p.lapStart !== trial.lapStart) {
       // over the line: the lap before is over (as the verdict says), and the next is timed
@@ -1200,7 +1232,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const p = me.progress;
     // no tyre wear against the clock: fresh tyres all the way
     me.tyres.wear = 0;
-    fitTyres(me.tyres, me.car, weather.id);
+    fitTyres(me.tyres, me.car, race.wetness);
     const step = stepAttack(attack.a, SIM_DT, p.lapStart !== undefined, p.lapTimes.length * SECTORS + p.sector, cut);
     if (step.started) announce('THE CLOCK IS RUNNING', '#5fe0d0', 1.5);
     if (step.added) announce(`+${step.added.toFixed(1)} S`, '#5fe0d0', 1.2);
@@ -1454,7 +1486,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const me = race.entrants[you];
       const p = me.progress;
       me.tyres.wear = 0;
-      fitTyres(me.tyres, me.car, weather.id);
+      fitTyres(me.tyres, me.car, race.wetness);
       learn.bends += apexesPassed(race.corners.map((c) => c.apex), learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
       const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: device() !== 'touch', lapDone: p.lapTimes.length > 0 };
@@ -1557,6 +1589,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         }
       }
       // (a stop repairs the car: the parts torn off it fitted back as the crew finish, before it pulls away)
+      else if (e.kind === 'rain') {
+        announce(e.on ? 'RAIN · THE TRACK IS GETTING WET' : 'THE RAIN HAS STOPPED · THE TRACK WILL DRY', '#8fb8e8', 2.5);
+        sayRadio(e.on ? 'rain' : 'rain-stops');
+      } else if (e.kind === 'track' && race.clock >= notice.until) announce(`TRACK ${e.condition.toUpperCase()} · ${COMPOUNDS[tyreFor(e.condition)].name.toUpperCase()} TYRES`, '#8fb8e8', 2);
       else if (e.kind === 'pit-repaired') debris.refit(looks[e.who].mesh, race.clock);
       else if (e.kind === 'pit-out') {
         if (e.who === you) {
@@ -1613,7 +1649,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         achieve([
           ...raceAchievements({
             place: raceOrder(race).indexOf(you) + 1, field: race.entrants.length, grid: you + 1, fastest: hudState.fastest?.who === you,
-            damaged: tookDamage, strikes: me.limits.strikes, laps: race.laps, difficulty: difficulty.id, weather: weather.id,
+            damaged: tookDamage, strikes: me.limits.strikes, laps: race.laps, difficulty: difficulty.id, weather: race.weather,
             tyresLeft: Math.round((1 - me.tyres.wear) * 100), burning: me.car.burn !== undefined,
           }),
           ...(raced(layout.id, LAYOUTS.map((l) => l.id)) ? ['globetrotter'] : []),
@@ -1621,6 +1657,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       }
       saveRecords(records);
     }
+    // (spray off a damp or wet track)
+    const spray = race.wetness > 0.4;
     race.entrants.forEach((e, i) => {
       const l = looks[i];
       if (!running(e)) {
@@ -1655,7 +1693,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const was = l.was ?? { speed, health: e.car.health };
       if (!replay && dt > 0 && speed > 30 && (was.speed - speed) / dt > REAR_LIGHT.decel) l.lit = REAR_LIGHT.hold;
       else l.lit = Math.max(0, (l.lit ?? 0) - dt);
-      l.mesh.userData.rainLight.visible = l.lit > 0 || (weather.spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5);
+      l.mesh.userData.rainLight.visible = l.lit > 0 || (spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5);
       // sparks: off a hit (a wall, another car), thrown back the way it was going, and off a hard landing, from under it
       if (!replay && !then) {
         const lost = was.health - e.car.health;
@@ -1664,7 +1702,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         if (ev.landed > 160) particles.sparks(e.car.x, e.car.y, e.car.z, 6);
       }
       l.was = { speed, health: e.car.health };
-      if (weather.spray && speed > 60 && Math.random() < dt * (weather.rain > 0 ? 14 : 6) * Math.min(1, speed / 250)) {
+      if (spray && speed > 60 && Math.random() < dt * (6 + 8 * race.rain) * Math.min(1, speed / 250)) {
         particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);
       }
     });
@@ -1776,7 +1814,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // box, box: on the radio once a lap, as the pit wall's call goes up
     if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {
       soundState.boxLap = p.lap;
-      sayRadio('box');
+      sayRadio(boxCue());
     }
     // the radio: the next line up once the last is done
     {
@@ -1852,7 +1890,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         `TIME ${attack.a.left === undefined ? '–' : attack.a.left.toFixed(1)}\nGOT  ${distance(attack.a.passed)}\nBEST ${attack.best ? distance(attack.best) : '–'}\nLAP  ${fmt(lapTime)}\nCAR  ${car}\n`
       : `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}${limiter}\n`;
     // the tyre line in its compound's colour
-    tyreLine.textContent = `TYRE ${tyres}\n`;
+    // (the wrong ones for the weather: what the crew would fit, in amber)
+    const wrong = session === 'race' && !done && race.forecast && wrongTyres(race, you);
+    tyreLine.textContent = `TYRE ${tyres}\n${wrong ? `BOX  FOR ${COMPOUNDS[tyreCall(race, me)].name}\n` : ''}`;
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
     statsLine.textContent = showStats ? `${Math.round(speedOf(me.car))} PX/S · ${fps} FPS ${QUALITY_LEVELS[governor.level].name.toUpperCase()}` : '';
     towLine.textContent = me.tow > 0.1 && !done ? `TOW  ${'▶'.repeat(Math.ceil(me.tow * 5))}\n` : '';
@@ -1943,6 +1983,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     world.followSun(focus);
     world.animate(performance.now() / 1000);
+    // the weather's look, eased as the track wets and dries and the rain comes and goes (redone only as it changes)
+    if (Math.abs(race.wetness - shownLook.wetness) > 0.02 || Math.abs(race.rain - shownLook.rain) > 0.02) {
+      shownLook = { wetness: race.wetness, rain: race.rain };
+      const look = weatherLook(race.wetness, race.rain);
+      world.setSky(look.sky);
+      world.setGroundTint(look.groundTint);
+      sounds.setRain(race.rain);
+    }
 
 
     if (settle > 0) settle--;

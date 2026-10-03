@@ -22,7 +22,7 @@ import { TEAMS, type Seat, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime, loadRecords } from './records';
 import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
-import { DRY, WEATHERS, type Weather } from './weather';
+import { DRY, RACE_WEATHERS, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { ownsChampionship } from './purchase';
 import { distance } from './timeAttack';
@@ -288,13 +288,16 @@ export function chooseCircuit(
   // (the CAR row names the team's drivers: drawn again when the team changes)
   const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }), () => carChoice.refresh());
   const carChoice = carRow(() => teamRow.value(), seat);
-  const weatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
+  // (a Quick Race's weather may be changeable; against the clock it's the same all session)
+  const raceWeatherRow = optionRow('WEATHER', RACE_WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
+  const clockWeatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
+  const weatherRow = () => (current.id === 'race' ? raceWeatherRow : clockWeatherRow);
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   // (a Quick Race's: a Championship round is always RACE_LAPS, and a Time Trial is laps until you stop)
   const lapsRow = optionRow('LAPS', [...LAP_CHOICES], laps, (n) => ({ name: `${n}`, about: lapsAbout(n) }));
-  const ROWS = { team: teamRow, car: carChoice, weather: weatherRow, qualifying: qualifyingRow, laps: lapsRow };
+  const ROWS = { team: () => teamRow, car: () => carChoice, weather: weatherRow, qualifying: () => qualifyingRow, laps: () => lapsRow };
   /** the rows on the circuit screen, for the mode picked */
-  let rows = rowsOf(current.id).map((k) => ROWS[k]);
+  let rows = rowsOf(current.id).map((k) => ROWS[k]());
 
   // the settings screen: difficulty, then the rows the pause screen has too (src/f1/settingsRows.ts)
   const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
@@ -532,7 +535,7 @@ export function chooseCircuit(
     }
     menuPick();
     view = 'circuit';
-    rows = rowsOf(m.id).map((k) => ROWS[k]);
+    rows = rowsOf(m.id).map((k) => ROWS[k]());
     options.replaceChildren(...rows.map((r) => r.el));
     hint.textContent = HINT;
     focus = 0;
@@ -589,7 +592,7 @@ export function chooseCircuit(
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
   };
   // a tap on a row focuses it too
-  Object.values(ROWS).forEach((r) => r.el.addEventListener('pointerdown', () => {
+  [teamRow, carChoice, raceWeatherRow, clockWeatherRow, qualifyingRow, lapsRow].forEach((r) => r.el.addEventListener('pointerdown', () => {
     focus = 1 + rows.indexOf(r);
     show();
   }));
@@ -640,7 +643,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow.value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
+      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;
