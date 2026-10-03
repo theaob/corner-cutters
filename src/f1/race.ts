@@ -1348,10 +1348,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     document.documentElement.classList.toggle('results-up', resultsUp);
     // (the champagne ceremony: nothing to steer either, so no thumbstick: index.html)
     document.documentElement.classList.toggle('ceremony', !!podium && !resultsUp);
+    // (the pause screen too: its buttons and settings rows are tapped)
+    document.documentElement.classList.toggle('paused', paused);
     // on a phone the results have the screen to themselves (no readout, minimap or timing tower), and the table with
     // the buttons under it (12 px gap, 52 px tall) sits in the middle of the screen, top to bottom
     const alone = resultsUp && phoneHud;
-    for (const el of [readout, mini, tower]) el.style.visibility = alone ? 'hidden' : '';
+    // (the champagne ceremony on a phone likewise: the podium, its banner and the radio, nothing else)
+    const clear = phoneHud && (resultsUp || (!!podium && !paused));
+    for (const el of [readout, mini, tower]) el.style.visibility = clear ? 'hidden' : '';
     if (alone) results.style.top = `${Math.max(8, (host.clientHeight - results.offsetHeight - 64) / 2)}px`;
     else if (results.style.top !== '18%') results.style.top = '18%';
     if (resultsUp) document.documentElement.style.setProperty('--results-bottom', `${results.offsetTop + results.offsetHeight}px`);
@@ -2091,7 +2095,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     offBack();
     for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay]) el.remove();
     deckEl?.classList.remove('results-up');
-    document.documentElement.classList.remove('results-up', 'ceremony');
+    document.documentElement.classList.remove('results-up', 'ceremony', 'paused');
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };
