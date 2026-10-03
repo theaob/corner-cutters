@@ -196,6 +196,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let placeHud: (desktop: boolean) => void = () => {};
   /** the phone's overlay (the HUD Lab's): its lap readout without the gaps (the tower has them) or the tyres' share */
   let phoneHud = false;
+  /** a session on your own (no timing tower): the minimap goes in the middle on a phone */
+  let soloHud = false;
   const resize = (f: ScreenFit) => {
     placeHud(f.desktop);
     viewW = f.width;
@@ -431,11 +433,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
       style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px' });
       // the timing tower a set width at the right, and the minimap as big as fits between it and the readout (its usual
-      // width), with a gap either side; your lap centred under the minimap
+      // width), with a gap either side; on your own (no tower: qualifying, a Time Trial or Attack, the controls lap) the
+      // minimap in the middle of the screen, as big as fits clear of the readout; your lap centred under the minimap
       const TOWER_W = 116;
       const READOUT_W = 104;
+      const w = host.clientWidth || 390;
       const from = 12 + READOUT_W + 8;
-      const to = (host.clientWidth || 390) - 12 - TOWER_W - 8;
+      const to = soloHud ? w - from : w - 12 - TOWER_W - 8;
       const fitMini = Math.min(1, (to - from) / MINI_W);
       const centre = (from + to) / 2;
       style(mini, { left: `${centre - (MINI_W * fitMini) / 2}px`, right: 'auto', top: '12px', transform: 'none', width: `${MINI_W * fitMini}px`, height: `${MINI_H * fitMini}px` });
@@ -1378,6 +1382,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
     showDeckLabels();
+    // (on your own, or racing: the minimap's place follows)
+    if ((session !== 'race') !== soloHud) {
+      soloHud = session !== 'race';
+      placeHud(!phoneHud);
+    }
     // the pause screen's settings: the deck moves through them (and nothing else)
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
