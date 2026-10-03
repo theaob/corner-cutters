@@ -880,7 +880,8 @@
         visibility: hidden;
       }
       /* (and the lap panel goes: the results have the screen to themselves) */
-      html:not(.desktop) #deck.results-up .strip {
+      html:not(.desktop) #deck.results-up .strip,
+      html.ceremony:not(.desktop) #deck .strip {
         display: none;
       }
       /* (EXIT on the left, RESTART on the right, under the table) */
