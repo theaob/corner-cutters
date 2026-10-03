@@ -323,9 +323,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     });
     return b;
   };
-  const pauseHint = document.createElement('div');
-  pauseHint.textContent = 'OR ON THE DECK: RESTART · EXIT';
-  style(pauseHint, { color: '#9d9ab8', fontSize: '10px', marginTop: '6px', textAlign: 'center', padding: '0 12px' });
   // rain over the picture: streaks falling at a slant, under the readouts
   // the rush of speed: pale streaks flowing past the screen's edges near top speed and in a tow (none in the middle,
   // where the racing is), the way the car's going
@@ -1166,7 +1163,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseButton('RESUME', () => setPaused(false)),
     pauseButton('RESTART', () => restart()),
     pauseButton('SETTINGS', () => openPauseSettings(true)),
-    pauseHint,
   );
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
