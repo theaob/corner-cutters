@@ -1346,6 +1346,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     deckEl?.classList.toggle('results-up', resultsUp);
     // (and TUNE and the thumbstick go too while they're up: index.html)
     document.documentElement.classList.toggle('results-up', resultsUp);
+    // (the champagne ceremony: nothing to steer either, so no thumbstick: index.html)
+    document.documentElement.classList.toggle('ceremony', !!podium && !resultsUp);
     // on a phone the results have the screen to themselves (no readout, minimap or timing tower), and the table with
     // the buttons under it (12 px gap, 52 px tall) sits in the middle of the screen, top to bottom
     const alone = resultsUp && phoneHud;
@@ -2089,7 +2091,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     offBack();
     for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay]) el.remove();
     deckEl?.classList.remove('results-up');
-    document.documentElement.classList.remove('results-up');
+    document.documentElement.classList.remove('results-up', 'ceremony');
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };
