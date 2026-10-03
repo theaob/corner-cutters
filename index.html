@@ -808,7 +808,8 @@
          in the tower) */
       html:not(.desktop) .strip {
         position: absolute;
-        top: 114px;
+        /* (just under the minimap: race.ts sets its height) */
+        top: calc(18px + var(--mini-h, 96px));
         left: 50%;
         transform: translateX(-50%);
         height: auto;
