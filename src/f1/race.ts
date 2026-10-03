@@ -196,8 +196,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let placeHud: (desktop: boolean) => void = () => {};
   /** the phone's overlay (the HUD Lab's): its lap readout without the gaps (the tower has them) or the tyres' share */
   let phoneHud = false;
-  /** a session on your own (no timing tower): the minimap goes in the middle on a phone */
-  let soloHud = false;
   const resize = (f: ScreenFit) => {
     placeHud(f.desktop);
     viewW = f.width;
@@ -419,7 +417,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   placeHud = (desktop) => {
     phoneHud = !desktop;
     if (desktop) {
-      style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal' });
+      style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
       style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none', width: `${MINI_W}px`, height: `${MINI_H}px` });
       style(tower, { right: '6px', top: `${46 + MINI_H}px`, minWidth: `${Math.max(96, MINI_W)}px`, width: 'auto' });
       style(radioPanel, { left: '6px', right: '6px', top: 'auto', bottom: '8px' });
@@ -428,17 +426,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       results.style.fontSize = '12px';
     } else {
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
-      style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px' });
-      // the timing tower a set width at the right, and the minimap as big as fits between it and the readout (its usual
-      // width), with a gap either side; on your own (no tower: qualifying, a Time Trial or Attack, the controls lap) the
-      // minimap in the middle of the screen, as big as fits clear of the readout; your lap centred under the minimap
+      // (as wide as the timing tower on the other side, so the two mirror each other about the middle)
+      style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px', width: '116px', boxSizing: 'border-box' });
+      // the readout and the timing tower the same width either side, and the minimap in the middle of the screen
+      // between them (as big as fits, with a gap to each), your lap centred under it; on your own (no tower) the
+      // minimap's still in the middle, the same size
       const TOWER_W = 116;
-      const READOUT_W = 104;
       const w = host.clientWidth || 390;
-      const from = 12 + READOUT_W + 8;
-      const to = soloHud ? w - from : w - 12 - TOWER_W - 8;
+      const from = 12 + TOWER_W + 8;
+      const to = w - from;
       const fitMini = Math.min(1, (to - from) / MINI_W);
-      const centre = (from + to) / 2;
+      const centre = w / 2;
       style(mini, { left: `${centre - (MINI_W * fitMini) / 2}px`, right: 'auto', top: '12px', transform: 'none', width: `${MINI_W * fitMini}px`, height: `${MINI_H * fitMini}px` });
       style(tower, { right: '12px', top: '48px', minWidth: '0', width: `${TOWER_W}px`, boxSizing: 'border-box' });
       document.documentElement.style.setProperty('--mini-x', `${centre}px`);
@@ -1378,11 +1376,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
     showDeckLabels();
-    // (on your own, or racing: the minimap's place follows)
-    if ((session !== 'race') !== soloHud) {
-      soloHud = session !== 'race';
-      placeHud(!phoneHud);
-    }
     // the pause screen's settings: the deck moves through them (and nothing else)
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
