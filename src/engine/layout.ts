@@ -1,11 +1,12 @@
-// Sizes the game screen above the control deck.
+// Sizes the game screen.
 //
 // The screen is always GAME_WIDTH game pixels wide and fills the column's width
 // edge to edge (the HD-2D renderer draws the 3D scene at its own resolution and
-// scales smoothly, so it doesn't need whole device pixels per game pixel). Its
-// height flexes between MIN and MAX game pixels to fit the phone; the deck takes
-// whatever is left below. Only on a screen too short for MIN at full width does
-// the game narrow, leaving side borders.
+// scales smoothly, so it doesn't need whole device pixels per game pixel). On a
+// phone it fills the column's height too, top to bottom, and the control deck
+// floats over its lower part with no panel behind it (fitHandheld). Only on a
+// screen too short for MIN at full width does the game narrow, leaving side
+// borders. (fitScreen is the older fit, the screen above a deck of its own.)
 //
 // In the desktop layout (the player switches to it; it's never automatic) the
 // screen fills the window instead: a fixed DESKTOP_GAME_HEIGHT tall, as wide as the window
@@ -33,6 +34,20 @@ export interface ScreenFit {
   height: number;
   /** the desktop layout: a wide screen with the HUD over it and no touch deck */
   desktop: boolean;
+  /** game pixels at the bottom the deck floats over (a phone's: its stick and buttons), to frame the picture above */
+  cover?: number;
+}
+
+/** Tallest the phone's screen gets (game pixels): a tall phone, or a tablet held upright. */
+export const MAX_HANDHELD_HEIGHT = 540;
+
+/** The phone: the screen fills the column, edge to edge and top to bottom (the deck is laid over it). */
+export function fitHandheld(availWidth: number, availHeight: number): ScreenFit {
+  let scale = availWidth / GAME_WIDTH;
+  if (availHeight / scale < MIN_GAME_HEIGHT) scale = Math.max(availHeight, 1) / MIN_GAME_HEIGHT;
+  // (rounded up: no sliver of the page left showing under it)
+  const height = Math.max(MIN_GAME_HEIGHT, Math.min(MAX_HANDHELD_HEIGHT, Math.ceil(availHeight / scale)));
+  return { scale, width: GAME_WIDTH, height, desktop: false };
 }
 
 export function fitScreen(availWidth: number, availHeight: number): ScreenFit {
@@ -75,5 +90,5 @@ export function canSwitchLayout(win: Window = window): boolean {
 export function measureFit(mode: LayoutMode, win: Window = window): ScreenFit {
   if (mode === 'desktop') return fitDesktop(win.innerWidth, win.innerHeight);
   const width = Math.min(win.innerWidth, MAX_APP_WIDTH);
-  return fitScreen(width, win.innerHeight - MIN_DECK_HEIGHT);
+  return fitHandheld(width, win.innerHeight);
 }

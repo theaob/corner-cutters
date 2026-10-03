@@ -52,6 +52,8 @@
         margin: 0 auto;
         background: #000;
         position: relative;
+        /* (its panels stack inside it: the deck, floating over it on a phone, stays on top) */
+        isolation: isolate;
       }
       /* the circuit menu, before a race */
       .circuit-menu {
@@ -779,6 +781,37 @@
         justify-content: space-between;
         align-items: center;
         padding: 8px 22px;
+      }
+      /* on a phone the race picture fills the column, top to bottom, and the deck floats over its lower part:
+         no panel behind it, only the stick, the buttons and the position strip (src/engine/layout.ts) */
+      html:not(.desktop) #app {
+        position: relative;
+      }
+      html:not(.desktop) #deck {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 2;
+        pointer-events: none;
+      }
+      html:not(.desktop) #deck .stick,
+      html:not(.desktop) #deck button {
+        pointer-events: auto;
+      }
+      html:not(.desktop) .strip {
+        border: none;
+        color: var(--text);
+        text-shadow: 0 1px 0 #000, 0 0 4px #000;
+      }
+      html:not(.desktop) .face .label {
+        text-shadow: 0 1px 0 #000, 0 0 4px #000;
+      }
+      html:not(.desktop) .stick {
+        background: radial-gradient(circle, rgba(27, 26, 41, 0.45) 0 58%, rgba(37, 35, 58, 0.6) 60%);
+      }
+      html:not(.desktop) .sys button {
+        background: rgba(37, 35, 58, 0.75);
       }
       /* the thumbstick on the right (a setting): the stick and the A/B buttons swap sides, and A and B
          mirror so B stays on the inside, by the thumb */

@@ -101,6 +101,11 @@ export class Hd2dPipeline {
     for (const pass of this.blurPasses) pass.uniforms.res.value.set(w, h);
   }
 
+  /** Where the sharp band sits, up the picture (0 the bottom … 1 the top): its middle unless part of it is covered. */
+  setFocus(y: number): void {
+    for (const pass of this.blurPasses) pass.uniforms.focus.value = y;
+  }
+
   render(dt: number, s: Hd2dSettings): void {
     this.bloom.enabled = s.bloomOn && s.bloom > 0;
     this.bloom.strength = s.bloom;
