@@ -201,7 +201,7 @@ describe('the pits under the safety car', () => {
 });
 
 describe.each(LAYOUTS)('after the race at $name', (layout) => {
-  it('parks the top three in their spots on the straight and the rest in front of their garages, with no one hurt', () => {
+  it('parks everyone in front of their garages, with no one hurt', () => {
     const c = build(layout);
     const race = raceOn(layout, 3);
     const parked = () => race.entrants.every((e) => e.progress.retired || e.inLap?.parked);
@@ -209,28 +209,18 @@ describe.each(LAYOUTS)('after the race at $name', (layout) => {
     for (; t < 400 && !parked(); t += dt) stepRace(race, dt);
     expect(parked()).toBe(true);
     const ranked = order(race);
-    ranked.forEach((i, place) => {
+    ranked.forEach((i) => {
       const e = race.entrants[i];
       expect(e.car.wrecked).toBe(false);
       expect(speedOf(e.car)).toBeLessThan(5);
-      if (place < 3) {
-        // in its numbered spot, P1 furthest on
-        expect(e.inLap!.to).toBe(place);
-        const spot = c.pit.podium[place];
-        const s = c.track.samples[spot.idx];
-        const x = s.x + Math.cos(s.dir) * spot.lane;
-        const y = s.y + Math.sin(s.dir) * spot.lane;
-        expect(Math.hypot(e.car.x - x, e.car.y - y)).toBeLessThan(20);
-      } else {
-        // pushed back into its team's garage, facing out, beside its teammate
-        expect(e.inLap!.to).toBe('garage');
-        expect(e.pit?.phase).toBe('garage');
-        const q = c.pit.points.find((p) => p.s >= c.pit.boxes[e.box])!;
-        const g = { x: q.x + Math.cos(q.dir) * GARAGE_ACROSS * c.pit.side, y: q.y + Math.sin(q.dir) * GARAGE_ACROSS * c.pit.side };
-        expect(Math.hypot(e.car.x - g.x, e.car.y - g.y)).toBeLessThan(12);
-        const mate = race.entrants.find((o) => o !== e && o.box === e.box && o.inLap?.to === 'garage');
-        if (mate) expect(Math.hypot(e.car.x - mate.car.x, e.car.y - mate.car.y)).toBeGreaterThan(16);
-      }
+      // pushed back into its team's garage, facing out, beside its teammate (the winner too: no parking on the straight)
+      expect(e.inLap!.to).toBe('garage');
+      expect(e.pit?.phase).toBe('garage');
+      const q = c.pit.points.find((p) => p.s >= c.pit.boxes[e.box])!;
+      const g = { x: q.x + Math.cos(q.dir) * GARAGE_ACROSS * c.pit.side, y: q.y + Math.sin(q.dir) * GARAGE_ACROSS * c.pit.side };
+      expect(Math.hypot(e.car.x - g.x, e.car.y - g.y)).toBeLessThan(12);
+      const mate = race.entrants.find((o) => o !== e && o.box === e.box && o.inLap?.to === 'garage');
+      if (mate) expect(Math.hypot(e.car.x - mate.car.x, e.car.y - mate.car.y)).toBeGreaterThan(16);
     });
     // it stays that way
     for (let k = 0; k < 120; k++) stepRace(race, dt);
@@ -240,9 +230,8 @@ describe.each(LAYOUTS)('after the race at $name', (layout) => {
   }, 60_000);
 });
 
-describe.each(LAYOUTS)('skipping the in-lap at $name', (layout) => {
-  it('finishes everyone at their pace and puts them where their in-lap would end, where they stay', () => {
-    const c = build(layout);
+describe.each(LAYOUTS)('skipping to the ceremony at $name', (layout) => {
+  it('finishes everyone at their pace and puts them in their garages, where they stay', () => {
     const race = raceOn(layout, 3);
     while (race.phase !== 'racing' || race.clock < 20) stepRace(race, dt);
     const before = order(race);
@@ -262,13 +251,6 @@ describe.each(LAYOUTS)('skipping the in-lap at $name', (layout) => {
       expect(Math.hypot(e.car.x - at[i].x, e.car.y - at[i].y)).toBeLessThan(3);
       expect(e.car.wrecked).toBe(false);
     });
-    ranked.forEach((i, place) => {
-      const e = race.entrants[i];
-      if (place < 3) {
-        const spot = c.pit.podium[place];
-        const s = c.track.samples[spot.idx];
-        expect(Math.hypot(e.car.x - (s.x + Math.cos(s.dir) * spot.lane), e.car.y - (s.y + Math.sin(s.dir) * spot.lane))).toBeLessThan(3);
-      } else expect(e.pit?.phase).toBe('garage');
-    });
+    for (const e of race.entrants) expect(e.pit?.phase).toBe('garage');
   }, 30_000);
 });

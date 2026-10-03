@@ -40,7 +40,7 @@ export const PIT = {
   garagePush: 2.2,
   /** px along from the garage's middle where a team's first and second car home end up, side by side */
   garageSlots: [10, -10] as const,
-  /** after the race: px past the start line of the top three's parking spots (P1, P2, P3), and px out from the centreline on the pit side */
+  /** where the champagne ceremony is set (podium3d.ts): px past the start line (P1, P2, P3's places), and px out from the centreline on the pit side */
   podium: [170, 115, 60] as const,
   podiumAcross: 30,
 };
@@ -152,7 +152,7 @@ export function buildPitLane(track: Track, spec: PitSpec): PitLane {
   const gap = Math.min(PIT.boxSpacing, (s1 - s0) / Math.max(1, PIT.boxes - 1));
   const mid = (s0 + s1) / 2;
   const boxes = Array.from({ length: PIT.boxes }, (_, b) => mid + (b - (PIT.boxes - 1) / 2) * gap);
-  // the podium spots: on the pit side of the main straight, just past the line, clear of the cool-down lane on the other side
+  // the ceremony's places: on the pit side of the main straight, just past the line (the podium stands across from them)
   const podium = PIT.podium.map((d) => ({ idx: wrap(Math.round(d / track.spacing), n), lane: PIT.podiumAcross * spec.side }));
   return { side: spec.side, points, length: s, entry, exit: wrap(entry + count - 1, n), wallFrom, wallTo, boxes, limitFrom: points[tapered].s, limitTo: points[count - 1 - tapered].s, podium };
 }

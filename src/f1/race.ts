@@ -452,7 +452,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let looks: Look[] = [];
   /** your race is over (finished, or out) and the results are coming */
   let done = false;
-  /** the in-lap skipped (A): the top three in their spots, and seconds the camera has been on them (the results follow) */
+  /** the champagne ceremony: the top three, and seconds the camera has been on them (the results follow) */
   let mistakeCount = 0;
   let podium: { top: number[]; time: number } | undefined;
   let you = 0;
@@ -608,7 +608,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let seed = 0;
   /** the session on track: qualifying (your flying lap, alone), the race, or a Time Trial (flying laps, alone, against your ghost) */
   let session: 'qualifying' | 'race' | 'timetrial' | 'timeattack' | 'tutorial' = 'race';
-  /** The replay over (or skipped): back to the in-lap, live. */
+  /** The replay over (or skipped): back to the race, live (after your flag, the ceremony follows). */
   const endReplay = () => {
     // (a crash's replay over, the race goes on; the finish's is shown once)
     if (replay?.kind === 'finish') replayed = true;
@@ -632,8 +632,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** a Time Attack: the clock, and the best distance here when it started (checkpoints) */
   let attack: { a: Attack; best?: number; result?: { passed: number; record: boolean; medal?: Medal; newMedal: boolean } } | undefined;
 
-  /** The champagne ceremony: the race finished at once (the rest at their pace, everyone put where their in-lap ends), and
-   * the top three on the podium, spraying champagne, till the results. */
+  /** The champagne ceremony, after your finish's replay: the race finished at once (the rest at their pace, everyone put
+   * in their garage), and the top three on the podium, spraying champagne, till the results. */
   const startCeremony = () => {
     podium = { top: skipToParked(race), time: 0 };
     before = undefined;
@@ -946,7 +946,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         seed: () => seed,
         /** the music track playing (or loading) */
         music: () => musicPlaying(),
-        /** wave the chequered flag for everyone now, in race order (you in `place`, 1 = the winner, if given), for watching the in-lap and the parking */
+        /** wave the chequered flag for everyone now, in race order (you in `place`, 1 = the winner, if given), for watching the cool-down lap */
         flag: (place?: number) => {
           const ranked = raceOrder(race).filter((i) => i !== you);
           ranked.splice(place ? place - 1 : raceOrder(race).indexOf(you), 0, you);
@@ -998,11 +998,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    * The results as a table, so the columns line up (the pixel font isn't monospaced): position,
    * driver, team, time (the winner's, then the gap), best lap, and penalties and pit stops. Your row is in gold.
    */
-  /** The banner on your in-lap: where you're heading, P1–P3 to a numbered spot on the straight, the rest to the garage. */
-  const inLapBanner = (to: 'garage' | number | undefined, place: number): [string, string] => {
-    const podium = typeof to === 'number' ? to < 3 : to === undefined && place < 3;
-    return [podium ? `IN LAP · PARK IN SPOT ${typeof to === 'number' ? to + 1 : place + 1}` : 'IN LAP · BACK TO THE GARAGE', podium ? '#f2c14e' : '#9d9ab8'];
-  };
 
   const showResults = (order: number[]) => {
     // (the rows slide in one after another from when the results first went up: rebuilt as the others finish, each
@@ -1387,10 +1382,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (aPressed && session === 'tutorial') onQuit();
     // the grid pan: A skips it, straight to the lights
     else if (aPressed && gridPan) endPan();
-    // a replay: A skips it, back to the race (or the in-lap)
+    // a replay: A skips it, back to the race (or, after your flag, on to the ceremony)
     else if (aPressed && replay) endReplay();
     else if (aPressed && !done) setPaused(!paused);
-    // after your flag (or once you're out), A skips the in-lap: straight to the champagne ceremony, then the results
+    // after your flag (or once you're out), A goes straight to the champagne ceremony, then the results
     else if (aPressed && done && results.style.display !== 'block') {
       if (!podium) startCeremony();
       else podium.time = PODIUM_HOLD;
@@ -1816,20 +1811,20 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       sounds.flag();
       sounds.cheer(1);
       if (session === 'race') say(radioQ, finishLine(raceOrder(race).indexOf(you) + 1, race.entrants.length));
-      // the race's music gives way to the menu's, for the in-lap and the results
+      // the race's music gives way to the menu's, after your flag
       playMusic(MENU_MUSIC, 3);
     }
-    // the results come up once you're parked after your in-lap (or at A), or once the rest have finished if you're out
+    // after your flag and its replay (or at A), the champagne ceremony, then the results; if you're out, the results once
+    // the rest have finished
     const others = race.entrants.filter((e) => e !== me && running(e));
-    // parked after your in-lap: on to the ceremony
-    if (!podium && p.finished !== undefined && me.inLap?.parked) startCeremony();
+    if (!podium && p.finished !== undefined && replayed) startCeremony();
     ceremony.group.visible = !!podium && results.style.display !== 'block';
     if (podium) {
       podium.time += dt;
       ceremony.update(podium.time, dt);
     }
-    // the winners drive into their spots to a march: from the moment the winner turns for its spot (or the in-lap is skipped)
-    if (podium || race.entrants.some((e) => e.inLap?.to === 0)) playMusic(PODIUM_MUSIC, 1);
+    // the ceremony to a march
+    if (podium) playMusic(PODIUM_MUSIC, 1);
     const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished === undefined && others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
     hud.setPosition(session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'timeattack' ? 'TIME ATTACK' : session === 'tutorial' ? 'CONTROLS' : `P${pos}/${race.entrants.length}`);
@@ -1888,7 +1883,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         replay ? [`${Math.floor(performance.now() / 500) % 2 ? '●' : '○'} REPLAY`, '#d8323c']
         : podium && results.style.display !== 'block' ? [podium.top.map((i, k) => `P${k + 1} ${looks[i].name}`).join(' · '), '#f2c14e']
         : me.car.wrecked || p.retired ? [championship ? 'DNF' : 'DNF · RESTART to go again', '#d8323c']
-        : done && p.finished !== undefined && results.style.display !== 'block' ? inLapBanner(me.inLap?.to, order.indexOf(you))
+        : done && p.finished !== undefined && results.style.display !== 'block' ? [`FINISHED · P${order.indexOf(you) + 1}`, order.indexOf(you) < 3 ? '#f2c14e' : '#f4f4f8']
         : done ? ['', '']
         : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']
         : stop ? [inLimitZone(circuit.pit, circuit.pit.points[stop.at].s) ? 'PIT LIMITER' : 'PIT LANE', '#f2c14e']
@@ -1979,7 +1974,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     skids.update(dt);
 
-    // camera: follow your car, looking ahead along its motion; or, the in-lap skipped, on the top three in their spots
+    // camera: follow your car, looking ahead along its motion; or, at the ceremony, on the podium
     const c = me.car;
     const drawn = pose(c, you, alpha);
     const mineThen = replay && replayPose(recorder, replay.follow, replay.t);

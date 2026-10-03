@@ -65,9 +65,9 @@ function podiumSteps(): THREE.Group {
 }
 
 /**
- * Where the ceremony stands: on the run-off across the straight from the top
- * three's parking spots, or, at a circuit with a podium deck, up on the deck
- * over the middle of the track (`raise` px above the ground).
+ * Where the ceremony stands: on the run-off across the main straight, just
+ * past the line, or, at a circuit with a podium deck, up on the deck over the
+ * middle of the track (`raise` px above the ground).
  */
 export function podiumSpot(circuit: Circuit): { x: number; y: number; h: number; raise: number } {
   const { track, pit, grid, layout } = circuit;

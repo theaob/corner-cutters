@@ -53,7 +53,7 @@ describe('the champagne ceremony', () => {
   const f1 = carClass('f1');
   const build = (layout: typeof ROYAL_PARK) => buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
 
-  it('stands on the run-off across the straight from the parked cars, at an ordinary circuit', () => {
+  it('stands on the run-off across the main straight, just past the line, at an ordinary circuit', () => {
     const circuit = build(CRESCENT_PARK);
     const spot = podiumSpot(circuit);
     const at = circuit.track.samples[circuit.pit.podium[1].idx];
