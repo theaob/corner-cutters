@@ -34,8 +34,6 @@ export interface ScreenFit {
   height: number;
   /** the desktop layout: a wide screen with the HUD over it and no touch deck */
   desktop: boolean;
-  /** game pixels at the bottom the deck floats over (a phone's: its stick and buttons), to frame the picture above */
-  cover?: number;
 }
 
 /** Tallest the phone's screen gets (game pixels): a tall phone, or a tablet held upright. */
