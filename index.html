@@ -828,7 +828,15 @@
         font-size: 12px;
         color: var(--text);
       }
-      /* RESTART top left, PAUSE (EXIT) top right */
+      /* RESTART top left, PAUSE (EXIT) top right: the same width, so they mirror each other about the middle */
+      html:not(.desktop) #deck:not(.results-up) .sys button {
+        width: 116px;
+      }
+      /* (and A, when it's up, centred where the thumbstick's centre is mirrored: the face as wide as the stick) */
+      html:not(.desktop) .face {
+        width: 108px;
+        justify-content: center;
+      }
       html:not(.desktop) .sys {
         position: absolute;
         top: 12px;
