@@ -33,7 +33,7 @@ import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type R
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
 import { createCeremony, podiumSpot } from './podium3d';
-import { PIT, between, inLimitZone, wantsPit } from './pits';
+import { between, inLimitZone, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
@@ -1940,7 +1940,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const left = 1 - me.tyres.wear;
     const tyreBlocks = Math.ceil(left * 5);
     const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)}${phoneHud ? '' : ` ${Math.round(left * 100)}%`}${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
-    const limiter = me.pit && !done && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s) ? ` · PIT ${PIT.limit}` : (sc || race.vsc) && !done ? ` · ${sc ? 'SC' : 'VSC'} ${Math.round(me.held ?? (sc ? SAFETY_CAR.limit : VSC.limit))}` : '';
     // the gaps to the cars either side of you (by the timing points), while you're racing
     const gapLine = (other: number | undefined, mark: string) => {
       if (other === undefined || done || phoneHud) return '';
@@ -1954,7 +1953,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     readout.textContent = attack
       ? // a Time Attack: the clock, how far you've got, and your best here
         `TIME ${attack.a.left === undefined ? '–' : attack.a.left.toFixed(1)}\nGOT  ${distance(attack.a.passed)}\nBEST ${attack.best ? distance(attack.best) : '–'}\nLAP  ${fmt(lapTime)}\nCAR  ${car}\n`
-      : `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}${limiter}\n`;
+      : `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}\n`;
     // the tyre line in its compound's colour
     // (the wrong ones for the weather: what the crew would fit, in amber)
     const wrong = session === 'race' && !done && race.forecast && wrongTyres(race, you);
