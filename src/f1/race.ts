@@ -191,6 +191,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   /** Lay the readouts out for the wide screen or the phone (set once they're made, below). */
   let placeHud: (desktop: boolean) => void = () => {};
+  /** the phone's overlay (the HUD Lab's): its lap readout without the gaps (the tower has them) or the tyres' share */
+  let phoneHud = false;
   const resize = (f: ScreenFit) => {
     placeHud(f.desktop);
     viewW = f.width;
@@ -416,6 +418,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // minimap between them, the readout down the left, the timing tower down the right, your lap under the minimap, the
   // banner and then the radio across the middle above the track, and the controls along the bottom
   placeHud = (desktop) => {
+    phoneHud = !desktop;
     if (desktop) {
       style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal' });
       style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none' });
@@ -424,7 +427,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       banner.style.top = '30%';
     } else {
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
-      style(readout, { left: '10px', top: '54px', fontSize: '10px', lineHeight: '15px' });
+      style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px' });
       style(mini, { left: '50%', right: 'auto', top: '12px', transform: 'translateX(-50%)' });
       style(tower, { right: '12px', top: '48px' });
       style(radioPanel, { left: '36px', right: '36px', top: '236px', bottom: 'auto' });
@@ -1908,11 +1911,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // your tyres as five blocks and a share left, amber once they're past their best
     const left = 1 - me.tyres.wear;
     const tyreBlocks = Math.ceil(left * 5);
-    const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)} ${Math.round(left * 100)}%${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
+    const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)}${phoneHud ? '' : ` ${Math.round(left * 100)}%`}${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
     const limiter = me.pit && !done && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s) ? ` · PIT ${PIT.limit}` : (sc || race.vsc) && !done ? ` · ${sc ? 'SC' : 'VSC'} ${Math.round(me.held ?? (sc ? SAFETY_CAR.limit : VSC.limit))}` : '';
     // the gaps to the cars either side of you (by the timing points), while you're racing
     const gapLine = (other: number | undefined, mark: string) => {
-      if (other === undefined || done) return '';
+      if (other === undefined || done || phoneHud) return '';
       const gap = mark === '▲' ? gapBetween(hudState.gaps, other, you) : gapBetween(hudState.gaps, you, other);
       // (just after a pass the last shared timing point can put the gap the wrong way round: 0 then)
       return `\n${mark} ${looks[other].name.padEnd(6)}${gap === undefined ? '–' : `${mark === '▲' ? '+' : '−'}${Math.max(0, gap).toFixed(2)}`}`;
