@@ -253,6 +253,18 @@ export class RaceSounds {
     for (const at of [0, 0.16]) beep(penalty ? 147 : 196, 0.12, penalty ? 0.2 : 0.14, 'sawtooth', at);
   }
 
+  /** A champagne cork: the pop, then the fizz. */
+  cork(): void {
+    pop(1, 700);
+    burst('highpass', 3200, 0.7, 0.9, 0.06, 0.04);
+  }
+
+  /** A firework far off: a soft thud and a crackle. */
+  firework(): void {
+    pop(0.35, 240);
+    burst('highpass', 2400, 0.9, 0.35, 0.03, 0.12);
+  }
+
   /** A new lap record (or the race's fastest lap). */
   record(): void {
     beep(988, 0.12, 0.16, 'triangle');
