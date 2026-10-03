@@ -320,7 +320,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     return b;
   };
   const pauseHint = document.createElement('div');
-  pauseHint.textContent = 'OR ON THE DECK: RESUME · RESTART · EXIT';
+  pauseHint.textContent = 'OR ON THE DECK: RESTART · EXIT';
   style(pauseHint, { color: '#9d9ab8', fontSize: '10px', marginTop: '6px', textAlign: 'center', padding: '0 12px' });
   // rain over the picture: streaks falling at a slant, under the readouts
   // the rush of speed: pale streaks flowing past the screen's edges near top speed and in a tow (none in the middle,
@@ -1301,7 +1301,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /**
    * What each deck button does just now ('' for nothing), as the loop below reads them: A the session's own action
-   * (skip, on to what's next, resume), B drift while you're driving (on the keys or a gamepad: the touch deck has no
+   * (skip, on to what's next), B drift while you're driving (on the keys or a gamepad: the touch deck has no
    * drift button), START restart, SELECT pause while racing (A still pauses on the keys and a gamepad), else exit.
    */
   const deckLabels = (): Record<DeckButton, string> => {
@@ -1315,7 +1315,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (session === 'qualifying') a = 'SKIP';
     else if (session === 'tutorial') a = learn?.o.step === 'done' ? 'MENU' : 'SKIP';
     else if (gridPan || replay) a = 'SKIP';
-    else if (!done) a = paused ? 'RESUME' : 'PAUSE';
+    // (paused: no A on the deck, the pause screen's own RESUME does it; A, Esc and P still resume on the keys and a gamepad)
+    else if (!done) a = paused ? '' : 'PAUSE';
     else if (!resultsUp) a = 'SKIP';
     const driving = !paused && !done && !replay && !gridPan && !quali?.over && !attack?.result;
     // (while racing the small button pauses, in EXIT's place: you leave from the pause screen)
