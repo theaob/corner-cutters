@@ -782,8 +782,10 @@
         align-items: center;
         padding: 8px 22px;
       }
-      /* on a phone the race picture fills the column, top to bottom, and the deck floats over it: no panel behind
-         it, the stick and the buttons over its lower part, your position and lap along its top (src/engine/layout.ts) */
+      /* on a phone the race picture fills the column, top to bottom, and the deck floats over it with no panel
+         behind it (src/engine/layout.ts), laid out as drawn in the HUD Lab: RESTART and PAUSE in the top corners
+         (the minimap between them), your lap under the minimap, the stick and A along the bottom; the race's own
+         readouts are placed in src/f1/race.ts (placeHud) */
       html:not(.desktop) #app {
         position: relative;
       }
@@ -796,21 +798,60 @@
       }
       html:not(.desktop) #deck .controls {
         flex: none;
+        padding: 0 12px 16px;
       }
       html:not(.desktop) #deck .stick,
       html:not(.desktop) #deck button {
         pointer-events: auto;
       }
+      /* your lap (current / total) in a small panel like the timing tower's, under the minimap (your position is
+         in the tower) */
       html:not(.desktop) .strip {
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 34px;
-        justify-content: center;
+        top: 114px;
+        left: 50%;
+        transform: translateX(-50%);
+        height: auto;
+        padding: 3px 8px;
         border: none;
+        border-radius: 6px;
+        background: rgba(21, 20, 31, 0.75);
         color: var(--text);
-        text-shadow: 0 1px 0 #000, 0 0 4px #000;
+        white-space: nowrap;
+      }
+      html:not(.desktop) .strip [data-hud='position'] {
+        display: none;
+      }
+      html:not(.desktop) .strip .lap {
+        margin-left: 0;
+        font-size: 12px;
+        color: var(--text);
+      }
+      /* RESTART top left, PAUSE (EXIT) top right */
+      html:not(.desktop) .sys {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        height: auto;
+        justify-content: space-between;
+      }
+      html:not(.desktop) .sys [data-button='start'] {
+        order: 0;
+      }
+      html:not(.desktop) .sys .layout {
+        order: 1;
+      }
+      html:not(.desktop) .sys [data-button='select'] {
+        order: 2;
+      }
+      /* (TUNE, the dev sliders, between the controls at the bottom: the top corners are the deck's) */
+      html:not(.desktop) .tune-toggle {
+        top: auto;
+        right: auto;
+        left: 50%;
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        transform: translateX(-50%);
       }
       html:not(.desktop) .face .label {
         text-shadow: 0 1px 0 #000, 0 0 4px #000;

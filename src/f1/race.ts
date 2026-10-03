@@ -189,7 +189,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.setSize(viewW * q.res, viewH * q.res, false);
     post.setSize(viewW * q.res, viewH * q.res);
   };
+  /** Lay the readouts out for the wide screen or the phone (set once they're made, below). */
+  let placeHud: (desktop: boolean) => void = () => {};
   const resize = (f: ScreenFit) => {
+    placeHud(f.desktop);
     viewW = f.width;
     viewH = f.height;
     camera.aspect = viewW / f.height;
@@ -204,7 +207,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const readout = document.createElement('div');
   style(readout, {
     // (under your position and lap, along the top on a phone)
-    position: 'absolute', left: '6px', top: 'calc(var(--hud-top, 0px) + 6px)', zIndex: '2', padding: '2px 6px', borderRadius: '6px',
+    position: 'absolute', zIndex: '2', padding: '2px 6px', borderRadius: '6px',
     background: 'rgba(21,20,31,.75)', color: '#9d9ab8', font: '12px Silkscreen, monospace', whiteSpace: 'pre',
   });
   const tyreLine = document.createElement('span');
@@ -229,8 +232,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // the team radio: your engineer's line in a panel in your team's colour, keyed with a click and a squelch
   const radioPanel = document.createElement('div');
   style(radioPanel, {
-    // (above the deck, which floats over the bottom of the picture on a phone)
-    position: 'absolute', left: '6px', right: '6px', bottom: 'calc(var(--deck-cover, 0px) + 8px)', zIndex: '2', padding: '4px 8px', borderRadius: '6px',
+    position: 'absolute', zIndex: '2', padding: '4px 8px', borderRadius: '6px',
     background: 'rgba(21,20,31,.88)', borderLeft: `3px solid ${team.body}`, color: '#f4f2fa', font: '11px Silkscreen, monospace',
     pointerEvents: 'none', display: 'none',
   });
@@ -279,7 +281,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   mini.width = MINI_W * 2;
   mini.height = MINI_H * 2;
   style(mini, {
-    position: 'absolute', right: '6px', top: 'calc(var(--hud-top, 0px) + 40px)', zIndex: '2', width: `${MINI_W}px`, height: `${MINI_H}px`,
+    position: 'absolute', zIndex: '2', width: `${MINI_W}px`, height: `${MINI_H}px`,
     background: 'rgba(21,20,31,.6)', borderRadius: '6px',
   });
   const miniCtx = mini.getContext('2d')!;
@@ -287,7 +289,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // colour and its gap to the leader (in a race)
   const tower = document.createElement('div');
   style(tower, {
-    position: 'absolute', right: '6px', top: `calc(var(--hud-top, 0px) + ${46 + MINI_H}px)`, zIndex: '2', minWidth: `${Math.max(96, MINI_W)}px`,
+    position: 'absolute', zIndex: '2', minWidth: `${Math.max(96, MINI_W)}px`,
     background: 'rgba(21,20,31,.75)', borderRadius: '6px', padding: '2px 0', color: '#f4f2fa',
     font: '10px Silkscreen, monospace', pointerEvents: 'none', display: 'none',
   });
@@ -409,6 +411,27 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
   };
   host.append(streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay);
+  // the wide screen: the readout top left, the minimap and timing tower top right (TUNE above them), the radio along the
+  // bottom. The phone (the layout drawn in the HUD Lab): RESTART and PAUSE in the top corners (index.html) with the
+  // minimap between them, the readout down the left, the timing tower down the right, your lap under the minimap, the
+  // banner and then the radio across the middle above the track, and the controls along the bottom
+  placeHud = (desktop) => {
+    if (desktop) {
+      style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal' });
+      style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none' });
+      style(tower, { right: '6px', top: `${46 + MINI_H}px` });
+      style(radioPanel, { left: '6px', right: '6px', top: 'auto', bottom: '8px' });
+      banner.style.top = '30%';
+    } else {
+      // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
+      style(readout, { left: '10px', top: '54px', fontSize: '10px', lineHeight: '15px' });
+      style(mini, { left: '50%', right: 'auto', top: '12px', transform: 'translateX(-50%)' });
+      style(tower, { right: '12px', top: '48px' });
+      style(radioPanel, { left: '36px', right: '36px', top: '236px', bottom: 'auto' });
+      banner.style.top = '198px';
+    }
+  };
+  placeHud(fit.desktop);
 
   // ---------------------------------------------------------------- race state
   let race!: Race;
