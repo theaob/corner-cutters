@@ -15,10 +15,10 @@ import * as THREE from 'three';
 import { groundAt } from '../engine/sim';
 import type { Circuit } from '../f1/circuit';
 import { createCircuitScene, type CircuitScene } from '../f1/circuitScene';
-import { LAYOUTS } from '../f1/layouts';
+import { LAYOUTS, type LandmarkKind } from '../f1/layouts';
 import { DRY } from '../f1/weather';
 import { DESIGNER_DRAFT_ID, DESIGNER_DRIVE_KEY } from '../f1/designerDraft';
-import { aiLap, blankDraft, check, circuitOf, draftFrom, layoutFrom, layoutToTs, type Draft, type DraftPoint } from './layoutEdit';
+import { aiLap, blankDraft, check, circuitOf, draftCentre, draftFrom, findCrossing, layoutFrom, layoutToTs, setSetting, settingOf, square, type Draft, type DraftPoint, type Setting } from './layoutEdit';
 
 const DRAFT_KEY = 'cc:designer:draft';
 /** px/s the camera flies at (Shift: four times), and the eye's height over the ground when walking */
@@ -34,7 +34,7 @@ const crosshair = document.getElementById('crosshair')!;
 document.getElementById('help')!.textContent = [
   'right mouse held: look   W A S D: move   Q / E: down / up   Shift: faster',
   'F: fly / walk   left click: pick a point (drag to move it)',
-  'N: new point after the picked one   Delete: remove it   [ ]: lower / raise (Shift: ×5)',
+  'N: new point after the picked one (a track point, or a corner of a sea or lake)   Delete: remove it   [ ]: lower / raise (Shift: ×5)',
   'Home: make it the start line   G: go to it   Ctrl+Z / Ctrl+Y: undo / redo',
 ].join('\n');
 
@@ -62,11 +62,43 @@ resize();
 let draft: Draft = loadSaved() ?? draftFrom(LAYOUTS[0]);
 const undo: string[] = [];
 const redo: string[] = [];
-let selected: number | undefined;
+/**
+ * What can be picked and dragged on the ground: a control point of the track, a corner of the sea, a point of a
+ * lake's shore, or a landmark (each in layout units).
+ */
+type Handle = { kind: 'point'; i: number } | { kind: 'sea'; i: number } | { kind: 'lake'; l: number; i: number } | { kind: 'mark'; key: LandmarkKind };
+const HANDLE_COLOR = { point: 0xff4fd8, sea: 0x3f9bff, lake: 0x5fe0d0, mark: 0xf08a24 };
+/** The landmarks a street circuit can have, as the designer names them */
+const LANDMARK_NAMES: [LandmarkKind, string][] = [
+  ['casino', 'casino (and its garden)'],
+  ['pool', 'swimming pool'],
+  ['tennis', 'tennis court'],
+  ['maiden', 'Maiden Tower'],
+  ['flames', 'Flame Towers'],
+];
+/** Every handle the draft has */
+function handles(): Handle[] {
+  const out: Handle[] = draft.points.map((_, i) => ({ kind: 'point', i }));
+  const street = draft.extras.street;
+  street?.sea.forEach((_, i) => out.push({ kind: 'sea', i }));
+  (draft.extras.lakes ?? []).forEach((lake, l) => lake.forEach((_, i) => out.push({ kind: 'lake', l, i })));
+  for (const [key] of LANDMARK_NAMES) if (street?.landmarks?.[key]) out.push({ kind: 'mark', key });
+  return out;
+}
+/** Where a handle is (layout units), if it's still there */
+function handleAt(h: Handle): { x: number; y: number } | undefined {
+  if (h.kind === 'point') return draft.points[h.i];
+  if (h.kind === 'sea') return draft.extras.street?.sea[h.i];
+  if (h.kind === 'lake') return draft.extras.lakes?.[h.l]?.[h.i];
+  return draft.extras.street?.landmarks?.[h.key];
+}
+const sameHandle = (a: Handle | undefined, b: Handle | undefined) => JSON.stringify(a) === JSON.stringify(b);
+/** The selected track point's index, if a track point is selected */
+const selectedPoint = () => (selected?.kind === 'point' ? selected.i : undefined);
+let selected: Handle | undefined;
 let circuit: Circuit | undefined;
 let world: CircuitScene | undefined;
 const markers = new THREE.Group();
-let line: THREE.LineLoop | undefined;
 
 function loadSaved(): Draft | undefined {
   try {
@@ -152,26 +184,37 @@ function buildMarkers() {
     dispose(c);
   }
   const ball = new THREE.SphereGeometry(5, 12, 8);
-  draft.points.forEach((p, i) => {
-    const color = i === selected ? 0xf2c14e : i === 0 ? 0xffffff : 0xff4fd8;
-    const m = new THREE.Mesh(ball, new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 }));
+  const box = new THREE.BoxGeometry(9, 9, 9);
+  handles().forEach((h, k) => {
+    const p = handleAt(h)!;
+    const sel = sameHandle(h, selected);
+    const start = h.kind === 'point' && h.i === 0;
+    const color = sel ? 0xf2c14e : start ? 0xffffff : HANDLE_COLOR[h.kind];
+    // (a landmark a box, the rest balls)
+    const m = new THREE.Mesh(h.kind === 'mark' ? box : ball, new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 }));
     m.renderOrder = 10;
     m.position.copy(toWorld(p)).add(new THREE.Vector3(0, 10, 0));
-    m.scale.setScalar(i === selected ? 1.6 : i === 0 ? 1.3 : 1);
-    m.userData.index = i;
+    m.userData.handle = k;
+    m.userData.base = sel ? 1.6 : start ? 1.3 : 1;
+    if (h.kind === 'point') m.userData.index = h.i;
     markers.add(m);
   });
-  const geo = new THREE.BufferGeometry().setFromPoints(draft.points.map((p) => toWorld(p).add(new THREE.Vector3(0, 10, 0))));
-  line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0xff4fd8, depthTest: false, transparent: true, opacity: 0.6 }));
-  line.renderOrder = 9;
-  markers.add(line);
+  // the lap, and the sea's and lakes' outlines, as lines joining their handles
+  const loop = (pts: { x: number; y: number }[], color: number) => {
+    if (pts.length < 2) return undefined;
+    const l = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts.map((p) => toWorld(p).add(new THREE.Vector3(0, 10, 0)))), new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.6 }));
+    l.renderOrder = 9;
+    markers.add(l);
+    return l;
+  };
+  loop(draft.points, HANDLE_COLOR.point);
+  loop(draft.extras.street?.sea ?? [], HANDLE_COLOR.sea);
+  for (const lake of draft.extras.lakes ?? []) loop(lake, HANDLE_COLOR.lake);
 }
 
-/** While a point is dragged: its marker and the line follow it, the circuit rebuilt when it's let go. */
-function moveMarker(i: number) {
-  const m = markers.children.find((c) => c.userData.index === i);
-  m?.position.copy(toWorld(draft.points[i])).add(new THREE.Vector3(0, 10, 0));
-  if (line) line.geometry.setFromPoints(draft.points.map((p) => toWorld(p).add(new THREE.Vector3(0, 10, 0))));
+/** While a handle is dragged: its marker and the lines follow it, the circuit rebuilt when it's let go. */
+function moveMarker() {
+  buildMarkers();
 }
 
 // ---- picking ----------------------------------------------------------------------------------------
@@ -182,21 +225,21 @@ function setMouse(e: MouseEvent) {
   mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(mouse, camera);
 }
-/** The control point under the mouse, if any (nearest on screen, within PICK px). */
-function pickPoint(e: MouseEvent): number | undefined {
+/** The handle under the mouse, if any (nearest on screen, within PICK px). */
+function pickHandle(e: MouseEvent): Handle | undefined {
   const r = renderer.domElement.getBoundingClientRect();
   let best: number | undefined;
   let bestD = PICK;
   for (const m of markers.children) {
-    if (m.userData.index === undefined) continue;
+    if (m.userData.handle === undefined) continue;
     const v = m.position.clone().project(camera);
     if (v.z > 1) continue;
     const sx = ((v.x + 1) / 2) * r.width + r.left;
     const sy = ((1 - v.y) / 2) * r.height + r.top;
     const d = Math.hypot(sx - e.clientX, sy - e.clientY);
-    if (d < bestD) [best, bestD] = [m.userData.index as number, d];
+    if (d < bestD) [best, bestD] = [m.userData.handle as number, d];
   }
-  return best;
+  return best === undefined ? undefined : handles()[best];
 }
 /** Where the mouse's ray meets the ground (the heights as the circuit has them), if it does. */
 function groundHit(): THREE.Vector3 | undefined {
@@ -215,7 +258,7 @@ function groundHit(): THREE.Vector3 | undefined {
 
 // ---- the mouse and keys ----------------------------------------------------------------------------
 let looking = false;
-let dragging: { index: number; before: string } | undefined;
+let dragging: { handle: Handle; before: string } | undefined;
 const held = new Set<string>();
 const canvas = renderer.domElement;
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -228,9 +271,9 @@ canvas.addEventListener('mousedown', (e) => {
   }
   if (e.button !== 0) return;
   setMouse(e);
-  const i = pickPoint(e);
-  selected = i;
-  if (i !== undefined) dragging = { index: i, before: JSON.stringify(draft) };
+  const h = pickHandle(e);
+  selected = h;
+  if (h) dragging = { handle: h, before: JSON.stringify(draft) };
   buildMarkers();
   renderPanel();
 });
@@ -258,11 +301,11 @@ window.addEventListener('mousemove', (e) => {
   const hit = groundHit();
   if (!hit) return;
   const p = fromWorld(hit.x, hit.z);
-  const pt = draft.points[dragging.index];
-  if (pt.x === p.x && pt.y === p.y) return;
+  const pt = handleAt(dragging.handle);
+  if (!pt || (pt.x === p.x && pt.y === p.y)) return;
   pt.x = p.x;
   pt.y = p.y;
-  moveMarker(dragging.index);
+  moveMarker();
 });
 const typing = () => document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement || document.activeElement instanceof HTMLTextAreaElement;
 window.addEventListener('keydown', (e) => {
@@ -275,28 +318,47 @@ window.addEventListener('keydown', (e) => {
     mode = mode === 'fly' ? 'walk' : 'fly';
     status(mode === 'walk' ? 'walking: at eye height over the ground' : 'flying');
   }
-  if (k === 'g' && selected !== undefined) goTo(selected);
-  if (selected === undefined) return;
+  if (k === 'g' && selected) goToHandle(selected);
+  if (!selected) return;
   const before = JSON.stringify(draft);
+  // a corner of the sea or a lake: N adds one half way to the next, Delete takes it away (three at least)
+  if (selected.kind === 'sea' || selected.kind === 'lake') {
+    const ring = selected.kind === 'sea' ? draft.extras.street!.sea : draft.extras.lakes![selected.l];
+    const i = selected.i;
+    if (k === 'n') {
+      const a = ring[i];
+      const b = ring[(i + 1) % ring.length];
+      ring.splice(i + 1, 0, { x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2) });
+      selected = { ...selected, i: i + 1 };
+      commit(before);
+    } else if ((k === 'delete' || k === 'backspace') && ring.length > 3) {
+      ring.splice(i, 1);
+      selected = { ...selected, i: Math.min(i, ring.length - 1) };
+      commit(before);
+    }
+    return;
+  }
+  if (selected.kind !== 'point') return;
   const pts = draft.points;
+  const at = selected.i;
   if (k === 'n') {
     // a new point half way to the next one
-    const a = pts[selected];
-    const b = pts[(selected + 1) % pts.length];
-    pts.splice(selected + 1, 0, { x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2), h: Math.round(((a.h + b.h) / 2) * 10) / 10 });
-    selected++;
+    const a = pts[at];
+    const b = pts[(at + 1) % pts.length];
+    pts.splice(at + 1, 0, { x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2), h: Math.round(((a.h + b.h) / 2) * 10) / 10 });
+    selected = { kind: 'point', i: at + 1 };
     commit(before);
   } else if ((k === 'delete' || k === 'backspace') && pts.length > 4) {
-    pts.splice(selected, 1);
-    selected = Math.min(selected, pts.length - 1);
+    pts.splice(at, 1);
+    selected = { kind: 'point', i: Math.min(at, pts.length - 1) };
     commit(before);
   } else if (k === '[' || k === ']') {
-    pts[selected].h = Math.round((pts[selected].h + (k === ']' ? 1 : -1) * (e.shiftKey ? 10 : 2)) * 10) / 10;
+    pts[at].h = Math.round((pts[at].h + (k === ']' ? 1 : -1) * (e.shiftKey ? 10 : 2)) * 10) / 10;
     commit(before);
-  } else if (k === 'home' && selected > 0) {
+  } else if (k === 'home' && at > 0) {
     // this point becomes the start line (the lap starts here; the pit lane is placed from it)
-    draft.points = [...pts.slice(selected), ...pts.slice(0, selected)];
-    selected = 0;
+    draft.points = [...pts.slice(at), ...pts.slice(0, at)];
+    selected = { kind: 'point', i: 0 };
     commit(before);
   }
 });
@@ -308,9 +370,18 @@ function step(from: string[], to: string[]) {
   if (!prev) return;
   to.push(JSON.stringify(draft));
   draft = JSON.parse(prev);
-  if (selected !== undefined && selected >= draft.points.length) selected = undefined;
+  if (selected && !handleAt(selected)) selected = undefined;
   save();
   rebuild();
+}
+
+/** Put the camera over a handle: behind a track point looking along the lap, or above anything else. */
+function goToHandle(h: Handle) {
+  if (h.kind === 'point') return goTo(h.i);
+  const p = toWorld(handleAt(h)!);
+  yaw = 0;
+  pitch = -Math.atan2(160, 120);
+  camera.position.set(p.x, p.y + 160, p.z + 120);
 }
 
 /** Put the camera a little behind and above point `i`, looking along the lap. */
@@ -399,14 +470,7 @@ function renderPanel() {
     field('scale', draft.scale, (v) => edit(() => (draft.scale = Math.max(0.2, Number(v) || draft.scale))), 'number', '0.05'),
     field('tyre wear', draft.extras.tyreWear ?? '', (v) => edit(() => (draft.extras.tyreWear = v === '' ? undefined : Number(v)))),
   );
-  const forest = document.createElement('label');
-  forest.append('forest');
-  const box = document.createElement('input');
-  box.type = 'checkbox';
-  box.checked = !!draft.extras.forest;
-  box.addEventListener('change', () => edit(() => (draft.extras.forest = box.checked || undefined)));
-  forest.append(box);
-  panel.append(forest);
+  sceneryPanel();
 
   panel.append(heading('Pit lane (px from the line)'));
   panel.append(
@@ -422,15 +486,19 @@ function renderPanel() {
   side.append(sideSel);
   panel.append(side);
 
-  panel.append(heading(selected === undefined ? 'Point (pick one)' : `Point ${selected}${selected === 0 ? ' · the start line' : ''}`));
-  if (selected !== undefined) {
-    const p: DraftPoint = draft.points[selected];
-    const i = selected;
+  panel.append(heading(selected ? handleName(selected) : 'Picked (click a point, a corner or a landmark)'));
+  const picked = selected && handleAt(selected);
+  if (selected && picked) {
+    const h = selected;
     panel.append(
-      field('x', p.x, (v) => edit(() => (draft.points[i].x = Number(v))), 'number'),
-      field('y', p.y, (v) => edit(() => (draft.points[i].y = Number(v))), 'number'),
-      field('height (px)', p.h, (v) => edit(() => (draft.points[i].h = Number(v))), 'number', '1'),
+      field('x', picked.x, (v) => edit(() => (handleAt(h)!.x = Number(v))), 'number'),
+      field('y', picked.y, (v) => edit(() => (handleAt(h)!.y = Number(v))), 'number'),
     );
+    const i = selectedPoint();
+    if (i !== undefined) {
+      const p: DraftPoint = draft.points[i];
+      panel.append(field('height (px)', p.h, (v) => edit(() => (draft.points[i].h = Number(v))), 'number', '1'));
+    }
   }
   const count = document.createElement('div');
   count.style.color = 'var(--muted)';
@@ -506,6 +574,162 @@ function renderPanel() {
   status(statusText, statusBad);
 }
 
+/** What a handle is, for the panel and the readout. */
+function handleName(h: Handle): string {
+  if (h.kind === 'point') return `Point ${h.i}${h.i === 0 ? ' · the start line' : ''}`;
+  if (h.kind === 'sea') return `The sea · corner ${h.i}`;
+  if (h.kind === 'lake') return `Lake ${h.l + 1} · point ${h.i}`;
+  return LANDMARK_NAMES.find(([k]) => k === h.key)![1];
+}
+
+function checkbox(label: string, on: boolean, onChange: (on: boolean) => void): HTMLLabelElement {
+  const l = document.createElement('label');
+  l.append(label);
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = on;
+  box.addEventListener('change', () => onChange(box.checked));
+  l.append(box);
+  return l;
+}
+function choice(label: string, options: [string, string][], value: string, onChange: (v: string) => void): HTMLLabelElement {
+  const l = document.createElement('label');
+  l.append(label);
+  const sel = document.createElement('select');
+  for (const [v, text] of options) sel.append(new Option(text, v));
+  sel.value = value;
+  sel.addEventListener('change', () => onChange(sel.value));
+  l.append(sel);
+  return l;
+}
+const num = (v: string, fallback: number) => (v.trim() === '' || !Number.isFinite(Number(v)) ? fallback : Number(v));
+const note = (text: string) => {
+  const d = document.createElement('div');
+  d.style.color = 'var(--muted)';
+  d.textContent = text;
+  return d;
+};
+
+/**
+ * The scenery and the rest of the circuit's shape: what it stands in (parkland, a forest, the desert with its palms
+ * and camels, or a street circuit's town: its sea, tunnel, landmarks and old city walls), lakes, a bridge where the
+ * lap crosses itself, a banked bend, and a podium over the straight.
+ */
+function sceneryPanel() {
+  // somewhere near what's picked (or the middle of the track) for something new to start at
+  const near = () => {
+    const p = selected && handleAt(selected);
+    const c = draftCentre(draft);
+    return p ? { x: p.x, y: p.y, size: c.r / 4 } : { x: c.x, y: c.y, size: c.r / 4 };
+  };
+  panel.append(heading('Setting'));
+  panel.append(
+    choice('stands in', [['park', 'parkland (grass)'], ['forest', 'a forest'], ['desert', 'the desert (palms, camels)'], ['street', 'a street circuit (a town)']], settingOf(draft), (v) =>
+      edit(() => setSetting(draft, v as Setting)),
+    ),
+  );
+  const street = draft.extras.street;
+  if (street) {
+    panel.append(heading('Street circuit'));
+    panel.append(
+      field('walls (px off the track)', street.runoff, (v) => edit(() => (street.runoff = Math.max(8, num(v, street.runoff)))), 'number'),
+      field('tunnel from (px along the lap; blank: none)', street.tunnel?.[0] ?? '', (v) => edit(() => (street.tunnel = v.trim() === '' ? undefined : [num(v, 0), street.tunnel?.[1] ?? num(v, 0) + 400]))),
+      field('tunnel to', street.tunnel?.[1] ?? '', (v) => edit(() => street.tunnel && (street.tunnel = [street.tunnel[0], num(v, street.tunnel[1])]))),
+    );
+    const seaRow = document.createElement('div');
+    seaRow.className = 'row';
+    seaRow.append(
+      street.sea.length
+        ? button('Remove the sea', () => edit(() => (street.sea = [])))
+        : button('Add a sea (drag its corners)', () => edit(() => {
+          const c = near();
+          street.sea = square(c.x, c.y + c.size * 2, c.size * 2);
+          selected = { kind: 'sea', i: 0 };
+        })),
+    );
+    panel.append(seaRow);
+    panel.append(note('Landmarks (drag them where you want them; each is set where it fits, clear of the track and seen as you drive by)'));
+    for (const [key, name] of LANDMARK_NAMES) {
+      panel.append(checkbox(name, !!street.landmarks?.[key], (on) => edit(() => {
+        street.landmarks ??= {};
+        if (on) {
+          const c = near();
+          street.landmarks[key] = { x: Math.round(c.x), y: Math.round(c.y) };
+          selected = { kind: 'mark', key };
+        } else delete street.landmarks[key];
+        if (!Object.keys(street.landmarks).length) delete street.landmarks;
+      })));
+    }
+    panel.append(checkbox('old city walls (towers, a gate)', !!street.castle, (on) => edit(() => (street.castle = on ? { from: 0.3, to: 0.45, side: 1 } : undefined))));
+    if (street.castle) {
+      const castle = street.castle;
+      panel.append(
+        field('walls from (share of the lap)', castle.from, (v) => edit(() => (castle.from = Math.min(1, Math.max(0, num(v, castle.from))))), 'number', '0.01'),
+        field('walls to', castle.to, (v) => edit(() => (castle.to = Math.min(1, Math.max(0, num(v, castle.to))))), 'number', '0.01'),
+        choice('walls on', [['1', 'the right, going round'], ['-1', 'the left']], String(castle.side), (v) => edit(() => (castle.side = Number(v) as 1 | -1))),
+        note("(only where there's room behind the barriers, and only as tall as hides no track: on the camera's side of the track they may not show)"),
+      );
+    }
+  }
+
+  panel.append(heading('Lakes'));
+  const lakes = draft.extras.lakes ?? [];
+  const lakeRow = document.createElement('div');
+  lakeRow.className = 'row';
+  lakeRow.append(button('Add a lake', () => edit(() => {
+    const c = near();
+    draft.extras.lakes = [...lakes, square(c.x, c.y, c.size)];
+    selected = { kind: 'lake', l: lakes.length, i: 0 };
+  })));
+  if (selected?.kind === 'lake') {
+    const l = selected.l;
+    lakeRow.append(button(`Remove lake ${l + 1}`, () => edit(() => {
+      draft.extras.lakes = lakes.filter((_, k) => k !== l);
+      if (!draft.extras.lakes.length) delete draft.extras.lakes;
+      selected = undefined;
+    })));
+  }
+  panel.append(lakeRow, note(`${lakes.length} lake${lakes.length === 1 ? '' : 's'}${lakes.length ? ' (pick one of its points to remove it)' : ''}`));
+
+  panel.append(heading('Bridge (where the lap crosses itself)'));
+  const bridge = draft.extras.bridge;
+  const bridgeRow = document.createElement('div');
+  bridgeRow.className = 'row';
+  bridgeRow.append(button(bridge ? 'Find the crossing again' : 'Find the crossing, and bridge it', () => {
+    if (!circuit) return;
+    const x = findCrossing(circuit);
+    if (!x) return status("the lap doesn't cross itself: shape it into a figure of eight first", true);
+    edit(() => (draft.extras.bridge = { over: Math.round(x.b), under: Math.round(x.a), height: bridge?.height ?? 36 }));
+    status('bridged: the stretch met second goes over (swap them if you like); give both the same height there');
+  }));
+  if (bridge) {
+    bridgeRow.append(
+      button('Swap over and under', () => edit(() => (draft.extras.bridge = { ...bridge, over: bridge.under, under: bridge.over }))),
+      button('No bridge', () => edit(() => delete draft.extras.bridge)),
+    );
+  }
+  panel.append(bridgeRow);
+  if (bridge) {
+    panel.append(
+      field('over (px along the lap)', bridge.over, (v) => edit(() => (bridge.over = num(v, bridge.over))), 'number'),
+      field('under (px along the lap)', bridge.under, (v) => edit(() => (bridge.under = num(v, bridge.under))), 'number'),
+      field('deck height (px)', bridge.height, (v) => edit(() => (bridge.height = Math.max(12, num(v, bridge.height)))), 'number'),
+    );
+  }
+
+  panel.append(heading('Banked bend'));
+  panel.append(checkbox('banking', !!draft.extras.banking, (on) => edit(() => (draft.extras.banking = on ? { from: 1000, to: 2000, grade: 0.3 } : undefined))));
+  const bank = draft.extras.banking;
+  if (bank) {
+    panel.append(
+      field('from (px along the lap)', bank.from, (v) => edit(() => (bank.from = num(v, bank.from))), 'number'),
+      field('to', bank.to, (v) => edit(() => (bank.to = num(v, bank.to))), 'number'),
+      field('grade (rise per px across)', bank.grade, (v) => edit(() => (bank.grade = num(v, bank.grade))), 'number', '0.05'),
+    );
+  }
+  panel.append(field('podium deck over the straight (px up; blank: on the run-off)', draft.extras.podiumDeck ?? '', (v) => edit(() => (draft.extras.podiumDeck = v.trim() === '' ? undefined : num(v, 30)))));
+}
+
 /** Open the game on the draft as it is now (`mode`: a quick race or a time trial). */
 function drive_(mode: string) {
   if (!circuit) return status("can't drive it: it doesn't build", true);
@@ -573,9 +797,8 @@ function frame() {
   camera.rotation.set(pitch, yaw, 0);
   // (the markers the same size on screen however near or far: a dot, not a ball in the way)
   for (const m of markers.children) {
-    if (m.userData.index === undefined) continue;
-    const base = m.userData.index === selected ? 1.6 : m.userData.index === 0 ? 1.3 : 1;
-    m.scale.setScalar(base * Math.max(0.15, camera.position.distanceTo(m.position) * 0.003));
+    if (m.userData.handle === undefined) continue;
+    m.scale.setScalar(m.userData.base * Math.max(0.15, camera.position.distanceTo(m.position) * 0.003));
   }
   if (world) {
     // the sun's shadows round what the camera looks at
@@ -585,7 +808,7 @@ function frame() {
     world.animate(performance.now() / 1000);
     renderer.render(world.scene, camera);
   }
-  hud.textContent = `${mode === 'walk' ? 'WALK' : 'FLY'} · x ${Math.round(camera.position.x)} y ${Math.round(camera.position.z)} · ${Math.round(camera.position.y - ground)} px up${selected !== undefined ? ` · point ${selected}` : ''}`;
+  hud.textContent = `${mode === 'walk' ? 'WALK' : 'FLY'} · x ${Math.round(camera.position.x)} y ${Math.round(camera.position.z)} · ${Math.round(camera.position.y - ground)} px up${selected ? ` · ${handleName(selected)}` : ''}`;
   requestAnimationFrame(frame);
 }
 
@@ -597,6 +820,13 @@ requestAnimationFrame(frame);
 (window as unknown as { __designer: unknown }).__designer = {
   draft: () => draft,
   selected: () => selected,
+  /** pick a handle (for a script): as a click on it would */
+  select: (h: Handle | undefined) => {
+    selected = h;
+    buildMarkers();
+    renderPanel();
+  },
+  handles,
   onScreen: (i: number) => {
     const m = markers.children.find((c) => c.userData.index === i);
     if (!m) return undefined;
