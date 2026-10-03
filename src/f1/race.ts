@@ -250,9 +250,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const radioText = document.createElement('div');
   radioPanel.append(radioLabel, radioText);
   let radioQ = newRadio();
-  /** Your engineer says `cue` (in a race or qualifying: not on your own against the clock). */
+  /** Your engineer says `cue` (in a race or qualifying: not on your own against the clock; and once your car's
+   * wrecked, only that: the safety car and the rest are no news to a driver who's out). */
   const sayRadio = (cue: RadioCue) => {
-    if (session === 'race' || session === 'qualifying') say(radioQ, radioLine(cue));
+    if (session !== 'race' && session !== 'qualifying') return;
+    if (race.entrants[you].car.wrecked && cue !== 'wreck') return;
+    say(radioQ, radioLine(cue));
   };
   const results = document.createElement('div');
   style(results, {
@@ -1351,7 +1354,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // on a phone the results have the screen to themselves (no readout, minimap or timing tower), and the table with
     // the buttons under it (12 px gap, 52 px tall) sits in the middle of the screen, top to bottom
     const alone = resultsUp && phoneHud;
-    // (the champagne ceremony on a phone likewise: the podium, its banner and the radio, nothing else)
+    // (the champagne ceremony on a phone likewise: the podium and its banner, nothing else)
     const clear = phoneHud && (resultsUp || (!!podium && !paused));
     for (const el of [readout, mini, tower]) el.style.visibility = clear ? 'hidden' : '';
     if (alone) results.style.top = `${Math.max(8, (host.clientHeight - results.offsetHeight - 64) / 2)}px`;
@@ -1882,8 +1885,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       soundState.boxLap = p.lap;
       sayRadio(boxCue());
     }
-    // the radio: the next line up once the last is done
-    {
+    // the radio: the next line up once the last is done; off the race (a replay, the ceremony, the results) it's
+    // hidden: held over a crash's replay (the race goes on after it), dropped for good after your flag
+    if (replay || podium || results.style.display === 'block') {
+      radioPanel.style.display = 'none';
+      if (replay?.kind !== 'crash' && (radioQ.now || radioQ.waiting.length)) radioQ = newRadio();
+    }
+    else {
       const line = stepRadio(radioQ, dt);
       if (line) {
         radioText.textContent = line;
