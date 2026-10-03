@@ -9,9 +9,9 @@ import { save, saved } from './save';
 
 export type StickSide = 'left' | 'right';
 
-/** Which side the thumbstick sits on (left unless the player moved it; kept on the device). */
+/** Which side the thumbstick sits on (right unless the player moved it; kept on the device). */
 export function stickSide(): StickSide {
-  return saved('settings', 'stickSide') === 'right' ? 'right' : 'left';
+  return saved('settings', 'stickSide') === 'left' ? 'left' : 'right';
 }
 
 /** Put the thumbstick on `side` (the A and B buttons go to the other), and remember it. */

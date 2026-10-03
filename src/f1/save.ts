@@ -1,6 +1,6 @@
 // Corner Cutters' save format (engine/save.ts keeps it): its version, and how
 // an older save is brought up to date. Sections:
-//   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right'), layout ('handheld'/'desktop')
+//   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right': right unless set), layout ('handheld'/'desktop')
 //   choices   the menu's last mode ('race'/'timetrial'), circuit, team, difficulty and weather (by id), qualifying ('on'/'off'), and a Quick Race's laps ('5')
 //   ghosts    your best Time Trial lap on each circuit (and weather), to race as a ghost (timeTrial.ts)
 //   championship  season: the Championship season in progress (or just over) (championship.ts)
@@ -25,7 +25,7 @@ const LEGACY = ['layout', 'circuit', 'team', 'difficulty', 'weather', 'records',
 const some = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null));
 
 export const CC_SAVE: SaveFormat = {
-  version: 1,
+  version: 2,
   legacyKeys: LEGACY,
   migrations: [
     // 0 → 1: the separate keys into one save
@@ -42,6 +42,13 @@ export const CC_SAVE: SaveFormat = {
         choices: some({ circuit: legacy('circuit'), team: legacy('team'), difficulty: legacy('difficulty'), weather: legacy('weather') }),
         records: { circuits: parseRecords(legacy('records')).circuits },
       };
+    },
+    // 1 → 2: the thumbstick's default moved to the right (the HUD Lab layout); the old default, 'left', was saved
+    // whether or not the player picked it, so it's dropped (a picked 'right' stays)
+    (data) => {
+      const settings = { ...((data.settings as Record<string, unknown> | undefined) ?? {}) };
+      if (settings.stickSide === 'left') delete settings.stickSide;
+      return { ...data, settings };
     },
   ],
 };

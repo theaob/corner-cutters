@@ -51,10 +51,10 @@ describe('the first save, from the keys of before', () => {
     expect(saved('settings', 'layout')).toBe('desktop');
     expect(savedSection('choices')).toEqual({ circuit: 'silver-heath', team: 'maas', difficulty: 'hard', weather: 'wet' });
     expect(loadRecords().circuits['silver-heath']).toEqual({ bestLap: 24.5, bestRace: { 3: 80.1 } });
-    expect(saveVersion()).toBe(1);
+    expect(saveVersion()).toBe(2);
     // one save now, the old keys gone; dev tools' own keys and other games' keys untouched
     expect([...s.items.keys()].sort()).toEqual(['cc:save', 'cc:tune:f1', 'other:records']);
-    expect(stored(s).version).toBe(1);
+    expect(stored(s).version).toBe(2);
   });
 
   it("starts empty on a new device, with the defaults where they're read", () => {
@@ -62,7 +62,7 @@ describe('the first save, from the keys of before', () => {
     useSave(CC_SAVE, s);
     expect(saved('settings', 'sound')).toBeUndefined();
     expect(loadRecords().circuits).toEqual({});
-    expect(stored(s)).toEqual({ version: 1, data: { settings: {}, choices: {}, records: { circuits: {} } } });
+    expect(stored(s)).toEqual({ version: 2, data: { settings: {}, choices: {}, records: { circuits: {} } } });
   });
 
   it('keeps what it can of a damaged old record', () => {
@@ -121,7 +121,7 @@ describe("a save it can't read", () => {
     useSave(CC_SAVE, s);
     expect(saved('choices', 'team')).toBe('maas');
     expect(s.items.get('cc:save.bad')).toBe('{"version":1,"data":');
-    expect(stored(s).version).toBe(1);
+    expect(stored(s).version).toBe(2);
   });
 
   it('from a newer version of the game is read but never written over', () => {
