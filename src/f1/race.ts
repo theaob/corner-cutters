@@ -1064,9 +1064,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       line('▲▼ PLACES FROM THE GRID · P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
       line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
       line(`BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}${saved.newRace ? ' · NEW!' : ''}`, { color: saved.newRace ? '#f2c14e' : '#f4f2fa' }),
-      ...(championship
-        ? [line('NEXT: on to the standings', { marginTop: '8px' }), line('EXIT: leave the round (not counted)')]
-        : [line(qualifying ? 'RESTART: race again from the same grid' : 'RESTART: race again', { marginTop: '8px' }), line('EXIT: back to the circuits')]),
+      // (RESTART and EXIT are buttons under the table: no lines for them here)
+      ...(championship ? [line('NEXT: on to the standings', { marginTop: '8px' })] : []),
     );
     results.style.display = 'block';
   };
@@ -1112,7 +1111,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       line(place === 1 ? 'POLE POSITION!' : `YOU START P${place}`, { color: '#f2c14e', marginTop: '8px' }),
       line(`QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}${saved.newQualifying ? ' · NEW!' : ''}`, { color: saved.newQualifying ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
       line('RACE: on to the grid', { marginTop: '8px' }),
-      line('EXIT: back to the circuits'),
     );
     results.style.animation = 'row-in 0.25s ease-out both';
     results.style.display = 'block';
