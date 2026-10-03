@@ -14,10 +14,11 @@ import { gridFor, sameLevel } from './bridge';
 import { applyDamage, carClass, collideCars, newCar, speedOf, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
 import { PIT, between, entersPit, newPitStop, pitStep, pushIntoGarage, wantsPit, type PitLane, type PitStop } from './pits';
-import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
+import { fitTyres, freshTyres, tyreFor, wearTyres, wrongTyreLoss, type Compound, type TyreSet } from './tyres';
 import { stepTow, towBoost, towFrom } from './slipstream';
 import { judge, markCorners, newLimits, offTrack, type Corner, type Limits } from './trackLimits';
 import type { WeatherId } from './weather';
+import { WETNESS, conditionOf, startWeather, stepWeather, weatherAhead, type Forecast } from './forecast';
 import { aiInput, coolDownInput, lateralOffset, nearestSample, newProgress, standings, stepProgress, type AiDriver, type Orders, type RaceProgress, type Track } from './racing';
 
 export const SAFETY_CAR = {
@@ -149,7 +150,10 @@ export type RaceEvent =
   /** a cut across a corner's inside: strike number `strike`, costing `seconds` (0: a warning) */
   | { kind: 'track-limits'; who: number; strike: number; seconds: number }
   /** all four wheels past the white line, either side (anywhere: against the clock, it deletes the lap) */
-  | { kind: 'off-track'; who: number };
+  | { kind: 'off-track'; who: number }
+  /** the rain starting (or stopping), and the track turning dry, damp or wet as it does */
+  | { kind: 'rain'; on: boolean }
+  | { kind: 'track'; condition: WeatherId };
 
 export interface Race {
   track: Track;
@@ -158,8 +162,13 @@ export interface Race {
   corners: Corner[];
   /** the circuit's pit lane (none: no stops) */
   pit?: PitLane;
-  /** the track's weather: it sets which tyres the crews fit and how they do */
+  /** the track's weather (dry, damp or wet): it sets which tyres the crews fit and how they do */
   weather: WeatherId;
+  /** how wet the track is (0 dry … 1 damp … 2 wet) and how hard it's raining (0…1), now (forecast.ts) */
+  wetness: number;
+  rain: number;
+  /** the rain to come (none: the weather stays as it started) */
+  forecast?: Forecast;
   handling: HandlingParams;
   laps: number;
   entrants: Entrant[];
@@ -182,11 +191,41 @@ export interface Race {
  */
 export function newRace(
   track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver; box?: number }[], lightsOut = 0.5, pit?: PitLane,
-  weather: WeatherId = 'dry',
+  weather: WeatherId | Forecast = 'dry',
 ): Race {
-  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(weather)), progress: newProgress(track.samples.length - 4) }));
-  for (const e of entrants) fitTyres(e.tyres, e.car, weather);
-  return { track, grid, corners: markCorners(track), pit, weather, handling, laps, entrants, phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()) };
+  const forecast = typeof weather === 'string' ? undefined : weather;
+  const now = forecast ? startWeather(forecast) : { wetness: WETNESS[weather as WeatherId], rain: weather === 'wet' ? 1 : 0 };
+  const entrants = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(now.wetness)), progress: newProgress(track.samples.length - 4) }));
+  for (const e of entrants) fitTyres(e.tyres, e.car, now.wetness);
+  return {
+    track, grid, corners: markCorners(track), pit, weather: conditionOf(now.wetness), wetness: now.wetness, rain: now.rain, forecast, handling, laps, entrants,
+    phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()),
+  };
+}
+
+/** s ahead the crews look, fitting tyres at a stop: about half a lap */
+const TYRE_LOOKAHEAD = 0.5;
+
+/** The track's wetness `ahead` s on, as forecast (now, without a forecast). */
+export function wetnessAhead(race: Race, ahead: number): number {
+  if (!race.forecast || race.phase !== 'racing') return race.wetness;
+  return weatherAhead({ wetness: race.wetness, rain: race.rain }, race.forecast, race.clock, ahead).wetness;
+}
+
+/** The compound the crew fits at a stop now: the one for the track as it will be over the next part of a lap. */
+export const tyreCall = (race: Race, e: Entrant): Compound => tyreFor(wetnessAhead(race, planLapTime(race, e) * TYRE_LOOKAHEAD));
+
+/**
+ * Whether entrant `i` is on the wrong tyres for the track (as it is, and will be over the next part of a lap): more
+ * grip given up than its crew's call to change them (each crew calls it a little differently, so the field doesn't
+ * all stop on the same lap).
+ */
+export function wrongTyres(race: Race, i: number): boolean {
+  const e = race.entrants[i];
+  const call = tyreCall(race, e);
+  if (call === e.tyres.compound) return false;
+  const loss = wrongTyreLoss(e.tyres.compound, wetnessAhead(race, planLapTime(race, e) * TYRE_LOOKAHEAD));
+  return loss > (e.ai ? 0.05 + ((i * 37) % 10) * 0.012 : 0.04);
 }
 
 /** Samples before the pit entry from which an AI car that wants to stop heads in. */
@@ -201,6 +240,8 @@ function aiPits(race: Race, e: Entrant): boolean {
   const n = track.samples.length;
   if (!pit || e.progress.lapStart === undefined || !between(e.progress.idx, pit.entry - PIT_CALL, pit.entry + 4, n)) return false;
   const lapsLeft = race.laps - e.progress.lap - e.progress.idx / n;
+  // (the wrong tyres for the weather, with most of a lap still to go: in for the right ones)
+  if (lapsLeft > 0.4 && wrongTyres(race, race.entrants.indexOf(e))) return true;
   return wantsPit(e.car, e.tyres, lapsLeft, planLapTime(race, e), race.handling.damageSlow, track.length);
 }
 
@@ -371,6 +412,17 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     out.push({ kind: 'lights-out' });
   }
   const racing = race.phase === 'racing';
+  // the weather moves on as forecast: the rain coming and going, the track wetting and drying
+  if (racing && race.forecast) {
+    const was = { condition: race.weather, raining: race.rain > 0.15 };
+    const now = { wetness: race.wetness, rain: race.rain };
+    stepWeather(now, race.forecast, race.clock, dt);
+    race.wetness = now.wetness;
+    race.rain = now.rain;
+    race.weather = conditionOf(now.wetness);
+    if (race.rain > 0.15 !== was.raining) out.push({ kind: 'rain', on: !was.raining });
+    if (race.weather !== was.condition) out.push({ kind: 'track', condition: race.weather });
+  }
   const sc = race.sc;
   const vsc = race.vsc;
   const orders: Orders = sc ? { limit: SAFETY_CAR.limit, noOvertaking: true } : vsc ? { limit: VSC.limit, noOvertaking: true } : {};
@@ -445,9 +497,9 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
         return quiet;
       }
       if (r.stopped) {
-        // new tyres on, the right ones for the weather
-        e.tyres = freshTyres(tyreFor(race.weather));
-        fitTyres(e.tyres, e.car, race.weather);
+        // new tyres on, the right ones for the weather (as it will be over the next part of the lap)
+        e.tyres = freshTyres(tyreCall(race, e));
+        fitTyres(e.tyres, e.car, race.wetness);
         out.push({ kind: 'pit-stop', who: i, seconds: e.pit.time });
       }
       if (r.repaired) out.push({ kind: 'pit-repaired', who: i });
@@ -502,7 +554,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   });
   // the tyres wear with the driving
   entrants.forEach((e, i) => {
-    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt * (track.tyreWear ?? 1), race.weather);
+    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt * (track.tyreWear ?? 1), race.wetness);
   });
   // the slipstream: in a car's wake, a higher top speed for the next step (on top of the tyres'); racing only:
   // not in the pit lane, under the safety car, or after the flag

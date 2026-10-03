@@ -117,6 +117,11 @@ export class RaceSounds {
 
   /** `rain`: how hard it's raining, 0…1 (a steady hiss). */
   constructor(rain: number) {
+    this.setRain(rain);
+  }
+
+  /** The rain's hiss as hard as it's raining now, 0…1. */
+  setRain(rain: number): void {
     this.rain.set(rain * 0.05);
   }
 

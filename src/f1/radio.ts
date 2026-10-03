@@ -1,14 +1,20 @@
-// The team radio: your race engineer on the moments that matter (box, box; the
+// The team radio: your race engineer on the moments that matter (box, box, and
+// for which tyres when the weather turns; the rain coming or stopping; the
 // safety car and the virtual one, and the green; a good stop; the last lap; a
 // purple lap; track limits; a wreck; and how it went at the flag), a line at a
 // time, each said a few ways so it doesn't repeat itself. The race shows the
 // line in a radio panel, keyed with a click and a squelch, and holds the next
 // until it's done (and drops a stale one). Engine-free and unit-tested.
 
-export type RadioCue = 'box' | 'safety-car' | 'vsc' | 'green' | 'pit-out' | 'final-lap' | 'fastest-lap' | 'warning' | 'penalty' | 'wreck' | 'jump-start' | 'blue';
+export type RadioCue = 'box' | 'box-slick' | 'box-inter' | 'box-wet' | 'rain' | 'rain-stops' | 'safety-car' | 'vsc' | 'green' | 'pit-out' | 'final-lap' | 'fastest-lap' | 'warning' | 'penalty' | 'wreck' | 'jump-start' | 'blue';
 
 export const RADIO_LINES: Record<RadioCue, string[]> = {
   box: ['BOX, BOX. BOX THIS LAP.', 'BOX, BOX. PIT THIS LAP.', 'BOX NOW, BOX NOW.'],
+  'box-slick': ['BOX, BOX. SLICKS ARE READY, THE TRACK IS DRY.', 'BOX FOR SLICKS. IT IS DRY ENOUGH NOW.'],
+  'box-inter': ['BOX, BOX. INTERS ARE READY.', 'BOX FOR INTERMEDIATES. THE TRACK IS DAMP.'],
+  'box-wet': ['BOX, BOX. FULL WETS, IT IS POURING.', 'BOX FOR WETS. THE RAIN IS HEAVY NOW.'],
+  rain: ['RAIN STARTING. CAREFUL OUT THERE.', 'WE HAVE RAIN. WATCH THE GRIP.', 'IT IS RAINING. TRACK WILL GET WET.'],
+  'rain-stops': ['RAIN HAS STOPPED. TRACK WILL DRY.', 'NO MORE RAIN. IT WILL DRY OUT NOW.'],
   'safety-car': ['SAFETY CAR, SAFETY CAR. HOLD POSITION.', 'SAFETY CAR DEPLOYED. NO OVERTAKING.', 'SAFETY CAR. STAY BEHIND, KEEP THE TYRES WARM.'],
   vsc: ['VSC, VSC. KEEP TO THE LIMIT.', 'VIRTUAL SAFETY CAR. NO OVERTAKING.'],
   green: ['GREEN, GREEN, GREEN. GO!', 'GREEN FLAG. PUSH NOW.', "WE'RE GREEN. RACE ON."],

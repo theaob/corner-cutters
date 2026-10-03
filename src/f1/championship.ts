@@ -26,7 +26,8 @@ export interface Season {
   /** the season's own seed: its field (and each round's seed from it) */
   seed: number;
   difficulty: DifficultyId;
-  weather: WeatherId;
+  /** (a season saved before each round had its own forecast: the weather it was picked for, no longer used) */
+  weather?: WeatherId;
   qualifying: boolean;
   /** the circuits (by id), in order */
   rounds: string[];
@@ -49,7 +50,7 @@ export const pointsFor = (place: number) => (place >= 0 ? (POINTS[place] ?? 0) :
  * and four drawn at random, two cars each; each driver a pace rank for the
  * season), `total` drivers in all, you mid-field.
  */
-export function newSeason(o: { seed: number; team: Team; seat?: Seat; difficulty: DifficultyId; weather: WeatherId; qualifying: boolean; rounds: string[]; total: number }): Season {
+export function newSeason(o: { seed: number; team: Team; seat?: Seat; difficulty: DifficultyId; qualifying: boolean; rounds: string[]; total: number }): Season {
   const rng = seededRandom(o.seed);
   const you = Math.floor(o.total / 2);
   const teams = teamGrid(o.team, o.total, you, rng);
@@ -57,7 +58,7 @@ export function newSeason(o: { seed: number; team: Team; seat?: Seat; difficulty
   const seats = driverSeats(teams, you, seat);
   const ranks = paceRanks(o.total, rng);
   const drivers = teams.map((t, k) => ({ name: k === you ? 'YOU' : t.drivers[seats[k]], team: t.id, rank: ranks[k] }));
-  return { seed: o.seed, difficulty: o.difficulty, weather: o.weather, qualifying: o.qualifying, rounds: [...o.rounds], round: 0, drivers, you, seat, places: [] };
+  return { seed: o.seed, difficulty: o.difficulty, qualifying: o.qualifying, rounds: [...o.rounds], round: 0, drivers, you, seat, places: [] };
 }
 
 /** The seed of round `k`: its start, the AI's dice (the field stays the season's). */
@@ -116,7 +117,7 @@ export function parseSeason(v: unknown): Season | undefined {
   if (!s || typeof s !== 'object') return undefined;
   const int = (x: unknown) => typeof x === 'number' && Number.isInteger(x);
   if (!int(s.seed) || !int(s.round) || !int(s.you) || !Array.isArray(s.rounds) || !Array.isArray(s.drivers) || !Array.isArray(s.places)) return undefined;
-  if (!['easy', 'normal', 'hard'].includes(s.difficulty as string) || typeof s.weather !== 'string' || typeof s.qualifying !== 'boolean') return undefined;
+  if (!['easy', 'normal', 'hard'].includes(s.difficulty as string) || typeof s.qualifying !== 'boolean') return undefined;
   const n = s.drivers.length;
   if (!n || s.you! < 0 || s.you! >= n || s.round! < 0 || s.round! > s.rounds.length || s.places.length !== s.round) return undefined;
   if (!s.rounds.every((r) => typeof r === 'string')) return undefined;
