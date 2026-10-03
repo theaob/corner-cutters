@@ -257,9 +257,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const results = document.createElement('div');
   style(results, {
     position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
-    // (kept clear of the deck, which floats over the bottom of the picture on a phone: scrolled if it's longer)
-    // (and room under it for RESTART and EXIT, which sit there on a phone once the results are up)
-    boxSizing: 'border-box', maxHeight: 'calc(82% - var(--deck-cover, 0px) - 76px)', overflowY: 'auto',
+    // (its height capped to the room there is: placeHud; scrolled if it's longer)
+    boxSizing: 'border-box', overflowY: 'auto',
     background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '11px Silkscreen, monospace', display: 'none',
   });
   // the minimap fits the circuit in a 136 × 140 box, whatever its shape (on a phone, shrunk to the room between the
@@ -426,6 +425,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       style(tower, { right: '6px', top: `${46 + MINI_H}px`, minWidth: `${Math.max(96, MINI_W)}px`, width: 'auto' });
       style(radioPanel, { left: '6px', right: '6px', top: 'auto', bottom: '8px' });
       banner.style.top = '30%';
+      results.style.maxHeight = 'calc(82% - 8px)';
     } else {
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
       style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px' });
@@ -443,6 +443,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       document.documentElement.style.setProperty('--mini-h', `${Math.round(MINI_H * fitMini)}px`);
       style(radioPanel, { left: '36px', right: '36px', top: '236px', bottom: 'auto' });
       banner.style.top = '198px';
+      // (the table, centred top to bottom with the buttons under it, clear of the stick above and below)
+      results.style.maxHeight = 'calc(100% - 2 * var(--deck-cover, 0px) - 80px)';
     }
   };
   placeHud(fit.desktop);
@@ -1339,6 +1341,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // with the results (or qualifying's times) up, RESTART and EXIT go under the table, big (on a phone: index.html)
     const resultsUp = results.style.display === 'block' && !paused;
     deckEl?.classList.toggle('results-up', resultsUp);
+    // on a phone the results have the screen to themselves (no readout, minimap or timing tower), and the table with
+    // the buttons under it (12 px gap, 52 px tall) sits in the middle of the screen, top to bottom
+    const alone = resultsUp && phoneHud;
+    for (const el of [readout, mini, tower]) el.style.visibility = alone ? 'hidden' : '';
+    if (alone) results.style.top = `${Math.max(8, (host.clientHeight - results.offsetHeight - 64) / 2)}px`;
+    else if (results.style.top !== '18%') results.style.top = '18%';
     if (resultsUp) document.documentElement.style.setProperty('--results-bottom', `${results.offsetTop + results.offsetHeight}px`);
   };
 
