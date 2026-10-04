@@ -19,6 +19,7 @@ import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
 import { lapsFrom } from './f1/laps';
 import { curtainDown, curtainUp } from './f1/screens/curtain';
+import { showStill } from './f1/screens/backdropStill';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
@@ -247,8 +248,11 @@ async function showMenu(id: number): Promise<void> {
   const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal);
   curtainUp();
   const backdropOn = layoutById(choice('circuit')) && openNow().has(choice('circuit')!) ? layoutById(choice('circuit'))! : LAYOUTS[0];
+  // (a still of it up at once, so the menu never opens on black; the live race fades in over it)
+  const still = showStill(screen);
+  closed.signal.addEventListener('abort', () => still.remove());
   void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
-    if (!closed.signal.aborted) stopBackdrop = startBackdrop(screen, backdropOn);
+    if (!closed.signal.aborted) stopBackdrop = startBackdrop(screen, backdropOn, still);
   });
   const picked = await picking;
   stopBackdrop();

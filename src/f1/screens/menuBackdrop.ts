@@ -5,7 +5,7 @@
 // a little wider than in a race. Drawn small and at most 30 times a second, and
 // not while the page is hidden; none at all for a device asking for reduced
 // motion (or without WebGL). Loaded only once the menu is up, so the menu
-// itself shows as quickly as before.
+// itself shows as quickly as before, over a still of it (./backdropStill).
 
 import * as THREE from 'three';
 import { bodyTilt, carClass, newCar, type Car } from '../../engine/driving';
@@ -22,6 +22,7 @@ import { newRace, stepRace } from '../raceControl';
 import { lineCornerSpeed, lineDecel } from '../racing';
 import { TEAMS } from '../teams';
 import { DRY } from '../weather';
+import { keepStill } from './backdropStill';
 
 export const BACKDROP = {
   /** cars lapping */
@@ -37,12 +38,18 @@ export const BACKDROP = {
   /** share of the screen's resolution it's drawn at, and the most frames a second */
   res: 0.75,
   fps: 30,
+  /** frames drawn before it's kept as the still the next menu opens on (3 s in) */
+  keepAt: 90,
 };
 
 const deg = THREE.MathUtils.degToRad;
 
-/** Start the backdrop behind `host`'s contents, racing on `layout`. Gives back a function that stops it. */
-export function startBackdrop(host: HTMLElement, layout: CircuitLayout): () => void {
+/**
+ * Start the backdrop behind `host`'s contents, racing on `layout`, fading in
+ * over `still` (the still it's in place of, taken away once it's covered).
+ * Gives back a function that stops it.
+ */
+export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: HTMLElement): () => void {
   if (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return () => {};
   let renderer: THREE.WebGLRenderer;
   try {
@@ -73,7 +80,9 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout): () => v
   renderer.toneMapping = THREE.NeutralToneMapping;
   const canvas = renderer.domElement;
   canvas.className = 'live-backdrop';
-  host.prepend(canvas);
+  // (over the still, under the menu)
+  if (still?.parentElement === host) still.after(canvas);
+  else host.prepend(canvas);
   const camera = new THREE.PerspectiveCamera(HD2D_VIEW.fov, 1, 1, 4000);
   camera.up.set(0, 0, -1);
   const post = new Hd2dPipeline(renderer, world.scene, camera);
@@ -147,7 +156,13 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout): () => v
     world.animate(now / 1000);
     post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: true, blurOn: true });
     // (faded in once a few frames are drawn: the first can take a while, compiling the shaders)
-    if (++drawn === 3) canvas.classList.add('on');
+    if (++drawn === 3) {
+      canvas.classList.add('on');
+      // (the still under it, once it's faded in over it)
+      canvas.addEventListener('transitionend', () => still?.remove(), { once: true });
+    }
+    // (a picture of it, for the next menu to open on: drawn this frame, so there's one to take)
+    if (drawn === BACKDROP.keepAt) keepStill(canvas);
   };
   requestAnimationFrame(frame);
 
