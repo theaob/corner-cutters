@@ -16,8 +16,7 @@ export const METRES_PER_PX = 0.67;
 /** s between sends */
 const EVERY = 20;
 
-interface Event {
-  at: string;
+export interface Event {
   player: string;
   kind: EventKind;
   platform: 'web' | 'android';
@@ -36,25 +35,37 @@ let timer: ReturnType<typeof setInterval> | undefined;
 /** The build's version (package version and commit). */
 const version = (): string => (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev').slice(0, 40);
 
+/** The columns each kind of batch sends: the time in the game apart (a project whose schema is older refuses it, and only it). */
+const COLUMNS = ['player', 'kind', 'platform', 'version', 'circuit', 'mode', 'km', 'data'] as const;
+const SESSION_COLUMNS = ['player', 'kind', 'platform', 'version', 'seconds', 'data'] as const;
+
+/**
+ * The queued events as the batches to send: the events, then the time in the game, each row with the same keys (the
+ * database takes a batch only so; what an event hasn't, null). No time on them: the database stamps them as they arrive.
+ */
+export function batchesOf(events: Event[]): Record<string, unknown>[][] {
+  const rows = (list: Event[], cols: readonly string[]) => list.map((e) => Object.fromEntries(cols.map((c) => [c, (e as unknown as Record<string, unknown>)[c] ?? null])));
+  return [rows(events.filter((e) => e.kind !== 'session'), COLUMNS), rows(events.filter((e) => e.kind === 'session'), SESSION_COLUMNS)].filter((b) => b.length);
+}
+
 /** Send what's queued (`closing`: the page is going, so with keepalive). */
 export function flush(closing = false): void {
   if (!queue.length) return;
-  const rows = queue.splice(0);
-  // (the time in the game goes on its own: a project whose schema is older than it refuses it, and only it)
-  for (const batch of [rows.filter((r) => r.kind !== 'session'), rows.filter((r) => r.kind === 'session')]) {
-    if (!batch.length) continue;
-    void insert('events', batch, closing).then((ok) => {
-      // (not sent: kept for the next try, unless the page is going)
-      if (!ok && !closing && queue.length < 200) queue.unshift(...batch);
+  const events = queue.splice(0);
+  const kinds = [events.filter((e) => e.kind !== 'session'), events.filter((e) => e.kind === 'session')].filter((b) => b.length);
+  batchesOf(events).forEach((batch, k) => {
+    void insert('events', batch, closing).then((sent) => {
+      // (offline: kept for the next try, unless the page is going; refused: dropped, as it would be every time)
+      if (sent === 'offline' && !closing && queue.length < 200) queue.unshift(...kinds[k]);
     });
-  }
+  });
 }
 
 /** Note `kind` (with what it was about). */
 export function track(kind: EventKind, about: { circuit?: string; mode?: string; km?: number; seconds?: number; data?: Record<string, unknown> } = {}): void {
   if (!online() || !statsOn()) return;
   queue.push({
-    at: new Date().toISOString(), player: playerId(), kind, platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(),
+    player: playerId(), kind, platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(),
     ...about, ...(about.km !== undefined ? { km: Math.round(about.km * 1000) / 1000 } : {}),
   });
   if (!timer) {
