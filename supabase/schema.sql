@@ -1,7 +1,7 @@
 -- Corner Cutters' backend (Supabase): the play stats and the Daily Challenge's board.
 -- Run it once in the project's SQL editor (it can be run again: it replaces what it made).
 -- The game only ever uses the public (anon) key: it can add events and reports (and their screenshots) and call the
--- three functions below, nothing else.
+-- functions granted to it below, nothing else.
 -- Nothing personal is kept: a player is a random id made on the device, and their initials on the board.
 
 -- ---------------------------------------------------------------- play stats
@@ -102,6 +102,9 @@ create table if not exists public.reports (
   -- the screenshot's path in the 'reports' bucket (2026-10-04/<id>.jpg), if it went
   image text check (char_length(image) <= 120)
 );
+-- (run again on a project made before: the columns added since) the screenshot as it's shown on the dashboard's
+-- reports, smaller (960 px at most, a JPEG as a data URL): the bucket's own copy can't be read with the public key
+alter table public.reports add column if not exists picture text check (char_length(picture) <= 1500000);
 create index if not exists reports_at on public.reports (at);
 alter table public.reports enable row level security;
 drop policy if exists "the game adds reports" on public.reports;
@@ -115,6 +118,44 @@ values ('reports', 'reports', false, 3145728, array['image/jpeg'])
 on conflict (id) do update set public = false, file_size_limit = 3145728, allowed_mime_types = array['image/jpeg'];
 drop policy if exists "the game adds report screenshots" on storage.objects;
 create policy "the game adds report screenshots" on storage.objects for insert to anon with check (bucket_id = 'reports');
+
+-- The dashboard's REPORTS: read with a code of your own (its hash kept here, the code never), set once in the SQL
+-- Editor:  select public.set_reports_code('a long code only you know');  (again to change it)
+create table if not exists public.dashboard_codes (
+  name text primary key,
+  hash text not null
+);
+alter table public.dashboard_codes enable row level security;
+revoke all on public.dashboard_codes from anon;
+create or replace function public.set_reports_code(p_code text) returns void
+language sql security definer set search_path = public as $$
+  insert into dashboard_codes (name, hash) values ('reports', encode(sha256(convert_to(p_code, 'UTF8')), 'hex'))
+  on conflict (name) do update set hash = excluded.hash;
+$$;
+-- (the SQL Editor only: never the public key)
+revoke all on function public.set_reports_code(text) from public, anon;
+
+-- The reports, newest first, `p_limit` at a time (before report `p_before`, for the next page): only with the code
+-- (ok false, and why, without it: none set yet, or the wrong one).
+create or replace function public.reports_list(p_code text, p_before bigint default null, p_limit int default 20) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  want text := (select hash from dashboard_codes where name = 'reports');
+  n int := least(greatest(coalesce(p_limit, 20), 1), 50);
+begin
+  if want is null then return jsonb_build_object('ok', false, 'why', 'no code set'); end if;
+  if encode(sha256(convert_to(coalesce(p_code, ''), 'UTF8')), 'hex') <> want then return jsonb_build_object('ok', false, 'why', 'wrong code'); end if;
+  return jsonb_build_object(
+    'ok', true,
+    'total', (select count(*) from reports),
+    'reports', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'at', at, 'platform', platform, 'version', version, 'circuit', circuit,
+      'mode', mode, 'screen', screen, 'text', text, 'image', image, 'picture', picture) order by id desc), '[]')
+      from (select * from reports where p_before is null or id < p_before order by id desc limit n) r)
+  );
+end;
+$$;
+revoke all on function public.reports_list(text, bigint, int) from public;
+grant execute on function public.reports_list(text, bigint, int) to anon;
 
 -- ---------------------------------------------------------------- the stats, for the dashboard
 -- The totals: players, launches, races, km driven, all time, today and over the last 7 days, and by circuit and mode;

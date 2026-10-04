@@ -360,6 +360,158 @@ async function load() {
   $('footer').textContent = `Anonymous counts from the game (a random id per device), read at ${at}. Refreshes every minute.`;
 }
 
+// ---------------------------------------------------------------- the reports (private: read with your code)
+
+/** A report as reports_list() gives it. */
+interface Report {
+  id: number;
+  at: string;
+  platform?: string;
+  version?: string;
+  circuit?: string;
+  mode?: string;
+  screen?: string;
+  text?: string;
+  /** the screenshot's path in the 'reports' bucket, and the dashboard's copy of it (a data URL) */
+  image?: string;
+  picture?: string;
+}
+interface ReportsPage {
+  ok: boolean;
+  why?: string;
+  total?: number;
+  reports?: Report[];
+}
+
+/** where the code is kept on this browser, once it's opened the reports (LOCK forgets it) */
+const CODE_KEY = 'cc-stats:reports-code';
+const savedCode = (): string => {
+  try {
+    return localStorage.getItem(CODE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+const keepCode = (code: string | undefined) => {
+  try {
+    if (code) localStorage.setItem(CODE_KEY, code);
+    else localStorage.removeItem(CODE_KEY);
+  } catch {
+    // (not kept: asked for again next time)
+  }
+};
+const REPORTS_PAGE = 20;
+let reportsCode = '';
+let oldest: number | undefined;
+let shown = 0;
+
+/** One report: its picture (tapped: full size), what was written, and when, where and on what. */
+function reportCard(r: Report): HTMLElement {
+  const card = document.createElement('article');
+  card.className = 'report';
+  if (r.picture) {
+    const img = document.createElement('img');
+    img.className = 'shot';
+    img.src = r.picture;
+    img.alt = `Screenshot sent with report ${r.id}`;
+    img.loading = 'lazy';
+    img.addEventListener('click', () => {
+      ($('lightbox-img') as HTMLImageElement).src = r.picture!;
+      $('lightbox').hidden = false;
+    });
+    card.append(img);
+  } else {
+    const none = document.createElement('div');
+    none.className = 'noshot';
+    none.textContent = r.image ? 'Picture in Supabase Storage only' : 'No picture';
+    card.append(none);
+  }
+  const body = document.createElement('div');
+  body.className = 'body';
+  const words = document.createElement('p');
+  words.className = `words${r.text ? '' : ' none'}`;
+  words.textContent = r.text || 'No words, just the picture.';
+  const meta = document.createElement('p');
+  meta.className = 'meta';
+  const when = new Date(r.at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const where = r.circuit ? `${circuitName(r.circuit)}${r.mode ? ` · ${MODE_NAMES[r.mode] ?? r.mode}` : ''}` : 'From the menu';
+  meta.textContent = [`#${r.id} · ${when}`, where, [PLATFORM_NAMES[r.platform ?? ''] ?? r.platform, r.version && `v${r.version}`, r.screen].filter(Boolean).join(' · ')].join('\n');
+  body.append(words, meta);
+  if (r.image) {
+    const path = document.createElement('p');
+    path.className = 'path';
+    path.textContent = `Storage: reports/${r.image}`;
+    body.append(path);
+  }
+  card.append(body);
+  return card;
+}
+
+/** Open the reports with `code` (`more`: the next page after the ones shown). */
+async function openReports(code: string, more = false) {
+  const note = $('reports-note');
+  if (!online()) {
+    note.textContent = 'This build has no Supabase project.';
+    return;
+  }
+  note.textContent = 'Opening…';
+  const page = await rpc<ReportsPage>('reports_list', { p_code: code, p_before: more ? oldest ?? null : null, p_limit: REPORTS_PAGE });
+  if (!page) {
+    note.textContent = 'The reports could not be read. Check that supabase/schema.sql has been run again since reports were added.';
+    return;
+  }
+  if (!page.ok) {
+    keepCode(undefined);
+    note.textContent = page.why === 'no code set'
+      ? "No reports code is set yet. In Supabase's SQL Editor run: select public.set_reports_code('your code');"
+      : "That isn't the reports code.";
+    $('reports-lock').hidden = false;
+    return;
+  }
+  reportsCode = code;
+  keepCode(code);
+  note.textContent = '';
+  $('reports-lock').hidden = true;
+  $('reports-head').hidden = false;
+  const list = $('reports-list');
+  const reports = page.reports ?? [];
+  if (!more) {
+    list.replaceChildren();
+    shown = 0;
+  }
+  if (!reports.length && !shown) list.innerHTML = '<p class="empty">No reports yet.</p>';
+  list.append(...reports.map(reportCard));
+  shown += reports.length;
+  oldest = reports.length ? reports[reports.length - 1].id : oldest;
+  const total = page.total ?? shown;
+  $('reports-count').textContent = `${fmt(total)} REPORT${total === 1 ? '' : 'S'} · ${fmt(shown)} SHOWN`;
+  $('reports-more').hidden = shown >= total || !reports.length;
+}
+
+$('reports-lock').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const code = ($('reports-code') as HTMLInputElement).value.trim();
+  if (code) void openReports(code);
+});
+$('reports-more').addEventListener('click', () => void openReports(reportsCode, true));
+$('reports-lockup').addEventListener('click', () => {
+  keepCode(undefined);
+  reportsCode = '';
+  oldest = undefined;
+  shown = 0;
+  $('reports-list').replaceChildren();
+  $('reports-head').hidden = true;
+  $('reports-more').hidden = true;
+  $('reports-lock').hidden = false;
+  ($('reports-code') as HTMLInputElement).value = '';
+});
+$('lightbox').addEventListener('click', () => ($('lightbox').hidden = true));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') $('lightbox').hidden = true;
+});
+// (opened already on this browser: straight to them)
+if (savedCode()) void openReports(savedCode());
+
 $('refresh').addEventListener('click', () => void load());
 // (redrawn to the new width)
 let resized: ReturnType<typeof setTimeout> | undefined;
