@@ -107,6 +107,16 @@
       .report .words { margin: 0 0 8px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
       .report .words.none { color: var(--faint); font-style: italic; }
       .report .meta { margin: 0; font: 12px var(--mono); color: var(--muted); line-height: 1.6; white-space: pre-line; }
+      .errors { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+      .errors-list { display: flex; flex-direction: column; gap: 10px; }
+      .error { padding-top: 10px; border-top: 1px solid var(--edge); }
+      .error:first-child { border-top: none; padding-top: 0; }
+      .error .what { margin: 0 0 4px; font: 13px var(--mono); color: var(--text); overflow-wrap: anywhere; }
+      .error .count { color: var(--amber); }
+      .error .meta { margin: 0; font: 12px var(--mono); color: var(--muted); line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+      .error details { margin-top: 4px; font: 11px var(--mono); color: var(--faint); }
+      .error summary { cursor: pointer; }
+      .error pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
       .report .path { margin: 4px 0 0; font: 11px var(--mono); color: var(--faint); overflow-wrap: anywhere; }
       .more { display: flex; justify-content: center; }
       .lightbox { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
@@ -178,6 +188,13 @@
           <div id="reports-head" class="reports-head" hidden><span id="reports-count"></span><button type="button" id="reports-lockup">LOCK</button></div>
           <div id="reports-list" class="reports-list"></div>
           <div class="more"><button type="button" id="reports-more" hidden>LOAD MORE</button></div>
+        </div>
+      </section>
+      <section>
+        <h2 id="errors-title">ERRORS · CAUGHT IN THE GAME</h2>
+        <div class="board errors">
+          <p class="empty" id="errors-note">Errors are private: open the reports above with your code to see them.</p>
+          <div id="errors-list" class="errors-list"></div>
         </div>
       </section>
       <div class="lightbox" id="lightbox" hidden><img id="lightbox-img" alt="The report's screenshot, full size" /></div>

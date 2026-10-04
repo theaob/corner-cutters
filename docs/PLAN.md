@@ -356,7 +356,8 @@ Google Play:
 
 Everywhere:
 - [ ] Performance pass on a low-end Android phone; quality governor thresholds re-checked
-- [ ] Accessibility: colour-blind-safe position/HUD colours, larger-text option, left-handed deck
+- [x] Accessibility: COLOURS (COLOUR-SAFE splits, in words too), TEXT (LARGE), the left-handed deck (STICK: LEFT), less motion for a device asking for it (`f1/access.ts`)
+- [x] Crash reporting: errors nothing caught to the play stats, the dashboard's ERRORS (`f1/crashes.ts`)
 - [ ] Daily Challenge (seeded circuit + conditions, best result kept locally)
 - [ ] itch.io page: free with optional donation; screenshots, GIF, soundtrack as an optional
       download; version 1.0.0
