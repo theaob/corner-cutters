@@ -20,6 +20,15 @@ For a local build, put them in `.env.local` as `VITE_SUPABASE_URL=…` and `VITE
 
 ## Seeing the stats
 
-In the SQL Editor: `select public.game_stats();` gives the totals (players all time, today and over 7 days, launches,
+**The dashboard** (`stats.html`, `src/stats/main.ts`) shows them, live:
+- the totals: players (all time, today, last 7 days), launches, races finished and started, km driven, results shared, and today's Daily Challenge players;
+- players per day over the last 30 days;
+- players by platform, and finished sessions by mode and by circuit;
+- today's Daily Challenge board.
+
+It refreshes every minute. `.github/workflows/stats.yml` publishes it to GitHub Pages, at https://theaob.github.io/corner-cutters/. To switch it on, once: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then **Actions → stats → Run workflow**. After that it redeploys itself when the dashboard changes. It reads with the same public key as the game, and shows only totals (no player's events). `npm run stats` runs it locally (with `.env.local` as above).
+
+In the SQL Editor:
+`select public.game_stats();` gives the totals (players all time, today and over 7 days, launches,
 races started and finished, km driven, shares, Daily Challenge players today, players by platform, finished races by
 mode and circuit, and players per day over the last 30 days). The raw events are in the `events` table.

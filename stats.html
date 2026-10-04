@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Corner Cutters Pit Wall</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      /* A pit-wall timing monitor: the night-navy of the game, amber readouts, one cyan accent for the live line.
+         Summary readouts across the top, the 30-day line under them, then the splits and today's board. */
+      @font-face {
+        font-family: 'Silkscreen';
+        src: url('./public/fonts/silkscreen.woff2') format('woff2');
+        font-display: swap;
+      }
+      :root {
+        --ground: #0e0d16;
+        --panel: #17162a;
+        --edge: #2a2840;
+        --ink: #f4f2fa;
+        --muted: #9d9ab8;
+        --faint: #5d5a7a;
+        --amber: #f2c14e;
+        --cyan: #5fe0d0;
+        --bad: #ff6b74;
+        --pixel: 'Silkscreen', ui-monospace, monospace;
+        --body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.5 var(--body); }
+      body { padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom)); }
+      main { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+      header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; border-bottom: 1px solid var(--edge); padding-bottom: 14px; }
+      h1 { margin: 0; font: 22px/1.2 var(--pixel); color: var(--amber); letter-spacing: 1px; text-wrap: balance; }
+      h1 small { display: block; font: 11px/1.6 var(--pixel); color: var(--muted); letter-spacing: 1.5px; }
+      .live { display: flex; align-items: center; gap: 10px; font: 11px var(--pixel); color: var(--muted); letter-spacing: 1px; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+      .dot.on { background: var(--cyan); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 25%, transparent); }
+      .dot.off { background: var(--bad); }
+      button { font: 11px var(--pixel); letter-spacing: 1px; color: var(--ink); background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+      button:hover { border-color: var(--muted); }
+      button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+      .notice { border: 1px solid var(--edge); border-left: 3px solid var(--bad); background: var(--panel); border-radius: 6px; padding: 12px 14px; color: var(--ink); }
+      .notice code { font: 13px var(--mono); color: var(--amber); }
+      .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+      .tile { box-shadow: inset -1px -1px 0 var(--edge); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      .tile .k { font: 10px var(--pixel); letter-spacing: 1.2px; color: var(--muted); }
+      .tile .v { font: 28px/1.1 var(--pixel); color: var(--amber); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .tile .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+      section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+      h2 { margin: 0; font: 12px var(--pixel); letter-spacing: 1.5px; color: var(--muted); }
+      .chart { position: relative; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 12px 12px 4px; }
+      .chart svg { display: block; width: 100%; height: auto; }
+      .tip { position: absolute; pointer-events: none; background: var(--ground); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -110%); }
+      .tip b { font: 12px var(--pixel); color: var(--amber); }
+      .splits { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+      .bars { list-style: none; margin: 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; display: flex; flex-direction: column; gap: 9px; }
+      .bars li { display: grid; grid-template-columns: minmax(0, 9em) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+      .bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bars .track { display: block; height: 10px; border-radius: 0 4px 4px 0; background: color-mix(in srgb, var(--edge) 55%, transparent); }
+      .bars .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--cyan); min-width: 2px; }
+      .bars .n { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+      .empty { color: var(--muted); font-size: 13px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+      .board { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 14px; overflow-x: auto; }
+      th { font: 10px var(--pixel); letter-spacing: 1.2px; color: var(--muted); text-align: left; padding: 8px 6px; font-weight: normal; }
+      td { padding: 6px; border-top: 1px solid var(--edge); }
+      td.r, th.r { text-align: right; }
+      td.name { font-family: var(--pixel); color: var(--amber); }
+      footer { font-size: 12px; color: var(--faint); border-top: 1px solid var(--edge); padding-top: 12px; }
+      @media (prefers-reduced-motion: no-preference) { .fill { transition: width .5s ease-out; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>CORNER CUTTERS <small>PIT WALL · PLAY STATS</small></h1>
+        <div class="live"><span class="dot" id="dot"></span><span id="status">CONNECTING…</span><button id="refresh" type="button">REFRESH</button></div>
+      </header>
+      <div class="notice" id="notice" hidden></div>
+      <div class="tiles" id="tiles"></div>
+      <section>
+        <h2>PLAYERS PER DAY · LAST 30 DAYS (UTC)</h2>
+        <div class="chart" id="chart"><p class="empty">Waiting for the first day of play.</p></div>
+      </section>
+      <div class="splits">
+        <section><h2>PLAYERS BY PLATFORM</h2><ul class="bars" id="platform"></ul></section>
+        <section><h2>FINISHED SESSIONS BY MODE</h2><ul class="bars" id="mode"></ul></section>
+        <section><h2>FINISHED SESSIONS BY CIRCUIT</h2><ul class="bars" id="circuit"></ul></section>
+      </div>
+      <section>
+        <h2 id="board-title">TODAY'S DAILY CHALLENGE</h2>
+        <div class="board" id="board"><p class="empty">Loading the board…</p></div>
+      </section>
+      <footer id="footer">Anonymous counts from the game (a random id per device). Refreshes every minute.</footer>
+    </main>
+    <script type="module" src="./src/stats/main.ts"></script>
+  </body>
+</html>
