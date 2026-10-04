@@ -1,5 +1,5 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
-// which side the thumbstick sits on, vibration, screen shake, the grid walk
+// which side the thumbstick sits on, how the controls drive (DRIVING), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race).
 
@@ -10,6 +10,7 @@ import { musicVolume, setMusicVolume } from '../engine/music';
 import { optionRow } from './circuitSelect';
 import { setShake, shakeOn } from './shake';
 import { gridWalkOn, setGridWalk } from './gridPan';
+import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
 
 /** The nearest volume step to `v`. */
 const nearest = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
@@ -24,6 +25,10 @@ export function settingsRows(): SettingsRow[] {
   const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'thumbstick left · A and B right' : 'thumbstick right · A and B left' }), (side) => {
     if (deck) setStickSide(deck, side);
   });
+  const drivingRow = optionRow('DRIVING', DRIVE_STYLES, driveStyle(), (s) => ({
+    name: s.toUpperCase(),
+    about: s === 'auto' ? 'touch points the way · keys and pads steer' : s === 'point' ? 'the car goes where you point' : 'up gas · down brake · across steers',
+  }), setDriveStyle);
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);
     vibrate(40);
@@ -32,5 +37,5 @@ export function settingsRows(): SettingsRow[] {
   const musicRow = optionRow('MUSIC', [...VOLUMES], nearest(musicVolume()), (v) => ({ name: volumeName(v), about: v ? 'menu and race tracks' : 'silence' }), setMusicVolume);
   const shakeRow = optionRow('SCREEN SHAKE', [true, false], shakeOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, kerbs and grass shake the camera' : 'the camera stays still' }), setShake);
   const gridWalkRow = optionRow('GRID WALK', [true, false], gridWalkOn(), (on) => ({ name: on ? 'ON' : 'SKIP', about: on ? 'the camera down the grid before the lights' : 'straight to the start lights' }), setGridWalk);
-  return [stickRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow] as SettingsRow[];
+  return [stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow] as SettingsRow[];
 }

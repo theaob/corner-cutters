@@ -307,8 +307,13 @@ export const keysWheel = (keys: { up: boolean; down: boolean; left: boolean; rig
   turn: (keys.right ? 1 : 0) - (keys.left ? 1 : 0), gas: keys.up ? 1 : 0, brake: keys.down ? 1 : 0, drift,
 });
 
+/** The wheel from the touch thumbstick (screen space, y down): across steers, up is the gas, down the brake. */
+export const stickWheel = (stick: { x: number; y: number }, drift: boolean): WheelPad => ({
+  turn: stick.x, gas: Math.max(0, -stick.y), brake: Math.max(0, stick.y), drift,
+});
+
 /**
- * The driving input for keys or a gamepad: the wheel turns the car (a gentle
+ * The driving input for keys, a gamepad or the stick steering: the wheel turns the car (a gentle
  * curve on an analogue stick, for fine corrections), the gas pulls, the brake
  * brakes, and held once stopped (off the gas) it reverses.
  */
