@@ -654,16 +654,19 @@ export const BAKU: CircuitLayout = {
   tyreWear: 0.4,
   street: {
     runoff: 28,
-    // the Caspian, beyond the pits along the sea front
+    // the Caspian, right up behind the pits along the sea front and round the hairpin past the line, with only a
+    // quay between it and the barriers elsewhere
     sea: ([
-    [734, 1139], [2897, -13], [4307, 2635], [2144, 3787],
+      [679, 1114], [709, 1079], [990, 863], [1055, 798], [1431, 637], [1477, 636], [1626, 623], [1850, 527],
+      [1939, 448], [1995, 395], [2071, 357], [2100, 324], [2110, 296], [2109, 254], [2077, 163], [2003, 8],
+      [2400, -200], [4307, -200], [4307, 2635], [2144, 3787],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
-    // Qız Qalası, the Maiden Tower, by the castle section in the old town; the Flame Towers on the hill above it, to
-    // the north-west
-    landmarks: { maiden: { x: 720, y: 870 }, flames: { x: 210, y: 640 } },
-    // the old city walls along the castle section, on its far side from the camera (seen whole, over the track; on
-    // the near side they'd hide it)
-    castle: { from: 0.39, to: 0.53, side: 1 },
+    // Qız Qalası, the Maiden Tower, in the old town inside the walls; the Flame Towers on the hill above it, to the
+    // north-west
+    landmarks: { maiden: { x: 419, y: 874 }, flames: { x: 210, y: 640 } },
+    // the old city walls along the castle section, on its inside, round the old town (on the camera's side of the
+    // track there, kept low enough to see the racing surface over)
+    castle: { from: 0.39, to: 0.53, side: -1 },
   },
 };
 

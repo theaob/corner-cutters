@@ -63,6 +63,27 @@ export function seeOver(circuit: Circuit, x: number, y: number, w: number, d: nu
   return Math.max(0, gap - 6) / HIDES;
 }
 
+/** px out from the track's middle that what stands just behind the barriers on the camera's side may hide: the barriers and the run-off's edge, never the racing surface */
+export const SURFACE_SEEN = HALF_WIDTH + 8;
+
+/**
+ * As seeOver, for what may hide the barriers but never the racing surface (the old city walls, and the Maiden Tower
+ * inside them): the nearest of the track out to SURFACE_SEEN round each point of it, wholly north of its front.
+ */
+export function seeSurfaceOver(circuit: Circuit, x: number, y: number, w: number, d: number): number {
+  const reach = SURFACE_SEEN;
+  let gap = Infinity;
+  for (const p of circuit.track.samples) {
+    // (how far south of the point the track reaches, in line with the footprint)
+    const aside = Math.max(0, Math.abs(p.x - x) - w / 2);
+    if (aside >= reach) continue;
+    const south = p.y + Math.sqrt(reach * reach - aside * aside);
+    if (south > y - d / 2) continue;
+    gap = Math.min(gap, y - d / 2 - south);
+  }
+  return Math.max(0, gap - 6) / HIDES;
+}
+
 /** Something's footprint on the map: its centre, px across and deep. */
 export interface Footprint {
   x: number;
@@ -90,9 +111,22 @@ const LANDMARK: Record<LandmarkKind, { w: number; d: number; h: number; turns: b
   tennis: { w: 84, d: 164, h: 12, turns: true, seen: 0.5 },
   // Baku's: Qız Qalası, the Maiden Tower of the old town (its buttress to the east), and the three Flame Towers on the
   // hill above it (tall: they stand where no track is behind them)
-  maiden: { w: 64, d: 56, h: 66, turns: false, seen: 0.5 },
+  // (the Maiden Tower inside the walls on the camera's side of the track: its foot partly out of the picture, but its
+  // height standing up into it)
+  maiden: { w: 64, d: 56, h: 66, turns: false, seen: 0.35 },
   flames: { w: 150, d: 96, h: 150, turns: false, seen: 0.25 },
 };
+
+/**
+ * The landmarks that stand inside the old city walls, where a circuit has them (behind where the walls go), and may
+ * hide what the walls do (seeSurfaceOver): the Maiden Tower, on the camera's side of the track.
+ */
+export const INSIDE_WALLS: Partial<Record<LandmarkKind, true>> = { maiden: true };
+
+/** How tall landmark `kind` on footprint (x, y, w across, d deep) can be and let the camera see the track behind it. */
+export function landmarkSeeOver(circuit: Circuit, kind: LandmarkKind, x: number, y: number, w: number, d: number): number {
+  return circuit.layout.street?.castle && INSIDE_WALLS[kind] ? seeSurfaceOver(circuit, x, y, w, d) : seeOver(circuit, x, y, w, d);
+}
 
 /** px of pavement left between the barriers and a landmark's footprint */
 const LANDMARK_SET_BACK = 6;
@@ -140,13 +174,16 @@ export function landmarksOf(circuit: Circuit): Landmark[] {
   const known = placed.get(circuit);
   if (known) return known;
   const samples = circuit.track.samples;
-  const clear = HALF_WIDTH + (circuit.layout.street?.runoff ?? 72) + LANDMARK_SET_BACK;
+  const runoff = circuit.layout.street?.runoff ?? 72;
+  const behindWalls = HALF_WIDTH + runoff + CASTLE.set + CASTLE.thick / 2 + CASTLE.towerR + 6;
   const sea = seaOf(circuit) ?? [];
   const pits = circuit.pit.points;
   const stands = standsOf(circuit);
   const out: Landmark[] = [];
   for (const kind of (Object.keys(LANDMARK) as LandmarkKind[]).filter((k) => marks[k])) {
     const { h, turns } = LANDMARK[kind];
+    // (one that may hide the run-off stands inside the old city walls, where there are any: clear of where they go)
+    const clear = circuit.layout.street?.castle && INSIDE_WALLS[kind] ? behindWalls : HALF_WIDTH + runoff + LANDMARK_SET_BACK;
     const want = onMap(circuit, marks[kind]!);
     let w: number = LANDMARK[kind].w;
     let d: number = LANDMARK[kind].d;
@@ -156,7 +193,7 @@ export function landmarksOf(circuit: Circuit): Landmark[] {
       clearOf(pits, x, y, w, d) >= GARAGE_ACROSS + 24 &&
       stands.every((st) => Math.abs(st.x - x) >= w / 2 + st.len / 2 + STAND.depth || Math.abs(st.y - y) >= d / 2 + st.len / 2 + STAND.depth) &&
       out.every((o) => Math.abs(o.x - x) >= (w + o.w) / 2 + 12 || Math.abs(o.y - y) >= (d + o.d) / 2 + 12) &&
-      seeOver(circuit, x, y, w, d) >= h;
+      landmarkSeeOver(circuit, kind, x, y, w, d) >= h;
     /** how much of it the camera shows at once, from the best place on the track */
     const seen = (x: number, y: number) => inView(samples, x, y, w, d);
     // (round where the layout puts it: the spot that fits and is seen best, a little in favour of the nearer; its
@@ -233,7 +270,7 @@ const castles = new WeakMap<Circuit, CastleWalls>();
 /**
  * A street circuit's old city walls (none for most): along its stretch of the lap, just behind the barriers on its
  * side, wherever there's room (clear of every stretch of track, the sea, the pits, the grandstands and the landmarks),
- * each length low enough not to hide the track behind it; a round tower every so often, and a gate tower in the
+ * each length low enough not to hide the racing surface behind it (seeSurfaceOver: on the camera's side of the track the barriers go behind them); a round tower every so often, and a gate tower in the
  * middle.
  */
 export function castleOf(circuit: Circuit): CastleWalls {
@@ -250,18 +287,21 @@ export function castleOf(circuit: Circuit): CastleWalls {
   const stands = standsOf(circuit);
   const marks = landmarksOf(circuit);
   const pits = circuit.pit.points;
+  const pad = CASTLE.towerR + 4;
+  /** whether there's room for the wall at (x, y) */
+  const clear = (x: number, y: number): boolean => {
+    const room = (q: Pt) => (q.x - x) ** 2 + (q.y - y) ** 2 >= (off - 6) ** 2;
+    if (!samples.every(room) || inside(sea, x, y) || pits.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 30)) return false;
+    if (stands.some((st) => Math.abs(st.x - x) < st.len / 2 + STAND.depth + pad && Math.abs(st.y - y) < st.len / 2 + STAND.depth + pad)) return false;
+    return !marks.some((l) => Math.abs(l.x - x) < l.w / 2 + pad && Math.abs(l.y - y) < l.d / 2 + pad);
+  };
   /** the wall's point beside sample `k`, if there's room for it there */
   const at = (k: number): Pt | undefined => {
     const p = samples[k % n];
     // (across the track: its direction's right, × side)
     const x = p.x + Math.cos(p.dir) * off * spec.side;
     const y = p.y + Math.sin(p.dir) * off * spec.side;
-    const room = (q: Pt) => (q.x - x) ** 2 + (q.y - y) ** 2 >= (off - 6) ** 2;
-    const pad = CASTLE.towerR + 4;
-    if (!samples.every(room) || inside(sea, x, y) || pits.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 30)) return undefined;
-    if (stands.some((st) => Math.abs(st.x - x) < st.len / 2 + STAND.depth + pad && Math.abs(st.y - y) < st.len / 2 + STAND.depth + pad)) return undefined;
-    if (marks.some((l) => Math.abs(l.x - x) < l.w / 2 + pad && Math.abs(l.y - y) < l.d / 2 + pad)) return undefined;
-    return { x, y };
+    return clear(x, y) ? { x, y } : undefined;
   };
   const from = Math.round(spec.from * n);
   const to = Math.round(spec.to * n);
@@ -270,23 +310,35 @@ export function castleOf(circuit: Circuit): CastleWalls {
   const points: Pt[] = [];
   for (let k = from; k <= to; k += CASTLE.step) {
     const p = at(k);
-    if (p && prev) {
+    if (!p) continue;
+    if (prev) {
+      // (straight on from the last point there was room for, across any there wasn't (inside a tight bend, where
+      // the points beside the track crowd it): unbroken, so long as there's room all along the way)
       const len = Math.hypot(p.x - prev.x, p.y - prev.y);
-      const h = Math.min(CASTLE.h, seeOver(circuit, (p.x + prev.x) / 2, (p.y + prev.y) / 2, Math.abs(p.x - prev.x) + CASTLE.thick, Math.abs(p.y - prev.y) + CASTLE.thick));
-      if (h >= 10 && len < off) {
-        out.walls.push({ x1: prev.x, y1: prev.y, x2: p.x, y2: p.y, h });
-        along += len;
-        if (along >= CASTLE.towerEvery) {
-          along = 0;
-          points.push(p);
-        }
+      const steps = Math.ceil(len / 8);
+      const room = len < 3 * off && Array.from({ length: steps - 1 }, (_, i) => (i + 1) / steps).every((f) => clear(prev!.x + (p.x - prev!.x) * f, prev!.y + (p.y - prev!.y) * f));
+      // (as high as its lowest 8 px)
+      const dx = (p.x - prev.x) / steps;
+      const dy = (p.y - prev.y) / steps;
+      let h = CASTLE.h;
+      for (let i = 0; i < steps; i++) h = Math.min(h, seeSurfaceOver(circuit, prev.x + dx * (i + 0.5), prev.y + dy * (i + 0.5), Math.abs(dx) + CASTLE.thick, Math.abs(dy) + CASTLE.thick));
+        if (!(room && h >= 10)) {
+        // (no length here: on from the last point to a later one, unless that's left too far behind)
+        if (len >= 3 * off) prev = p;
+        continue;
+      }
+      out.walls.push({ x1: prev.x, y1: prev.y, x2: p.x, y2: p.y, h });
+      along += len;
+      if (along >= CASTLE.towerEvery) {
+        along = 0;
+        points.push(p);
       }
     }
     prev = p;
   }
   for (const p of points) {
     const r = CASTLE.towerR;
-    const h = Math.min(CASTLE.h + CASTLE.towerUp, seeOver(circuit, p.x, p.y, 2 * r, 2 * r));
+    const h = Math.min(CASTLE.h + CASTLE.towerUp, seeSurfaceOver(circuit, p.x, p.y, 2 * r, 2 * r));
     if (h >= 12) out.towers.push({ x: p.x, y: p.y, r, h });
   }
   // (the middle tower the gate: square, bigger)
@@ -294,7 +346,7 @@ export function castleOf(circuit: Circuit): CastleWalls {
     const g = out.towers[Math.floor(out.towers.length / 2)];
     g.gate = true;
     g.r = CASTLE.towerR + 4;
-    g.h = Math.min(CASTLE.h + CASTLE.towerUp + 4, seeOver(circuit, g.x, g.y, 2 * g.r, 2 * g.r));
+    g.h = Math.min(CASTLE.h + CASTLE.towerUp + 4, seeSurfaceOver(circuit, g.x, g.y, 2 * g.r, 2 * g.r));
   }
   return out;
 }
@@ -445,6 +497,8 @@ export function townBlocks(circuit: Circuit, sea: Pt[], fromTrack: (x: number, y
       const tower = r() < 0.07;
       const w = tower ? 24 + r() * 6 : 36 + r() * 10;
       const d = tower ? 24 + r() * 6 : 36 + r() * 10;
+      // (wholly on land: none standing out over the water)
+      if ([[-1, -1], [1, -1], [-1, 1], [1, 1]].some(([u, v]) => inside(sea, cx + (u * w) / 2, cy + (v * d) / 2))) continue;
       // clear of the track (just behind the barriers), the pit lane and its garages, the grandstands, the landmarks
       if (fromTrack(cx, cy) < keep + Math.max(w, d) / 2 - 20) continue;
       if (pit.points.some((p) => Math.hypot(p.x - cx, p.y - cy) < 100)) continue;
