@@ -755,6 +755,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** the circuit's grandstands */
         stands: () => standsOf(circuit),
         look: (x?: number, y?: number) => (lookAt = x === undefined || y === undefined ? undefined : { x, y }),
+        /** set your tyres' wear (0 new … 1 gone) */
+        wear: (w: number) => (race.entrants[you].tyres.wear = Math.max(0, Math.min(1, w))),
         /** the champagne ceremony: s it's been on (undefined: it isn't) */
         ceremony: () => podium?.time,
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
