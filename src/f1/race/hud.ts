@@ -8,6 +8,7 @@ import { logoSvg } from '../logos';
 import type { Difficulty } from '../difficulty';
 import type { Team } from '../teams';
 import { style } from './dom';
+import { READOUT_GRID, readoutRun } from './readoutView';
 
 /** The HUD for `team` at `difficulty`, its minimap fitted to a circuit `width` × `height` (in tiles). */
 export function createHud(team: Team, difficulty: Difficulty, circuit: { width: number; height: number }) {
@@ -16,17 +17,21 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
     // (under your position and lap, along the top on a phone)
     position: 'absolute', zIndex: '2', padding: '2px 6px', borderRadius: '6px',
     background: 'rgba(21,20,31,.75)', color: '#9d9ab8', font: '12px Silkscreen, monospace', whiteSpace: 'pre',
+    // (each line an icon, its label and its value, in columns: readoutView.ts)
+    ...READOUT_GRID,
   });
-  const tyreLine = document.createElement('span');
+  // the lap times and records (or a Time Attack's clock), the cars either side, your car
+  const mainLines = readoutRun();
+  const tyreLine = readoutRun();
   // the slipstream: TOW and a bar that fills as it builds, in cyan, while you're in a car's wake
-  const towLine = document.createElement('span');
-  towLine.style.color = '#5fe0d0';
+  const towLine = readoutRun('#5fe0d0');
   // Time Trial: the live gap to your record lap's ghost, green ahead of it, red behind
-  const ghostLine = document.createElement('span');
+  const ghostLine = readoutRun();
   // Time Trial and Time Attack: the next medal here and what it asks for (or the gold, held)
-  const medalLine = document.createElement('span');
+  const medalLine = readoutRun();
   // track limits: your strikes, amber while they're warnings, red once they cost you
-  const limitsLine = document.createElement('span');
+  const limitsLine = readoutRun();
+  readout.append(mainLines, medalLine, ghostLine, towLine, tyreLine, limitsLine);
   const banner = document.createElement('div');
   style(banner, {
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
@@ -157,7 +162,7 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
     }
   };
   return {
-    readout, tyreLine, towLine, ghostLine, medalLine, limitsLine, banner, radioPanel, radioText, results, teamCard, weatherTag,
+    readout, mainLines, tyreLine, towLine, ghostLine, medalLine, limitsLine, banner, radioPanel, radioText, results, teamCard, weatherTag,
     mini, miniCtx, tower, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place,
   };
 }

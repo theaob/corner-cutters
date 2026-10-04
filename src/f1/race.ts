@@ -78,6 +78,7 @@ import { drawCars } from './race/drawCars';
 import { BLUE_COLOR, renderTower } from './race/towerView';
 import { createCeremonyView } from './race/ceremonyView';
 import { ghostText, limitsText, readoutText, towText, tyreText } from './race/readout';
+import { paintRows } from './race/readoutView';
 import { bannerMessage } from './race/banner';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
@@ -224,7 +225,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // ---------------------------------------------------------------- overlays
   // the HUD (race/hud.ts)
   const {
-    readout, tyreLine, towLine, ghostLine, medalLine, limitsLine, banner, radioPanel, radioText, results, teamCard, weatherTag,
+    readout, mainLines, tyreLine, towLine, ghostLine, medalLine, limitsLine, banner, radioPanel, radioText, results, teamCard, weatherTag,
     mini, miniCtx, tower, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place: layHud,
   } = createHud(team, difficulty, circuit);
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
@@ -325,7 +326,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const showMedal = () => {
     const kind = session === 'timetrial' ? 'trial' : session === 'timeattack' ? 'attack' : undefined;
     if (!kind || reference === undefined) {
-      medalLine.textContent = '';
+      paintRows(medalLine, '');
       return;
     }
     // (in a Time Attack, the medal this run has reached already counts: past bronze, it's silver you're after)
@@ -333,7 +334,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const reached = kind === 'attack' && attack ? attackMedal(attack.a.passed, attack.a.generous) : undefined;
     const next = nextMedal(reached && (!held || MEDALS.indexOf(reached) > MEDALS.indexOf(held)) ? reached : held);
     const target = !next ? undefined : kind === 'trial' ? fmt(lapTargets(reference)[next]) : attack ? shortDistance(attackTargets(attack.a.generous)[next]) : undefined;
-    medalLine.textContent = !next ? '● GOLD\n' : target ? `${MEDAL_NAME[next]} ${target}\n` : '';
+    paintRows(medalLine, !next ? 'GOLD ●\n' : target ? `${MEDAL_NAME[next]} ${target}\n` : '');
     medalLine.style.color = MEDAL_COLOR[next ?? 'gold'];
   };
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
@@ -525,7 +526,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     launch = newLaunch();
     tookDamage = false;
     startHits.clear();
-    medalLine.textContent = '';
+    paintRows(medalLine, '');
     setPaused(false);
     resetClock(simClock);
     before = undefined;
@@ -1686,28 +1687,27 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const behindCar = order[pos];
     const behind = behindCar !== undefined && running(race.entrants[behindCar]) && !race.entrants[behindCar].car.wrecked ? behindCar : undefined;
     const showGaps = !done && !phoneHud;
-    readout.textContent = readoutText({
+    paintRows(mainLines, readoutText({
       lapTime, last: p.lapTimes[p.lapTimes.length - 1], best,
       record: session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap,
       ahead: showGaps && ahead !== undefined ? { name: looks[ahead].name, gap: gapBetween(hudState.gaps, ahead, you) } : undefined,
       behind: showGaps && behind !== undefined ? { name: looks[behind].name, gap: gapBetween(hudState.gaps, you, behind) } : undefined,
       health: me.car.health / me.car.cls.health, wrecked: me.car.wrecked,
       attack: attack && { left: attack.a.left, passed: attack.a.passed, best: attack.best },
-    });
+    }));
     // the tyre line in its compound's colour (the wrong ones for the weather: what the crew would fit, in amber)
     const wrong = session === 'race' && !done && race.forecast && wrongTyres(race, you);
-    tyreLine.textContent = tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud, wrong ? COMPOUNDS[tyreCall(race, me)].name : undefined);
+    paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud, wrong ? COMPOUNDS[tyreCall(race, me)].name : undefined));
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
-    towLine.textContent = done ? '' : towText(me.tow);
+    paintRows(towLine, done ? '' : towText(me.tow));
     const strikes = me.limits.strikes;
-    limitsLine.textContent = session === 'race' ? limitsText(strikes) : '';
+    paintRows(limitsLine, session === 'race' ? limitsText(strikes) : '');
     limitsLine.style.color = strikes > LIMITS.warnings ? '#d8323c' : '#f2c14e';
     // (the gap: how much sooner or later than the ghost you've reached this point of the lap)
     const ghostAt = trial?.record && p.lapStart !== undefined && !trial.lap.deleted ? ghostTimeAt(trial.record, p.idx, track.samples.length) : undefined;
     const ghostGap = ghostAt === undefined ? undefined : clock - p.lapStart! - ghostAt;
-    ghostLine.textContent = ghostText(ghostGap);
+    paintRows(ghostLine, ghostText(ghostGap));
     ghostLine.style.color = (ghostGap ?? 0) < 0 ? '#5fe0d0' : '#d8323c';
-    readout.append(medalLine, ghostLine, towLine, tyreLine, limitsLine);
 
     // minimap, ten times a second: wrecks in grey, the safety car in amber
     miniTime += dt;

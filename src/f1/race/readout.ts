@@ -1,11 +1,14 @@
 // The readout's lines (the panel top left on a wide screen, down the left on a
 // phone): your lap times and records (or a Time Attack's clock), the gaps to
 // the cars either side (wide screen only), your car's health and tyres as five
-// blocks each, the tow, track-limits strikes, the gap to your ghost. Engine-free.
+// blocks each, the tow, track-limits strikes, the gap to your ghost; each line
+// a row of an icon, its label and its value (readoutRows), the values lined up
+// in a column of their own. Engine-free.
 
 import { formatTime as fmt } from '../records';
 import { shortDistance } from '../timeAttack';
 import { LIMITS } from '../trackLimits';
+import type { IconName } from './icons';
 
 /** Five blocks, `share` (0…1) of them filled. */
 export const blocks = (share: number) => {
@@ -57,3 +60,35 @@ export const limitsText = (strikes: number) =>
 
 /** The gap to your ghost (s: − ahead of it). */
 export const ghostText = (gap: number | undefined) => (gap === undefined ? '' : `GAP  ${gap < 0 ? '−' : '+'}${Math.abs(gap).toFixed(2)}\n`);
+
+/** A line of the readout as its row: an icon, the label, the value; `span`: label and value as one, across both columns (a long label, on a narrow phone). */
+export interface ReadoutRow {
+  icon?: IconName;
+  label: string;
+  value: string;
+  span?: boolean;
+}
+
+/** Each label's icon. */
+const LABEL_ICON: Record<string, IconName> = {
+  LAP: 'watch', LAST: 'lap', BEST: 'star', REC: 'cup', CAR: 'car', TYRE: 'tyre', TOW: 'tow', LIMITS: 'warn', GAP: 'ghost', BOX: 'wrench',
+  TIME: 'sand', GOT: 'flag', BRONZE: 'medal', SILVER: 'medal', GOLD: 'medal',
+};
+/** labels longer than the label column has room for on a phone: label and value as one, across both columns */
+const SPANS = new Set(['LIMITS', 'BRONZE', 'SILVER', 'GOLD']);
+
+/**
+ * The readout's `text` (the lines above) as its rows: each line's first word its label (with its icon; ▲ and ▼, the
+ * cars either side, are their own icons) and the rest its value; a line that's only a word (WORN) a value alone, under
+ * the values above it.
+ */
+export function readoutRows(text: string): ReadoutRow[] {
+  return text
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => {
+      const [, label, value = ''] = l.match(/^(\S+)\s*(.*)$/) ?? [];
+      if (!value && !LABEL_ICON[label]) return { label: '', value: label };
+      return { ...(LABEL_ICON[label] ? { icon: LABEL_ICON[label] } : {}), label, value, ...(SPANS.has(label) ? { span: true } : {}) };
+    });
+}

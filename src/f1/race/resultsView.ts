@@ -1,11 +1,14 @@
 // The results at the flag and qualifying's times, as tables (the pixel font
 // isn't monospaced, so the columns line up in cells): what each row says is
 // worked out from the race (`resultRows`, `qualifyingRows`: engine-free), then
-// drawn into the results panel, the rows sliding in one after another.
+// drawn into the results panel, the rows sliding in one after another. Over the
+// race's table, your race at a glance (`raceSummary`): where you finished, from
+// where on the grid, the gap, your best lap, your stops and any penalty.
 
 import { formatTime as fmt } from '../records';
 import type { Race } from '../raceControl';
 import { line } from './dom';
+import { icon, type IconName } from './icons';
 
 /** A driver as the results name them. */
 export interface Named {
@@ -29,6 +32,13 @@ export interface ResultRow {
   fastest: boolean;
   /** penalty seconds and pit stops (+5S 1P) */
   notes: string;
+  /** the pit stops made, and the penalty's seconds */
+  stops: number;
+  penalty: number;
+  /** out of the race */
+  out: boolean;
+  /** across the line (or out): the place is final */
+  finished: boolean;
   you: boolean;
 }
 
@@ -49,9 +59,44 @@ export function resultRows(race: Race, order: number[], named: Named[], you: num
     return {
       place: pos + 1, moved: i - pos, number: named[i].number, name: named[i].name, team: named[i].team.code, time,
       best: p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–', fastest: fastestWho === i,
-      notes: [p.penalty ? `+${p.penalty}S` : '', e.stops ? `${e.stops}P` : ''].filter(Boolean).join(' '), you: i === you,
+      notes: [p.penalty ? `+${p.penalty}S` : '', e.stops ? `${e.stops}P` : ''].filter(Boolean).join(' '), stops: e.stops, penalty: p.penalty,
+      out: !!p.retired, finished: !!p.retired || p.finished !== undefined, you: i === you,
     };
   });
+}
+
+/** A box of your race at a glance: what it is (with its icon), what you got, and its colour (if not white). */
+export interface SummaryBox {
+  icon: IconName;
+  label: string;
+  value: string;
+  color?: string;
+}
+
+/** gold, silver and bronze for the podium's places */
+const PODIUM = ['#f2c14e', '#c9ccd6', '#c8803a'];
+
+/**
+ * Your race at a glance, from the results' `rows`, five boxes (one row, even on a phone): where you finished (in the
+ * podium's colours; OUT, in red), where you started and the places you made, the gap to the winner (the winner: your
+ * time), your best lap (purple: the race's fastest), and your pit stops (and the penalty, if you had one, in red).
+ */
+export function raceSummary(rows: ResultRow[]): SummaryBox[] {
+  const r = rows.find((x) => x.you);
+  if (!r) return [];
+  const grid = r.place + r.moved;
+  const moved = r.moved > 0 ? ` ▲${r.moved}` : r.moved < 0 ? ` ▼${-r.moved}` : '';
+  return [
+    r.out
+      ? { icon: 'flag', label: 'FINISH', value: 'OUT', color: '#d8323c' }
+      : { icon: 'flag', label: r.finished ? 'FINISH' : 'PLACE', value: `P${r.place}`, color: PODIUM[r.place - 1] },
+    { icon: 'car', label: 'GRID', value: `P${grid}${r.out ? '' : moved}`, color: r.out ? undefined : r.moved > 0 ? '#5fe0d0' : r.moved < 0 ? '#d8323c' : undefined },
+    r.place === 1 && !r.out ? { icon: 'watch', label: 'TIME', value: r.time } : { icon: 'watch', label: 'GAP', value: r.time },
+    { icon: 'star', label: r.fastest ? 'FASTEST' : 'BEST', value: r.best, color: r.fastest ? '#b36bff' : undefined },
+    r.penalty
+      ? { icon: 'warn', label: 'STOPS', value: `${r.stops} +${r.penalty}S`, color: '#d8323c' }
+      : { icon: 'wrench', label: 'STOPS', value: `${r.stops}` },
+  ];
 }
 
 /** One row of qualifying's times, in grid order. */
@@ -97,12 +142,54 @@ export interface Note {
   text: string;
   isNew?: boolean;
 }
-const noteLine = (n: Note, first: boolean) => line(`${n.text}${n.isNew ? ' · NEW!' : ''}`, { color: n.isNew ? '#f2c14e' : '#f4f2fa', ...(first ? { marginTop: '8px' } : {}) });
+/** A line of `parts` (text, and icons in their place), centred, styled with `css`. */
+const iconLine = (parts: (string | IconName | HTMLElement)[], css: Partial<CSSStyleDeclaration> = {}) => {
+  const d = line('', { display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '5px', ...css });
+  for (const p of parts) d.append(p instanceof HTMLElement ? p : ICON_NAMES.has(p) ? icon(p as IconName) : document.createTextNode(p));
+  return d;
+};
+const ICON_NAMES = new Set<string>(['watch', 'lap', 'star', 'cup', 'car', 'tyre', 'tow', 'warn', 'ghost', 'wrench', 'sand', 'flag', 'medal']);
+const noteLine = (n: Note, first: boolean) => iconLine(['cup', `${n.text}${n.isNew ? ' · NEW!' : ''}`], { color: n.isNew ? '#f2c14e' : '#f4f2fa', ...(first ? { marginTop: '8px' } : {}) });
+
+/** Your race at a glance: its boxes side by side in one row, all the same width, centred. */
+function summaryBoxes(boxes: SummaryBox[]): HTMLElement {
+  const el = document.createElement('div');
+  Object.assign(el.style, { display: 'flex', justifyContent: 'center', gap: '5px', margin: '0 0 10px' });
+  for (const b of boxes) {
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      flex: '1 1 0', minWidth: '0', maxWidth: '96px', boxSizing: 'border-box', padding: '5px 4px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(157,154,184,0.25)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+    });
+    const head = iconLine([b.icon, b.label], { color: '#9d9ab8', fontSize: '8px', gap: '3px', whiteSpace: 'nowrap' });
+    const value = line(b.value, { fontSize: '13px', color: b.color ?? '#f4f2fa', whiteSpace: 'nowrap' });
+    box.append(head, value);
+    el.append(box);
+  }
+  return el;
+}
+
+/** The notes cell of a row: its pit stops and penalty, each with its icon (nothing if neither). */
+function notesCell(r: ResultRow): HTMLElement {
+  const c = cell('td', '');
+  const inner = document.createElement('span');
+  Object.assign(inner.style, { display: 'inline-flex', alignItems: 'center', gap: '3px' });
+  if (r.stops) inner.append(icon('wrench', 8), document.createTextNode(`${r.stops}`));
+  if (r.penalty) {
+    const pen = document.createElement('span');
+    Object.assign(pen.style, { display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#d8323c', marginLeft: r.stops ? '4px' : '0' });
+    pen.append(icon('warn', 8), document.createTextNode(`+${r.penalty}S`));
+    inner.append(pen);
+  }
+  c.append(inner);
+  return c;
+}
 
 /**
- * The results into `el`: `title`, the table (your row in gold, the fastest lap in purple, places gained green and
- * lost red), the key, the records `notes`, and `next` (what A does, if anything). `since`: s since the results went
- * up, so the rows rebuilt as the others finish carry on sliding in where they were.
+ * The results into `el`: `title`, your race at a glance, the table (your row in gold, the fastest lap in purple, places
+ * gained green and lost red, stops and penalties by their icons), the key, the records `notes`, and `next` (what A
+ * does, if anything). `since`: s since the results went up, so the rows rebuilt as the others finish carry on sliding
+ * in where they were.
  */
 export function renderResults(el: HTMLElement, title: string, rows: ResultRow[], notes: Note[], next: string | undefined, since: number, footer?: HTMLElement): void {
   const t = table([['', true], ['', false], ['NO', true], ['NAME', false], ['TEAM', false], ['TIME', true], ['BEST', true], ['', false]]);
@@ -114,16 +201,18 @@ export function renderResults(el: HTMLElement, title: string, rows: ResultRow[],
     change.style.color = r.moved > 0 ? '#5fe0d0' : r.moved < 0 ? '#d8323c' : '#6c6a88';
     const best = cell('td', r.best, true);
     if (r.fastest) best.style.color = '#b36bff';
-    row.append(cell('td', `${r.place}`, true), change, cell('td', r.number === undefined ? '' : `${r.number}`, true), cell('td', r.name), cell('td', r.team), cell('td', r.time, true), best, cell('td', r.notes));
+    row.append(cell('td', `${r.place}`, true), change, cell('td', r.number === undefined ? '' : `${r.number}`, true), cell('td', r.name), cell('td', r.team), cell('td', r.time, true), best, notesCell(r));
     t.append(row);
   }
+  const summary = raceSummary(rows);
   el.replaceChildren(
-    line(title, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px' }),
+    line(title, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px', textAlign: 'center' }),
+    ...(summary.length ? [summaryBoxes(summary)] : []),
     t,
-    line('▲▼ PLACES FROM THE GRID · P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
+    iconLine(['▲▼ FROM THE GRID ·', 'wrench', 'STOPS ·', 'warn', 'PENALTY'], { color: '#9d9ab8', marginTop: '8px' }),
     ...notes.map((n, k) => noteLine(n, k === 0)),
     // (RESTART and EXIT are buttons under the table: no lines for them here)
-    ...(next ? [line(next, { marginTop: '8px' })] : []),
+    ...(next ? [line(next, { marginTop: '8px', textAlign: 'center' })] : []),
     ...(footer ? [footer] : []),
   );
   el.style.display = 'block';
