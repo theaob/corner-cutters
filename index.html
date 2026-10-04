@@ -902,9 +902,6 @@
       html:not(.desktop) .sys [data-button='start'] {
         order: 0;
       }
-      html:not(.desktop) .sys .layout {
-        order: 1;
-      }
       html:not(.desktop) .sys [data-button='select'] {
         order: 2;
       }
@@ -1103,16 +1100,6 @@
         width: 13px;
         height: 13px;
       }
-      .sys button.layout {
-        width: auto;
-        padding: 0 10px;
-        border-style: dashed;
-        font-size: 11px;
-        cursor: pointer;
-      }
-      .sys button.layout[hidden] {
-        display: none;
-      }
 
       /* ---- desktop (a mouse and no touch screen, or ?desktop; see src/ui/layout.ts):
          a wide screen filling the window, the deck laid over it as a HUD. Phones never get this class. */
@@ -1142,6 +1129,10 @@
         border-left: 3px solid var(--accent-a);
         border-radius: 8px;
         background: rgba(21, 20, 31, 0.82);
+      }
+      /* (the menus keep the deck's key hints, but not the race's position and lap: an empty box at the top) */
+      html.menu.desktop .strip {
+        display: none;
       }
       .desktop .stick {
         display: none;
@@ -1230,12 +1221,6 @@
       .desktop .sys button[data-button='select']::before {
         content: 'BKSP';
         color: var(--muted);
-      }
-      .desktop .sys button.layout {
-        font-size: 11px;
-      }
-      .desktop .sys button.layout::before {
-        content: 'V ';
       }
       .desktop .tune-panel {
         right: auto;
@@ -1542,9 +1527,8 @@
           animation: none;
         }
       }
-      /* (nothing else on the screen while it's up: no REPORT, no WIDE) */
-      html.splash-up .menu-report,
-      html.splash-up .sys .layout {
+      /* (nothing else on the screen while it's up: no REPORT) */
+      html.splash-up .menu-report {
         display: none;
       }
     </style>
@@ -1580,8 +1564,6 @@
         <div class="sys">
           <button class="idle" data-button="select" aria-label="select"><span class="icon" data-hud="icon-select"></span><span data-hud="label-select"></span></button>
           <button class="idle" data-button="start" aria-label="start"><span class="icon" data-hud="icon-start"></span><span data-hud="label-start"></span></button>
-          <!-- layout switch (handheld <-> wide desktop), shown only with a mouse or trackpad; V does the same -->
-          <button class="layout" data-layout hidden>WIDE</button>
         </div>
       </div>
     </div>
