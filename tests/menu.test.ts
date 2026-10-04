@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MODES, rowsOf } from '../src/f1/circuitSelect';
+import { versionText } from '../src/f1/settingsRows';
 
 describe('the menu', () => {
   it('starts with the modes: the Daily Challenge, Quick Race, Championship, Time Attack and Time Trial', () => {
@@ -14,5 +15,13 @@ describe('the menu', () => {
     expect(rowsOf('daily')).toEqual([]);
     // (a Championship has its own screen: a season races every circuit)
     expect(rowsOf('championship')).toEqual([]);
+  });
+});
+
+describe('the version under the settings', () => {
+  it('says the release and the build (the commit)', () => {
+    expect(versionText('0.0.1+2790585')).toBe('VERSION 0.0.1 · BUILD 2790585');
+    expect(versionText('1.2.0')).toBe('VERSION 1.2.0');
+    expect(versionText('0.0.1+local')).toBe('VERSION 0.0.1 · BUILD LOCAL');
   });
 });

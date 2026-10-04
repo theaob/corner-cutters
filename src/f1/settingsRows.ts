@@ -43,3 +43,17 @@ export function settingsRows(): SettingsRow[] {
   // (STATS only where the build has a backend to send them to)
   return [stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
+
+/** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */
+export function versionText(version: string = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'): string {
+  const [release, build] = version.split('+');
+  return `VERSION ${release.toUpperCase()}${build ? ` · BUILD ${build.toUpperCase()}` : ''}`;
+}
+
+/** The version line under the settings, centred and quiet. */
+export function versionLine(): HTMLElement {
+  const p = document.createElement('p');
+  p.className = 'version-line';
+  p.textContent = versionText();
+  return p;
+}

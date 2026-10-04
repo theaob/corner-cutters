@@ -27,7 +27,7 @@ import { DRY, RACE_WEATHERS, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { ownsChampionship } from './purchase';
 import { distance } from './timeAttack';
-import { settingsRows as settingsRowsNow } from './settingsRows';
+import { settingsRows as settingsRowsNow, versionLine } from './settingsRows';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
@@ -575,7 +575,7 @@ export function chooseCircuit(
   const modesParts: HTMLElement[] = [...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, options, raceButton, backButton];
-  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton];
+  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, versionLine()];
   const show = () => {
     hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
     for (const el of cabinetParts) el.style.display = view === 'trophies' ? '' : 'none';

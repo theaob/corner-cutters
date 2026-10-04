@@ -561,6 +561,17 @@
       .circuit-menu .initials input::placeholder {
         color: var(--key-edge);
       }
+      /* the build's version, under the settings: centred and quiet */
+      .circuit-menu .version-line {
+        margin: 2px 0 0;
+        width: 100%;
+        text-align: center;
+        font: 9px var(--pixel);
+        letter-spacing: 1px;
+        color: var(--muted);
+        opacity: 0.7;
+        user-select: text;
+      }
       .circuit-menu .option-row.focused {
         border-style: solid;
         border-color: var(--accent-b);
@@ -925,9 +936,11 @@
       html.paused:not(.desktop) #deck .stick {
         visibility: hidden;
       }
-      /* (and the lap panel goes: the results have the screen to themselves) */
+      /* (and the lap panel goes: the results have the screen to themselves; so do the pause screen and its settings,
+         which it would sit over) */
       html:not(.desktop) #deck.results-up .strip,
-      html.ceremony:not(.desktop) #deck .strip {
+      html.ceremony:not(.desktop) #deck .strip,
+      html.paused:not(.desktop) #deck .strip {
         display: none;
       }
       /* (EXIT on the left, RESTART on the right, under the table) */
