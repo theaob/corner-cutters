@@ -1,5 +1,6 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
-// the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), which side the thumbstick sits on, how the controls drive (DRIVING), vibration, screen shake, the grid walk
+// the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
+// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), which side the thumbstick sits on, how the controls drive (DRIVING), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race).
 
@@ -14,6 +15,7 @@ import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
 import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
+import { colourSafe, largeText, setColourSafe, setLargeText } from './access';
 
 /** The page's layout, as the page (src/main.ts) switches it: the one now, whether this device can switch, and a switch. */
 export interface LayoutSwitch {
@@ -59,8 +61,10 @@ export function settingsRows(): SettingsRow[] {
   const screenRow = layoutSwitch && (layoutSwitch.can() || layoutSwitch.now() === 'desktop')
     ? optionRow('SCREEN', layouts, layoutSwitch.now(), (m) => ({ name: m === 'desktop' ? 'WIDE' : 'HANDHELD', about: m === 'desktop' ? 'the whole window · V switches' : "a phone's shape · V switches" }), (m) => layoutSwitch?.set(m))
     : undefined;
+  const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
+  const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

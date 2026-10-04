@@ -35,7 +35,7 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   const banner = document.createElement('div');
   style(banner, {
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center', padding: '0 16px',
-    font: '20px Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', pointerEvents: 'none',
+    font: 'calc(20px * var(--ts, 1)) Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', pointerEvents: 'none',
     // (a message on two lines: even ones, no word left on its own)
     textWrap: 'balance',
   });
@@ -43,7 +43,7 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   const radioPanel = document.createElement('div');
   style(radioPanel, {
     position: 'absolute', zIndex: '2', padding: '4px 8px', borderRadius: '6px',
-    background: 'rgba(21,20,31,.88)', borderLeft: `3px solid ${team.body}`, color: '#f4f2fa', font: '11px Silkscreen, monospace',
+    background: 'rgba(21,20,31,.88)', borderLeft: `3px solid ${team.body}`, color: '#f4f2fa', font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace',
     pointerEvents: 'none', display: 'none',
   });
   const radioLabel = document.createElement('div');
@@ -54,7 +54,7 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   };
   const radioColor = [team.body, team.trim, ...(team.accent ? [team.accent] : [])].reduce((a, c) => (lightness(c) > lightness(a) ? c : a));
   radioPanel.style.borderLeftColor = radioColor;
-  style(radioLabel, { color: radioColor, fontSize: '9px', marginBottom: '2px' });
+  style(radioLabel, { color: radioColor, fontSize: 'calc(9px * var(--ts, 1))', marginBottom: '2px' });
   radioLabel.textContent = '◉ RADIO';
   const radioText = document.createElement('div');
   radioPanel.append(radioLabel, radioText);
@@ -106,13 +106,13 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   });
   const pauseTitle = document.createElement('div');
   pauseTitle.textContent = 'PAUSED';
-  style(pauseTitle, { font: '22px Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', marginBottom: '6px' });
+  style(pauseTitle, { font: 'calc(22px * var(--ts, 1)) Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', marginBottom: '6px' });
   const pauseButton = (label: string, action: () => void) => {
     const b = document.createElement('button');
     b.textContent = label;
     style(b, {
       width: '60%', padding: '10px 0', borderRadius: '10px', border: '1px solid #3a3858', background: '#25233a',
-      color: '#f4f2fa', font: '14px Silkscreen, monospace', cursor: 'pointer', touchAction: 'none',
+      color: '#f4f2fa', font: 'calc(14px * var(--ts, 1)) Silkscreen, monospace', cursor: 'pointer', touchAction: 'none',
     });
     // on the press's release, not 'click' (in a cross-origin frame on a phone a tap's click can go astray)
     let armed = false;

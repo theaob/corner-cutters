@@ -9,11 +9,13 @@
 // moves the camera by its offset and runs the race at its time scale.
 
 import { save, saved } from '../engine/save';
+import { motionReduced } from './access';
 
 let enabled: boolean | undefined;
-/** SCREEN SHAKE in the settings: on unless turned off (remembered). */
+/** SCREEN SHAKE in the settings: on unless turned off (remembered); off to start with for a device asking for less motion. */
 export function shakeOn(): boolean {
-  enabled ??= saved('settings', 'shake') !== false;
+  const set = saved('settings', 'shake');
+  enabled ??= typeof set === 'boolean' ? set : !motionReduced();
   return enabled;
 }
 export function setShake(on: boolean): void {
