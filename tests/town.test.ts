@@ -80,8 +80,21 @@ describe('Caspian Shores (Baku)', () => {
   const marks = landmarksOf(c);
   const castle = castleOf(c);
   const blocks = townBlocks(c, sea, fromTrack, reach + 40, seededRandom(29), [...marks, ...castleFootprints(castle)]);
-  it('has Qız Qalası (the Maiden Tower) and the Flame Towers', () => {
-    expect(marks.map((l) => l.kind).sort()).toEqual(['flames', 'maiden']);
+  it('has Qız Qalası (the Maiden Tower), the Flame Towers and the Crescent', () => {
+    expect(marks.map((l) => l.kind).sort()).toEqual(['crescent', 'flames', 'maiden']);
+  });
+  it('has the Maiden Tower big, by the stretch out of the castle section, and the Crescent past the line on land, south of the run to the hairpin', () => {
+    const maiden = marks.find((l) => l.kind === 'maiden')!;
+    expect(maiden.w).toBeGreaterThanOrEqual(80);
+    expect(maiden.h).toBeGreaterThanOrEqual(80);
+    const crescent = marks.find((l) => l.kind === 'crescent')!;
+    const n = samples.length;
+    // (past the line, before the hairpin: the nearest stretch is in the lap's first 5%; and it's to the south of it, on land)
+    const nearest = samples.reduce((a, p, i) => (Math.hypot(p.x - crescent.x, p.y - crescent.y) < Math.hypot(samples[a].x - crescent.x, samples[a].y - crescent.y) ? i : a), 0);
+    expect(nearest / n).toBeLessThan(0.05);
+    expect(crescent.y).toBeGreaterThan(samples[nearest].y);
+    expect(inside(sea, crescent.x, crescent.y)).toBe(false);
+    expect(crescent.h).toBeGreaterThanOrEqual(90);
   });
   it('stand on land, clear of the track, seen as you drive by, with no houses on them, never hiding the track', () => {
     for (const l of marks) {

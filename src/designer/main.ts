@@ -75,6 +75,7 @@ const LANDMARK_NAMES: [LandmarkKind, string][] = [
   ['tennis', 'tennis court'],
   ['maiden', 'Maiden Tower'],
   ['flames', 'Flame Towers'],
+  ['crescent', 'Crescent'],
 ];
 /** Every handle the draft has */
 function handles(): Handle[] {
