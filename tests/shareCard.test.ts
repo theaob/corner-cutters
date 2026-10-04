@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attackCard, cardFile, raceCard, shareText } from '../src/f1/shareCard';
+import { attackCard, cardFile, raceCard, shareText, splitDistance } from '../src/f1/shareCard';
 
 const team = { name: 'Milk Energy', body: '#1e2b5c', trim: '#f2c14e' };
 
@@ -26,8 +26,12 @@ describe('the result card to share', () => {
   });
 
   it("a Time Attack's distance and medal", () => {
-    const c = attackCard({ circuit: 'OASIS', mode: 'TIME ATTACK', distance: '2L 3S', said: '2 LAPS + 3 SECTORS', medal: 'gold', record: true, team, date: '2026-10-04' });
-    expect(c.headline).toBe('2L 3S');
+    const c = attackCard({ circuit: 'OASIS', mode: 'TIME ATTACK', distance: '2 LAPS + 3 SECTORS', medal: 'gold', record: true, team, date: '2026-10-04' });
+    expect(c.headline).toBe('2 LAPS + 3 SECTORS');
+    // (on the card on two lines, the sectors under the laps; a whole number of laps, or sectors alone, on one)
+    expect(splitDistance(c.headline)).toEqual(['2 LAPS', '+ 3 SECTORS']);
+    expect(splitDistance('4 LAPS')).toEqual(['4 LAPS']);
+    expect(splitDistance('2 SECTORS')).toEqual(['2 SECTORS']);
     expect(c.sub).toBe('GOLD MEDAL · NEW RECORD');
     expect(c.medal).toBe('gold');
     // (the text says it in words)

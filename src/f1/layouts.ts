@@ -588,7 +588,7 @@ export const OASIS: CircuitLayout = {
  * castle section under the old city walls to the top of the hill, round the old
  * town and down again to the sea front, and the longest run flat out anywhere,
  * curving along the sea front for 2000 px and more back to the line. Walls all
- * the way round, the sea beyond the pits. About 11,500 px, about 36 s.
+ * the way round, the pits on the town side of the straight and the sea up to its barriers on the other. About 11,500 px, about 36 s.
  */
 export const BAKU: CircuitLayout = {
   id: 'baku',
@@ -648,18 +648,16 @@ export const BAKU: CircuitLayout = {
     [0.8, 2],
     [1, 4],
   ],
-  // on the sea side of the straight
-  pit: { from: -950, to: 100, side: 1 },
+  // on the town side of the straight, away from the sea
+  pit: { from: -950, to: 100, side: -1 },
   // (a long lap of streets: easy on tyres)
   tyreWear: 0.4,
   street: {
     runoff: 28,
-    // the Caspian, right up behind the pits along the sea front and round the hairpin past the line, with only a
-    // quay between it and the barriers elsewhere
+    // the Caspian, right up to the barriers along the sea front and round the hairpin past the line (a quay between)
     sea: ([
-      [679, 1114], [709, 1079], [990, 863], [1055, 798], [1431, 637], [1477, 636], [1626, 623], [1850, 527],
-      [1939, 448], [1995, 395], [2071, 357], [2100, 324], [2110, 296], [2109, 254], [2077, 163], [2003, 8],
-      [2400, -200], [4307, -200], [4307, 2635], [2144, 3787],
+      [677, 1114], [708, 1078], [989, 861], [1055, 797], [2036, 376], [2070, 356], [2099, 323], [2108, 295],
+      [2108, 255], [2076, 164], [2001, 9], [2400, -200], [4307, -200], [4307, 2635], [2144, 3787],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
     // Qız Qalası, the Maiden Tower, in the old town inside the walls; the Flame Towers on the hill above it, to the
     // north-west

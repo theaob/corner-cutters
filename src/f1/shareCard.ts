@@ -1,5 +1,5 @@
 // The result card to share: a square picture of how you did (your place, or a
-// Time Attack's distance and medal), the circuit (its map), the mode, your team
+// Time Attack's distance, in words, between two cups in its medal's colour), the circuit (its map), the mode, your team
 // in its colours and a few numbers, under the game's name; and the line of text
 // that goes with it. Everything on the card is centred. The card's content is
 // worked out engine-free (`raceCard`, `attackCard`, `shareText`); `drawCard`
@@ -14,9 +14,8 @@ export interface ShareCard {
   circuit: string;
   /** the mode and how it was run (QUICK RACE · NORMAL · DRY) */
   mode: string;
-  /** big in the middle (P1, 5L 1S), in `color`; and as the text says it, if not so (5 laps + 1 sector) */
+  /** big in the middle (P1, 5 LAPS + 1 SECTOR: on two lines, split before the +), in `color` */
   headline: string;
-  said?: string;
   color: string;
   /** under it (WINNER, PODIUM, +3.21 S, GOLD MEDAL) */
   sub: string;
@@ -51,13 +50,13 @@ export function raceCard(r: {
   };
 }
 
-/** A Time Attack's card: `distance` reached (its words), the medal, and whether it's a record. */
+/** A Time Attack's card: `distance` reached (in words: 5 LAPS + 1 SECTOR), the medal, and whether it's a record. */
 export function attackCard(a: {
-  circuit: string; mode: string; distance: string; said?: string; medal?: Medal; record: boolean; best?: string; place?: string; team: ShareCard['team']; date: string;
+  circuit: string; mode: string; distance: string; medal?: Medal; record: boolean; best?: string; place?: string; team: ShareCard['team']; date: string;
 }): ShareCard {
   return {
     circuit: a.circuit, mode: a.mode, team: a.team, date: a.date, medal: a.medal,
-    headline: a.distance, said: a.said, color: a.medal ? MEDAL_COLOR[a.medal] : '#f4f4f8',
+    headline: a.distance, color: a.medal ? MEDAL_COLOR[a.medal] : '#f4f4f8',
     sub: a.medal ? `${MEDAL_NAME[a.medal]} MEDAL${a.record ? ' · NEW RECORD' : ''}` : a.record ? 'NEW RECORD' : 'TIME UP',
     stats: [['REACHED', a.distance], ['BEST', a.best ?? a.distance], ...(a.place ? [['TODAY', a.place] as [string, string]] : [])],
   };
@@ -65,7 +64,7 @@ export function attackCard(a: {
 
 /** The text that goes with the card. */
 export function shareText(c: ShareCard): string {
-  const how = c.headline === 'DNF' ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${(c.said ?? c.headline).toLowerCase()}`;
+  const how = c.headline === 'DNF' ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${c.headline.toLowerCase()}`;
   return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters 🏁 ${c.sub === 'WINNER' ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
 }
 const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
@@ -126,21 +125,27 @@ export function drawCard(ctx: CanvasRenderingContext2D, c: ShareCard, map?: Canv
     ctx.drawImage(map, mid - w / 2, 470 - h / 2, w, h);
     ctx.globalAlpha = 1;
   }
-  // your result, big, with its medal round it
+  // your result, big (a distance with a sector in it on two lines), between two cups in its medal's colour
+  const lines = splitDistance(c.headline);
+  const place = /^P\d+$/.test(c.headline) || c.headline === 'DNF';
+  const cupW = 96;
+  // (the room left between the cups)
+  const room = c.medal ? W - 120 - 2 * (cupW + 48) : W - 120;
+  let size = place ? 200 : lines.length > 1 ? 104 : 132;
+  ctx.font = font(size);
+  while (size > 24 && Math.max(...lines.map((l) => ctx.measureText(l).width)) > room) ctx.font = font((size -= 2));
+  const lineH = size * 1.1;
+  const top = 470 - ((lines.length - 1) * lineH) / 2;
+  lines.forEach((l, k) => {
+    ctx.fillStyle = '#1b1b26';
+    ctx.fillText(l, mid, top + k * lineH + 8);
+    ctx.fillStyle = c.color;
+    ctx.fillText(l, mid, top + k * lineH);
+  });
   if (c.medal) {
-    ctx.beginPath();
-    ctx.arc(mid, 470, 180, 0, Math.PI * 2);
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = MEDAL_COLOR[c.medal];
-    ctx.stroke();
+    const half = Math.max(...lines.map((l) => ctx.measureText(l).width)) / 2;
+    for (const x of [mid - half - 48 - cupW, mid + half + 48]) cup(ctx, x, 470 - (cupW * 7) / 12 + 8, cupW, MEDAL_COLOR[c.medal]);
   }
-  ctx.fillStyle = '#1b1b26';
-  // (a place or DNF big; a distance, short as it is, a little smaller to sit inside its medal)
-  const big = /^P\d+$/.test(c.headline) || c.headline === 'DNF' ? 200 : c.headline.length <= 6 ? 150 : 96;
-  // (inside the medal's ring when there is one)
-  const room = c.medal ? 310 : CARD - 120;
-  text(c.headline, 478, big, '#1b1b26', room);
-  text(c.headline, 470, big, c.color, room);
   text(c.sub, 680, 40, c.color);
   // the numbers, in boxes side by side
   const n = c.stats.length;
@@ -157,14 +162,49 @@ export function drawCard(ctx: CanvasRenderingContext2D, c: ShareCard, map?: Canv
     ctx.font = font(22);
     ctx.fillStyle = '#9d9ab8';
     ctx.fillText(label, cx, 792);
-    let size = 38;
+    // (a distance with a sector in it on two lines, smaller)
+    const parts = splitDistance(value);
+    let size = parts.length > 1 ? 28 : 38;
     ctx.font = font(size);
-    while (size > 16 && ctx.measureText(value).width > boxW - 24) ctx.font = font((size -= 2));
+    while (size > 16 && Math.max(...parts.map((v) => ctx.measureText(v).width)) > boxW - 24) ctx.font = font((size -= 2));
     ctx.fillStyle = '#f4f4f8';
-    ctx.fillText(value, cx, 836);
+    parts.forEach((v, i) => ctx.fillText(v, cx, 836 + (i - (parts.length - 1) / 2) * (size + 4)));
   });
   text(c.team.name.toUpperCase(), 925, 28, '#f4f4f8');
   text(`${c.date} · ${SHARE_URL.toUpperCase()}`, 975, 22, '#6c6a88');
+}
+
+/** A distance's lines on the card: '5 LAPS + 1 SECTOR' on two, split before the +; anything else on one. */
+export const splitDistance = (s: string): string[] => s.split(/ (?=\+ )/);
+
+/** A cup, `w` px across (and 7/6 of that high), its top left at (x, y), in `color`: a pixel trophy, handles either side. */
+function cup(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, color: string): void {
+  // (12 × 14 pixels: the bowl with its rim and handles, the stem, the base)
+  const art = [
+    '.##########.',
+    '############',
+    '##.######.##',
+    '#..######..#',
+    '#..######..#',
+    '##.######.##',
+    '.##########.',
+    '...######...',
+    '....####....',
+    '.....##.....',
+    '.....##.....',
+    '....####....',
+    '...######...',
+    '..########..',
+  ];
+  const px = w / 12;
+  // (its shadow first, a little down)
+  for (const [shade, dy] of [['#1b1b26', px], [color, 0]] as const) {
+    ctx.fillStyle = shade;
+    art.forEach((row, j) => [...row].forEach((ch, i) => ch === '#' && ctx.fillRect(Math.round(x + i * px), Math.round(y + j * px + dy), Math.ceil(px), Math.ceil(px))));
+  }
+  // (a shine on the bowl)
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillRect(Math.round(x + 4 * px), Math.round(y + 2 * px), Math.ceil(px), Math.ceil(3 * px));
 }
 
 /** The card as a PNG. */
