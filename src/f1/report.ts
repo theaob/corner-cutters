@@ -42,11 +42,31 @@ export function reportPath(now: Date, id: string): string {
 }
 
 /** A report's row in the 'reports' table: who (the device's random id), on what, where, what they said, and the picture's path (if it went). */
-export function reportRow(r: { player: string; platform: 'web' | 'android'; version: string; about: ReportAbout; screen: string; text: string; image?: string }) {
+export function reportRow(r: { player: string; platform: 'web' | 'android'; version: string; about: ReportAbout; screen: string; text: string; image?: string; picture?: string }) {
   return {
     player: r.player, platform: r.platform, version: r.version, circuit: r.about.circuit ?? null, mode: r.about.mode ?? null,
     screen: r.screen.slice(0, 20), text: r.text.trim().slice(0, REPORT_TEXT_MAX), image: r.image ?? null,
+    picture: r.picture && r.picture.length <= PICTURE_MAX ? r.picture : null,
   };
+}
+
+/** px: the longest side of the copy of the picture kept with the report, for the dashboard; and its most characters (the database's limit) */
+export const PICTURE_SIDE = 960;
+export const PICTURE_MAX = 1_500_000;
+
+/** `canvas` as the copy kept with the report: at most PICTURE_SIDE px on its longest side, a JPEG data URL. */
+function pictureOf(canvas: HTMLCanvasElement): string {
+  const scale = Math.min(1, PICTURE_SIDE / Math.max(canvas.width, canvas.height));
+  const small = document.createElement('canvas');
+  small.width = Math.round(canvas.width * scale);
+  small.height = Math.round(canvas.height * scale);
+  small.getContext('2d')!.drawImage(canvas, 0, 0, small.width, small.height);
+  // (a little smaller again if it's too big for the database)
+  for (const q of [0.8, 0.6, 0.4]) {
+    const url = small.toDataURL('image/jpeg', q);
+    if (url.length <= PICTURE_MAX) return url;
+  }
+  return '';
 }
 
 /** a report being made (the game leaves its controls alone while it is: set once the picture's taken, the game drawing till then), and one on its way (its picture being taken) */
@@ -262,9 +282,11 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     const sentPicture = picture ? await upload('reports', path, picture) : 'refused';
     const row = reportRow({
       player: playerId(), platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(), about,
-      screen: `${window.innerWidth}x${window.innerHeight}`, text: text.value, image: sentPicture === 'ok' ? path : undefined,
+      screen: `${window.innerWidth}x${window.innerHeight}`, text: text.value, image: sentPicture === 'ok' ? path : undefined, picture: pictureOf(canvas),
     });
-    const sent = await insert('reports', [row]);
+    let sent = await insert('reports', [row]);
+    // (refused: a project whose schema is older than the picture's column takes it without)
+    if (sent === 'refused' && row.picture) sent = await insert('reports', [{ ...row, picture: undefined }]);
     if (sent === 'ok') {
       status.textContent = 'SENT · THANK YOU!';
       setTimeout(close, 1200);

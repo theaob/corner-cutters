@@ -27,10 +27,20 @@ When `schema.sql` changes, paste all of it into the SQL Editor again and run it.
 
 ## Reading the reports
 
-Each report is a row in **Table Editor → reports**: when, the player's random id, web or android, the build's version,
-the circuit and mode (empty from the menu), the screen's size, what they wrote, and `image`, the screenshot's path.
-The screenshots are in **Storage → reports**, in a folder for each day (UTC): open the one `image` names. The game can
-only add reports and pictures, never read them; the dashboard shows how many have come in.
+**On the dashboard** (the REPORTS section at the bottom), newest first, 20 at a time: each one's screenshot (tap it
+for full size), what the player wrote, when, the circuit and mode (or the menu), web or android, the version and the
+screen's size. They're private: the dashboard asks for your reports code, which you set once in the **SQL Editor**:
+
+```sql
+select public.set_reports_code('a long code only you know');
+```
+
+(Run it again to change it.) Only its hash is kept, and the public key can't set or change it. A browser that's opened
+them remembers the code till you press LOCK.
+
+**In Supabase** too: each report is a row in **Table Editor → reports** (its `picture` the dashboard's smaller copy of
+the screenshot), and the full-size screenshot is in **Storage → reports**, in a folder for each day (UTC), at the path
+in `image`. The game can only add reports and pictures, never read them.
 
 ## Seeing the stats
 
