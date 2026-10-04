@@ -28,7 +28,7 @@ import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { pointsOn } from './driveStyle';
-import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
+import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
@@ -80,6 +80,7 @@ import { createCeremonyView } from './race/ceremonyView';
 import { ghostText, limitsText, readoutText, towText, tyreText } from './race/readout';
 import { paintRows } from './race/readoutView';
 import { bannerMessage, evenLines } from './race/banner';
+import { motionReduced, splitColor, splitWord } from './access';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
 import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
@@ -241,6 +242,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
   const streaks = createStreaks();
+  /** the device asks for less motion: no speed lines */
+  const calm = motionReduced();
   /** the rush now (eased toward what the speed says) */
   let rushNow = 0;
   /** wheel to wheel: a rival this close (px) pulls the camera back this much more, eased in and slowly out */
@@ -1012,7 +1015,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
 
   // ---------------------------------------------------------------- time trial
-  const SPLIT_COLOR: Record<SplitMark, string> = { record: '#b36bff', better: '#5fe0d0', worse: '#f2c14e' };
   const signed = (d: number) => `${d < 0 ? '−' : '+'}${Math.abs(d).toFixed(2)}`;
   /** A Time Trial lap done, `g`: a new record (saved, and the ghost from now on), the session's best, or neither. */
   const trialLapDone = (g: Ghost) => {
@@ -1021,10 +1023,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (!record || g.time < record.time) {
       trial.record = g;
       saveGhost(recordId, g);
-      announce(`NEW RECORD ${fmt(g.time)}${record ? ` · ${signed(g.time - record.time)}` : ''}`, SPLIT_COLOR.record, 3);
+      announce(`NEW RECORD ${fmt(g.time)}${record ? ` · ${signed(g.time - record.time)}` : ''}`, splitColor('record'), 3);
       sounds.record();
-    } else if (!best || g.time < best.time) announce(`BEST LAP ${fmt(g.time)} · ${signed(g.time - record.time)}`, SPLIT_COLOR.better, 3);
-    else announce(`LAP ${fmt(g.time)} · ${signed(g.time - best.time)}`, SPLIT_COLOR.worse, 3);
+    } else if (!best || g.time < best.time) announce(`BEST LAP ${fmt(g.time)} · ${signed(g.time - record.time)}`, splitColor('better'), 3);
+    else announce(`LAP ${fmt(g.time)} · ${signed(g.time - best.time)}`, splitColor('worse'), 3);
     if (!best || g.time < best.time) trial.best = g;
     // a medal here, better than the one you had: said over the rest
     const medal = reference === undefined ? undefined : lapMedal(g.time, reference);
@@ -1067,7 +1069,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (!trial.lap.deleted) {
         const k = p.sector - 1;
         const { delta, mark } = markSplit(t, k, trial.best ?? trial.record, trial.record);
-        announce(`S${k + 1} ${fmt(t)}${delta === undefined ? '' : ` · ${signed(delta)}`}`, SPLIT_COLOR[mark], 2);
+        announce(`S${k + 1} ${fmt(t)}${delta === undefined ? '' : ` · ${signed(delta)}`}${splitWord(mark)}`, splitColor(mark), 2);
       }
     }
     recordFrame(trial.recorder, t, me.car, p.idx);
@@ -1239,7 +1241,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         ? `TIME UP · ${distance(passed)}\n${daily.best ? 'NEW BEST TODAY' : `TODAY'S BEST ${distance(daily.dayBest.score)}`}${daily.place ? ` · #${daily.place} OF ${daily.entries}` : ''}`
         // (the result, then on a line of its own the medal and the record, or your best: never broken mid-phrase)
         : [`TIME UP · ${distance(passed)}`, [medal ? `${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : '', record ? 'NEW RECORD' : attack.best ? `BEST ${distance(attack.best)}` : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
-      banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record || daily?.best ? SPLIT_COLOR.record : '#f2c14e';
+      banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record || daily?.best ? splitColor('record') : '#f2c14e';
     } else banner.style.whiteSpace = '';
     // (SHARE under a Time Attack's result)
     // (under the banner as it stands, however many lines it takes)
@@ -1775,7 +1777,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const c = race.entrants[you].car;
       const sy = c.vy * Math.sin(deg(LOOK.pitch));
       const len = Math.hypot(c.vx, sy) || 1;
-      streaks.draw(dt, rushNow, c.vx / len, sy / len);
+      // (none for a device asking for less motion)
+      streaks.draw(dt, calm ? 0 : rushNow, c.vx / len, sy / len);
     }
     skids.update(dt);
     deckSkids?.update(dt);

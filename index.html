@@ -71,14 +71,16 @@
       }
       .circuit-menu h1 {
         margin: 0;
-        font-size: 22px;
+        font-size: calc(22px * var(--ts, 1));
         font-weight: 400;
         color: var(--gold);
         text-align: center;
       }
       .circuit-menu p {
+        /* (a line that wraps: even lines, no word on its own) */
+        text-wrap: balance;
         margin: 0 0 6px;
-        font-size: 12px;
+        font-size: calc(12px * var(--ts, 1));
         letter-spacing: 1px;
         color: var(--muted);
         text-align: center;
@@ -119,14 +121,14 @@
       }
       .circuit-menu strong {
         display: block;
-        font-size: 15px;
+        font-size: calc(15px * var(--ts, 1));
         font-weight: 400;
       }
       .circuit-menu button.selected strong {
         color: var(--accent-a);
       }
       .circuit-menu span {
-        font-size: 11px;
+        font-size: calc(11px * var(--ts, 1));
         color: var(--muted);
       }
       .circuit-menu span.record {
@@ -145,7 +147,7 @@
         border-radius: 10px;
         background: var(--key);
         color: var(--text);
-        font: 13px var(--pixel);
+        font: calc(13px * var(--ts, 1)) var(--pixel);
         cursor: pointer;
       }
       .circuit-menu .menu-button.focused {
@@ -154,7 +156,7 @@
       }
       .circuit-menu h2 {
         margin: 0 0 4px;
-        font: 16px var(--pixel);
+        font: calc(16px * var(--ts, 1)) var(--pixel);
         color: var(--gold);
         text-align: center;
       }
@@ -262,7 +264,7 @@
         border-top: 1px solid var(--key-edge);
         text-align: center;
         color: var(--gold);
-        font-size: 13px;
+        font-size: calc(13px * var(--ts, 1));
         white-space: pre;
       }
       .circuit-menu .cabinet .achievement {
@@ -278,11 +280,11 @@
         color: var(--muted);
       }
       .circuit-menu .cabinet .achievement strong {
-        font-size: 10px;
+        font-size: calc(10px * var(--ts, 1));
         color: var(--muted);
       }
       .circuit-menu .cabinet .achievement span {
-        font-size: 7px;
+        font-size: calc(7px * var(--ts, 1));
         line-height: 1.3;
       }
       .circuit-menu .cabinet .achievement.got {
@@ -326,7 +328,7 @@
         background: rgba(21, 20, 31, 0.92);
         border: 1px solid var(--key-edge);
         color: var(--text);
-        font: 11px var(--pixel);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
         white-space: nowrap;
         pointer-events: none;
       }
@@ -358,7 +360,7 @@
       }
       .achievement-toast b {
         color: var(--gold);
-        font-size: 22px;
+        font-size: calc(22px * var(--ts, 1));
         line-height: 1;
         animation: star-spin 0.8s 0.3s ease-out both;
       }
@@ -369,14 +371,14 @@
       }
       .achievement-toast small {
         color: var(--gold);
-        font-size: 9px;
+        font-size: calc(9px * var(--ts, 1));
       }
       .achievement-toast strong {
-        font-size: 13px;
+        font-size: calc(13px * var(--ts, 1));
       }
       .achievement-toast span {
         color: var(--muted);
-        font-size: 9px;
+        font-size: calc(9px * var(--ts, 1));
       }
       @keyframes toast-in {
         from { transform: translate(-50%, -120%); opacity: 0; }
@@ -427,7 +429,7 @@
         border: 1px solid var(--key-edge);
         border-radius: 10px;
         background: var(--key);
-        font: 11px var(--pixel);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
       }
       .circuit-menu .cabinet .titles .trophy {
         margin: 0;
@@ -439,7 +441,7 @@
         gap: 10px;
         text-align: center;
         color: var(--gold);
-        font-size: 13px;
+        font-size: calc(13px * var(--ts, 1));
       }
       .circuit-menu .cabinet .tally {
         display: flex;
@@ -456,7 +458,7 @@
       .circuit-menu .cabinet-tabs .cabinet-tab {
         flex: 1;
         padding: 7px 4px;
-        font-size: 10px;
+        font-size: calc(10px * var(--ts, 1));
         color: var(--muted);
       }
       .circuit-menu .cabinet-tabs .cabinet-tab.selected {
@@ -475,7 +477,7 @@
         row-gap: 2px;
       }
       .circuit-menu .cabinet .tally span {
-        font-size: 13px;
+        font-size: calc(13px * var(--ts, 1));
       }
       .circuit-menu .cabinet-row {
         display: grid;
@@ -490,14 +492,14 @@
       }
       .circuit-menu .cabinet-row.head span {
         color: var(--muted);
-        font-size: 9px;
+        font-size: calc(9px * var(--ts, 1));
       }
       .circuit-menu .cabinet-row.locked span:first-child {
         color: var(--muted);
       }
       .circuit-menu .cabinet p {
         margin: 6px 0 0;
-        font-size: 9px;
+        font-size: calc(9px * var(--ts, 1));
         text-align: center;
       }
       /* the option rows under the circuits (team, controls) */
@@ -509,7 +511,7 @@
         border: none;
         background: transparent;
         color: var(--muted);
-        font: 10px var(--pixel);
+        font: calc(10px * var(--ts, 1)) var(--pixel);
         text-decoration: underline;
         cursor: pointer;
       }
@@ -539,7 +541,7 @@
         padding: 10px 12px;
         border: 1px dashed var(--key-edge);
         border-radius: 10px;
-        font: 10px var(--pixel);
+        font: calc(10px * var(--ts, 1)) var(--pixel);
         color: var(--muted);
         text-align: center;
       }
@@ -556,7 +558,7 @@
         border-radius: 0;
         background: transparent;
         color: var(--gold);
-        font: 30px var(--pixel);
+        font: calc(30px * var(--ts, 1)) var(--pixel);
         letter-spacing: 0.5em;
         text-align: center;
         text-transform: uppercase;
@@ -571,7 +573,7 @@
         margin: 2px 0 0;
         width: 100%;
         text-align: center;
-        font: 9px var(--pixel);
+        font: calc(9px * var(--ts, 1)) var(--pixel);
         letter-spacing: 1px;
         color: var(--muted);
         opacity: 0.7;
@@ -583,7 +585,7 @@
       }
       /* (its label on the left; the value and a line about it on the right) */
       .circuit-menu .option-row b {
-        font-size: 11px;
+        font-size: calc(11px * var(--ts, 1));
         font-weight: 400;
         color: var(--muted);
         letter-spacing: 1px;
@@ -601,13 +603,13 @@
         gap: 6px;
       }
       .circuit-menu .option-row strong {
-        font-size: 13px;
+        font-size: calc(13px * var(--ts, 1));
         font-weight: 400;
         color: var(--accent-b);
         white-space: pre;
       }
       .circuit-menu .option-row span {
-        font-size: 10px;
+        font-size: calc(10px * var(--ts, 1));
       }
       .circuit-menu .option-row .chips {
         display: flex;
@@ -638,14 +640,14 @@
       }
       .circuit-menu .circuit-card strong {
         color: var(--accent-a);
-        font-size: 16px;
+        font-size: calc(16px * var(--ts, 1));
       }
       .circuit-menu .circuit-card > div {
         flex: 1;
       }
       .circuit-menu .circuit-card em {
         font-style: normal;
-        font-size: 14px;
+        font-size: calc(14px * var(--ts, 1));
         color: var(--accent-a);
       }
       .circuit-menu .dots {
@@ -673,7 +675,7 @@
         border-color: var(--gold);
         background: var(--gold);
         color: #1b1b26;
-        font-size: 17px;
+        font-size: calc(17px * var(--ts, 1));
       }
       .circuit-menu .menu-button.race-button.focused {
         box-shadow: 0 0 0 2px var(--accent-b);
@@ -1253,11 +1255,11 @@
         text-align: center;
       }
       .curtain-card strong {
-        font: 18px var(--pixel);
+        font: calc(18px * var(--ts, 1)) var(--pixel);
         color: var(--gold);
       }
       .curtain-card span {
-        font: 11px var(--pixel);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
         color: var(--muted);
       }
       .curtain-dots {

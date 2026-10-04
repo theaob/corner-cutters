@@ -22,6 +22,7 @@ import { curtainDown, curtainUp } from './f1/screens/curtain';
 import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
 import { useLayoutSwitch } from './f1/settingsRows';
+import { applyText } from './f1/access';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
@@ -49,6 +50,8 @@ const app = document.getElementById('app')!;
 // this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
 useStore('cc:');
 useSave(CC_SAVE);
+// (TEXT: LARGE in the settings, from the start)
+applyText();
 // (records and ghosts on a circuit an update has reshaped were set on another track: forgotten)
 forgetChangedCircuits(LAYOUTS);
 

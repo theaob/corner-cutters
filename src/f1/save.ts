@@ -1,6 +1,7 @@
 // Corner Cutters' save format (engine/save.ts keeps it): its version, and how
 // an older save is brought up to date. Sections:
-//   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right': right unless set), layout ('handheld'/'desktop')
+//   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right': right unless set), layout ('handheld'/'desktop'),
+//             largeText and colourSafe (on/off: off unless set; access.ts)
 //   choices   the menu's last mode ('race'/'timetrial'), circuit, team, difficulty and weather (by id), qualifying ('on'/'off'), and a Quick Race's laps ('5')
 //   ghosts    your best Time Trial lap on each circuit (and weather), to race as a ghost (timeTrial.ts)
 //   championship  season: the Championship season in progress (or just over) (championship.ts)
