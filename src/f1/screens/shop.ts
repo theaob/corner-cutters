@@ -12,6 +12,7 @@ import { LAYOUTS } from '../layouts';
 import { bought, type Shop } from '../purchase';
 import { menuPick, menuTick } from '../sounds';
 import { trophy } from './celebrate';
+import { reportOpen } from '../report';
 
 /** The Championship's shop in `host` until it's bought ('owned') or the player goes back. */
 export function showShop(host: HTMLElement, services: Services, shop: Shop, closed?: AbortSignal): Promise<'owned' | 'back'> {
@@ -109,7 +110,8 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
     };
     const tick = () => {
       if (done) return;
-      const [down, up, a, start, select] = (['down', 'up', 'a', 'start', 'select'] as const).map(pressed);
+      // (a report being made: its, not this screen's)
+      const [down, up, a, start, select] = (['down', 'up', 'a', 'start', 'select'] as const).map((k) => pressed(k) && !reportOpen());
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
         focus = (focus + move + buttons.length) % buttons.length;

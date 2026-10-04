@@ -1391,6 +1391,39 @@
         outline: none;
         border-color: var(--accent-b);
       }
+      /* REPORT on the menus (src/main.ts): a small button in the column's top right corner, only while a menu's up */
+      .menu-report {
+        display: none;
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        z-index: 6;
+        align-items: center;
+        gap: 4px;
+        padding: 5px 9px;
+        border: 1px solid var(--key-edge);
+        border-radius: 8px;
+        background: rgba(37, 35, 58, 0.85);
+        color: var(--muted);
+        font: 9px var(--pixel);
+        letter-spacing: 1px;
+        cursor: pointer;
+      }
+      html.menu .menu-report {
+        display: inline-flex;
+      }
+      .menu-report:hover,
+      .menu-report:focus-visible {
+        color: var(--text);
+        border-color: var(--accent-b);
+      }
+      #app {
+        position: relative;
+      }
+      /* (on the wide screen the menus are a column in the middle: the button in its corner) */
+      html.desktop .menu-report {
+        right: max(12px, calc(50% - 215px + 12px));
+      }
     </style>
   </head>
   <body>

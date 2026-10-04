@@ -6,7 +6,7 @@ The game talks to one Supabase project for two things, and plays on fine without
   can see how many players there are and what they play. A player is a random id made on the device; STATS in the
   settings turns it off.
 - **The Daily Challenge's board**: each day's best runs, by three initials, top 100 and your own place.
-- **Reports**: REPORT on the pause screen (or under DONE in the menu's settings) takes a screenshot of the game, lets
+- **Reports**: REPORT on the pause screen (or in the top right corner of any menu screen) takes a screenshot of the game, lets
   the player draw on it and say what happened, and sends it: the words to the `reports` table, the picture to the
   private `reports` storage bucket.
 
@@ -28,7 +28,7 @@ When `schema.sql` changes, paste all of it into the SQL Editor again and run it.
 ## Reading the reports
 
 **On the dashboard** (the REPORTS section at the bottom), newest first, 20 at a time: each one's screenshot (tap it
-for full size), what the player wrote, when, the circuit and mode (or the menu), web or android, the version and the
+for full size), what the player wrote, when, the circuit and mode (or which menu screen), web or android, the version and the
 screen's size. They're private: the dashboard asks for your reports code, which you set once in the **SQL Editor**:
 
 ```sql

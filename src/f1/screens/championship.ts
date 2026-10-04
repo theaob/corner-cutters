@@ -17,6 +17,7 @@ import { menuPick, menuTick } from '../sounds';
 import { roundForecast } from '../forecast';
 import { TEAMS, type Seat, type Team } from '../teams';
 import { logoSvg } from '../logos';
+import { reportOpen } from '../report';
 
 /** What next: the next round, a new season (with the team and qualifying picked for it), or back to the menu. */
 export type ChampionshipAction = 'race' | 'back' | { new: { team: Team; seat: Seat; qualifying: boolean } };
@@ -204,7 +205,8 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     };
     const tick = () => {
       if (done) return;
-      const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map(pressed);
+      // (a report being made: its, not this screen's)
+      const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map((k) => pressed(k) && !reportOpen());
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
         focus = (focus + move + places.length) % places.length;

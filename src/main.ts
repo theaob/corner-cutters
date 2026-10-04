@@ -36,6 +36,7 @@ import { TEAMS, teamById, type Seat } from './f1/teams';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, WEATHERS, weatherById } from './f1/weather';
 import { roundForecast } from './f1/forecast';
+import { openReport, reportOpen } from './f1/report';
 
 const screen = document.getElementById('screen')!;
 const deck = document.getElementById('deck')!;
@@ -204,6 +205,27 @@ function raceLine(mode: string | null): string {
   return `${what} · ${weather.name}`;
 }
 
+/** which menu screen is up, for a report made from it (the dashboard says where it came from) */
+let menuName = 'menu';
+// REPORT on every menu screen (the race has its own, on the pause screen): a little button in the column's top
+// right corner, shown while a menu's up; the screen as it is, to draw on and say what's wrong (src/f1/report.ts)
+const menuReport = document.createElement('button');
+menuReport.className = 'menu-report';
+menuReport.type = 'button';
+menuReport.setAttribute('aria-label', 'Report a problem with this screen');
+menuReport.innerHTML = '<span aria-hidden="true">⚑</span> REPORT';
+// (on the press's release: in a cross-origin frame on a phone a tap's click can go astray)
+{
+  let armed = false;
+  menuReport.addEventListener('pointerdown', () => (armed = true));
+  menuReport.addEventListener('pointerleave', () => (armed = false));
+  menuReport.addEventListener('pointerup', () => {
+    if (armed && !reportOpen()) void openReport({ mode: menuName }, [menuReport]);
+    armed = false;
+  });
+}
+document.getElementById('app')?.append(menuReport);
+
 /** Go to `url` (this page with other flags) and show its screen. */
 function navigate(url: string): void {
   history.pushState(null, '', url);
@@ -214,6 +236,7 @@ window.addEventListener('popstate', () => void route());
 async function showMenu(id: number): Promise<void> {
   // the menu: all touch, no deck; the screen fills the column
   menuScreen();
+  menuName = 'menu';
   // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
@@ -265,16 +288,19 @@ let justWon = false;
 /** The Championship screen: the season so far and the way on (the next round, a new season, or back to the menu). */
 async function showSeason(id: number): Promise<void> {
   menuScreen();
+  menuName = 'championship';
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
   // (the Google Play build, the Championship not bought yet: its shop first)
   if (!ownsChampionship()) {
     const { showShop } = await import('./f1/screens/shop');
+    menuName = 'shop';
     curtainUp();
     const got = await showShop(screen, services, openShop(), closed.signal);
     if (id !== routeId) return;
     if (got === 'back') return navigate(withCircuit(null));
+    menuName = 'championship';
   }
   const season = loadSeason();
   const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), seat: savedSeat(), qualifying: savedQualifying() }, closed.signal, justWon);
@@ -299,6 +325,7 @@ async function showSeason(id: number): Promise<void> {
 /** The Daily Challenge's screen: today's challenge, its board, and PLAY. */
 async function showDailyScreen(id: number): Promise<void> {
   menuScreen();
+  menuName = 'daily';
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
