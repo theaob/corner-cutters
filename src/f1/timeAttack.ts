@@ -37,10 +37,13 @@ export interface Attack {
   passed: number;
   /** the clock ran out */
   over: boolean;
+  /** s since the clock started, and when the last checkpoint was passed (two runs as far: the quicker there is ahead) */
+  elapsed: number;
+  lastAt: number;
 }
 
 export function newAttack(referenceLap: number, difficulty?: Difficulty): Attack {
-  return { par: referenceLap / SECTORS, generous: GENEROUS[difficulty?.id ?? 'normal'] ?? 1, passed: 0, over: false };
+  return { par: referenceLap / SECTORS, generous: GENEROUS[difficulty?.id ?? 'normal'] ?? 1, passed: 0, over: false, elapsed: 0, lastAt: 0 };
 }
 
 /** Seconds checkpoint `k` (0: the first after the line) adds to the clock. */
@@ -76,12 +79,14 @@ export function stepAttack(a: Attack, dt: number, started: boolean, passed: numb
     a.left += add;
     out.added = (out.added ?? 0) + add;
     a.passed++;
+    a.lastAt = a.elapsed;
   }
   if (cut) {
     a.left -= ATTACK.cut;
     out.lost = ATTACK.cut;
   }
   a.left -= dt;
+  a.elapsed += dt;
   if (a.left <= 0) {
     a.left = 0;
     a.over = true;

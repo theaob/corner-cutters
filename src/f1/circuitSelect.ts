@@ -11,6 +11,7 @@
 // keyboard, up/down moves, left/right changes the circuit or a row, Enter picks
 // or races, and B goes back.
 
+import { challengeOn, dayOf } from './daily';
 import type { Button } from '../engine/controls';
 import { onBack } from '../engine/backButton';
 import { holdTouches } from '../engine/deck';
@@ -91,8 +92,9 @@ function ownTabButton(): HTMLButtonElement {
 
 /** What the menu comes back with. */
 /** What to play: a race weekend, a Championship season, a Time Attack (beat the clock), or a Time Trial (flying laps against your ghost). */
-export type GameMode = 'race' | 'championship' | 'timeattack' | 'timetrial';
+export type GameMode = 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial';
 export const MODES: { id: GameMode; name: string; about: string }[] = [
+  { id: 'daily', name: 'DAILY CHALLENGE', about: 'one Time Attack a day, the same for everyone: get on the board' },
   { id: 'race', name: 'QUICK RACE', about: 'a race against the field, your circuit, your laps' },
   { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season: a round on every circuit, points and standings' },
   { id: 'timeattack', name: 'TIME ATTACK', about: 'beat the clock: each sector you pass adds time' },
@@ -101,7 +103,7 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
 
 /** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen). */
 export const rowsOf = (mode: GameMode): ('team' | 'car' | 'weather' | 'qualifying' | 'laps')[] =>
-  mode === 'race' ? ['team', 'car', 'weather', 'qualifying', 'laps'] : mode === 'championship' ? [] : ['team', 'car', 'weather'];
+  mode === 'race' ? ['team', 'car', 'weather', 'qualifying', 'laps'] : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
 
 export interface MenuChoice {
   mode: GameMode;
@@ -529,7 +531,7 @@ export function chooseCircuit(
   /** a mode picked: a Championship to its screen; the others on to the circuit screen, with the mode's rows */
   const pickMode = (m: (typeof MODES)[number]) => {
     current = m;
-    if (m.id === 'championship') {
+    if (m.id === 'championship' || m.id === 'daily') {
       finish(layouts[selected]);
       return;
     }
@@ -559,7 +561,9 @@ export function chooseCircuit(
     const about = document.createElement('span');
     // (the Championship not bought yet, in the Google Play build: what unlocking it brings)
     const locked = m.id === 'championship' && !ownsChampionship();
-    about.textContent = locked ? 'unlock: a season, and every circuit' : m.about;
+    // (the Daily Challenge: today's circuit and weather)
+    const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
+    about.textContent = locked ? 'unlock: a season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · get on the board` : m.about;
     b.append(name, about);
     return b;
   });
@@ -634,7 +638,7 @@ export function chooseCircuit(
     finish = (layout) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
-      if (!open.has(layout.id) && current.id !== 'championship') {
+      if (!open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
         menuTick();
         hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
         return;
