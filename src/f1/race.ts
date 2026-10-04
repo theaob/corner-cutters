@@ -69,6 +69,8 @@ import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
 import { style } from './race/dom';
 import { createHud } from './race/hud';
+import { createShareButton } from './race/shareButton';
+import { attackCard, raceCard, type ShareCard } from './shareCard';
 import { drawCars } from './race/drawCars';
 import { BLUE_COLOR, renderTower } from './race/towerView';
 import { createCeremonyView } from './race/ceremonyView';
@@ -778,23 +780,50 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
 
   /** The results (race/resultsView.ts): rebuilt as the others finish, the rows sliding in from when they first went up. */
+  /** what the results last showed (they're redrawn only as it changes: the others finishing) */
+  let resultsShown = '';
   const showResults = (order: number[]) => {
     if (results.style.display !== 'block') {
       resultsUpAt = performance.now();
       results.style.animation = 'row-in 0.25s ease-out both';
+      resultsShown = '';
     }
-    renderResults(
-      results,
-      championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`,
-      resultRows(race, order, looks, you, hudState.fastest?.who),
-      [
-        { text: `LAP RECORD ${fmt(rec()?.bestLap)}`, isNew: saved.newLap },
-        { text: `BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}`, isNew: saved.newRace },
-      ],
-      championship ? 'NEXT: on to the standings' : undefined,
-      (performance.now() - resultsUpAt) / 1000,
-    );
+    const title = championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`;
+    const rows = resultRows(race, order, looks, you, hudState.fastest?.who);
+    const notes = [
+      { text: `LAP RECORD ${fmt(rec()?.bestLap)}`, isNew: saved.newLap },
+      { text: `BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}`, isNew: saved.newRace },
+    ];
+    const key = JSON.stringify([title, rows, notes]);
+    if (key === resultsShown) return;
+    resultsShown = key;
+    shareButton.reset();
+    renderResults(results, title, rows, notes, championship ? 'NEXT: on to the standings' : undefined, (performance.now() - resultsUpAt) / 1000, shareButton.el);
   };
+
+  /** Your result as a card to share (race/shareButton.ts, shareCard.ts): a race's, or a Time Attack's. */
+  const resultCard = (): ShareCard | undefined => {
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const yours = { name: team.name, body: team.body, trim: team.trim };
+    if (attack?.result) {
+      const { passed, medal, record } = attack.result;
+      return attackCard({ circuit: layout.name.toUpperCase(), mode: `TIME ATTACK · ${difficulty.name} · ${weather.name}`, distance: distance(passed), medal, record, best: distance(Math.max(passed, attack.best ?? 0)), team: yours, date });
+    }
+    if (session !== 'race') return undefined;
+    const order = raceOrder(race);
+    const p = race.entrants[you].progress;
+    const winner = race.entrants[order[0]].progress;
+    return raceCard({
+      circuit: layout.name.toUpperCase(),
+      mode: championship ? `CHAMPIONSHIP · ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length}` : `QUICK RACE · ${difficulty.name} · ${weather.name}`,
+      place: p.retired || p.finished === undefined ? undefined : order.indexOf(you) + 1, field: race.entrants.length, grid: you + 1,
+      gap: p.finished !== undefined ? p.finished + p.penalty - ((winner.finished ?? 0) + winner.penalty) : undefined,
+      best: p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : undefined, fastest: hudState.fastest?.who === you, team: yours, date,
+    });
+  };
+  const shareButton = createShareButton(resultCard, () => map.canvas);
+  host.append(shareButton.float);
 
   /** Qualifying's times as a table, in grid order: your row in gold; then A or START to go to the grid. */
   const showQualifying = () => {
@@ -1100,6 +1129,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       banner.textContent = `TIME UP · ${distance(passed)}${medal ? ` · ${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : ''}${record ? ' · NEW RECORD' : attack.best ? ` · BEST ${distance(attack.best)}` : ''}`;
       banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record ? SPLIT_COLOR.record : '#f2c14e';
     }
+    // (SHARE under a Time Attack's result)
+    shareButton.floatAt(attack?.result ? `calc(${banner.style.top} + 40px)` : undefined);
     if (paused || quali?.over || attack?.result) {
       requestAnimationFrame(tick);
       return;
@@ -1707,7 +1738,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.forceContextLoss();
     renderer.domElement.remove();
     offBack();
-    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, ...plates]) el.remove();
+    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, ...plates]) el.remove();
     deckEl?.classList.remove('results-up');
     document.documentElement.classList.remove('results-up', 'ceremony', 'paused');
     delete (window as { __cc?: unknown }).__cc;
