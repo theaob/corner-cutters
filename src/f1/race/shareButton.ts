@@ -8,8 +8,8 @@ import { style } from './dom';
 
 const LABEL = '↗ SHARE';
 
-/** The button for the card `card()` makes (none: nothing to share), with the circuit's `map` on it. */
-export function createShareButton(card: () => ShareCard | undefined, map: () => HTMLCanvasElement | undefined) {
+/** The button for the card `card()` makes (none: nothing to share), with the circuit's `map` on it; `onShared` once it's gone. */
+export function createShareButton(card: () => ShareCard | undefined, map: () => HTMLCanvasElement | undefined, onShared?: () => void) {
   const el = document.createElement('button');
   el.textContent = LABEL;
   style(el, {
@@ -24,6 +24,7 @@ export function createShareButton(card: () => ShareCard | undefined, map: () => 
     el.textContent = 'SHARING…';
     try {
       const how = await shareImage(await cardPng(c, map()), cardFile(c), shareText(c));
+      if (how === 'shared' || how === 'saved') onShared?.();
       el.textContent = how === 'shared' ? 'SHARED ✓' : how === 'saved' ? 'SAVED · TEXT COPIED' : how === 'failed' ? "COULDN'T SHARE" : LABEL;
     } catch {
       el.textContent = "COULDN'T SHARE";

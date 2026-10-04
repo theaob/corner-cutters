@@ -70,6 +70,7 @@ import { createCircuitScene } from './circuitScene';
 import { style } from './race/dom';
 import { createHud } from './race/hud';
 import { createShareButton } from './race/shareButton';
+import { kmOf, track as noteStat } from './metrics';
 import { attackCard, raceCard, type ShareCard } from './shareCard';
 import { drawCars } from './race/drawCars';
 import { BLUE_COLOR, renderTower } from './race/towerView';
@@ -468,7 +469,22 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     return { name: mine ? 'YOU' : livery.drivers[seat], outline, number, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
+  /** px you've driven since the last 'drive' event, and where your car was last frame (for the play stats) */
+  let drivenPx = 0;
+  let lastAt: { x: number; y: number } | undefined;
+  /** Note the km driven since the last time (play stats: metrics.ts). */
+  const noteDriven = () => {
+    if (drivenPx > 0) noteStat('drive', { circuit: layout.id, mode: drivenMode, km: kmOf(drivenPx) });
+    drivenPx = 0;
+  };
+  /** The session, as the play stats name it. */
+  const statsMode = () => (championship && session === 'race' ? 'championship' : session);
+  /** the session the km being counted are driven in */
+  let drivenMode = 'race';
   const resetSession = () => {
+    noteDriven();
+    drivenMode = statsMode();
+    lastAt = undefined;
     shake = newShake();
     launch = newLaunch();
     tookDamage = false;
@@ -520,6 +536,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     attack = undefined;
     raceGrid = gridSlots;
     resetSession();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
     const slots = gridSlots ?? w.drivers.map((_, k) => k);
     raceDrivers = slots;
@@ -552,6 +569,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     trial = undefined;
     attack = undefined;
     resetSession();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
     you = 0;
     const d = w.drivers[w.youDriver];
@@ -569,6 +587,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     learn = undefined;
     quali = undefined;
     resetSession();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
     you = 0;
     const d = w.drivers[w.youDriver];
@@ -590,6 +609,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     quali = undefined;
     trial = undefined;
     resetSession();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
     you = 0;
     const d = w.drivers[w.youDriver];
@@ -822,7 +842,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       best: p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : undefined, fastest: hudState.fastest?.who === you, team: yours, date,
     });
   };
-  const shareButton = createShareButton(resultCard, () => map.canvas);
+  const shareButton = createShareButton(resultCard, () => map.canvas, () => noteStat('share', { circuit: layout.id, mode: statsMode() }));
   host.append(shareButton.float);
 
   /** Qualifying's times as a table, in grid order: your row in gold; then A or START to go to the grid. */
@@ -995,6 +1015,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       sounds.trackLimits(true);
     }
     if (step.timeUp) {
+      noteStat('race_finish', { circuit: layout.id, mode: 'timeattack', data: { passed: attack.a.passed } });
       const passed = attack.a.passed;
       const record = recordAttack(records, recordId, passed);
       if (record) saveRecords(records);
@@ -1474,6 +1495,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const clock = race.clock;
     if (!done && session === 'race' && race.phase === 'racing' && (p.finished !== undefined || p.retired)) {
       done = true;
+      noteStat('race_finish', { circuit: layout.id, mode: statsMode(), data: { place: p.retired ? null : pos, field: race.entrants.length, laps: race.laps } });
+      noteDriven();
+    }
+    // (the km you drive: your car's way, live, between frames; not the replay's, nor a jump of a restart)
+    {
+      const c = me.car;
+      if (!replay && !gridPan && !paused && lastAt) {
+        const d = Math.hypot(c.x - lastAt.x, c.y - lastAt.y);
+        if (d < 400) drivenPx += d;
+      }
+      lastAt = { x: c.x, y: c.y };
     }
     // your last lap: called, with a bell, as you start it
     if (race.phase === 'racing' && p.lapStart !== undefined && p.finished === undefined && !p.retired && p.lap === laps - 1 && !soundState.finalLap) {
@@ -1720,6 +1752,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const dispose = () => {
     if (closed) return;
     closed = true;
+    noteDriven();
     document.removeEventListener('visibilitychange', onHidden);
     window.removeEventListener('keydown', onKey);
     setAudioPaused(false);
