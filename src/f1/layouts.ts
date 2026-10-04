@@ -37,6 +37,8 @@ export interface CircuitLayout {
   bridge?: { over: number; under: number; height: number };
   /** the podium hangs over the main straight on a deck from the pit side, this many px up (else it stands on the run-off) */
   podiumDeck?: number;
+  /** a word painted across the garages' roofs, a few letters on each, read from the camera (AZERBAIJAN) */
+  pitRoof?: string;
 }
 
 export interface StreetSpec {
@@ -655,6 +657,8 @@ export const BAKU: CircuitLayout = {
   ],
   // on the town side of the straight, away from the sea
   pit: { from: -950, to: 100, side: -1 },
+  // (on the garages' roofs, as at the race it's after)
+  pitRoof: 'AZERBAIJAN',
   // (a long lap of streets: easy on tyres)
   tyreWear: 0.4,
   street: {

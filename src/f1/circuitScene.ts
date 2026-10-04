@@ -135,6 +135,63 @@ export function barrierTiles(circuit: Circuit): { walls: [number, number][]; pit
   return { walls, pitWall, bankWall };
 }
 
+/** px across the garages' roofs (the lane's way) and deep, and how high they stand */
+const GARAGE = { deep: 28, high: 22 };
+
+/**
+ * `word` across the garages' roofs: the word drawn once over the whole row, each roof showing its share of it, the
+ * letters upright as the camera (looking down from the south) sees them and read left to right on the screen,
+ * whichever way the lane runs; white roofs, the letters in blue over a band of the flag's blue, red and green.
+ */
+export function roofLetters(circuit: Circuit, word: string): THREE.Mesh[] {
+  const ordered = roofOrder(circuit);
+  if (!ordered.length) return [];
+  const n = ordered.length;
+  const cellW = 128;
+  const cellH = 64;
+  const [c, x] = canvas(cellW * n, cellH);
+  x.fillStyle = '#f4f4f8';
+  x.fillRect(0, 0, c.width, cellH);
+  // (the flag's band along the back edge: blue, red, green)
+  ['#00b5e2', '#ef3340', '#509e2f'].forEach((col, k) => {
+    x.fillStyle = col;
+    x.fillRect(0, 2 + k * 3, c.width, 3);
+  });
+  // (the letters spread evenly over the row, so each roof has its share whole)
+  x.fillStyle = '#0a5ca8';
+  x.font = `bold ${Math.round(cellH * 0.6)}px 'Arial Black', Arial, sans-serif`;
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  const letters = [...word.toUpperCase()];
+  letters.forEach((ch, k) => x.fillText(ch, ((k + 0.5) / letters.length) * c.width, cellH * 0.6));
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return ordered.map(({ g, tx, tz }, k) => {
+    const piece = texture.clone();
+    piece.repeat.set(1 / n, 1);
+    piece.offset.set(k / n, 0);
+    piece.needsUpdate = true;
+    const roof = new THREE.Mesh(new THREE.PlaneGeometry(PIT.boxSpacing - 2, GARAGE.deep).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: piece }));
+    roof.position.set(g.x, groundAt(circuit.grid, g.x, g.y).h + GARAGE.high + 0.3, g.y);
+    // (its x along the lane, read left to right; its top edge away from the camera)
+    roof.rotation.y = Math.atan2(-tz, tx);
+    roof.receiveShadow = true;
+    return roof;
+  });
+}
+
+/**
+ * The garages from the left of the screen to the right, each with the way to read along its roof (tx, tz: the lane's
+ * way, turned to run east, or as near it as it goes, so the word reads left to right whichever way the race goes).
+ */
+export function roofOrder(circuit: Circuit): { g: { x: number; y: number }; tx: number; tz: number }[] {
+  const along = garageSpots(circuit).map((g) => ({ g, tx: Math.sin(g.dir), tz: -Math.cos(g.dir) }));
+  const flip = along.reduce((a, s) => a + s.tx, 0) < 0;
+  const ordered = along.map((s) => ({ ...s, tx: flip ? -s.tx : s.tx, tz: flip ? -s.tz : s.tz }));
+  return ordered.sort((a, b) => a.g.x * a.tx + a.g.y * a.tz - (b.g.x * b.tx + b.g.y * b.tz));
+}
+
 /** Where each garage stands (its middle, and the lane's direction there): behind the pit lane, one to each box. */
 export function garageSpots(circuit: Circuit): { x: number; y: number; dir: number }[] {
   const { pit } = circuit;
@@ -498,12 +555,14 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (turned to the track's direction, a box's +x face looks to the right of the way of the race)
   const faces = pit.side < 0 ? [door, grey, roof, grey, grey, grey] : [grey, door, roof, grey, grey, grey];
   for (const { x: gx, y: gy, dir } of garageSpots(circuit)) {
-    const garage = new THREE.Mesh(new THREE.BoxGeometry(28, 22, PIT.boxSpacing - 2), faces);
-    garage.position.set(gx, groundAt(grid, gx, gy).h + 11, gy);
+    const garage = new THREE.Mesh(new THREE.BoxGeometry(GARAGE.deep, GARAGE.high, PIT.boxSpacing - 2), faces);
+    garage.position.set(gx, groundAt(grid, gx, gy).h + GARAGE.high / 2, gy);
     garage.rotation.y = -dir;
     garage.castShadow = garage.receiveShadow = true;
     scene.add(garage);
   }
+  // (a word across the roofs, a few letters on each, read left to right from the camera)
+  if (circuit.layout.pitRoof) for (const r of roofLetters(circuit, circuit.layout.pitRoof)) scene.add(r);
 
   // grandstands: along the main straight (behind the start line, across it from the pits), and on a circuit in
   // the country round the outside of the bends; each with its own roof colour and flags on top, waving
