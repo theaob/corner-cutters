@@ -4,7 +4,7 @@
 // blocks each, the tow, track-limits strikes, the gap to your ghost. Engine-free.
 
 import { formatTime as fmt } from '../records';
-import { distance } from '../timeAttack';
+import { shortDistance } from '../timeAttack';
 import { LIMITS } from '../trackLimits';
 
 /** Five blocks, `share` (0…1) of them filled. */
@@ -30,7 +30,8 @@ export function readoutText(r: {
   const car = r.wrecked ? 'WRECKED' : blocks(r.health);
   if (r.attack) {
     const a = r.attack;
-    return `TIME ${a.left === undefined ? '–' : a.left.toFixed(1)}\nGOT  ${distance(a.passed)}\nBEST ${a.best ? distance(a.best) : '–'}\nLAP  ${fmt(r.lapTime)}\nCAR  ${car}\n`;
+    // (the distances short, so they fit the panel: 5L 1S)
+    return `TIME ${a.left === undefined ? '–' : a.left.toFixed(1)}\nGOT  ${shortDistance(a.passed)}\nBEST ${a.best ? shortDistance(a.best) : '–'}\nLAP  ${fmt(r.lapTime)}\nCAR  ${car}\n`;
   }
   // (just after a pass the last shared timing point can put the gap the wrong way round: 0 then)
   const gap = (o: { name: string; gap?: number } | undefined, mark: '▲' | '▼') =>

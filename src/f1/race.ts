@@ -36,7 +36,7 @@ import { CEREMONY } from './podium3d';
 import { between, inLimitZone, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
-import { distance, newAttack, stepAttack, type Attack } from './timeAttack';
+import { distance, newAttack, shortDistance, stepAttack, type Attack } from './timeAttack';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -329,7 +329,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return;
     }
     const next = nextMedal(loadTrophies().medals[layout.id]?.[kind]);
-    const target = !next ? undefined : kind === 'trial' ? fmt(lapTargets(reference)[next]) : attack ? distance(attackTargets(attack.a.generous)[next]) : undefined;
+    const target = !next ? undefined : kind === 'trial' ? fmt(lapTargets(reference)[next]) : attack ? shortDistance(attackTargets(attack.a.generous)[next]) : undefined;
     medalLine.textContent = !next ? '● GOLD\n' : target ? `${MEDAL_NAME[next]} ${target}\n` : '';
     medalLine.style.color = MEDAL_COLOR[next ?? 'gold'];
   };
@@ -861,7 +861,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const { passed, medal, record, daily } = attack.result;
       return attackCard({
         circuit: layout.name.toUpperCase(), mode: options.daily ? `DAILY CHALLENGE · ${weather.name}` : `TIME ATTACK · ${difficulty.name} · ${weather.name}`,
-        distance: distance(passed), medal, record, best: distance(daily ? daily.dayBest.score : Math.max(passed, attack.best ?? 0)), team: yours, date,
+        distance: shortDistance(passed), said: distance(passed), medal, record, best: shortDistance(daily ? daily.dayBest.score : Math.max(passed, attack.best ?? 0)), team: yours, date,
         place: daily?.place !== undefined ? `#${daily.place} OF ${daily.entries}` : undefined,
       });
     }
@@ -1187,11 +1187,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       banner.style.whiteSpace = 'pre-line';
       banner.textContent = daily
         ? `TIME UP · ${distance(passed)}\n${daily.best ? 'NEW BEST TODAY' : `TODAY'S BEST ${distance(daily.dayBest.score)}`}${daily.place ? ` · #${daily.place} OF ${daily.entries}` : ''}`
-        : `TIME UP · ${distance(passed)}${medal ? ` · ${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : ''}${record ? ' · NEW RECORD' : attack.best ? ` · BEST ${distance(attack.best)}` : ''}`;
+        // (the result, then on a line of its own the medal and the record, or your best: never broken mid-phrase)
+        : [`TIME UP · ${distance(passed)}`, [medal ? `${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : '', record ? 'NEW RECORD' : attack.best ? `BEST ${distance(attack.best)}` : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
       banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record || daily?.best ? SPLIT_COLOR.record : '#f2c14e';
     } else banner.style.whiteSpace = '';
     // (SHARE under a Time Attack's result)
-    shareButton.floatAt(attack?.result ? `calc(${banner.style.top} + ${attack.result.daily ? 64 : 40}px)` : undefined);
+    // (under the banner as it stands, however many lines it takes)
+    shareButton.floatAt(attack?.result ? `${banner.offsetTop + banner.offsetHeight + 12}px` : undefined);
     if (paused || quali?.over || attack?.result) {
       requestAnimationFrame(tick);
       return;
