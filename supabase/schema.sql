@@ -84,7 +84,8 @@ revoke all on function public.daily_board(date, uuid, int) from public;
 grant execute on function public.daily_board(date, uuid, int) to anon;
 
 -- ---------------------------------------------------------------- the stats, for the dashboard
--- The totals: players, launches, races, km driven, all time, today and over the last 7 days, and by circuit and mode.
+-- The totals: players, launches, races, km driven, all time, today and over the last 7 days, and by circuit and mode;
+-- and each circuit's plays, km and minutes, by mode.
 create or replace function public.game_stats() returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
@@ -118,7 +119,22 @@ language sql stable security definer set search_path = public as $$
     'daily_launches', (select coalesce(jsonb_agg(jsonb_build_object('day', d, 'launches', n) order by d), '[]') from
       (select (at at time zone 'utc')::date d, count(*) n from events where kind = 'launch' and at > now() - interval '30 days' group by 1) x),
     'daily_seconds', (select coalesce(jsonb_agg(jsonb_build_object('day', d, 'seconds', n) order by d), '[]') from
-      (select (at at time zone 'utc')::date d, round(sum(seconds)) n from events where kind = 'session' and at > now() - interval '30 days' group by 1) x)
+      (select (at at time zone 'utc')::date d, round(sum(seconds)) n from events where kind = 'session' and at > now() - interval '30 days' group by 1) x),
+    -- each circuit: the sessions started on it, the races finished, the km driven and the minutes on it (a 'drive'
+    -- event's data.seconds), all of it and by mode; the most played first
+    'circuits', (select coalesce(jsonb_agg(jsonb_build_object('circuit', circuit, 'plays', plays, 'finishes', finishes, 'km', km, 'minutes', minutes, 'modes', modes)
+      order by plays desc, minutes desc, circuit), '[]') from (
+        select circuit, sum(plays) plays, sum(finishes) finishes, round(sum(km)::numeric, 1) km, round(sum(secs)::numeric / 60, 1) minutes,
+          jsonb_object_agg(mode, jsonb_build_object('plays', plays, 'finishes', finishes, 'km', round(km::numeric, 1), 'minutes', round(secs::numeric / 60, 1))) modes
+        from (
+          select circuit, coalesce(mode, '?') mode,
+            count(*) filter (where kind = 'race_start') plays,
+            count(*) filter (where kind = 'race_finish') finishes,
+            coalesce(sum(km) filter (where kind = 'drive'), 0) km,
+            coalesce(sum(case when jsonb_typeof(data->'seconds') = 'number' then (data->>'seconds')::real end) filter (where kind = 'drive'), 0) secs
+          from events where circuit is not null and kind in ('race_start', 'race_finish', 'drive') group by 1, 2
+        ) by_mode group by circuit
+      ) c)
   );
 $$;
 revoke all on function public.game_stats() from public;

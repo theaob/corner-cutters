@@ -479,13 +479,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     return { name: mine ? 'YOU' : livery.drivers[seat], outline, number, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
-  /** px you've driven since the last 'drive' event, and where your car was last frame (for the play stats) */
+  /** px you've driven since the last 'drive' event, and where your car was last frame; and s on the circuit since then, not paused (for the play stats) */
   let drivenPx = 0;
   let lastAt: { x: number; y: number } | undefined;
-  /** Note the km driven since the last time (play stats: metrics.ts). */
+  let drivenSecs = 0;
+  /** Note the km driven and the time on the circuit since the last time (play stats: metrics.ts). */
   const noteDriven = () => {
-    if (drivenPx > 0) noteStat('drive', { circuit: layout.id, mode: drivenMode, km: kmOf(drivenPx) });
+    if (drivenPx > 0 || drivenSecs >= 1) noteStat('drive', { circuit: layout.id, mode: drivenMode, km: kmOf(drivenPx), data: { seconds: Math.round(drivenSecs) } });
     drivenPx = 0;
+    drivenSecs = 0;
   };
   /** The team and driver you picked for a weekend (`w`), for the play stats. */
   const pickOf = (w: ReturnType<typeof drawWeekend>) => {
@@ -1132,8 +1134,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const tick = (now: number) => {
     if (closed) return;
     // (the first frame's timestamp can be a touch before mount time)
-    const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+    const real = Math.max(0, (now - last) / 1000);
+    const dt = Math.min(0.05, real);
     last = now;
+    // (the time on the circuit as it passes, slow frames and all; a gap of more than a second is the tab put away)
+    if (!paused && real < 1) drivenSecs += real;
     showDeckLabels();
     // the pause screen's settings: the deck moves through them (and nothing else)
     if (pauseSettingsOn) {

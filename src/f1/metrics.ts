@@ -1,5 +1,5 @@
 // The anonymous play stats (supabase/README.md): the game launched, a race
-// started and finished (its mode and circuit), the km you've driven, a result
+// started and finished (its mode and circuit), the km you've driven and the time on each circuit, a result
 // shared. Queued and sent every so often (and as the page closes), by a random
 // id the device made for itself; nothing at all when STATS is off in the
 // settings, or the build has no backend.
