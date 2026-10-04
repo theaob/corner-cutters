@@ -11,6 +11,8 @@ import { optionRow } from './circuitSelect';
 import { setShake, shakeOn } from './shake';
 import { gridWalkOn, setGridWalk } from './gridPan';
 import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
+import { setStats, statsOn } from './profile';
+import { online } from '../engine/backend';
 
 /** The nearest volume step to `v`. */
 const nearest = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
@@ -37,5 +39,7 @@ export function settingsRows(): SettingsRow[] {
   const musicRow = optionRow('MUSIC', [...VOLUMES], nearest(musicVolume()), (v) => ({ name: volumeName(v), about: v ? 'menu and race tracks' : 'silence' }), setMusicVolume);
   const shakeRow = optionRow('SCREEN SHAKE', [true, false], shakeOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, kerbs and grass shake the camera' : 'the camera stays still' }), setShake);
   const gridWalkRow = optionRow('GRID WALK', [true, false], gridWalkOn(), (on) => ({ name: on ? 'ON' : 'SKIP', about: on ? 'the camera down the grid before the lights' : 'straight to the start lights' }), setGridWalk);
-  return [stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow] as SettingsRow[];
+  const statsRow = optionRow('STATS', [true, false], statsOn(), (on) => ({ name: on ? 'SHARE' : 'OFF', about: on ? 'anonymous play counts, to improve the game' : 'nothing sent' }), setStats);
+  // (STATS only where the build has a backend to send them to)
+  return [stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
