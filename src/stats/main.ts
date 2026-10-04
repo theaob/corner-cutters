@@ -4,6 +4,7 @@
 import { online, rpc } from '../engine/backend';
 import { challengeOn, dayOf, type Board } from '../f1/daily';
 import { LAYOUTS } from '../f1/layouts';
+import { TEAMS } from '../f1/teams';
 import { distance } from '../f1/timeAttack';
 
 /** What game_stats() gives. */
@@ -17,6 +18,13 @@ interface Stats {
   races_finished: number;
   km: number;
   shares: number;
+  median_session_secs?: number;
+  mean_session_secs?: number;
+  hours_played?: number;
+  returning_players?: number;
+  races_per_player?: number;
+  by_team?: Record<string, number>;
+  by_driver?: Record<string, number>;
   daily_players_today: number;
   by_platform: Record<string, number>;
   by_mode: Record<string, number>;
@@ -53,28 +61,53 @@ function tiles(s: Stats) {
     tile('PLAYERS', fmt(s.players), `${fmt(s.players_7d)} in the last 7 days`),
     tile('PLAYING TODAY', fmt(s.players_today), `${fmt(s.launches_today)} launches today`),
     tile('LAUNCHES', fmt(s.launches), 'all time'),
-    tile('RACES', fmt(s.races_finished), `of ${fmt(s.races_started)} started · ${finishRate}% finished`),
+    tile('RACES', fmt(s.races_finished), `of ${fmt(s.races_started)} started · ${finishRate}% finished · ${s.races_per_player ?? 0} per player`),
     tile('KM DRIVEN', fmt(s.km), `${fmt(s.km * 0.621371)} miles`),
+    tile('TIME PER VISIT', clock(s.median_session_secs ?? 0), `median · mean ${clock(s.mean_session_secs ?? 0)}`),
+    tile('HOURS PLAYED', (s.hours_played ?? 0).toLocaleString('en-US'), 'in the game, all players'),
+    tile('RETURNING', `${s.players ? Math.round(((s.returning_players ?? 0) / s.players) * 100) : 0}%`, `${fmt(s.returning_players ?? 0)} came back another day`),
     tile('SHARED', fmt(s.shares), 'result cards shared'),
     tile('DAILY TODAY', fmt(s.daily_players_today), 'on the challenge board'),
   );
 }
 
-/** One bar per entry, longest first: the name, the bar to scale, the count. */
-function bars(id: string, data: Record<string, number>, name: (k: string) => string) {
-  const rows = Object.entries(data).sort((a, b) => b[1] - a[1]);
+/** s as minutes and seconds: 7:05 (or hours: 1:02:05). */
+const clock = (secs: number) => {
+  const t = Math.round(secs);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const ss = String(t % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+};
+
+/** One bar per entry, longest first: the name (with its colour, if it has one), the bar to scale, the count. `all`: every
+ * key there could be, so the ones never picked show too (at 0). */
+function bars(id: string, data: Record<string, number>, name: (k: string) => string, all?: string[], color?: (k: string) => string | undefined) {
+  const counts = { ...Object.fromEntries((all ?? []).map((k) => [k, 0])), ...data };
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1] || name(a[0]).localeCompare(name(b[0])));
   const list = $(id);
   if (!rows.length) {
     list.innerHTML = '<li class="empty">Nothing yet.</li>';
     return;
   }
-  const max = rows[0][1];
+  const max = Math.max(1, rows[0][1]);
   list.replaceChildren(...rows.map(([k, n]) => {
     const li = document.createElement('li');
     li.title = `${name(k)}: ${fmt(n)}`;
+    if (!n) li.className = 'zero';
     li.innerHTML = '<span class="name"></span><span class="track"><span class="fill"></span></span><span class="n"></span>';
-    (li.querySelector('.name') as HTMLElement).textContent = name(k);
-    (li.querySelector('.fill') as HTMLElement).style.width = `${(n / max) * 100}%`;
+    const label = li.querySelector('.name') as HTMLElement;
+    const c = color?.(k);
+    if (c) {
+      const sw = document.createElement('i');
+      sw.className = 'swatch';
+      sw.style.background = c;
+      label.append(sw);
+    }
+    label.append(name(k));
+    const fill = li.querySelector('.fill') as HTMLElement;
+    fill.style.width = `${(n / max) * 100}%`;
+    if (!n) fill.style.minWidth = '0';
     (li.querySelector('.n') as HTMLElement).textContent = fmt(n);
     return li;
   }));
@@ -164,6 +197,40 @@ function chart(days: Stats['daily_players']) {
   box.replaceChildren(svg, tip);
 }
 
+/** The teams and drivers picked: the most and least of each (ties named together), then every one of them. */
+// (DMW – DEUTCHE MOTOR WERKE: DMW)
+const teamName = (id: string) => (TEAMS.find((t) => t.id === id)?.name ?? id).split(' – ')[0];
+const teamColor = (id: string) => TEAMS.find((t) => t.id === id)?.body;
+const driverTeam = (code: string) => TEAMS.find((t) => t.drivers.includes(code));
+function picks(s: Stats) {
+  const teams = { ...Object.fromEntries(TEAMS.map((t) => [t.id, 0])), ...(s.by_team ?? {}) };
+  const drivers = { ...Object.fromEntries(TEAMS.flatMap((t) => t.drivers.map((d) => [d, 0]))), ...(s.by_driver ?? {}) };
+  const total = Object.values(teams).reduce((a, b) => a + b, 0);
+  const ends = (counts: Record<string, number>, name: (k: string) => string) => {
+    const vals = Object.values(counts);
+    const at = (n: number) => Object.keys(counts).filter((k) => counts[k] === n).map(name);
+    const most = Math.max(...vals);
+    const least = Math.min(...vals);
+    const list = (names: string[]) => (names.length > 3 ? `${names.slice(0, 3).join(', ')} +${names.length - 3}` : names.join(', '));
+    const share = (n: number) => (total ? `${fmt(n)} · ${Math.round((n / total) * 100)}% of sessions` : 'no picks yet');
+    return { most: [list(at(most)), share(most)], least: [list(at(least)), share(least)] };
+  };
+  const t = ends(teams, teamName);
+  const d = ends(drivers, (k) => `${k} (${driverTeam(k)?.code ?? '?'})`);
+  const callout = (k: string, [v, sub]: string[]) => {
+    const el = document.createElement('div');
+    el.className = 'callout';
+    el.innerHTML = '<span class="k"></span><span class="v"></span><span class="s"></span>';
+    (el.children[0] as HTMLElement).textContent = k;
+    (el.children[1] as HTMLElement).textContent = total ? v : '–';
+    (el.children[2] as HTMLElement).textContent = sub;
+    return el;
+  };
+  $('callouts').replaceChildren(callout('MOST PICKED TEAM', t.most), callout('LEAST PICKED TEAM', t.least), callout('MOST PICKED DRIVER', d.most), callout('LEAST PICKED DRIVER', d.least));
+  bars('teams', s.by_team ?? {}, teamName, TEAMS.map((x) => x.id), teamColor);
+  bars('drivers', s.by_driver ?? {}, (k) => `${k} · ${driverTeam(k)?.code ?? ''}`, TEAMS.flatMap((x) => x.drivers), (k) => driverTeam(k)?.body);
+}
+
 function board(b: Board | undefined) {
   const c = challengeOn(dayOf());
   $('board-title').textContent = `TODAY'S DAILY CHALLENGE · ${c.layout.name.toUpperCase()} · ${c.weather.name}`;
@@ -219,6 +286,7 @@ async function load() {
   bars('platform', s.by_platform ?? {}, (k) => PLATFORM_NAMES[k] ?? k);
   bars('mode', s.by_mode ?? {}, (k) => MODE_NAMES[k] ?? k);
   bars('circuit', s.by_circuit ?? {}, circuitName);
+  picks(s);
   board(b);
   const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   status(`LIVE · ${at}`, 'on');

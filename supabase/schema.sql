@@ -9,15 +9,22 @@ create table if not exists public.events (
   at timestamptz not null default now(),
   -- the random id the device made for itself
   player uuid not null,
-  kind text not null check (kind in ('launch', 'race_start', 'race_finish', 'drive', 'share', 'daily_submit')),
+  kind text not null,
   platform text check (platform in ('web', 'android')),
   version text check (char_length(version) <= 40),
   circuit text check (char_length(circuit) <= 40),
   mode text check (char_length(mode) <= 20),
   -- km driven (a 'drive' event: since the last one), and a little more about the event
   km real check (km >= 0 and km < 5000),
+  -- s in the game (a 'session' event: a stretch of a launch, while the page was showing; data.launch says which)
+  seconds real check (seconds >= 0 and seconds <= 86400),
   data jsonb check (pg_column_size(data) <= 2000)
 );
+-- (run again on a project made before: the columns and kinds added since)
+alter table public.events add column if not exists seconds real check (seconds >= 0 and seconds <= 86400);
+alter table public.events drop constraint if exists events_kind_check;
+alter table public.events add constraint events_kind_check
+  check (kind in ('launch', 'race_start', 'race_finish', 'drive', 'share', 'daily_submit', 'session'));
 create index if not exists events_at on public.events (at);
 create index if not exists events_kind on public.events (kind);
 alter table public.events enable row level security;
@@ -90,6 +97,17 @@ language sql stable security definer set search_path = public as $$
     'races_finished', (select count(*) from events where kind = 'race_finish'),
     'km', (select coalesce(round(sum(km)::numeric, 1), 0) from events where kind = 'drive'),
     'shares', (select count(*) from events where kind = 'share'),
+    -- time in the game: each launch's stretches summed, the median and the mean of them, and all of it
+    'median_session_secs', (select coalesce(round(percentile_cont(0.5) within group (order by t)::numeric), 0) from
+      (select sum(seconds) t from events where kind = 'session' group by player, data->>'launch') s),
+    'mean_session_secs', (select coalesce(round(avg(t)::numeric), 0) from (select sum(seconds) t from events where kind = 'session' group by player, data->>'launch') s),
+    'hours_played', (select coalesce(round((sum(seconds) / 3600)::numeric, 1), 0) from events where kind = 'session'),
+    -- players who came back on another day, and races started per player
+    'returning_players', (select count(*) from (select player from events group by player having count(distinct (at at time zone 'utc')::date) > 1) r),
+    'races_per_player', (select coalesce(round(avg(n)::numeric, 1), 0) from (select count(*) n from events where kind = 'race_start' group by player) r),
+    -- the team and driver picked for each session started
+    'by_team', (select coalesce(jsonb_object_agg(t, n), '{}') from (select data->>'team' t, count(*) n from events where kind = 'race_start' and data ? 'team' group by 1) x),
+    'by_driver', (select coalesce(jsonb_object_agg(d, n), '{}') from (select data->>'driver' d, count(*) n from events where kind = 'race_start' and data ? 'driver' group by 1) x),
     'daily_players_today', (select count(*) from daily_times where day = (now() at time zone 'utc')::date),
     'by_platform', (select coalesce(jsonb_object_agg(platform, n), '{}') from (select platform, count(distinct player) n from events where platform is not null group by platform) p),
     'by_mode', (select coalesce(jsonb_object_agg(mode, n), '{}') from (select mode, count(*) n from events where kind = 'race_finish' and mode is not null group by mode) m),

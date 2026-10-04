@@ -11,7 +11,7 @@ import { CC_SAVE } from './f1/save';
 import { playMusic } from './engine/music';
 import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
-import { track } from './f1/metrics';
+import { startClock, track } from './f1/metrics';
 import { challengeOn, dayOf } from './f1/daily';
 import { showDaily } from './f1/screens/daily';
 import { F1_TUNING } from './f1/tuning';
@@ -74,8 +74,9 @@ const controls = new Controls();
 bindKeyboard(controls);
 bindGamepad(controls);
 unlockAudio();
-// (the play stats: the game launched)
+// (the play stats: the game launched, and the time in it from now)
 track('launch');
+startClock();
 // the phone's back button (in the Android app): each screen's own back, and on the menu's first screen a second press
 // to leave
 void listenForBack(() => hintToast('PRESS BACK AGAIN TO EXIT'));

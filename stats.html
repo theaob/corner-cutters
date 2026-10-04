@@ -44,8 +44,10 @@
       button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
       .notice { border: 1px solid var(--edge); border-left: 3px solid var(--bad); background: var(--panel); border-radius: 6px; padding: 12px 14px; color: var(--ink); }
       .notice code { font: 13px var(--mono); color: var(--amber); }
-      .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+      .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
       .tile { box-shadow: inset -1px -1px 0 var(--edge); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      /* (ten readouts: five by two, or two by five on a phone) */
+      @media (max-width: 760px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       .tile .k { font: 10px var(--pixel); letter-spacing: 1.2px; color: var(--muted); }
       .tile .v { font: 28px/1.1 var(--pixel); color: var(--amber); font-variant-numeric: tabular-nums; white-space: nowrap; }
       .tile .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -55,10 +57,18 @@
       .chart svg { display: block; width: 100%; height: auto; }
       .tip { position: absolute; pointer-events: none; background: var(--ground); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -110%); }
       .tip b { font: 12px var(--pixel); color: var(--amber); }
-      .splits { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+      .splits { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
       .bars { list-style: none; margin: 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; display: flex; flex-direction: column; gap: 9px; }
-      .bars li { display: grid; grid-template-columns: minmax(0, 9em) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
-      .bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bars li { display: grid; grid-template-columns: minmax(0, 10.5em) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+      .bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+      .bars .swatch { flex: none; width: 8px; height: 8px; border-radius: 2px; box-shadow: 0 0 0 1px var(--edge); }
+      .bars li.zero .name, .bars li.zero .n { color: var(--faint); }
+      .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+      .callouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+      .callout { box-shadow: inset -1px -1px 0 var(--edge); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      .callout .k { font: 10px var(--pixel); letter-spacing: 1.2px; color: var(--muted); }
+      .callout .v { font: 16px/1.3 var(--pixel); color: var(--amber); overflow-wrap: anywhere; }
+      .callout .s { font-size: 12px; color: var(--muted); }
       .bars .track { display: block; height: 10px; border-radius: 0 4px 4px 0; background: color-mix(in srgb, var(--edge) 55%, transparent); }
       .bars .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--cyan); min-width: 2px; }
       .bars .n { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -90,6 +100,14 @@
         <section><h2>FINISHED SESSIONS BY MODE</h2><ul class="bars" id="mode"></ul></section>
         <section><h2>FINISHED SESSIONS BY CIRCUIT</h2><ul class="bars" id="circuit"></ul></section>
       </div>
+      <section>
+        <h2>WHO PLAYERS PICK · SESSIONS STARTED</h2>
+        <div class="callouts" id="callouts"></div>
+        <div class="picks">
+          <ul class="bars" id="teams"></ul>
+          <ul class="bars" id="drivers"></ul>
+        </div>
+      </section>
       <section>
         <h2 id="board-title">TODAY'S DAILY CHALLENGE</h2>
         <div class="board" id="board"><p class="empty">Loading the board…</p></div>
