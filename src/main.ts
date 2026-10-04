@@ -20,6 +20,7 @@ import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
 import { lapsFrom } from './f1/laps';
 import { curtainDown, curtainUp } from './f1/screens/curtain';
 import { showStill } from './f1/screens/backdropStill';
+import { showSplash } from './f1/screens/splash';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
@@ -247,7 +248,7 @@ async function showMenu(id: number): Promise<void> {
   current = { close: () => closed.abort() };
   const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal);
   curtainUp();
-  const backdropOn = layoutById(choice('circuit')) && openNow().has(choice('circuit')!) ? layoutById(choice('circuit'))! : LAYOUTS[0];
+  const backdropOn = backdropCircuit();
   // (a still of it up at once, so the menu never opens on black; the live race fades in over it)
   const still = showStill(screen);
   closed.signal.addEventListener('abort', () => still.remove());
@@ -268,6 +269,12 @@ async function showMenu(id: number): Promise<void> {
   // (a Championship picks its own circuits, and the Daily Challenge has the day's: to their screens)
   navigate(withCircuit(picked.mode === 'championship' || picked.mode === 'daily' ? null : picked.layout.id, picked.mode));
 }
+
+/** The circuit the menu's backdrop races on: the one last picked, if it's open, else the first. */
+const backdropCircuit = (): CircuitLayout => {
+  const last = layoutById(choice('circuit'));
+  return last && openNow().has(last.id) ? last : LAYOUTS[0];
+};
 
 /** The screen fills the column (the menus: all touch, no deck). */
 function menuScreen(): void {
@@ -420,4 +427,26 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
 
 // (the Google Play build: the store up from the start, so a Championship bought on another install comes back)
 if (PAYWALL) openShop();
-void route();
+void opening();
+
+/**
+ * The game opening: the title splash first, unless the address goes straight to a race or a mode (a link, the
+ * track designer); then the screen the address asks for (the menu, or a new player's controls lap).
+ */
+async function opening(): Promise<void> {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('circuit') && !params.has('mode')) {
+    menuScreen();
+    document.documentElement.classList.add('splash-up');
+    // (the theme from the start: it sounds with the first tap)
+    playMusic(THEME_MUSIC);
+    const splash = showSplash(screen, backdropCircuit(), controls);
+    current = { close: () => {
+      splash.close();
+      document.documentElement.classList.remove('splash-up');
+    } };
+    curtainUp();
+    await splash.started;
+  }
+  void route();
+}
