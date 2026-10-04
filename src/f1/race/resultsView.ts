@@ -104,7 +104,7 @@ const noteLine = (n: Note, first: boolean) => line(`${n.text}${n.isNew ? ' · NE
  * lost red), the key, the records `notes`, and `next` (what A does, if anything). `since`: s since the results went
  * up, so the rows rebuilt as the others finish carry on sliding in where they were.
  */
-export function renderResults(el: HTMLElement, title: string, rows: ResultRow[], notes: Note[], next: string | undefined, since: number): void {
+export function renderResults(el: HTMLElement, title: string, rows: ResultRow[], notes: Note[], next: string | undefined, since: number, footer?: HTMLElement): void {
   const t = table([['', true], ['', false], ['NO', true], ['NAME', false], ['TEAM', false], ['TIME', true], ['BEST', true], ['', false]]);
   for (const r of rows) {
     const row = document.createElement('tr');
@@ -124,6 +124,7 @@ export function renderResults(el: HTMLElement, title: string, rows: ResultRow[],
     ...notes.map((n, k) => noteLine(n, k === 0)),
     // (RESTART and EXIT are buttons under the table: no lines for them here)
     ...(next ? [line(next, { marginTop: '8px' })] : []),
+    ...(footer ? [footer] : []),
   );
   el.style.display = 'block';
 }
