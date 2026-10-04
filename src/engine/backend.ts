@@ -40,3 +40,16 @@ export async function rpc<T>(name: string, args: object): Promise<T | undefined>
     return undefined;
   }
 }
+
+/** Put `file` in storage bucket `bucket` at `path` (never over one already there): whether it went. */
+export async function upload(bucket: string, path: string, file: Blob): Promise<Sent> {
+  if (!online()) return 'offline';
+  try {
+    const r = await fetch(`${URL_}/storage/v1/object/${bucket}/${path}`, {
+      method: 'POST', headers: { apikey: KEY!, Authorization: `Bearer ${KEY}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' }, body: file,
+    });
+    return r.ok ? 'ok' : 'refused';
+  } catch {
+    return 'offline';
+  }
+}

@@ -84,6 +84,8 @@ import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
 import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
 import { F1_TUNING } from './tuning';
+import { openReport, reportOpen } from './report';
+import { frameWanted } from '../engine/render/capture';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
@@ -942,6 +944,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseButton('RESUME', () => setPaused(false)),
     pauseButton('RESTART', () => restart()),
     pauseButton('SETTINGS', () => openPauseSettings(true)),
+    // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened
+    pauseButton('REPORT', () => void openReport({ circuit: layout.id, mode: statsMode() }, [pauseScreen])),
   );
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
@@ -959,7 +963,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (document.hidden && !done) setPaused(true);
   };
   const onKey = (e: KeyboardEvent) => {
-    if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat && !(e.target instanceof HTMLInputElement) && !done) setPaused(!paused);
+    if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat && !(e.target instanceof HTMLInputElement) && !reportOpen() && !done) setPaused(!paused);
   };
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('keydown', onKey);
@@ -1147,6 +1151,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (!paused && real < 1) drivenSecs += real;
     showDeckLabels();
     // the pause screen's settings: the deck moves through them (and nothing else)
+    // (a report being made: the deck and keys are its, not the race's)
+    if (reportOpen()) {
+      requestAnimationFrame(tick);
+      return;
+    }
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
       pressed('select');
@@ -1212,6 +1221,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (under the banner as it stands, however many lines it takes)
     shareButton.floatAt(attack?.result ? `${banner.offsetTop + banner.offsetHeight + 12}px` : undefined);
     if (paused || quali?.over || attack?.result) {
+      // (a screenshot waiting for a frame, the report's: the still picture drawn again for it)
+      if (frameWanted()) {
+        const q = QUALITY_LEVELS[governor.level];
+        post.render(0, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !(ceremony.group.visible && !!podium) });
+      }
       requestAnimationFrame(tick);
       return;
     }

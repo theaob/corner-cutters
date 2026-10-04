@@ -18,6 +18,9 @@ interface Stats {
   races_finished: number;
   km: number;
   shares: number;
+  /** REPORTs sent, all time and today (read them in Supabase: the reports table and bucket) */
+  reports?: number;
+  reports_today?: number;
   median_session_secs?: number;
   mean_session_secs?: number;
   hours_played?: number;
@@ -81,7 +84,7 @@ function tiles(s: Stats) {
     tile('TIME PER VISIT', clock(s.median_session_secs ?? 0), `median · mean ${clock(s.mean_session_secs ?? 0)}`),
     tile('HOURS PLAYED', (s.hours_played ?? 0).toLocaleString('en-US'), 'in the game, all players'),
     tile('RETURNING', `${s.players ? Math.round(((s.returning_players ?? 0) / s.players) * 100) : 0}%`, `${fmt(s.returning_players ?? 0)} came back another day`),
-    tile('SHARED', fmt(s.shares), 'result cards shared'),
+    tile('SHARED', fmt(s.shares), `result cards shared · ${fmt(s.reports ?? 0)} report${s.reports === 1 ? '' : 's'} sent (${fmt(s.reports_today ?? 0)} today)`),
     tile('DAILY TODAY', fmt(s.daily_players_today), 'on the challenge board'),
   );
 }

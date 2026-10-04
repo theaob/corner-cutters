@@ -32,6 +32,7 @@ import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
 import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
+import { openReport, reportOpen } from './report';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -439,6 +440,8 @@ export function chooseCircuit(
   const trophiesButton = menuButton('TROPHIES', openCabinet);
   const cabinetDone = menuButton('DONE', closeCabinet);
   const doneButton = menuButton('DONE', closeSettings);
+  // a report: the menu as it is, to draw on and say what's wrong (report.ts)
+  const reportButton = menuButton('REPORT', () => void openReport({}, [], () => menuPick()));
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
   // dots under it for where it is in the list
@@ -575,7 +578,7 @@ export function chooseCircuit(
   const modesParts: HTMLElement[] = [...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, options, raceButton, backButton];
-  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, versionLine()];
+  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, reportButton, versionLine()];
   const show = () => {
     hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
     for (const el of cabinetParts) el.style.display = view === 'trophies' ? '' : 'none';
@@ -592,6 +595,7 @@ export function chooseCircuit(
     backButton.classList.toggle('focused', view === 'circuit' && focus === backAt());
     settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
     doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
+    reportButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length + 1);
     hud.setLabel('a', view === 'circuit' ? 'RACE' : view === 'modes' ? 'PICK' : 'DONE');
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
   };
@@ -659,16 +663,20 @@ export function chooseCircuit(
       // poll every button each frame, so a press is never counted late
       const [down, right, up, left, a, start, b] = (['down', 'right', 'up', 'left', 'a', 'start', 'b'] as const).map(pressed);
       const move = (down ? 1 : 0) - (up ? 1 : 0);
-      if (view === 'settings') {
-        // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back
-        const places = settingsRows.length + 1;
+      // (a report being made: the deck and keys are its, not the menu's)
+      if (reportOpen()) {
+        // (nothing)
+      } else if (view === 'settings') {
+        // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back; on REPORT, A makes one
+        const places = settingsRows.length + 2;
         if (move) {
           focus = (focus + move + places) % places;
           show();
         }
         const row = settingsRows[focus];
         if (row && (left || right)) row.step(right ? 1 : -1);
-        if (a || start) closeSettings();
+        if ((a || start) && focus === settingsRows.length + 1) void openReport({}, [], () => menuPick());
+        else if (a || start) closeSettings();
       } else if (view === 'trophies') {
         // the cabinet: left/right switches its tab; A, START or B goes back
         if (left || right) {
