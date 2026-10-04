@@ -143,6 +143,8 @@ export type RaceEvent =
   | { kind: 'pit-in'; who: number }
   | { kind: 'pit-stop'; who: number; seconds: number }
   | { kind: 'pit-out'; who: number }
+  /** two cars touching (by their places in the field): the first step they touch, and every step after while they do */
+  | { kind: 'contact'; a: number; b: number }
   /** the stop done: the car repaired, new parts on */
   | { kind: 'pit-repaired'; who: number }
   | { kind: 'mistake'; who: number; what: 'late' | 'wide' }
@@ -538,12 +540,16 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   // spun round; and the dive's over)
   const diving = new Map<Car, Entrant>();
   for (const e of entrants) if (e.ai?.lunge) diving.set(e.car, e);
+  /** each car's place in the field (not the safety car) */
+  const owner = new Map(entrants.map((e, k) => [e.car, k]));
   for (let i = 0; i < cars.length; i++) {
     for (let j = i + 1; j < cars.length; j++) {
       // (one on a bridge, the other underneath it: they pass)
       if (!sameLevel(cars[i], cars[j])) continue;
       const closing = collideCars(cars[i], cars[j], p);
       if (closing <= 0) continue;
+      const [a, b] = [owner.get(cars[i]), owner.get(cars[j])];
+      if (a !== undefined && b !== undefined) out.push({ kind: 'contact', a, b });
       const diver = diving.get(cars[i])?.ai?.lunge?.car === cars[j] ? diving.get(cars[i]) : diving.get(cars[j])?.ai?.lunge?.car === cars[i] ? diving.get(cars[j]) : undefined;
       if (!diver?.ai?.lunge) continue;
       const hit = diver.ai.lunge.car;

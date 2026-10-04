@@ -62,7 +62,7 @@ import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import { overtakeOf, towerGap, towerRows } from './tower';
 import { achievementToast, stampMedal } from './screens/celebrate';
-import { medalAchievements, raceAchievements, raced, unlock } from './achievements';
+import { TORPEDO, medalAchievements, raceAchievements, raced, torpedo, unlock } from './achievements';
 import { LAYOUTS } from './layouts';
 import { type Medal, MEDALS, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
@@ -363,6 +363,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let launch = newLaunch();
   /** you've taken damage this session (for SPOTLESS) */
   let tookDamage = false;
+  /** the cars you've hit off the start (their places in the field), for TORPEDO */
+  const startHits = new Set<number>();
   /** Unlock achievements `ids`: a toast for each new one. */
   const achieve = (ids: string[]) => {
     for (const a of unlock(ids)) achievementToast(a);
@@ -522,6 +524,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     shake = newShake();
     launch = newLaunch();
     tookDamage = false;
+    startHits.clear();
     medalLine.textContent = '';
     setPaused(false);
     resetClock(simClock);
@@ -1375,6 +1378,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // achievements as they happen: a stop, lapping a car, a wreck (in a race)
       if (session === 'race') {
         if (e.kind === 'pit-stop' && e.who === you) achieve(['box']);
+        // (the cars you hit off the start: TORPEDO at the Ardennes, three or more)
+        if (e.kind === 'contact' && (e.a === you || e.b === you) && race.phase === 'racing' && race.clock <= TORPEDO.window) {
+          startHits.add(e.a === you ? e.b : e.a);
+          if (torpedo(layout.id, startHits)) achieve(['torpedo']);
+        }
         if (e.kind === 'blue' && e.by === you) achieve(['lapped']);
         if (e.kind === 'wreck' && e.who === you) achieve(['scrapheap']);
       }
@@ -1490,7 +1498,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
           ...raceAchievements({
             place: raceOrder(race).indexOf(you) + 1, field: race.entrants.length, grid: you + 1, fastest: hudState.fastest?.who === you,
             damaged: tookDamage, strikes: me.limits.strikes, laps: race.laps, difficulty: difficulty.id, weather: race.weather,
-            tyresLeft: Math.round((1 - me.tyres.wear) * 100), burning: me.car.burn !== undefined,
+            tyresLeft: Math.round((1 - me.tyres.wear) * 100), burning: me.car.burn !== undefined, stops: me.stops,
           }),
           ...(raced(layout.id, LAYOUTS.map((l) => l.id)) ? ['globetrotter'] : []),
         ]);

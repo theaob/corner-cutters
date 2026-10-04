@@ -318,3 +318,21 @@ describe('the start', () => {
     expect(crashes).toEqual([]);
   });
 });
+
+describe('contact between cars', () => {
+  it('is reported, with both cars by their places in the field (for TORPEDO)', () => {
+    const race = raceOn(SILVER_HEATH, 3, 5);
+    // (the player's car flat out straight ahead from P6, into the cars in front at the start)
+    const flatOut = () => ({ steer: { x: 0, y: -1 }, handbrake: false });
+    const hit = new Set<number>();
+    for (let t = 0; t < 30 && race.clock < 6; t += dt) {
+      for (const e of stepRace(race, dt, flatOut).race) {
+        if (e.kind !== 'contact') continue;
+        expect(e.a).not.toBe(e.b);
+        for (const k of [e.a, e.b]) expect(race.entrants[k]).toBeDefined();
+        if (e.a === 5 || e.b === 5) hit.add(e.a === 5 ? e.b : e.a);
+      }
+    }
+    expect(hit.size).toBeGreaterThan(0);
+  });
+});

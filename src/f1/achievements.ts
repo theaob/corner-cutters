@@ -2,7 +2,8 @@
 // save's 'trophies' section, with the medals and titles), shown in the trophy
 // cabinet and announced with a toast as they're won. Most are judged at your
 // flag from how the race went (raceAchievements); some as they happen (a
-// launch, a jump start, a stop, lapping a car, a wreck); and the medals'
+// launch, a jump start, cars hit off the start, a stop, lapping a car, a
+// wreck); and the medals'
 // and the Championship's as those are won. Engine-free but for the save.
 
 import { save, saved } from '../engine/save';
@@ -31,7 +32,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'torch', name: 'TORCH', about: 'Finish a race with your car on fire' },
   { id: 'rocket', name: 'ROCKET START', about: 'Get a GREAT LAUNCH off the lights' },
   { id: 'too-keen', name: 'TOO KEEN', about: 'Jump the start' },
+  { id: 'torpedo', name: 'TORPEDO', about: 'Hit three cars or more off the start at the Ardennes' },
   { id: 'box', name: 'BOX, BOX', about: 'Make a pit stop' },
+  { id: 'no-stop', name: "CAN'T STOP WON'T STOP", about: 'Finish a race without a pit stop' },
   { id: 'lapped', name: 'LAPPED', about: 'Lap a car' },
   { id: 'scrapheap', name: 'SCRAPHEAP', about: 'Wreck your car' },
   { id: 'golden', name: 'GOLDEN', about: 'Win a gold medal' },
@@ -61,6 +64,8 @@ export interface RaceSummary {
   tyresLeft?: number;
   /** your car on fire as you took the flag */
   burning?: boolean;
+  /** your pit stops in the race */
+  stops?: number;
 }
 
 /** The achievements a finished race earns. */
@@ -79,6 +84,7 @@ export function raceAchievements(r: RaceSummary): string[] {
   if (r.laps >= 15) out.push('endurance');
   if (r.tyresLeft !== undefined && r.tyresLeft <= 0) out.push('bald');
   if (r.burning) out.push('torch');
+  if (r.stops === 0) out.push('no-stop');
   return out;
 }
 
@@ -105,6 +111,12 @@ export function unlock(ids: string[]): Achievement[] {
   if (fresh.length) save('trophies', 'achievements', [...had, ...fresh.map((a) => a.id)]);
   return fresh;
 }
+
+/** s after the lights go out that count as the start, for TORPEDO */
+export const TORPEDO = { circuit: 'ardennes', window: 8, cars: 3 };
+
+/** TORPEDO's due: the cars you've touched (`hit`, their places in the field) so far off the start, on `circuit`. */
+export const torpedo = (circuit: string, hit: Set<number>): boolean => circuit === TORPEDO.circuit && hit.size >= TORPEDO.cars;
 
 /** You raced on circuit `id`: true (and GLOBETROTTER's due) once that makes every one of `circuits`. */
 export function raced(id: string, circuits: string[]): boolean {
