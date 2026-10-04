@@ -66,7 +66,8 @@ describe('race control', () => {
         if (scOut > 3) scSpeed = Math.max(scSpeed, speedOf(race.sc.car));
       }
     }
-    const kinds = events.map((x) => x.e.kind);
+    // (race control's calls: the cars touching aside)
+    const kinds = events.map((x) => x.e.kind).filter((k) => k !== 'contact');
     expect(kinds).toEqual(['lights-out', 'crash', 'wreck', 'safety-car', 'retired', 'green']);
     // (the crash: the wrecked car's, so its parts fly)
     expect(events.find((x) => x.e.kind === 'crash')!.e).toMatchObject({ who: victim, wrecked: true });
@@ -235,7 +236,7 @@ describe('the virtual safety car', () => {
       // (once the field has had a moment to slow)
       if (r.vsc.out > 2) for (const e of r.entrants) if (running(e) && !e.pit) fastest = Math.max(fastest, speedOf(e.car));
     });
-    const kinds = events.map((x) => x.e.kind);
+    const kinds = events.map((x) => x.e.kind).filter((k) => k !== 'contact');
     expect(kinds.slice(0, 5)).toEqual(['lights-out', 'crash', 'vsc', 'vsc-ending', 'green']);
     expect(kinds).not.toContain('safety-car');
     const at = (k: string) => events.find((x) => x.e.kind === k)!.t;
