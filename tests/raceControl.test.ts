@@ -66,7 +66,8 @@ describe('race control', () => {
         if (scOut > 3) scSpeed = Math.max(scSpeed, speedOf(race.sc.car));
       }
     }
-    const kinds = events.map((x) => x.e.kind);
+    // (race control's calls: the cars touching aside)
+    const kinds = events.map((x) => x.e.kind).filter((k) => k !== 'contact');
     expect(kinds).toEqual(['lights-out', 'crash', 'wreck', 'safety-car', 'retired', 'green']);
     // (the crash: the wrecked car's, so its parts fly)
     expect(events.find((x) => x.e.kind === 'crash')!.e).toMatchObject({ who: victim, wrecked: true });
@@ -235,7 +236,7 @@ describe('the virtual safety car', () => {
       // (once the field has had a moment to slow)
       if (r.vsc.out > 2) for (const e of r.entrants) if (running(e) && !e.pit) fastest = Math.max(fastest, speedOf(e.car));
     });
-    const kinds = events.map((x) => x.e.kind);
+    const kinds = events.map((x) => x.e.kind).filter((k) => k !== 'contact');
     expect(kinds.slice(0, 5)).toEqual(['lights-out', 'crash', 'vsc', 'vsc-ending', 'green']);
     expect(kinds).not.toContain('safety-car');
     const at = (k: string) => events.find((x) => x.e.kind === k)!.t;
@@ -316,5 +317,23 @@ describe('the start', () => {
     expect(movedAt[0]).toBeGreaterThan(Math.max(...movedAt.slice(1).map((m) => m!)));
     expect(order(race).indexOf(0)).toBeGreaterThan(0);
     expect(crashes).toEqual([]);
+  });
+});
+
+describe('contact between cars', () => {
+  it('is reported, with both cars by their places in the field (for TORPEDO)', () => {
+    const race = raceOn(SILVER_HEATH, 3, 5);
+    // (the player's car flat out straight ahead from P6, into the cars in front at the start)
+    const flatOut = () => ({ steer: { x: 0, y: -1 }, handbrake: false });
+    const hit = new Set<number>();
+    for (let t = 0; t < 30 && race.clock < 6; t += dt) {
+      for (const e of stepRace(race, dt, flatOut).race) {
+        if (e.kind !== 'contact') continue;
+        expect(e.a).not.toBe(e.b);
+        for (const k of [e.a, e.b]) expect(race.entrants[k]).toBeDefined();
+        if (e.a === 5 || e.b === 5) hit.add(e.a === 5 ? e.b : e.a);
+      }
+    }
+    expect(hit.size).toBeGreaterThan(0);
   });
 });

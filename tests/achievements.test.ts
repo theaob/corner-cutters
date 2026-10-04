@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useSave, type SaveStore } from '../src/engine/save';
-import { ACHIEVEMENTS, medalAchievements, raceAchievements, raced, unlock, unlockedAchievements, type RaceSummary } from '../src/f1/achievements';
+import { ACHIEVEMENTS, medalAchievements, raceAchievements, raced, torpedo, unlock, unlockedAchievements, type RaceSummary } from '../src/f1/achievements';
 import { CC_SAVE } from '../src/f1/save';
 
 const race = (o: Partial<RaceSummary>): RaceSummary => ({ place: 5, field: 10, grid: 6, fastest: false, damaged: true, strikes: 1, laps: 5, difficulty: 'normal', weather: 'dry', ...o });
@@ -36,6 +36,20 @@ describe('achievements', () => {
     expect(raceAchievements(race({ damaged: false, strikes: 1 }))).not.toContain('spotless');
     expect(raceAchievements(race({ fastest: true }))).toContain('purple');
     expect(raceAchievements(race({ laps: 15 }))).toContain('endurance');
+  });
+
+  it("for a race: CAN'T STOP WON'T STOP, the flag without a pit stop", () => {
+    expect(raceAchievements(race({ stops: 0 }))).toContain('no-stop');
+    expect(raceAchievements(race({ stops: 1 }))).not.toContain('no-stop');
+    expect(raceAchievements(race({}))).not.toContain('no-stop');
+  });
+
+  it('TORPEDO: three cars or more hit off the start, at the Ardennes only', () => {
+    expect(torpedo('ardennes', new Set([1, 2, 3]))).toBe(true);
+    expect(torpedo('ardennes', new Set([1, 2]))).toBe(false);
+    expect(torpedo('suzuka', new Set([1, 2, 3, 4]))).toBe(false);
+    expect(ACHIEVEMENTS.find((x) => x.id === 'torpedo')?.name).toBe('TORPEDO');
+    expect(ACHIEVEMENTS.find((x) => x.id === 'no-stop')?.name).toBe("CAN'T STOP WON'T STOP");
   });
 
   it('for a race: finishing on tyres worn to 0%, or with the car on fire', () => {
