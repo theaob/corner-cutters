@@ -33,7 +33,7 @@ const buzz = () => vibrate(8);
 export function holdTouches(el: HTMLElement): void {
   const stop = (e: TouchEvent) => {
     // (a text field keeps its touches: a tap focuses it and brings up the keyboard)
-    if (e.target instanceof HTMLInputElement) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (e.cancelable) e.preventDefault();
   };
   el.addEventListener('touchstart', stop, { passive: false });

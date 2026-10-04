@@ -7,6 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { frameDrawn } from './capture';
 
 
 export interface Hd2dSettings {
@@ -109,5 +110,7 @@ export class Hd2dPipeline {
       pass.uniforms.amount.value = s.blur;
     }
     this.composer.render(dt);
+    // (a screenshot waiting for this frame: copied now, while it can still be read)
+    frameDrawn(this.composer.renderer.domElement);
   }
 }

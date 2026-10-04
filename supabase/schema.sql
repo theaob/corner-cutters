@@ -1,6 +1,7 @@
 -- Corner Cutters' backend (Supabase): the play stats and the Daily Challenge's board.
 -- Run it once in the project's SQL editor (it can be run again: it replaces what it made).
--- The game only ever uses the public (anon) key: it can add events and call the three functions below, nothing else.
+-- The game only ever uses the public (anon) key: it can add events and reports (and their screenshots) and call the
+-- three functions below, nothing else.
 -- Nothing personal is kept: a player is a random id made on the device, and their initials on the board.
 
 -- ---------------------------------------------------------------- play stats
@@ -83,6 +84,38 @@ $$;
 revoke all on function public.daily_board(date, uuid, int) from public;
 grant execute on function public.daily_board(date, uuid, int) to anon;
 
+-- ---------------------------------------------------------------- reports
+-- REPORT in the game (the pause screen, the menu's settings): what happened, in the player's words, and where; the
+-- screenshot they drew on is in the 'reports' storage bucket, at `image` (by the day it was made). Read them in the
+-- Table Editor (reports) and Storage (reports): the public key can only add them, never read them.
+create table if not exists public.reports (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  player uuid not null,
+  platform text check (platform in ('web', 'android')),
+  version text check (char_length(version) <= 40),
+  circuit text check (char_length(circuit) <= 40),
+  mode text check (char_length(mode) <= 20),
+  -- the screen's size (390x844)
+  screen text check (char_length(screen) <= 20),
+  text text check (char_length(text) <= 1000),
+  -- the screenshot's path in the 'reports' bucket (2026-10-04/<id>.jpg), if it went
+  image text check (char_length(image) <= 120)
+);
+create index if not exists reports_at on public.reports (at);
+alter table public.reports enable row level security;
+drop policy if exists "the game adds reports" on public.reports;
+create policy "the game adds reports" on public.reports for insert to anon with check (at > now() - interval '1 minute');
+grant insert on public.reports to anon;
+revoke select, update, delete on public.reports from anon;
+
+-- the screenshots: a private bucket (JPEGs, 3 MB at most), the game can only add to
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('reports', 'reports', false, 3145728, array['image/jpeg'])
+on conflict (id) do update set public = false, file_size_limit = 3145728, allowed_mime_types = array['image/jpeg'];
+drop policy if exists "the game adds report screenshots" on storage.objects;
+create policy "the game adds report screenshots" on storage.objects for insert to anon with check (bucket_id = 'reports');
+
 -- ---------------------------------------------------------------- the stats, for the dashboard
 -- The totals: players, launches, races, km driven, all time, today and over the last 7 days, and by circuit and mode;
 -- and each circuit's plays, km and minutes, by mode.
@@ -98,6 +131,8 @@ language sql stable security definer set search_path = public as $$
     'races_finished', (select count(*) from events where kind = 'race_finish'),
     'km', (select coalesce(round(sum(km)::numeric, 1), 0) from events where kind = 'drive'),
     'shares', (select count(*) from events where kind = 'share'),
+    'reports', (select count(*) from reports),
+    'reports_today', (select count(*) from reports where at > date_trunc('day', now())),
     -- time in the game: each launch's stretches summed, the median and the mean of them, and all of it
     'median_session_secs', (select coalesce(round(percentile_cont(0.5) within group (order by t)::numeric), 0) from
       (select sum(seconds) t from events where kind = 'session' group by player, data->>'launch') s),

@@ -6,6 +6,9 @@ The game talks to one Supabase project for two things, and plays on fine without
   can see how many players there are and what they play. A player is a random id made on the device; STATS in the
   settings turns it off.
 - **The Daily Challenge's board**: each day's best runs, by three initials, top 100 and your own place.
+- **Reports**: REPORT on the pause screen (or under DONE in the menu's settings) takes a screenshot of the game, lets
+  the player draw on it and say what happened, and sends it: the words to the `reports` table, the picture to the
+  private `reports` storage bucket.
 
 ## Setting it up (once)
 
@@ -21,6 +24,13 @@ For a local build, put them in `.env.local` as `VITE_SUPABASE_URL=…` and `VITE
 ## Updating it
 
 When `schema.sql` changes, paste all of it into the SQL Editor again and run it. It's safe to run over the project as it is: it keeps every event and run, and adds what's new. For example, the time in the game, and the team and driver picks on the dashboard, need the `seconds` column and the `session` kind, added after the first version.
+
+## Reading the reports
+
+Each report is a row in **Table Editor → reports**: when, the player's random id, web or android, the build's version,
+the circuit and mode (empty from the menu), the screen's size, what they wrote, and `image`, the screenshot's path.
+The screenshots are in **Storage → reports**, in a folder for each day (UTC): open the one `image` names. The game can
+only add reports and pictures, never read them; the dashboard shows how many have come in.
 
 ## Seeing the stats
 

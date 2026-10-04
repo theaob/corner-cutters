@@ -26,6 +26,7 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/share": "^8.0.3",
     "cordova-plugin-purchase": "^13.18.0",
+    "html-to-image": "^1.11.13",
     "three": "^0.186.1"
   },
   "devDependencies": {

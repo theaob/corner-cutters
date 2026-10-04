@@ -120,7 +120,7 @@ layoutButton?.addEventListener('click', (e) => {
   layoutButton.blur();
 });
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement)) switchLayout();
+  if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) switchLayout();
 });
 
 /** This page's address with ?circuit set to `id` (or removed: null) and ?mode to a mode other than a race (or removed); other flags (?tune, ?debug…) stay. */
