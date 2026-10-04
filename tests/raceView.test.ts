@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { deckLabels, type DeckState } from '../src/f1/race/deckLabels';
 import { bannerMessage, type BannerState } from '../src/f1/race/banner';
-import { blocks, ghostText, limitsText, readoutText, towText, tyreText } from '../src/f1/race/readout';
-import { qualifyingRows, resultRows } from '../src/f1/race/resultsView';
+import { blocks, ghostText, limitsText, readoutRows, readoutText, towText, tyreText } from '../src/f1/race/readout';
+import { ICON_ART } from '../src/f1/race/icons';
+import { qualifyingRows, raceSummary, resultRows } from '../src/f1/race/resultsView';
 import { buildCircuit } from '../src/f1/circuit';
 import { CRESCENT_PARK } from '../src/f1/layouts';
 import { carClass, newCar } from '../src/engine/driving';
@@ -78,6 +79,33 @@ describe('the readout', () => {
   });
 });
 
+describe("the readout's rows", () => {
+  it('each line an icon, its label and its value; a word alone a value under the values; long labels across both columns', () => {
+    expect(readoutRows('LAP  0:31.20\nLAST –\n▲ RUS   +0.50\nCAR  ■■■■□\n')).toEqual([
+      { icon: 'watch', label: 'LAP', value: '0:31.20' },
+      { icon: 'lap', label: 'LAST', value: '–' },
+      { label: '▲', value: 'RUS   +0.50' },
+      { icon: 'car', label: 'CAR', value: '■■■■□' },
+    ]);
+    expect(readoutRows(tyreText('SFT', 0.8, false, 'INTERS'))).toEqual([
+      { icon: 'tyre', label: 'TYRE', value: 'SFT ■□□□□' },
+      { label: '', value: 'WORN' },
+      { icon: 'wrench', label: 'BOX', value: 'FOR INTERS' },
+    ]);
+    expect(readoutRows(limitsText(1))).toEqual([{ icon: 'warn', label: 'LIMITS', value: '1/2', span: true }]);
+    expect(readoutRows('BRONZE 0:34.57\n')[0]).toMatchObject({ icon: 'medal', span: true });
+    expect(readoutRows('GOLD ●\n')[0]).toMatchObject({ icon: 'medal', label: 'GOLD', value: '●' });
+    expect(readoutRows('')).toEqual([]);
+  });
+
+  it('each icon whole: 7 × 7 pixels', () => {
+    for (const [name, rows] of Object.entries(ICON_ART)) {
+      expect(rows, name).toHaveLength(7);
+      for (const r of rows) expect(r, name).toMatch(/^[#.]{7}$/);
+    }
+  });
+});
+
 describe('the results rows', () => {
   const f1 = carClass('f1');
   const c = buildCircuit(CRESCENT_PARK, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
@@ -95,6 +123,29 @@ describe('the results rows', () => {
     expect(rows[0]).toMatchObject({ place: 1, moved: 1, you: true, fastest: true, time: '1:30.00' });
     expect(rows[1]).toMatchObject({ moved: -1, time: '+6.25', notes: '+5S 1P' });
     expect(rows[2]).toMatchObject({ time: 'DNF', best: '–' });
+    expect(rows[1]).toMatchObject({ stops: 1, penalty: 5, out: false, finished: true });
+    expect(rows[2]).toMatchObject({ out: true, finished: true });
+  });
+
+  it('your race at a glance: five boxes, the place in the podium colours, the grid and places made, the gap, best lap, stops', () => {
+    const race = newRace(c.track, c.grid, handlingFor(NORMAL), 3, field, 0.5, c.pit);
+    race.entrants[1].progress = { ...race.entrants[1].progress, finished: 90, lapTimes: [30, 29.5, 30.5] };
+    race.entrants[0].progress = { ...race.entrants[0].progress, finished: 91.25, penalty: 5, lapTimes: [31, 30, 30.25] };
+    race.entrants[2].progress = { ...race.entrants[2].progress, retired: true };
+    race.entrants[0].stops = 1;
+    // (you won from P2, with the fastest lap)
+    const won = raceSummary(resultRows(race, [1, 0, 2], named, 1, 1));
+    expect(won.map((b) => [b.label, b.value])).toEqual([['FINISH', 'P1'], ['GRID', 'P2 ▲1'], ['TIME', '1:30.00'], ['FASTEST', '0:29.50'], ['STOPS', '0']]);
+    expect(won[0].color).toBe('#f2c14e');
+    // (you second from pole, a stop and a penalty)
+    const second = raceSummary(resultRows(race, [1, 0, 2], named, 0, 1));
+    expect(second.map((b) => [b.label, b.value])).toEqual([['FINISH', 'P2'], ['GRID', 'P1 ▼1'], ['GAP', '+6.25'], ['BEST', '0:30.00'], ['STOPS', '1 +5S']]);
+    expect(second[4]).toMatchObject({ icon: 'warn', color: '#d8323c' });
+    // (out of it)
+    const out = raceSummary(resultRows(race, [1, 0, 2], named, 2, 1));
+    expect(out[0]).toMatchObject({ value: 'OUT', color: '#d8323c' });
+    expect(out[1].value).toBe('P3');
+    for (const s of [won, second, out]) expect(s).toHaveLength(5);
   });
 
   it("qualifying's: the grid, NO TIME, the gap to pole", () => {
