@@ -39,10 +39,13 @@ export function readoutText(r: {
   return `LAP  ${fmt(r.lapTime)}\nLAST ${fmt(r.last)}\nBEST ${fmt(r.best)}\nREC  ${fmt(r.record)}${gap(r.ahead, '▲')}${gap(r.behind, '▼')}\nCAR  ${car}\n`;
 }
 
-/** The tyre line: the compound, five blocks (and the share left, on the wide screen), WORN past their best; and the crew's call when they're the wrong ones. */
+/**
+ * The tyre line: the compound, five blocks (and the share left, on the wide screen); past their best, WORN on a line of
+ * its own, lined up with the labels (beside the blocks it widened the readout); and the crew's call when they're the wrong ones.
+ */
 export function tyreText(short: string, wear: number, showShare: boolean, boxFor?: string): string {
   const left = 1 - wear;
-  return `TYRE ${short} ${blocks(left)}${showShare ? ` ${Math.round(left * 100)}%` : ''}${wear >= 0.7 ? ' WORN' : ''}\n${boxFor ? `BOX  FOR ${boxFor}\n` : ''}`;
+  return `TYRE ${short} ${blocks(left)}${showShare ? ` ${Math.round(left * 100)}%` : ''}\n${wear >= 0.7 ? 'WORN\n' : ''}${boxFor ? `BOX  FOR ${boxFor}\n` : ''}`;
 }
 
 /** The tow line: TOW and a bar that fills as it builds (0…1). */
