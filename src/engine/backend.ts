@@ -11,14 +11,20 @@ export const online = (): boolean => !!URL_ && !!KEY;
 
 const headers = () => ({ apikey: KEY!, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' });
 
-/** Add `rows` to `table` (as the page is closing too: `keepalive`). False if it didn't go. */
-export async function insert(table: string, rows: object[], keepalive = false): Promise<boolean> {
-  if (!online() || !rows.length) return false;
+/** How an insert went: in, refused by the database (it won't go however often it's tried), or not sent (offline). */
+export type Sent = 'ok' | 'refused' | 'offline';
+
+/**
+ * Add `rows` to `table` (as the page is closing too: `keepalive`). The rows must all have the same keys (the database
+ * takes a batch only so).
+ */
+export async function insert(table: string, rows: object[], keepalive = false): Promise<Sent> {
+  if (!online() || !rows.length) return 'offline';
   try {
     const r = await fetch(`${URL_}/rest/v1/${table}`, { method: 'POST', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(rows), keepalive });
-    return r.ok;
+    return r.ok ? 'ok' : 'refused';
   } catch {
-    return false;
+    return 'offline';
   }
 }
 
