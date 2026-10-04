@@ -34,3 +34,20 @@ describe('the barriers', () => {
     expect(lining).toBeGreaterThan(0);
   });
 });
+
+describe('the garage roofs', () => {
+  it.each(LAYOUTS.map((l) => [l.id, l] as const))('are read left to right on the screen, whichever way the lane runs, at %s', async (_, layout) => {
+    const { roofOrder } = await import('../src/f1/circuitScene');
+    const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const order = roofOrder(c);
+    expect(order).toHaveLength(c.pit.boxes.length);
+    for (const [k, r] of order.entries()) {
+      // (each read eastward, as near as the lane goes; and each further along that way than the one before)
+      expect(r.tx).toBeGreaterThanOrEqual(-0.1);
+      if (k) expect(r.g.x * r.tx + r.g.y * r.tz).toBeGreaterThan(order[k - 1].g.x * r.tx + order[k - 1].g.y * r.tz);
+    }
+  });
+  it("say AZERBAIJAN at Caspian Shores", () => {
+    expect(LAYOUTS.find((l) => l.id === 'baku')!.pitRoof).toBe('AZERBAIJAN');
+  });
+});
