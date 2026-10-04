@@ -64,7 +64,7 @@ import { overtakeOf, towerGap, towerRows } from './tower';
 import { achievementToast, stampMedal } from './screens/celebrate';
 import { medalAchievements, raceAchievements, raced, unlock } from './achievements';
 import { LAYOUTS } from './layouts';
-import { type Medal, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
+import { type Medal, MEDALS, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
 import { style } from './race/dom';
@@ -328,7 +328,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       medalLine.textContent = '';
       return;
     }
-    const next = nextMedal(loadTrophies().medals[layout.id]?.[kind]);
+    // (in a Time Attack, the medal this run has reached already counts: past bronze, it's silver you're after)
+    const held = loadTrophies().medals[layout.id]?.[kind];
+    const reached = kind === 'attack' && attack ? attackMedal(attack.a.passed, attack.a.generous) : undefined;
+    const next = nextMedal(reached && (!held || MEDALS.indexOf(reached) > MEDALS.indexOf(held)) ? reached : held);
     const target = !next ? undefined : kind === 'trial' ? fmt(lapTargets(reference)[next]) : attack ? shortDistance(attackTargets(attack.a.generous)[next]) : undefined;
     medalLine.textContent = !next ? '● GOLD\n' : target ? `${MEDAL_NAME[next]} ${target}\n` : '';
     medalLine.style.color = MEDAL_COLOR[next ?? 'gold'];
@@ -861,7 +864,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const { passed, medal, record, daily } = attack.result;
       return attackCard({
         circuit: layout.name.toUpperCase(), mode: options.daily ? `DAILY CHALLENGE · ${weather.name}` : `TIME ATTACK · ${difficulty.name} · ${weather.name}`,
-        distance: shortDistance(passed), said: distance(passed), medal, record, best: shortDistance(daily ? daily.dayBest.score : Math.max(passed, attack.best ?? 0)), team: yours, date,
+        distance: distance(passed), medal, record, best: distance(daily ? daily.dayBest.score : Math.max(passed, attack.best ?? 0)), team: yours, date,
         place: daily?.place !== undefined ? `#${daily.place} OF ${daily.entries}` : undefined,
       });
     }
@@ -1042,7 +1045,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // no tyre wear against the clock: fresh tyres all the way
     me.tyres.wear = 0;
     fitTyres(me.tyres, me.car, race.wetness);
+    const reachedBefore = attackMedal(attack.a.passed, attack.a.generous);
     const step = stepAttack(attack.a, SIM_DT, p.lapStart !== undefined, p.lapTimes.length * SECTORS + p.sector, cut);
+    // a medal's distance passed: the line shows the next one's
+    if (attackMedal(attack.a.passed, attack.a.generous) !== reachedBefore) showMedal();
     if (step.started) announce('THE CLOCK IS RUNNING', '#5fe0d0', 1.5);
     if (step.added) announce(`+${step.added.toFixed(1)} S`, '#5fe0d0', 1.2);
     if (step.lost) {

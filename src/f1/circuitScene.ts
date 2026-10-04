@@ -59,6 +59,47 @@ const SEAM = '#99978f';
 /** The street circuits' colours: the pavement, the town's paving, the sea. */
 const STREET = { pavement: '#9b9ba3', joint: '#8a8a93', town: '#c8b48f', townDot: '#b9a47e', sea: '#2a6ca6', wave: '#4b8ccc' };
 
+/** samples either side of each that its painted normal is averaged over */
+const NORMAL_SPAN = 4;
+
+/**
+ * The normals the track's lines and kerbs are painted along (unit vectors, its direction's right): each sample's
+ * averaged with its neighbours', nearer ones counting more, so a sharp step from one sample to the next is spread
+ * over a few and the edges and kerbs follow on round the bend unbroken.
+ */
+export function paintNormals(samples: { dir: number }[]): Pt[] {
+  const n = samples.length;
+  return samples.map((_, i) => {
+    let x = 0;
+    let y = 0;
+    for (let k = -NORMAL_SPAN; k <= NORMAL_SPAN; k++) {
+      const w = NORMAL_SPAN + 1 - Math.abs(k);
+      const d = samples[(i + k + n) % n].dir;
+      x += Math.cos(d) * w;
+      y += Math.sin(d) * w;
+    }
+    const len = Math.hypot(x, y) || 1;
+    return { x: x / len, y: y / len };
+  });
+}
+
+/**
+ * The line `off` px out from the track (along `normal`, + its right): where the bend is tighter than that inside it,
+ * a point that would step back against the track's way round stays where the last one was, so the line bunches up
+ * round the apex instead of folding back on itself.
+ */
+export function offsetLine(samples: { x: number; y: number; dir: number }[], normal: Pt[], off: number): Pt[] {
+  const out: Pt[] = [];
+  samples.forEach((p, i) => {
+    const q = { x: p.x + normal[i].x * off, y: p.y + normal[i].y * off };
+    const last = out[i - 1];
+    // (the track's way round: its normal, its right, turned a quarter to the left)
+    if (last && (q.x - last.x) * normal[i].y - (q.y - last.y) * normal[i].x < 0) out.push({ ...last });
+    else out.push(q);
+  });
+  return out;
+}
+
 function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
@@ -126,7 +167,10 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     }
   }
   const pts = track.samples;
-  const offset = (off: number) => pts.map((p) => ({ x: p.x + Math.cos(p.dir) * off, y: p.y + Math.sin(p.dir) * off }));
+  // (out from the track along its normals smoothed a little: a sharp step in the centreline would fold the lines and
+  // kerbs painted just inside the edge back on themselves)
+  const normal = paintNormals(pts);
+  const offset = (off: number) => offsetLine(pts, normal, off);
   const path = (list: Pt[], closed = true) => {
     x.beginPath();
     list.forEach((p, i) => (i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)));

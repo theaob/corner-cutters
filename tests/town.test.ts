@@ -100,16 +100,17 @@ describe('Caspian Shores (Baku)', () => {
       expect(Math.hypot(l.x - (want.x * BAKU.scale - c.offset.x), l.y - (want.y * BAKU.scale - c.offset.y)), l.kind).toBeLessThan(200);
     }
   });
-  it('has the Caspian right behind the garages, with no house between them and the sea', () => {
+  it('has its pits on the town side of the straight, and the Caspian right up to the barriers on the other, no house between', () => {
     const pit = c.pit;
+    expect(pit.side).toBe(-1);
+    // (along the straight, just beyond the barriers on the side away from the pits: the sea)
     for (const q of pit.points.filter((p) => p.s >= pit.boxes[0] && p.s <= pit.boxes[pit.boxes.length - 1])) {
-      const out = GARAGE_ACROSS + 14 + 30;
-      expect(inside(sea, q.x + Math.cos(q.dir) * out * pit.side, q.y + Math.sin(q.dir) * out * pit.side)).toBe(true);
+      const p = samples[q.idx];
+      const out = reach + 50;
+      expect(inside(sea, p.x - Math.cos(p.dir) * out * pit.side, p.y - Math.sin(p.dir) * out * pit.side)).toBe(true);
+      expect(inside(sea, q.x + Math.cos(q.dir) * (GARAGE_ACROSS + 14) * pit.side, q.y + Math.sin(q.dir) * (GARAGE_ACROSS + 14) * pit.side)).toBe(false);
     }
-    for (const b of blocks) {
-      for (const [u, v] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) expect(inside(sea, b.x + (u * b.w) / 2, b.y + (v * b.d) / 2)).toBe(false);
-      expect(Math.min(...pit.points.map((q) => Math.hypot(q.x - b.x, q.y - b.y)))).toBeGreaterThan(GARAGE_ACROSS + 40);
-    }
+    for (const b of blocks) for (const [u, v] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) expect(inside(sea, b.x + (u * b.w) / 2, b.y + (v * b.d) / 2)).toBe(false);
   });
   describe('its old city walls', () => {
     it('run a long way along the castle section, with round towers along them and a gate tower', () => {
