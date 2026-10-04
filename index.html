@@ -523,6 +523,44 @@
         font-family: var(--pixel);
         cursor: pointer;
       }
+      /* the Daily Challenge's initials: three big letters typed into one field, centred, as on an arcade board */
+      .circuit-menu .initials {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 12px;
+        border: 1px dashed var(--key-edge);
+        border-radius: 10px;
+        font: 10px var(--pixel);
+        color: var(--muted);
+        text-align: center;
+      }
+      .circuit-menu .initials.focused,
+      .circuit-menu .initials:focus-within {
+        border-style: solid;
+        border-color: var(--accent-b);
+      }
+      .circuit-menu .initials input {
+        width: 6.2em;
+        padding: 6px 0 6px 0.5em;
+        border: 0;
+        border-bottom: 2px solid var(--gold);
+        border-radius: 0;
+        background: transparent;
+        color: var(--gold);
+        font: 30px var(--pixel);
+        letter-spacing: 0.5em;
+        text-align: center;
+        text-transform: uppercase;
+        outline: none;
+        caret-color: var(--gold);
+      }
+      .circuit-menu .initials input::placeholder {
+        color: var(--key-edge);
+      }
       .circuit-menu .option-row.focused {
         border-style: solid;
         border-color: var(--accent-b);

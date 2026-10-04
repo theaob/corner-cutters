@@ -195,10 +195,15 @@ const KEY_MAP: Record<string, Button> = {
   Backspace: 'select',
 };
 
+/** Whether `target` takes typing (a text field). */
+const typing = (target: EventTarget | null) =>
+  typeof HTMLInputElement !== 'undefined' && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement);
+
 export function bindKeyboard(controls: Controls, target: Window = window): void {
   const onKey = (down: boolean) => (e: KeyboardEvent) => {
     const button = KEY_MAP[e.code];
-    if (!button) return;
+    // (typing in a text field: the keys are the field's, not the deck's)
+    if (!button || typing(e.target)) return;
     e.preventDefault();
     controls.press('keyboard', button, down);
   };

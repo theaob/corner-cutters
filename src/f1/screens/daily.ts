@@ -9,13 +9,11 @@ import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { onBack } from '../../engine/backButton';
 import { online } from '../../engine/backend';
-import { menuButton, optionRow } from '../circuitSelect';
+import { menuButton } from '../circuitSelect';
 import { menuPick, menuTick } from '../sounds';
 import { distance } from '../timeAttack';
 import { fetchBoard, loadDaily, sendPending, streakOn, untilNext, type Board, type Challenge } from '../daily';
-import { initials, playerId, setInitials } from '../profile';
-
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+import { INITIALS, initials, playerId, setInitials } from '../profile';
 
 /** `ms` as hours and minutes: 5H 12M. */
 const hm = (ms: number) => `${Math.floor(ms / 3600000)}H ${Math.floor((ms % 3600000) / 60000)}M`;
@@ -98,19 +96,37 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
       else board.replaceChildren(line(`${b.entries} DRIVER${b.entries === 1 ? '' : 'S'} TODAY${b.you ? ` · YOU: #${b.you.place}` : ''}`, 'var(--gold)'), boardTable(b));
     })();
   }
-  // your initials for the board: three letters (on until picked once; CHANGE brings them back)
-  const start = (initials() ?? 'ACE').split('');
-  const letterRows = [0, 1, 2].map((k) => optionRow(`INITIAL ${k + 1}`, LETTERS, start[k], (l) => ({ name: l, about: k === 0 ? 'your name on the board' : '' })));
-  const nameNow = () => letterRows.map((r) => r.value()).join('');
-  const options = document.createElement('div');
-  options.className = 'options';
-  options.append(...letterRows.map((r) => r.el));
+  // your initials for the board: three letters or digits, typed (the phone's keyboard comes up), as on an arcade
+  // board; shown until picked once, CHANGE brings the field back
+  const naming$ = document.createElement('label');
+  naming$.className = 'initials';
+  const nameLabel = document.createElement('span');
+  nameLabel.textContent = 'YOUR NAME ON THE BOARD';
+  const field = document.createElement('input');
+  Object.assign(field, { id: 'daily-initials', type: 'text', maxLength: 3, autocomplete: 'off', spellcheck: false, value: initials() ?? '' });
+  field.setAttribute('autocapitalize', 'characters');
+  field.setAttribute('enterkeyhint', 'done');
+  field.setAttribute('aria-label', 'Your three initials');
+  field.placeholder = 'ABC';
+  const nameHint = document.createElement('span');
+  nameHint.textContent = 'THREE LETTERS OR DIGITS';
+  naming$.append(nameLabel, field, nameHint);
+  // (capitals, letters and digits only, three at most)
+  field.addEventListener('input', () => {
+    const clean = field.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+    if (clean !== field.value) field.value = clean;
+    nameHint.style.color = '';
+  });
+  const nameNow = () => field.value;
+  const options = naming$;
   let naming = !initials();
   /** Lay the screen out (the letters while naming, else the name and CHANGE); set below */
   let layOut = () => {};
   const nameButton = menuButton('', () => {
     naming = true;
     layOut();
+    field.focus();
+    field.select();
   });
   screen.append(options);
 
@@ -120,7 +136,14 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     const finish = (a: 'play' | 'back') => {
       if (done) return;
       done = true;
-      if (a === 'play' || naming) setInitials(nameNow());
+      if (a === 'play' && naming && !INITIALS.test(nameNow())) {
+        // (not three yet: said, and back to the field)
+        nameHint.style.color = 'var(--gold)';
+        field.focus();
+        done = false;
+        return;
+      }
+      if (INITIALS.test(nameNow())) setInitials(nameNow());
       offBack();
       menuPick();
       screen.remove();
@@ -138,7 +161,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
       nameButton.style.display = naming ? 'none' : '';
       nameButton.textContent = `ON THE BOARD AS ${initials() ?? nameNow()} · CHANGE`;
       places = [
-        ...(naming ? letterRows.map((r) => ({ el: r.el, step: r.step })) : [{ el: nameButton as HTMLElement, pick: () => nameButton.click() }]),
+        ...(naming ? [{ el: options as HTMLElement, pick: () => field.focus() }] : [{ el: nameButton as HTMLElement, pick: () => nameButton.click() }]),
         { el: playButton, pick: () => finish('play') },
         { el: backButton, pick: () => finish('back') },
       ];
@@ -146,10 +169,14 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
       show();
     };
     layOut();
-    letterRows.forEach((r) => r.el.addEventListener('pointerdown', () => {
-      focus = places.findIndex((p) => p.el === r.el);
+    // (the field: done or Enter leaves it; the deck's own keys are its letters while it's being typed in)
+    field.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') field.blur();
+    });
+    field.addEventListener('focus', () => {
+      focus = places.findIndex((p) => p.el === options);
       show();
-    }));
+    });
     holdTouches(screen);
     host.append(screen);
     hud.setPosition('');
