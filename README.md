@@ -82,7 +82,9 @@ Grandstands line each main straight behind the start line, and on the circuits i
 - the game launched (with the platform, web or android, and the build's version);
 - a session started and finished (its mode and circuit, your place);
 - the km you drove (at a scale of 0.67 m to a pixel, so a lap of Silver Heath is the 5.9 km of the circuit it's traced from);
-- a result shared.
+- a result shared;
+- the team and driver picked for each session;
+- the time in the game: each stretch while the page is showing, summed per launch, sent as the page is hidden or closed.
 
 A player is a random id the device makes for itself; nothing else about them is sent. Events are queued and sent every 20 s, and as the page closes. STATS in the settings (SHARE or OFF) turns them off, and it's only there when the build has a backend. Without one (`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` unset), nothing is sent and the game plays as ever. The totals are on the **Pit Wall dashboard** (`stats.html`), published to GitHub Pages by `.github/workflows/stats.yml` (https://theaob.github.io/corner-cutters/; setup in `supabase/README.md`), or from `select public.game_stats();` in the project's SQL editor. The schema (`supabase/schema.sql`) lets the public key add events and nothing more.
 

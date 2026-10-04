@@ -18,10 +18,15 @@ The game talks to one Supabase project for two things, and plays on fine without
 
 For a local build, put them in `.env.local` as `VITE_SUPABASE_URL=…` and `VITE_SUPABASE_ANON_KEY=…`.
 
+## Updating it
+
+When `schema.sql` changes, paste all of it into the SQL Editor again and run it. It's safe to run over the project as it is: it keeps every event and run, and adds what's new. For example, the time in the game, and the team and driver picks on the dashboard, need the `seconds` column and the `session` kind, added after the first version.
+
 ## Seeing the stats
 
 **The dashboard** (`stats.html`, `src/stats/main.ts`) shows them, live:
-- the totals: players (all time, today, last 7 days), launches, races finished and started, km driven, results shared, and today's Daily Challenge players;
+- the totals: players (all time, today, last 7 days), launches, races finished and started (and per player), km driven, time per visit (the median, and the mean), hours played, players who came back another day, results shared, and today's Daily Challenge players;
+- who players pick: the most and least picked team and driver (ties named together, the never-picked ones at 0), and every team and driver by sessions started;
 - players per day over the last 30 days;
 - players by platform, and finished sessions by mode and by circuit;
 - today's Daily Challenge board.

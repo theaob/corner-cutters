@@ -484,6 +484,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (drivenPx > 0) noteStat('drive', { circuit: layout.id, mode: drivenMode, km: kmOf(drivenPx) });
     drivenPx = 0;
   };
+  /** The team and driver you picked for a weekend (`w`), for the play stats. */
+  const pickOf = (w: ReturnType<typeof drawWeekend>) => {
+    const d = w.drivers[w.youDriver];
+    return { team: d.livery.id, driver: d.livery.drivers[d.seat] };
+  };
   /** The session, as the play stats name it. */
   const statsMode = () => (championship && session === 'race' ? 'championship' : options.daily ? 'daily' : session);
   /** A Daily Challenge run over: kept (your streak, your best today), on to the board, and your place there. */
@@ -560,8 +565,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     attack = undefined;
     raceGrid = gridSlots;
     resetSession();
-    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode(), data: pickOf(w) });
     const slots = gridSlots ?? w.drivers.map((_, k) => k);
     raceDrivers = slots;
     you = slots.indexOf(w.youDriver);
@@ -593,8 +598,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     trial = undefined;
     attack = undefined;
     resetSession();
-    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode(), data: pickOf(w) });
     you = 0;
     const d = w.drivers[w.youDriver];
     looks = [addLook(d.livery, d.seat, true)];
@@ -611,8 +616,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     learn = undefined;
     quali = undefined;
     resetSession();
-    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode(), data: pickOf(w) });
     you = 0;
     const d = w.drivers[w.youDriver];
     looks = [addLook(d.livery, d.seat, true)];
@@ -633,8 +638,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     quali = undefined;
     trial = undefined;
     resetSession();
-    noteStat('race_start', { circuit: layout.id, mode: statsMode() });
     const w = drawWeekend();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode(), data: pickOf(w) });
     you = 0;
     const d = w.drivers[w.youDriver];
     looks = [addLook(d.livery, d.seat, true)];
