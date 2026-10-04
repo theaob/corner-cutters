@@ -59,3 +59,25 @@ export function bannerMessage(s: BannerState): [string, string] {
     : s.attackLeft !== undefined ? [`${s.attackLeft.toFixed(1)} S`, s.attackLeft < 5 ? '#d8323c' : '#f4f4f8']
     : ['', ''];
 }
+
+/**
+ * `text` on two lines: at its ' · ' (the one nearest the middle), a phrase a
+ * line and the dot gone; without one, at the space that leaves the longer
+ * line shortest (where a browser can't balance the lines itself). One word: as it is.
+ */
+export function evenLines(text: string): string {
+  const words = text.split(' ');
+  if (words.length < 2) return text;
+  const dots = words.flatMap((w, k) => (w === '·' && k > 0 && k < words.length - 1 ? [k] : []));
+  if (dots.length) {
+    const k = dots.reduce((a, b) => (Math.abs(b - words.length / 2) < Math.abs(a - words.length / 2) ? b : a));
+    return `${words.slice(0, k).join(' ')}\n${words.slice(k + 1).join(' ')}`;
+  }
+  let at = 1;
+  let longest = Infinity;
+  for (let k = 1; k < words.length; k++) {
+    const most = Math.max(words.slice(0, k).join(' ').length, words.slice(k).join(' ').length);
+    if (most < longest) [at, longest] = [k, most];
+  }
+  return `${words.slice(0, at).join(' ')}\n${words.slice(at).join(' ')}`;
+}

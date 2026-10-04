@@ -79,7 +79,7 @@ import { BLUE_COLOR, renderTower } from './race/towerView';
 import { createCeremonyView } from './race/ceremonyView';
 import { ghostText, limitsText, readoutText, towText, tyreText } from './race/readout';
 import { paintRows } from './race/readoutView';
-import { bannerMessage } from './race/banner';
+import { bannerMessage, evenLines } from './race/banner';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
 import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
@@ -248,6 +248,30 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let battleNow = 0;
   const rain = createRain();
   const flagOverlay = createFlagOverlay();
+  // the banner's message, on even lines if it takes two: a message in phrases (' · ') a phrase a line; otherwise the
+  // browser balances them (text-wrap: balance), or where it can't, it's split at its most even point; once it's seen
+  // to wrap (the same message: left as it is)
+  const balances = globalThis.CSS?.supports?.('text-wrap', 'balance') ?? false;
+  let bannerShown = { text: '', drawn: '' };
+  const showBanner = (text: string) => {
+    if ((balances && !text.includes(' · ')) || !text.includes(' ')) {
+      if (banner.textContent !== text) banner.textContent = text;
+      return;
+    }
+    if (text === bannerShown.text && banner.textContent === bannerShown.drawn) return;
+    banner.textContent = text;
+    const range = document.createRange();
+    range.selectNodeContents(banner);
+    if (range.getClientRects().length > 1) {
+      banner.replaceChildren(...evenLines(text).split('\n').map((line) => {
+        const row = document.createElement('span');
+        row.style.display = 'block';
+        row.textContent = line;
+        return row;
+      }));
+    }
+    bannerShown = { text, drawn: banner.textContent };
+  };
   host.append(streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay.el);
   placeHud = (desktop) => {
     phoneHud = !desktop;
@@ -1690,7 +1714,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         learn: learn && { text: prompt(learn.o.step, device(), pointsOn(device())), last: learn.o.step === 'done' },
         beforeLine: p.lapStart === undefined, safetyCar: !!sc, vsc: !!race.vsc, attackLeft: attack?.a.left,
       });
-      banner.textContent = text;
+      showBanner(text);
       banner.style.color = color;
     }
     const lapTime = p.lapStart !== undefined && p.finished === undefined ? clock - p.lapStart : undefined;

@@ -21,6 +21,7 @@ import { lapsFrom } from './f1/laps';
 import { curtainDown, curtainUp } from './f1/screens/curtain';
 import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
+import { useLayoutSwitch } from './f1/settingsRows';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
@@ -44,7 +45,6 @@ const screen = document.getElementById('screen')!;
 const deck = document.getElementById('deck')!;
 
 const app = document.getElementById('app')!;
-const layoutButton = document.querySelector<HTMLButtonElement>('[data-layout]');
 
 // this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
 useStore('cc:');
@@ -54,7 +54,8 @@ forgetChangedCircuits(LAYOUTS);
 
 // The layout: every device starts in the handheld one. The player can switch
 // to the desktop layout (a wide screen with the deck laid over it as a HUD)
-// with the WIDE button or the V key, and back; the choice is kept on the device.
+// with SCREEN in the settings (on a device with a mouse or trackpad) or the V
+// key, and back; the choice is kept on the device.
 const savedLayout = () => {
   const v = saved('settings', 'layout');
   return typeof v === 'string' ? v : null;
@@ -66,10 +67,6 @@ function applyLayout(): void {
   // the deck sits over the screen as a HUD on desktop, under it on a phone
   if (desktop) screen.append(deck);
   else app.append(deck);
-  if (layoutButton) {
-    layoutButton.hidden = !canSwitchLayout() && !desktop;
-    layoutButton.textContent = desktop ? 'HANDHELD' : 'WIDE';
-  }
 }
 applyLayout();
 
@@ -117,11 +114,8 @@ function switchLayout(): void {
   applyLayout();
   onResize();
 }
-layoutButton?.addEventListener('click', (e) => {
-  e.preventDefault();
-  switchLayout();
-  layoutButton.blur();
-});
+// (SCREEN in the settings)
+useLayoutSwitch({ now: () => layout, can: () => canSwitchLayout(), set: (mode) => mode !== layout && switchLayout() });
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) switchLayout();
 });

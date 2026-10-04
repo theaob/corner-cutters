@@ -34,8 +34,10 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   readout.append(mainLines, medalLine, ghostLine, towLine, tyreLine, limitsLine);
   const banner = document.createElement('div');
   style(banner, {
-    position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
+    position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center', padding: '0 16px',
     font: '20px Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', pointerEvents: 'none',
+    // (a message on two lines: even ones, no word left on its own)
+    textWrap: 'balance',
   });
   // the team radio: your engineer's line in a panel in your team's colour, keyed with a click and a squelch
   const radioPanel = document.createElement('div');
