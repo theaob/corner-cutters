@@ -80,6 +80,17 @@
       td { padding: 6px; border-top: 1px solid var(--edge); }
       td.r, th.r { text-align: right; }
       td.name { font-family: var(--pixel); color: var(--amber); }
+      tr.mode td { border-top: none; padding-top: 2px; padding-bottom: 2px; color: var(--muted); font-size: 12px; }
+      tr.mode td:first-child { padding-left: 22px; }
+      tr.circuit td { font-weight: 600; }
+      tr.zero td { color: var(--faint); font-weight: normal; }
+      @media (max-width: 480px) {
+        #circuits { padding: 6px 8px; }
+        #circuits table { font-size: 12px; }
+        #circuits th { letter-spacing: 0.4px; }
+        #circuits td, #circuits th { padding: 6px 3px; }
+        #circuits tr.mode td:first-child { padding-left: 12px; }
+      }
       footer { font-size: 12px; color: var(--faint); border-top: 1px solid var(--edge); padding-top: 12px; }
       @media (prefers-reduced-motion: no-preference) { .fill { transition: width .5s ease-out; } }
     </style>
@@ -111,6 +122,10 @@
         <section><h2>FINISHED SESSIONS BY MODE</h2><ul class="bars" id="mode"></ul></section>
         <section><h2>FINISHED SESSIONS BY CIRCUIT</h2><ul class="bars" id="circuit"></ul></section>
       </div>
+      <section>
+        <h2>CIRCUITS · TIMES PLAYED, KM AND MINUTES, BY MODE</h2>
+        <div class="board" id="circuits"><p class="empty">Waiting for the first session.</p></div>
+      </section>
       <section>
         <h2>WHO PLAYERS PICK · SESSIONS STARTED</h2>
         <div class="callouts" id="callouts"></div>

@@ -32,6 +32,19 @@ interface Stats {
   daily_players: { day: string; players: number }[];
   daily_launches?: { day: string; launches: number }[];
   daily_seconds?: { day: string; seconds: number }[];
+  /** each circuit's sessions started, races finished, km and minutes on it, all of it and by mode (the most played first) */
+  circuits?: CircuitStats[];
+}
+
+interface Played {
+  plays: number;
+  finishes?: number;
+  km: number;
+  minutes: number;
+}
+interface CircuitStats extends Played {
+  circuit: string;
+  modes: Record<string, Played>;
 }
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -244,6 +257,34 @@ function picks(s: Stats) {
   bars('drivers', s.by_driver ?? {}, (k) => `${k} · ${driverTeam(k)?.code ?? ''}`, TEAMS.flatMap((x) => x.drivers), (k) => driverTeam(k)?.body);
 }
 
+/** Each circuit: times played (sessions started), races finished, km and minutes on it; under it, the same by mode. Every circuit listed, the unplayed faint. */
+function circuitsTable(list: CircuitStats[]) {
+  const known = new Map(list.map((c) => [c.circuit, c]));
+  const rows: CircuitStats[] = [...list, ...LAYOUTS.filter((l) => !known.has(l.id)).map((l) => ({ circuit: l.id, plays: 0, finishes: 0, km: 0, minutes: 0, modes: {} }))];
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>CIRCUIT · MODE</th><th class="r">PLAYED</th><th class="r">FINISHED</th><th class="r">KM</th><th class="r">MIN</th></tr></thead>';
+  const body = document.createElement('tbody');
+  const row = (cls: string, name: string, cells: string[]) => {
+    const tr = document.createElement('tr');
+    tr.className = cls;
+    for (const [k, text] of [name, ...cells].entries()) {
+      const td = document.createElement('td');
+      if (k) td.className = 'r';
+      td.textContent = text;
+      tr.append(td);
+    }
+    body.append(tr);
+  };
+  const km = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  for (const c of rows) {
+    row(`circuit${c.plays || c.minutes ? '' : ' zero'}`, circuitName(c.circuit), [fmt(c.plays), fmt(c.finishes ?? 0), km(c.km), km(c.minutes)]);
+    const modes = Object.entries(c.modes).sort(([, a], [, b]) => b.plays - a.plays || b.minutes - a.minutes);
+    for (const [mode, m] of modes) row('mode', MODE_NAMES[mode] ?? mode, [fmt(m.plays), fmt(m.finishes ?? 0), km(m.km), km(m.minutes)]);
+  }
+  table.append(body);
+  $('circuits').replaceChildren(table);
+}
+
 function board(b: Board | undefined) {
   const c = challengeOn(dayOf());
   $('board-title').textContent = `TODAY'S DAILY CHALLENGE · ${c.layout.name.toUpperCase()} · ${c.weather.name}`;
@@ -308,6 +349,7 @@ async function load() {
   bars('platform', s.by_platform ?? {}, (k) => PLATFORM_NAMES[k] ?? k);
   bars('mode', s.by_mode ?? {}, (k) => MODE_NAMES[k] ?? k);
   bars('circuit', s.by_circuit ?? {}, circuitName);
+  circuitsTable(s.circuits ?? []);
   picks(s);
   board(b);
   const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

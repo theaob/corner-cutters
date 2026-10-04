@@ -29,6 +29,7 @@ When `schema.sql` changes, paste all of it into the SQL Editor again and run it.
 - who players pick: the most and least picked team and driver (ties named together, the never-picked ones at 0), and every team and driver by sessions started;
 - players, launches and time played per day over the last 30 days (time in minutes, or in hours once a day's had three or more);
 - players by platform, and finished sessions by mode and by circuit;
+- each circuit: the times it's been played (sessions started), the races finished, the km driven and the minutes on it, and each of those by mode (every circuit listed, the unplayed ones faint);
 - today's Daily Challenge board.
 
 It refreshes every minute. `.github/workflows/stats.yml` publishes it to GitHub Pages, at https://theaob.github.io/corner-cutters/. To switch it on, once: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then **Actions → stats → Run workflow**. After that it redeploys itself when the dashboard changes. It reads with the same public key as the game, and shows only totals (no player's events). `npm run stats` runs it locally (with `.env.local` as above).
@@ -36,4 +37,4 @@ It refreshes every minute. `.github/workflows/stats.yml` publishes it to GitHub 
 In the SQL Editor:
 `select public.game_stats();` gives the totals (players all time, today and over 7 days, launches,
 races started and finished, km driven, shares, Daily Challenge players today, players by platform, finished races by
-mode and circuit, and players per day over the last 30 days). The raw events are in the `events` table.
+mode and circuit, players per day over the last 30 days, and each circuit's plays, finishes, km and minutes, by mode: `circuits`; the minutes come from the time on the circuit each `drive` event carries in `data.seconds`). The raw events are in the `events` table.

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, RUNOFF, buildCircuit } from '../src/f1/circuit';
-import { ARDENNES, LAYOUTS, OASIS } from '../src/f1/layouts';
+import { ARDENNES, LAYOUTS, OASIS, ROYAL_PARK } from '../src/f1/layouts';
 import { carClass } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { FOREST, PALMS, treesOf, type Tree } from '../src/f1/forest3d';
+import { FOREST, PALMS, PARK, treesOf, type Tree } from '../src/f1/forest3d';
 import { HIDES } from '../src/f1/town3d';
 import { standsOf } from '../src/f1/stands';
 
@@ -15,9 +15,9 @@ describe('the forest', () => {
   const circuit = build(ARDENNES);
   const trees = treesOf(circuit);
 
-  it('grows only round a circuit in a forest (and palms only in the desert)', () => {
+  it('grows only round a circuit in a forest (palms only in the desert, and parkland trees in a park)', () => {
     for (const l of LAYOUTS) {
-      if (l.forest || l.desert) continue;
+      if (l.forest || l.desert || l.park) continue;
       expect(treesOf(build(l))).toHaveLength(0);
     }
     expect(trees.some((t) => t.kind === 'palm')).toBe(false);
@@ -41,6 +41,7 @@ describe('the forest', () => {
 describe.each([
   { name: 'the forest at the Ardennes', layout: ARDENNES, crown: FOREST.crown, clear: FOREST.clear },
   { name: 'the palms at Oasis', layout: OASIS, crown: PALMS.crown, clear: PALMS.clear },
+  { name: 'the trees at Royal Park', layout: ROYAL_PARK, crown: FOREST.crown, clear: PARK.clear },
 ])('$name', ({ layout, crown, clear }) => {
   const circuit = build(layout);
   const trees: Tree[] = treesOf(circuit);
@@ -105,5 +106,40 @@ describe('the palms at Oasis', () => {
     const reach = HALF_WIDTH + RUNOFF;
     const near = palms.filter((t) => Math.min(...circuit.track.samples.map((p) => Math.hypot(p.x - t.x, p.y - t.y))) < reach + PALMS.clear + PALMS.liningOut[1] + 20);
     expect(near.length).toBeGreaterThan(150);
+  });
+});
+
+describe('the trees at Royal Park', () => {
+  const circuit = build(ROYAL_PARK);
+  const trees = treesOf(circuit);
+  const reach = HALF_WIDTH + RUNOFF;
+  const fromTrack = (t: { x: number; y: number }, from = 0, to = circuit.track.samples.length) =>
+    Math.min(...circuit.track.samples.slice(from, to).map((p) => Math.hypot(p.x - t.x, p.y - t.y)));
+
+  it('stand in groves over the lawns, broadleaves with a cedar here and there: a park, not a forest', () => {
+    expect(trees.length).toBeGreaterThan(150);
+    expect(trees.some((t) => t.kind === 'palm')).toBe(false);
+    const cedars = trees.filter((t) => t.kind === 'spruce').length / trees.length;
+    expect(cedars).toBeGreaterThan(0.05);
+    expect(cedars).toBeLessThan(0.3);
+    for (const t of trees) expect(t.h).toBeLessThanOrEqual(PARK.tallest);
+    const W = circuit.width * 16;
+    const H = circuit.height * 16;
+    expect(trees.length).toBeLessThan(((W + 2 * PARK.beyond) * (H + 2 * PARK.beyond)) / (FOREST.spacing * FOREST.spacing) / 4);
+  });
+
+  it('line the woods, both sides, just past the barriers', () => {
+    const [from, to] = ROYAL_PARK.park!.avenue.map((d) => Math.round(d / circuit.track.spacing));
+    const lining = trees.filter((t) => fromTrack(t, from, to + 1) < reach + PARK.clear + PARK.avenueOut[1] + 40);
+    expect(lining.length).toBeGreaterThan(40);
+    // (on each side: left of the lap and right of it)
+    const side = (t: Tree) => {
+      const s = circuit.track.samples;
+      let best = from;
+      for (let i = from; i <= to; i++) if (Math.hypot(s[i].x - t.x, s[i].y - t.y) < Math.hypot(s[best].x - t.x, s[best].y - t.y)) best = i;
+      return Math.sign((t.x - s[best].x) * Math.cos(s[best].dir) + (t.y - s[best].y) * Math.sin(s[best].dir));
+    };
+    expect(lining.filter((t) => side(t) > 0).length).toBeGreaterThan(10);
+    expect(lining.filter((t) => side(t) < 0).length).toBeGreaterThan(10);
   });
 });

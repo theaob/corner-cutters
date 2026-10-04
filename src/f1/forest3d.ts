@@ -7,6 +7,9 @@
 // the garages or a grandstand. Drawn as instanced meshes in square chunks, so
 // the chunks off screen (and out of the sun's shadow box) aren't drawn.
 //
+// In a park (layout.park), broadleaf trees in groves over the lawns, a cedar
+// here and there, and lining both sides of its woods, by the same rules.
+//
 // In the desert (layout.desert), palms instead: in groves here and there round
 // the circuit and out over the sand, a curved trunk and a crown of drooping
 // fronds, by the same rules (clear of the track, the pits and the stands, and
@@ -69,7 +72,30 @@ export const PALMS = {
   crown: 0.34,
 };
 
+export const PARK = {
+  /** px between the spots a grove may stand (before a random nudge), and the share of them that have one */
+  every: 150,
+  groves: 0.55,
+  /** px past the run-off's edge (the barriers) before they start */
+  clear: 20,
+  /** trees in a grove (at least, and up to this many more), and px round its middle they stand within */
+  least: 3,
+  more: 6,
+  spread: 56,
+  /** px tall at the most, and the share of them that are cedars (dark, tiered) */
+  tallest: 50,
+  cedars: 0.15,
+  /** px out past the edge of the map the groves go on */
+  beyond: 300,
+  /** the woods: every this many px along the lap, each side, a tree (the chance of one), px out past the barriers (at least, and up to this much more) */
+  avenueEvery: 34,
+  avenue: 0.85,
+  avenueOut: [0, 40] as const,
+};
+
 const SPRUCE = [0x24492a, 0x2d5a32, 0x1f4026, 0x335f38];
+/** a park's broadleaves in summer: greens, light and dark */
+const PARKLAND = [0x4f8a3c, 0x5f9a44, 0x3f7a34, 0x6ba84a, 0x467f3a];
 const FRONDS = [0x3f8a34, 0x4c9a3a, 0x5a9e3c, 0x6f9a3a];
 const BROADLEAF = [0x4f8a3c, 0x5f9a44, 0x6b9a40, 0xc98a3a, 0xa8542c];
 
@@ -128,6 +154,7 @@ function growth(circuit: Circuit, clear: number) {
 /** The forest's trees (none for a circuit that isn't in one); in the desert, its palms. */
 export function treesOf(circuit: Circuit): Tree[] {
   if (circuit.layout.desert) return palmsOf(circuit);
+  if (circuit.layout.park) return parkOf(circuit, circuit.layout.park.avenue);
   if (!circuit.layout.forest) return [];
   const W = circuit.width * T;
   const H = circuit.height * T;
@@ -146,6 +173,55 @@ export function treesOf(circuit: Circuit): Tree[] {
       const kind = pick < 0.82 ? 'spruce' : 'broadleaf';
       const palette = kind === 'spruce' ? SPRUCE : BROADLEAF;
       out.push({ x, y, h, kind, color: palette[Math.floor(r() * palette.length)] });
+    }
+  }
+  return out;
+}
+
+/** A park's trees: lining its woods, and in groves over the lawns round the circuit. */
+function parkOf(circuit: Circuit, [from, to]: [number, number]): Tree[] {
+  const W = circuit.width * T;
+  const H = circuit.height * T;
+  const grow = growth(circuit, PARK.clear);
+  const r = rng(71);
+  const out: Tree[] = [];
+  const plant = (x: number, y: number, tall = PARK.tallest) => {
+    const cedar = r() < PARK.cedars;
+    const want = tall * (0.6 + 0.4 * r());
+    const h = grow(x, y, want, FOREST.crown);
+    // (no two crowns on top of each other)
+    if (h < FOREST.shortest || out.some((t) => Math.hypot(t.x - x, t.y - y) < h * FOREST.crown)) return;
+    const palette = cedar ? SPRUCE : PARKLAND;
+    out.push({ x, y, h, kind: cedar ? 'spruce' : 'broadleaf', color: palette[Math.floor(r() * palette.length)] });
+  };
+  // the woods: lining both sides of the lap
+  const { samples, spacing } = circuit.track;
+  const reach = HALF_WIDTH + RUNOFF + PARK.clear;
+  const step = Math.max(1, Math.round(PARK.avenueEvery / spacing));
+  for (let i = Math.round(from / spacing); i <= Math.round(to / spacing); i += step) {
+    const p = samples[i % samples.length];
+    for (const side of [-1, 1]) {
+      if (r() > PARK.avenue) continue;
+      for (const deeper of [0, 1]) {
+        const off = reach + PARK.avenueOut[0] + r() * PARK.avenueOut[1] + deeper * 30;
+        const along = (r() - 0.5) * 16;
+        plant(p.x + Math.cos(p.dir) * off * side + Math.sin(p.dir) * along, p.y + Math.sin(p.dir) * off * side - Math.cos(p.dir) * along);
+      }
+    }
+  }
+  // and the groves over the lawns
+  const S = PARK.every;
+  for (let gy = -PARK.beyond; gy < H + PARK.beyond; gy += S) {
+    for (let gx = -PARK.beyond; gx < W + PARK.beyond; gx += S) {
+      const cx = gx + (r() - 0.5) * S * 0.7;
+      const cy = gy + (r() - 0.5) * S * 0.7;
+      const count = PARK.least + Math.floor(r() * (PARK.more + 1));
+      if (r() > PARK.groves) continue;
+      for (let k = 0; k < count; k++) {
+        const a = r() * Math.PI * 2;
+        const d = Math.sqrt(r()) * PARK.spread;
+        plant(cx + Math.cos(a) * d, cy + Math.sin(a) * d);
+      }
     }
   }
   return out;

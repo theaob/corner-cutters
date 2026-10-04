@@ -26,6 +26,8 @@ export interface CircuitLayout {
   banking?: { from: number; to: number; grade: number };
   /** in a forest: trees packed all round beyond the barriers, on a dark forest floor */
   forest?: boolean;
+  /** in a park: groves of trees here and there over the grass, and lining the lap from `avenue[0]` to `avenue[1]` px round it (its woods) */
+  park?: { avenue: [number, number] };
   /** in the desert: sand all round, beyond the barriers and on the run-off */
   desert?: boolean;
   /** lakes beyond the barriers: polygons (in `points` units), their water flat in the hollows of the ground */
@@ -309,6 +311,9 @@ export const ROYAL_PARK: CircuitLayout = {
   // (from the back straight's end round to the main straight)
   banking: { from: 7700, to: 9100, grade: 0.3 },
   podiumDeck: 46,
+  // the old park's trees: groves over the lawns, and the woods, from their two rights along the straight under the
+  // trees to the fast chicane
+  park: { avenue: [3900, 5600] },
 };
 
 /**
