@@ -14,6 +14,7 @@ import { menuPick, menuTick } from '../sounds';
 import { distance } from '../timeAttack';
 import { fetchBoard, loadDaily, sendPending, streakOn, untilNext, type Board, type Challenge } from '../daily';
 import { INITIALS, initials, playerId, setInitials } from '../profile';
+import { reportOpen } from '../report';
 
 /** `ms` as hours and minutes: 5H 12M. */
 const hm = (ms: number) => `${Math.floor(ms / 3600000)}H ${Math.floor((ms % 3600000) / 60000)}M`;
@@ -202,7 +203,8 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
         clearInterval(clock);
         return;
       }
-      const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map(pressed);
+      // (a report being made: its, not this screen's)
+      const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map((k) => pressed(k) && !reportOpen());
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
         focus = (focus + move + places.length) % places.length;

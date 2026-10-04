@@ -55,6 +55,8 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const MODE_NAMES: Record<string, string> = {
   race: 'Quick Race', championship: 'Championship', timeattack: 'Time Attack', timetrial: 'Time Trial', daily: 'Daily Challenge', qualifying: 'Qualifying', tutorial: 'Controls lap',
 };
+/** the menu screens a report can come from */
+const MENU_NAMES: Record<string, string> = { menu: 'the menu', championship: 'the Championship screen', daily: 'the Daily Challenge screen', shop: 'the Championship shop' };
 const PLATFORM_NAMES: Record<string, string> = { web: 'Web (itch.io)', android: 'Android app' };
 const circuitName = (id: string) => LAYOUTS.find((l) => l.id === id)?.name ?? id;
 
@@ -434,7 +436,7 @@ function reportCard(r: Report): HTMLElement {
   const meta = document.createElement('p');
   meta.className = 'meta';
   const when = new Date(r.at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const where = r.circuit ? `${circuitName(r.circuit)}${r.mode ? ` · ${MODE_NAMES[r.mode] ?? r.mode}` : ''}` : 'From the menu';
+  const where = r.circuit ? `${circuitName(r.circuit)}${r.mode ? ` · ${MODE_NAMES[r.mode] ?? r.mode}` : ''}` : `From ${MENU_NAMES[r.mode ?? ''] ?? 'the menu'}`;
   meta.textContent = [`#${r.id} · ${when}`, where, [PLATFORM_NAMES[r.platform ?? ''] ?? r.platform, r.version && `v${r.version}`, r.screen].filter(Boolean).join(' · ')].join('\n');
   body.append(words, meta);
   if (r.image) {
