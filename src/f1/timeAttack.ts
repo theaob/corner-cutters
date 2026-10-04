@@ -95,6 +95,13 @@ export function stepAttack(a: Attack, dt: number, started: boolean, passed: numb
   return out;
 }
 
+/** How far `passed` checkpoints is, short, where room is tight (the readout, the share card): '5L 1S', '5L', '2S', '0S'. */
+export function shortDistance(passed: number): string {
+  const laps = Math.floor(passed / SECTORS);
+  const sectors = passed % SECTORS;
+  return laps ? (sectors ? `${laps}L ${sectors}S` : `${laps}L`) : `${sectors}S`;
+}
+
 /** How far `passed` checkpoints is, as said on the screen: '2 LAPS + 1 SECTOR', '1 LAP', '2 SECTORS', 'NO SECTORS'. */
 export function distance(passed: number): string {
   const laps = Math.floor(passed / SECTORS);

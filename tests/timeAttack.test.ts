@@ -102,3 +102,14 @@ describe('a Time Attack, driven', () => {
     expect(steady).toBeGreaterThan(0);
   }, 120_000);
 });
+
+describe('the distance, short', () => {
+  it('laps and sectors as 5L 1S, for where room is tight', async () => {
+    const { shortDistance } = await import('../src/f1/timeAttack');
+    const { SECTORS } = await import('../src/f1/racing');
+    expect(shortDistance(5 * SECTORS + 1)).toBe('5L 1S');
+    expect(shortDistance(6 * SECTORS)).toBe('6L');
+    expect(shortDistance(2)).toBe('2S');
+    expect(shortDistance(0)).toBe('0S');
+  });
+});

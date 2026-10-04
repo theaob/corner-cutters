@@ -14,8 +14,9 @@ export interface ShareCard {
   circuit: string;
   /** the mode and how it was run (QUICK RACE · NORMAL · DRY) */
   mode: string;
-  /** big in the middle (P1, 12 SECTORS), in `color` */
+  /** big in the middle (P1, 5L 1S), in `color`; and as the text says it, if not so (5 laps + 1 sector) */
   headline: string;
+  said?: string;
   color: string;
   /** under it (WINNER, PODIUM, +3.21 S, GOLD MEDAL) */
   sub: string;
@@ -51,10 +52,12 @@ export function raceCard(r: {
 }
 
 /** A Time Attack's card: `distance` reached (its words), the medal, and whether it's a record. */
-export function attackCard(a: { circuit: string; mode: string; distance: string; medal?: Medal; record: boolean; best?: string; place?: string; team: ShareCard['team']; date: string }): ShareCard {
+export function attackCard(a: {
+  circuit: string; mode: string; distance: string; said?: string; medal?: Medal; record: boolean; best?: string; place?: string; team: ShareCard['team']; date: string;
+}): ShareCard {
   return {
     circuit: a.circuit, mode: a.mode, team: a.team, date: a.date, medal: a.medal,
-    headline: a.distance, color: a.medal ? MEDAL_COLOR[a.medal] : '#f4f4f8',
+    headline: a.distance, said: a.said, color: a.medal ? MEDAL_COLOR[a.medal] : '#f4f4f8',
     sub: a.medal ? `${MEDAL_NAME[a.medal]} MEDAL${a.record ? ' · NEW RECORD' : ''}` : a.record ? 'NEW RECORD' : 'TIME UP',
     stats: [['REACHED', a.distance], ['BEST', a.best ?? a.distance], ...(a.place ? [['TODAY', a.place] as [string, string]] : [])],
   };
@@ -62,7 +65,7 @@ export function attackCard(a: { circuit: string; mode: string; distance: string;
 
 /** The text that goes with the card. */
 export function shareText(c: ShareCard): string {
-  const how = c.headline === 'DNF' ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${c.headline.toLowerCase()}`;
+  const how = c.headline === 'DNF' ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${(c.said ?? c.headline).toLowerCase()}`;
   return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters 🏁 ${c.sub === 'WINNER' ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
 }
 const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
@@ -132,8 +135,12 @@ export function drawCard(ctx: CanvasRenderingContext2D, c: ShareCard, map?: Canv
     ctx.stroke();
   }
   ctx.fillStyle = '#1b1b26';
-  text(c.headline, 478, /^P\d+$/.test(c.headline) || c.headline === 'DNF' ? 200 : 96, '#1b1b26');
-  text(c.headline, 470, /^P\d+$/.test(c.headline) || c.headline === 'DNF' ? 200 : 96, c.color);
+  // (a place or DNF big; a distance, short as it is, a little smaller to sit inside its medal)
+  const big = /^P\d+$/.test(c.headline) || c.headline === 'DNF' ? 200 : c.headline.length <= 6 ? 150 : 96;
+  // (inside the medal's ring when there is one)
+  const room = c.medal ? 310 : CARD - 120;
+  text(c.headline, 478, big, '#1b1b26', room);
+  text(c.headline, 470, big, c.color, room);
   text(c.sub, 680, 40, c.color);
   // the numbers, in boxes side by side
   const n = c.stats.length;

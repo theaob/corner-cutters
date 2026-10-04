@@ -26,9 +26,11 @@ describe('the result card to share', () => {
   });
 
   it("a Time Attack's distance and medal", () => {
-    const c = attackCard({ circuit: 'OASIS', mode: 'TIME ATTACK', distance: '2 LAPS 3 SECTORS', medal: 'gold', record: true, team, date: '2026-10-04' });
+    const c = attackCard({ circuit: 'OASIS', mode: 'TIME ATTACK', distance: '2L 3S', said: '2 LAPS + 3 SECTORS', medal: 'gold', record: true, team, date: '2026-10-04' });
+    expect(c.headline).toBe('2L 3S');
     expect(c.sub).toBe('GOLD MEDAL · NEW RECORD');
     expect(c.medal).toBe('gold');
-    expect(shareText(c)).toMatch(/^I reached 2 laps 3 sectors at Oasis/);
+    // (the text says it in words)
+    expect(shareText(c)).toMatch(/^I reached 2 laps \+ 3 sectors at Oasis/);
   });
 });
