@@ -1,6 +1,6 @@
 // The anonymous play stats (supabase/README.md): the game launched, a race
 // started and finished (its mode and circuit), the km you've driven and the time on each circuit, a result
-// shared. Queued and sent every so often (and as the page closes), by a random
+// shared, an error nothing caught (crashes.ts). Queued and sent every so often (and as the page closes), by a random
 // id the device made for itself; nothing at all when STATS is off in the
 // settings, or the build has no backend.
 
@@ -8,7 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { insert, online } from '../engine/backend';
 import { playerId, statsOn } from './profile';
 
-export type EventKind = 'launch' | 'race_start' | 'race_finish' | 'drive' | 'share' | 'daily_submit' | 'session';
+export type EventKind = 'launch' | 'race_start' | 'race_finish' | 'drive' | 'share' | 'daily_submit' | 'session' | 'error';
 
 /** m of the real world in a px of track (Silver Heath's 8,800 px lap is the 5.9 km circuit it's traced from). */
 export const METRES_PER_PX = 0.67;
@@ -35,24 +35,33 @@ let timer: ReturnType<typeof setInterval> | undefined;
 /** The build's version (package version and commit). */
 const version = (): string => (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev').slice(0, 40);
 
-/** The columns each kind of batch sends: the time in the game apart (a project whose schema is older refuses it, and only it). */
+/**
+ * The columns each kind of batch sends: the time in the game and the errors apart (a project whose schema is older
+ * refuses them, and only them).
+ */
 const COLUMNS = ['player', 'kind', 'platform', 'version', 'circuit', 'mode', 'km', 'data'] as const;
 const SESSION_COLUMNS = ['player', 'kind', 'platform', 'version', 'seconds', 'data'] as const;
 
+/** Which batch an event goes in: the events, the time in the game, the errors. */
+const groupOf = (e: Event) => (e.kind === 'session' ? 1 : e.kind === 'error' ? 2 : 0);
+/** The queued events in their batches (as groupOf has them), the empty ones left out. */
+const grouped = (events: Event[]): Event[][] => [0, 1, 2].map((g) => events.filter((e) => groupOf(e) === g)).filter((b) => b.length);
+
 /**
- * The queued events as the batches to send: the events, then the time in the game, each row with the same keys (the
- * database takes a batch only so; what an event hasn't, null). No time on them: the database stamps them as they arrive.
+ * The queued events as the batches to send: the events, then the time in the game, then the errors, each row with the
+ * same keys (the database takes a batch only so; what an event hasn't, null). No time on them: the database stamps them
+ * as they arrive.
  */
 export function batchesOf(events: Event[]): Record<string, unknown>[][] {
   const rows = (list: Event[], cols: readonly string[]) => list.map((e) => Object.fromEntries(cols.map((c) => [c, (e as unknown as Record<string, unknown>)[c] ?? null])));
-  return [rows(events.filter((e) => e.kind !== 'session'), COLUMNS), rows(events.filter((e) => e.kind === 'session'), SESSION_COLUMNS)].filter((b) => b.length);
+  return grouped(events).map((list) => rows(list, list[0].kind === 'session' ? SESSION_COLUMNS : COLUMNS));
 }
 
 /** Send what's queued (`closing`: the page is going, so with keepalive). */
 export function flush(closing = false): void {
   if (!queue.length) return;
   const events = queue.splice(0);
-  const kinds = [events.filter((e) => e.kind !== 'session'), events.filter((e) => e.kind === 'session')].filter((b) => b.length);
+  const kinds = grouped(events);
   batchesOf(events).forEach((batch, k) => {
     void insert('events', batch, closing).then((sent) => {
       // (offline: kept for the next try, unless the page is going; refused: dropped, as it would be every time)

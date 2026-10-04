@@ -25,7 +25,7 @@ create table if not exists public.events (
 alter table public.events add column if not exists seconds real check (seconds >= 0 and seconds <= 86400);
 alter table public.events drop constraint if exists events_kind_check;
 alter table public.events add constraint events_kind_check
-  check (kind in ('launch', 'race_start', 'race_finish', 'drive', 'share', 'daily_submit', 'session'));
+  check (kind in ('launch', 'race_start', 'race_finish', 'drive', 'share', 'daily_submit', 'session', 'error'));
 create index if not exists events_at on public.events (at);
 create index if not exists events_kind on public.events (kind);
 alter table public.events enable row level security;
@@ -157,6 +157,35 @@ $$;
 revoke all on function public.reports_list(text, bigint, int) from public;
 grant execute on function public.reports_list(text, bigint, int) to anon;
 
+-- The dashboard's ERRORS: the errors nothing caught in the game over the last 30 days (src/f1/crashes.ts), the same
+-- one (its message, and where it was thrown) together: how often, for how many players, first and last seen, on which
+-- versions, platforms and screens, and a stack; the most recent first. Only with the reports' code (as reports_list).
+create or replace function public.errors_list(p_code text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  want text := (select hash from dashboard_codes where name = 'reports');
+begin
+  if want is null then return jsonb_build_object('ok', false, 'why', 'no code set'); end if;
+  if encode(sha256(convert_to(coalesce(p_code, ''), 'UTF8')), 'hex') <> want then return jsonb_build_object('ok', false, 'why', 'wrong code'); end if;
+  return jsonb_build_object(
+    'ok', true,
+    'errors', (select coalesce(jsonb_agg(e order by e->>'last' desc), '[]') from (
+      select jsonb_build_object(
+        'message', data->>'message', 'where', data->>'where', 'kind', min(data->>'kind'),
+        'count', count(*), 'players', count(distinct player), 'first', min(at), 'last', max(at),
+        'versions', jsonb_agg(distinct version), 'platforms', jsonb_agg(distinct platform), 'screens', jsonb_agg(distinct data->>'screen'),
+        'stack', (array_agg(data->>'stack' order by at desc))[1]
+      ) e
+      from events where kind = 'error' and at > now() - interval '30 days'
+      group by data->>'message', data->>'where'
+      order by max(at) desc limit 50
+    ) x)
+  );
+end;
+$$;
+revoke all on function public.errors_list(text) from public;
+grant execute on function public.errors_list(text) to anon;
+
 -- ---------------------------------------------------------------- the stats, for the dashboard
 -- The totals: players, launches, races, km driven, all time, today and over the last 7 days, and by circuit and mode;
 -- and each circuit's plays, km and minutes, by mode.
@@ -174,6 +203,9 @@ language sql stable security definer set search_path = public as $$
     'shares', (select count(*) from events where kind = 'share'),
     'reports', (select count(*) from reports),
     'reports_today', (select count(*) from reports where at > date_trunc('day', now())),
+    -- errors nothing caught in the game (their messages: errors_list, behind the dashboard's code)
+    'errors', (select count(*) from events where kind = 'error'),
+    'errors_today', (select count(*) from events where kind = 'error' and at > date_trunc('day', now())),
     -- time in the game: each launch's stretches summed, the median and the mean of them, and all of it
     'median_session_secs', (select coalesce(round(percentile_cont(0.5) within group (order by t)::numeric), 0) from
       (select sum(seconds) t from events where kind = 'session' group by player, data->>'launch') s),

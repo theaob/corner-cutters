@@ -2,8 +2,8 @@
 
 The game talks to one Supabase project for two things, and plays on fine without it (offline, or before it's set up):
 
-- **Play stats**: anonymous events (the game launched, a race started or finished, km driven, a result shared), so you
-  can see how many players there are and what they play. A player is a random id made on the device; STATS in the
+- **Play stats**: anonymous events (the game launched, a race started or finished, km driven, a result shared, an
+  error nothing caught), so you can see how many players there are, what they play and what goes wrong on their devices. A player is a random id made on the device; STATS in the
   settings turns it off.
 - **The Daily Challenge's board**: each day's best runs, by three initials, top 100 and your own place.
 - **Reports**: REPORT on the pause screen (or in the top right corner of any menu screen) takes a screenshot of the game, lets
@@ -41,6 +41,18 @@ them remembers the code till you press LOCK.
 **In Supabase** too: each report is a row in **Table Editor → reports** (its `picture` the dashboard's smaller copy of
 the screenshot), and the full-size screenshot is in **Storage → reports**, in a folder for each day (UTC), at the path
 in `image`. The game can only add reports and pictures, never read them.
+
+## Reading the errors
+
+An error nothing caught in the game (thrown, or a promise refused with nobody waiting on it: `src/f1/crashes.ts`) is
+sent as an `error` event: its message, where it was thrown (file:line:col), its stack, and the screen it happened on
+(the menu's screens, or a race with its circuit and mode). Each one once a launch and at most 10 a launch; none from a
+browser extension; nothing with STATS off. They're sent in a batch of their own, so a project whose schema is older
+refuses only them, not the play stats with them: run `schema.sql` again to take them.
+
+**On the dashboard**, ERRORS (under REPORTS) has how many there are, all time and today, and, opened with the reports
+code, the last 30 days' errors, the same one together: how often, for how many players, first and last seen, on which
+platforms, versions and screens, and the latest stack. (`errors_list` in `schema.sql`.)
 
 ## Seeing the stats
 

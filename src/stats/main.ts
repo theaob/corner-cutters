@@ -21,6 +21,9 @@ interface Stats {
   /** REPORTs sent, all time and today (read them in Supabase: the reports table and bucket) */
   reports?: number;
   reports_today?: number;
+  /** errors nothing caught in the game, all time and today (their messages: errors_list, with the code) */
+  errors?: number;
+  errors_today?: number;
   median_session_secs?: number;
   mean_session_secs?: number;
   hours_played?: number;
@@ -357,6 +360,7 @@ async function load() {
   circuitsTable(s.circuits ?? []);
   picks(s);
   board(b);
+  $('errors-title').textContent = `ERRORS · CAUGHT IN THE GAME · ${fmt(s.errors ?? 0)} (${fmt(s.errors_today ?? 0)} TODAY)`;
   const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   status(`LIVE · ${at}`, 'on');
   $('footer').textContent = `Anonymous counts from the game (a random id per device), read at ${at}. Refreshes every minute.`;
@@ -472,6 +476,7 @@ async function openReports(code: string, more = false) {
   }
   reportsCode = code;
   keepCode(code);
+  if (!more) void openErrors(code);
   note.textContent = '';
   $('reports-lock').hidden = true;
   $('reports-head').hidden = false;
@@ -490,6 +495,78 @@ async function openReports(code: string, more = false) {
   $('reports-more').hidden = shown >= total || !reports.length;
 }
 
+// ---------------------------------------------------------------- the errors (private: with the reports' code)
+
+/** An error as errors_list() gives it: the same one (message, where) together. */
+interface ErrorGroup {
+  message: string;
+  where: string;
+  kind: string;
+  count: number;
+  players: number;
+  first: string;
+  last: string;
+  versions: (string | null)[];
+  platforms: (string | null)[];
+  screens: (string | null)[];
+  stack?: string;
+}
+interface ErrorsPage {
+  ok: boolean;
+  why?: string;
+  errors?: ErrorGroup[];
+}
+
+/** One error: its message, how often and for how many, when, on what, and its stack (folded). */
+function errorCard(e: ErrorGroup): HTMLElement {
+  const card = document.createElement('article');
+  card.className = 'error';
+  const what = document.createElement('p');
+  what.className = 'what';
+  const count = document.createElement('span');
+  count.className = 'count';
+  count.textContent = `×${fmt(e.count)} `;
+  what.append(count, e.kind === 'rejection' ? `(promise) ${e.message}` : e.message);
+  const meta = document.createElement('p');
+  meta.className = 'meta';
+  const day = (at: string) => new Date(at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const list = (xs: (string | null)[], name: (x: string) => string = (x) => x) => xs.filter((x): x is string => !!x).map(name).join(', ');
+  meta.textContent = [
+    e.where || 'where: not known',
+    `${fmt(e.players)} player${e.players === 1 ? '' : 's'} · last ${day(e.last)} · first ${day(e.first)}`,
+    [list(e.platforms, (p) => PLATFORM_NAMES[p] ?? p), list(e.versions, (v) => `v${v}`), list(e.screens, (x) => (x === 'race' ? 'in a race' : MENU_NAMES[x] ?? x))].filter(Boolean).join(' · '),
+  ].join('\n');
+  card.append(what, meta);
+  if (e.stack) {
+    const fold = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.textContent = 'stack';
+    const pre = document.createElement('pre');
+    pre.textContent = e.stack;
+    fold.append(sum, pre);
+    card.append(fold);
+  }
+  return card;
+}
+
+/** Show the errors with the reports' `code` (`undefined`: locked again). */
+async function openErrors(code: string | undefined) {
+  const note = $('errors-note');
+  const list = $('errors-list');
+  list.replaceChildren();
+  if (!code) {
+    note.hidden = false;
+    note.textContent = 'Errors are private: open the reports above with your code to see them.';
+    return;
+  }
+  const page = await rpc<ErrorsPage>('errors_list', { p_code: code });
+  note.hidden = !!page?.ok && !!page.errors?.length;
+  if (!page) note.textContent = 'The errors could not be read. Check that supabase/schema.sql has been run again since errors were added.';
+  else if (!page.ok) note.textContent = "That code doesn't open the errors.";
+  else if (!page.errors?.length) note.textContent = 'No errors in the last 30 days.';
+  else list.append(...page.errors.map(errorCard));
+}
+
 $('reports-lock').addEventListener('submit', (e) => {
   e.preventDefault();
   const code = ($('reports-code') as HTMLInputElement).value.trim();
@@ -506,6 +583,7 @@ $('reports-lockup').addEventListener('click', () => {
   $('reports-more').hidden = true;
   $('reports-lock').hidden = false;
   ($('reports-code') as HTMLInputElement).value = '';
+  void openErrors(undefined);
 });
 $('lightbox').addEventListener('click', () => ($('lightbox').hidden = true));
 document.addEventListener('keydown', (e) => {

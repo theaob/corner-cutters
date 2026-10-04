@@ -23,6 +23,7 @@ import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
 import { useLayoutSwitch } from './f1/settingsRows';
 import { applyText } from './f1/access';
+import { watchCrashes } from './f1/crashes';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, type GameMode } from './f1/circuitSelect';
 import { showChampionship } from './f1/screens/championship';
@@ -171,6 +172,7 @@ async function route(): Promise<void> {
   if (id !== routeId) return;
   current?.close();
   current = undefined;
+  racingOn = undefined;
   // (nothing held on one screen carries over to the next)
   controls.clearAll();
   releaseDeck(deck);
@@ -206,6 +208,10 @@ function raceLine(mode: string | null): string {
 
 /** which menu screen is up, for a report made from it (the dashboard says where it came from) */
 let menuName = 'menu';
+/** the race on now (its circuit and mode), if one is */
+let racingOn: { circuit: string; mode: string } | undefined;
+// (an error nothing caught: to the play stats, with the screen it happened on; src/f1/crashes.ts)
+watchCrashes(() => (racingOn ? { name: 'race', ...racingOn } : { name: menuName }));
 // REPORT on every menu screen (the race has its own, on the pause screen): a little button in the column's top
 // right corner, shown while a menu's up; the screen as it is, to draw on and say what's wrong (src/f1/report.ts)
 const menuReport = document.createElement('button');
@@ -232,9 +238,23 @@ function navigate(url: string): void {
 }
 window.addEventListener('popstate', () => void route());
 
+/**
+ * The race's code fetched in the background once the menu's settled (the browser idle), so the first race starts
+ * sooner: the menu's backdrop already brings the 3D, but not the race view (and nothing 3D where there's no backdrop).
+ */
+let raceFetched = false;
+function fetchRaceSoon(): void {
+  if (raceFetched) return;
+  raceFetched = true;
+  const fetchIt = () => void import('./f1/race').catch(() => (raceFetched = false));
+  if ('requestIdleCallback' in window) window.requestIdleCallback(fetchIt, { timeout: 4000 });
+  else setTimeout(fetchIt, 1500);
+}
+
 async function showMenu(id: number): Promise<void> {
   // the menu: all touch, no deck; the screen fills the column
   menuScreen();
+  fetchRaceSoon();
   menuName = 'menu';
   // the landing screen's anthem (it starts with the first tap: browsers allow no sound before one)
   playMusic(THEME_MUSIC);
@@ -346,6 +366,7 @@ async function showDailyScreen(id: number): Promise<void> {
 }
 
 async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial'): Promise<void> {
+  racingOn = { circuit: layout.id, mode };
   // the Daily Challenge: today's circuit only (another, or yesterday's left open: to today's screen)
   const today = mode === 'daily' ? challengeOn(dayOf()) : undefined;
   if (today && today.layout.id !== layout.id) {
@@ -438,6 +459,8 @@ async function opening(): Promise<void> {
     // (the theme from the start: it sounds with the first tap)
     playMusic(THEME_MUSIC);
     const splash = showSplash(screen, backdropCircuit(), controls);
+    // (the race's code meanwhile: a new player's controls lap is next)
+    fetchRaceSoon();
     current = { close: () => {
       splash.close();
       document.documentElement.classList.remove('splash-up');
