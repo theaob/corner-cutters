@@ -344,7 +344,9 @@ export function placeholder(song: Song): Placeholder {
 }
 
 export const MENU_MUSIC: Track = { id: 'menu', placeholder: placeholder(menuSong()), gain: 0.8 };
-export const RACE_MUSIC: Track = { id: 'race', placeholder: placeholder(raceSong()), gain: 0.45 };
+// (the composed race track, "Relentless Momentum": its two minutes looped from the first sound to the last, under the
+// engines; the placeholder plays if it won't load)
+export const RACE_MUSIC: Track = { id: 'race', file: 'music/race.mp3', loopStart: 0.19, loopEnd: 119.92, placeholder: placeholder(raceSong()), gain: 0.5 };
 // (the composed theme, "Triumph in Motion"; the placeholder plays if it won't load)
 export const THEME_MUSIC: Track = { id: 'theme', file: 'music/theme.mp3', placeholder: placeholder(themeSong()), gain: 0.8 };
 export const PODIUM_MUSIC: Track = { id: 'podium', file: 'music/podium.mp3', placeholder: placeholder(podiumSong()), gain: 0.95 };
