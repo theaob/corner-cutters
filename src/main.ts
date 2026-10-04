@@ -12,6 +12,8 @@ import { playMusic } from './engine/music';
 import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
 import { track } from './f1/metrics';
+import { challengeOn, dayOf } from './f1/daily';
+import { showDaily } from './f1/screens/daily';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
@@ -142,7 +144,7 @@ const savedWeather = () => weatherById(choice('weather')) ?? DRY;
 const clockWeather = () => WEATHERS.find((w) => w.id === savedWeather().id) ?? DRY;
 const savedQualifying = () => choice('qualifying') === 'on';
 const savedLaps = () => lapsFrom(choice('laps'));
-const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' ? v : 'race');
+const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' || v === 'daily' ? v : 'race');
 const savedMode = (): GameMode => asMode(choice('mode'));
 
 /** The screen showing now (the menu or a race): closed before the next one opens. */
@@ -184,6 +186,7 @@ async function route(): Promise<void> {
   }
   if (params.get('mode') === 'tutorial' && layout) await showRace(id, layout, 'tutorial');
   else if (mode === 'championship' && !layout) await showSeason(id);
+  else if (mode === 'daily' && !layout) await showDailyScreen(id);
   else if (!layout) await showMenu(id);
   else await showRace(id, layout, mode);
 }
@@ -191,6 +194,7 @@ async function route(): Promise<void> {
 /** The line under a race's name on its loading card: the mode (a Championship's round) and the weather. */
 function raceLine(mode: string | null): string {
   if (mode === 'tutorial') return 'CONTROLS LAP';
+  if (mode === 'daily') return `DAILY CHALLENGE · ${challengeOn(dayOf()).weather.name}`;
   const season = mode === 'championship' ? loadSeason() : undefined;
   const what = season ? `CHAMPIONSHIP · ROUND ${season.round + 1} OF ${season.rounds.length}` : mode === 'timetrial' ? 'TIME TRIAL' : mode === 'timeattack' ? 'TIME ATTACK' : 'QUICK RACE';
   if (season) return `${what} · FORECAST: ${roundForecast(roundSeed(season, season.round), 1).name}`;
@@ -233,8 +237,8 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
   save('choices', 'laps', String(picked.laps));
   save('choices', 'mode', picked.mode);
-  // (a Championship picks its own circuits: to its screen)
-  navigate(withCircuit(picked.mode === 'championship' ? null : picked.layout.id, picked.mode));
+  // (a Championship picks its own circuits, and the Daily Challenge has the day's: to their screens)
+  navigate(withCircuit(picked.mode === 'championship' || picked.mode === 'daily' ? null : picked.layout.id, picked.mode));
 }
 
 /** The screen fills the column (the menus: all touch, no deck). */
@@ -291,7 +295,27 @@ async function showSeason(id: number): Promise<void> {
   } else navigate(withCircuit(null));
 }
 
+/** The Daily Challenge's screen: today's challenge, its board, and PLAY. */
+async function showDailyScreen(id: number): Promise<void> {
+  menuScreen();
+  playMusic(THEME_MUSIC);
+  const closed = new AbortController();
+  current = { close: () => closed.abort() };
+  const today = challengeOn(dayOf());
+  const showing = showDaily(screen, services, today, closed.signal);
+  curtainUp();
+  const action = await showing;
+  if (id !== routeId) return;
+  navigate(action === 'play' ? withCircuit(today.layout.id, 'daily') : withCircuit(null));
+}
+
 async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial'): Promise<void> {
+  // the Daily Challenge: today's circuit only (another, or yesterday's left open: to today's screen)
+  const today = mode === 'daily' ? challengeOn(dayOf()) : undefined;
+  if (today && today.layout.id !== layout.id) {
+    history.replaceState(null, '', withCircuit(null, 'daily'));
+    return route();
+  }
   // (a draft from the designer: a quick race or a time trial, never a Championship round)
   // a Championship round: the season's next round (any other circuit: back to its screen)
   if (layout.id === DESIGNER_DRAFT_ID && mode === 'championship') mode = 'race';
@@ -309,6 +333,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
   const toSeason = () => navigate(withCircuit(null, 'championship'));
   const quit = season
     ? toSeason
+    : today
+      ? () => navigate(withCircuit(null, 'daily'))
     : layout.id === DESIGNER_DRAFT_ID
       ? () => {
           // (a draft from the track designer: back to it)
@@ -347,6 +373,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
       }
     : mode === 'tutorial'
       ? { team: savedTeam(), seat: savedSeat(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
+    : today
+      ? { team: savedTeam(), seat: savedSeat(), difficulty: NORMAL, weather: today.weather, mode: 'timeattack', daily: { day: today.day } }
       : { team: savedTeam(), seat: savedSeat(), difficulty: savedDifficulty(), weather: mode === 'timetrial' || mode === 'timeattack' ? clockWeather() : savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {

@@ -51,12 +51,12 @@ export function raceCard(r: {
 }
 
 /** A Time Attack's card: `distance` reached (its words), the medal, and whether it's a record. */
-export function attackCard(a: { circuit: string; mode: string; distance: string; medal?: Medal; record: boolean; best?: string; team: ShareCard['team']; date: string }): ShareCard {
+export function attackCard(a: { circuit: string; mode: string; distance: string; medal?: Medal; record: boolean; best?: string; place?: string; team: ShareCard['team']; date: string }): ShareCard {
   return {
     circuit: a.circuit, mode: a.mode, team: a.team, date: a.date, medal: a.medal,
     headline: a.distance, color: a.medal ? MEDAL_COLOR[a.medal] : '#f4f4f8',
     sub: a.medal ? `${MEDAL_NAME[a.medal]} MEDAL${a.record ? ' · NEW RECORD' : ''}` : a.record ? 'NEW RECORD' : 'TIME UP',
-    stats: [['REACHED', a.distance], ['BEST', a.best ?? a.distance]],
+    stats: [['REACHED', a.distance], ['BEST', a.best ?? a.distance], ...(a.place ? [['TODAY', a.place] as [string, string]] : [])],
   };
 }
 

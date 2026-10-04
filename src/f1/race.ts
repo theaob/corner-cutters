@@ -71,6 +71,8 @@ import { style } from './race/dom';
 import { createHud } from './race/hud';
 import { createShareButton } from './race/shareButton';
 import { kmOf, track as noteStat } from './metrics';
+import { fetchBoard, loadDaily, logRun, saveDaily, sendPending, type Run } from './daily';
+import { initials, playerId } from './profile';
 import { attackCard, raceCard, type ShareCard } from './shareCard';
 import { drawCars } from './race/drawCars';
 import { BLUE_COLOR, renderTower } from './race/towerView';
@@ -134,6 +136,8 @@ export interface RaceOptions {
    * results: the drivers (the season's indexes) in finishing order, and those who didn't finish
    */
   championship?: { season: Season; onDone(finish: number[], out: Set<number>): void };
+  /** the Daily Challenge (a Time Attack): its day, for the board */
+  daily?: { day: string };
 }
 
 /**
@@ -409,7 +413,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let learn: { o: Onboarding; bends: number; lastIdx: number } | undefined;
   let trial: { recorder: LapRecorder; lapStart?: number; sector: number; lap: QualiLap; best?: Ghost; record?: Ghost } | undefined;
   /** a Time Attack: the clock, and the best distance here when it started (checkpoints) */
-  let attack: { a: Attack; best?: number; result?: { passed: number; record: boolean; medal?: Medal; newMedal: boolean } } | undefined;
+  let attack: {
+    a: Attack; best?: number;
+    result?: { passed: number; record: boolean; medal?: Medal; newMedal: boolean; daily?: { best: boolean; dayBest: Run; place?: number; entries?: number } };
+  } | undefined;
 
   /** The champagne ceremony, after your finish's replay: the race finished at once (the rest at their pace, everyone put
    * in their garage), and the top three on the podium, spraying champagne, till the results. */
@@ -478,7 +485,24 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     drivenPx = 0;
   };
   /** The session, as the play stats name it. */
-  const statsMode = () => (championship && session === 'race' ? 'championship' : session);
+  const statsMode = () => (championship && session === 'race' ? 'championship' : options.daily ? 'daily' : session);
+  /** A Daily Challenge run over: kept (your streak, your best today), on to the board, and your place there. */
+  const dailyRun = (day: string, run: Run) => {
+    const result = attack?.result;
+    if (!result) return;
+    const log = loadDaily();
+    const best = logRun(log, day, run);
+    saveDaily(log);
+    result.daily = { best, dayBest: log.best[day] };
+    const name = initials();
+    if (!name) return;
+    const player = playerId();
+    void sendPending(log, player, name).then(async (sent) => {
+      if (sent && best) noteStat('daily_submit', { circuit: layout.id, mode: 'daily', data: { score: run.score } });
+      const board = await fetchBoard(day, player, 1);
+      if (board?.you && result.daily && attack?.result === result) Object.assign(result.daily, { place: board.you.place, entries: board.entries });
+    });
+  };
   /** the session the km being counted are driven in */
   let drivenMode = 'race';
   const resetSession = () => {
@@ -713,6 +737,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
         /** Time Attack: seconds left, checkpoints passed, whether it's over, and your best here */
         attack: () => attack && { left: attack.a.left, passed: attack.a.passed, over: attack.a.over, best: attack.best },
+        /** a Time Attack's clock run down now (once it's started), for trying out its end */
+        timeUp: () => attack && attack.a.left !== undefined && (attack.a.left = 0.01),
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
         /** a street circuit's landmarks (where they stand on the map), and the camera held on a point of the map (none: back on your car), for looking at the scenery */
         landmarks: () => landmarksOf(circuit),
@@ -827,8 +853,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const yours = { name: team.name, body: team.body, trim: team.trim };
     if (attack?.result) {
-      const { passed, medal, record } = attack.result;
-      return attackCard({ circuit: layout.name.toUpperCase(), mode: `TIME ATTACK · ${difficulty.name} · ${weather.name}`, distance: distance(passed), medal, record, best: distance(Math.max(passed, attack.best ?? 0)), team: yours, date });
+      const { passed, medal, record, daily } = attack.result;
+      return attackCard({
+        circuit: layout.name.toUpperCase(), mode: options.daily ? `DAILY CHALLENGE · ${weather.name}` : `TIME ATTACK · ${difficulty.name} · ${weather.name}`,
+        distance: distance(passed), medal, record, best: distance(daily ? daily.dayBest.score : Math.max(passed, attack.best ?? 0)), team: yours, date,
+        place: daily?.place !== undefined ? `#${daily.place} OF ${daily.entries}` : undefined,
+      });
     }
     if (session !== 'race') return undefined;
     const order = raceOrder(race);
@@ -1021,6 +1051,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (record) saveRecords(records);
       const medal = attackMedal(passed, attack.a.generous);
       attack.result = { passed, record, medal, newMedal: awardMedal(layout.id, 'attack', medal) };
+      if (options.daily) dailyRun(options.daily.day, { score: passed, time: attack.a.lastAt });
       if (attack.result.newMedal && medal) {
         sounds.record();
         stampMedal(host, medal, distance(passed));
@@ -1146,12 +1177,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     // paused (or qualifying's times up): nothing moves, and the last frame stays on the screen
     if (attack?.result) {
-      const { passed, record, medal, newMedal } = attack.result;
-      banner.textContent = `TIME UP · ${distance(passed)}${medal ? ` · ${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : ''}${record ? ' · NEW RECORD' : attack.best ? ` · BEST ${distance(attack.best)}` : ''}`;
-      banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record ? SPLIT_COLOR.record : '#f2c14e';
-    }
+      const { passed, record, medal, newMedal, daily } = attack.result;
+      // (the Daily Challenge: your best today, and your place on the board once it's back)
+      banner.style.whiteSpace = 'pre-line';
+      banner.textContent = daily
+        ? `TIME UP · ${distance(passed)}\n${daily.best ? 'NEW BEST TODAY' : `TODAY'S BEST ${distance(daily.dayBest.score)}`}${daily.place ? ` · #${daily.place} OF ${daily.entries}` : ''}`
+        : `TIME UP · ${distance(passed)}${medal ? ` · ${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : ''}${record ? ' · NEW RECORD' : attack.best ? ` · BEST ${distance(attack.best)}` : ''}`;
+      banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record || daily?.best ? SPLIT_COLOR.record : '#f2c14e';
+    } else banner.style.whiteSpace = '';
     // (SHARE under a Time Attack's result)
-    shareButton.floatAt(attack?.result ? `calc(${banner.style.top} + 40px)` : undefined);
+    shareButton.floatAt(attack?.result ? `calc(${banner.style.top} + ${attack.result.daily ? 64 : 40}px)` : undefined);
     if (paused || quali?.over || attack?.result) {
       requestAnimationFrame(tick);
       return;

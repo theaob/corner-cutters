@@ -1,0 +1,193 @@
+// The Daily Challenge's screen: today's challenge (its circuit and weather,
+// and when the next one comes), your best today and your streak, the day's
+// online board (the top ten, and your place), your initials for it, and PLAY.
+// Touch, or keys: up/down moves, left/right changes a letter, A or START picks,
+// SELECT goes back.
+
+import type { Button } from '../../engine/controls';
+import { holdTouches } from '../../engine/deck';
+import type { Services } from '../../engine/services';
+import { onBack } from '../../engine/backButton';
+import { online } from '../../engine/backend';
+import { menuButton, optionRow } from '../circuitSelect';
+import { menuPick, menuTick } from '../sounds';
+import { distance } from '../timeAttack';
+import { fetchBoard, loadDaily, sendPending, streakOn, untilNext, type Board, type Challenge } from '../daily';
+import { initials, playerId, setInitials } from '../profile';
+
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+
+/** `ms` as hours and minutes: 5H 12M. */
+const hm = (ms: number) => `${Math.floor(ms / 3600000)}H ${Math.floor((ms % 3600000) / 60000)}M`;
+
+/** A run's distance, and its time to the last checkpoint. */
+export const runText = (score: number, time: number) => `${distance(score)} · ${time.toFixed(1)} S`;
+
+/** The board as a table: place, initials, how far, how soon; you in gold, after a ··· if you're further down. */
+function boardTable(b: Board): HTMLTableElement {
+  const cell = (tag: 'td' | 'th', text: string, right = false) => {
+    const c = document.createElement(tag);
+    c.textContent = text;
+    Object.assign(c.style, { padding: '2px 4px', textAlign: right ? 'right' : 'left', fontWeight: 'normal', whiteSpace: 'nowrap' });
+    return c;
+  };
+  const table = document.createElement('table');
+  Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
+  const head = document.createElement('tr');
+  head.style.color = 'var(--muted)';
+  head.append(cell('th', '', true), cell('th', 'NAME'), cell('th', 'REACHED'), cell('th', 'TIME', true));
+  table.append(head);
+  const row = (e: Board['top'][number], k: number) => {
+    const r = document.createElement('tr');
+    if (e.you) r.style.color = 'var(--gold)';
+    r.style.animation = `row-in 0.35s ease-out ${(0.1 + k * 0.05).toFixed(2)}s both`;
+    r.append(cell('td', `${e.place}`, true), cell('td', e.name), cell('td', distance(e.score)), cell('td', `${e.time.toFixed(1)}`, true));
+    return r;
+  };
+  b.top.forEach((e, k) => table.append(row(e, k)));
+  if (b.you && !b.top.some((e) => e.you)) {
+    const gap = document.createElement('tr');
+    gap.append(cell('td', ''), cell('td', '···'));
+    gap.style.color = 'var(--muted)';
+    table.append(gap, row({ ...b.you, you: true }, b.top.length + 1));
+  }
+  return table;
+}
+
+/** Show today's challenge `c` in `host` until the player picks PLAY or BACK. */
+export function showDaily(host: HTMLElement, services: Services, c: Challenge, closed?: AbortSignal): Promise<'play' | 'back'> {
+  const { controls, hud } = services;
+  const screen = document.createElement('div');
+  screen.className = 'circuit-menu';
+  const title = document.createElement('h1');
+  title.textContent = 'DAILY CHALLENGE';
+  const line = (text: string, color = 'var(--muted)') => {
+    const p = document.createElement('p');
+    p.textContent = text;
+    Object.assign(p.style, { margin: '0', color, textAlign: 'center', font: '11px var(--pixel)' });
+    return p;
+  };
+  const log = loadDaily();
+  const best = log.best[c.day];
+  const streak = streakOn(log, c.day);
+  const when = line(`${c.day} · THE NEXT ONE IN ${hm(untilNext())}`);
+  screen.append(
+    title,
+    line(c.layout.name.toUpperCase(), 'var(--gold)'),
+    line(`TIME ATTACK · NORMAL · ${c.weather.name} · THE SAME FOR EVERYONE TODAY`, 'var(--accent-b)'),
+    when,
+    line(best ? `YOUR BEST TODAY: ${runText(best.score, best.time)}` : 'NO RUN YET TODAY: AS MANY AS YOU LIKE, YOUR BEST COUNTS', best ? 'var(--text)' : 'var(--muted)'),
+    ...(streak ? [line(`STREAK: ${streak} DAY${streak === 1 ? '' : 'S'} ▲`, 'var(--gold)')] : []),
+  );
+  // the board: loading, then the day's (or why there isn't one)
+  const board = document.createElement('div');
+  Object.assign(board.style, { width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' });
+  const say = (text: string) => board.replaceChildren(line(text));
+  screen.append(board);
+  if (!online()) say("THE ONLINE BOARD ISN'T SET UP IN THIS BUILD");
+  else {
+    say('LOADING THE BOARD…');
+    const player = playerId();
+    void (async () => {
+      const name = initials();
+      if (name) await sendPending(log, player, name);
+      const b = await fetchBoard(c.day, player, 10);
+      if (closed?.aborted) return;
+      if (!b) say("OFFLINE · YOUR BEST GOES ON THE BOARD WHEN YOU'RE BACK");
+      else if (!b.entries) say('NO ONE ON THE BOARD YET TODAY: BE THE FIRST');
+      else board.replaceChildren(line(`${b.entries} DRIVER${b.entries === 1 ? '' : 'S'} TODAY${b.you ? ` · YOU: #${b.you.place}` : ''}`, 'var(--gold)'), boardTable(b));
+    })();
+  }
+  // your initials for the board: three letters (on until picked once; CHANGE brings them back)
+  const start = (initials() ?? 'ACE').split('');
+  const letterRows = [0, 1, 2].map((k) => optionRow(`INITIAL ${k + 1}`, LETTERS, start[k], (l) => ({ name: l, about: k === 0 ? 'your name on the board' : '' })));
+  const nameNow = () => letterRows.map((r) => r.value()).join('');
+  const options = document.createElement('div');
+  options.className = 'options';
+  options.append(...letterRows.map((r) => r.el));
+  let naming = !initials();
+  /** Lay the screen out (the letters while naming, else the name and CHANGE); set below */
+  let layOut = () => {};
+  const nameButton = menuButton('', () => {
+    naming = true;
+    layOut();
+  });
+  screen.append(options);
+
+  return new Promise((resolve) => {
+    let done = false;
+    const offBack = onBack(() => (finish('back'), true));
+    const finish = (a: 'play' | 'back') => {
+      if (done) return;
+      done = true;
+      if (a === 'play' || naming) setInitials(nameNow());
+      offBack();
+      menuPick();
+      screen.remove();
+      resolve(a);
+    };
+    const playButton = menuButton('PLAY ▶', () => finish('play'));
+    playButton.classList.add('race-button');
+    const backButton = menuButton('BACK', () => finish('back'));
+    screen.append(nameButton, playButton, backButton);
+    let places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
+    let focus = 0;
+    const show = () => places.forEach((p, i) => p.el.classList.toggle('focused', i === focus));
+    layOut = () => {
+      options.style.display = naming ? '' : 'none';
+      nameButton.style.display = naming ? 'none' : '';
+      nameButton.textContent = `ON THE BOARD AS ${initials() ?? nameNow()} · CHANGE`;
+      places = [
+        ...(naming ? letterRows.map((r) => ({ el: r.el, step: r.step })) : [{ el: nameButton as HTMLElement, pick: () => nameButton.click() }]),
+        { el: playButton, pick: () => finish('play') },
+        { el: backButton, pick: () => finish('back') },
+      ];
+      focus = places.findIndex((p) => p.el === playButton);
+      show();
+    };
+    layOut();
+    letterRows.forEach((r) => r.el.addEventListener('pointerdown', () => {
+      focus = places.findIndex((p) => p.el === r.el);
+      show();
+    }));
+    holdTouches(screen);
+    host.append(screen);
+    hud.setPosition('');
+    hud.setLap('');
+    hud.setLabel('a', 'OK');
+    hud.setLabel('b', '');
+    // (the countdown to the next challenge, by the minute)
+    const clock = setInterval(() => (when.textContent = `${c.day} · THE NEXT ONE IN ${hm(untilNext())}`), 30000);
+    closed?.addEventListener('abort', () => {
+      done = true;
+      offBack();
+      screen.remove();
+    });
+    const seen = new Map<Button, number>();
+    const pressed = (b: Button) => {
+      const n = controls.presses(b);
+      const edge = n > (seen.get(b) ?? n);
+      seen.set(b, n);
+      return edge;
+    };
+    const tick = () => {
+      if (done) {
+        clearInterval(clock);
+        return;
+      }
+      const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map(pressed);
+      const move = (down ? 1 : 0) - (up ? 1 : 0);
+      if (move) {
+        focus = (focus + move + places.length) % places.length;
+        menuTick();
+        show();
+      }
+      const at = places[focus];
+      if ((left || right) && at.step) at.step(right ? 1 : -1);
+      if ((a || start) && at.pick) at.pick();
+      if (select) finish('back');
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
