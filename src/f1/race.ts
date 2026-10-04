@@ -53,7 +53,7 @@ import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } fr
 import { RaceSounds, crowdNear, menuPick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { menuButton } from './circuitSelect';
-import { settingsRows } from './settingsRows';
+import { settingsRows, versionLine } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
 import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
@@ -903,7 +903,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   settingsTitle.textContent = 'SETTINGS';
   const pauseRows = settingsRows();
   const settingsDone = menuButton('DONE', () => openPauseSettings(false));
-  pauseSettings.append(settingsTitle, ...pauseRows.map((r) => r.el), settingsDone);
+  pauseSettings.append(settingsTitle, ...pauseRows.map((r) => r.el), settingsDone, versionLine());
   host.append(pauseSettings);
   /** the settings are up, and the row the deck is on (the last place is DONE) */
   let pauseSettingsOn = false;
