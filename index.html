@@ -410,6 +410,11 @@
       .live-backdrop.on {
         opacity: 1;
       }
+      /* the still the menu opens on, until the live race has faded in over it (src/f1/screens/backdropStill.ts) */
+      .menu-still {
+        object-fit: cover;
+        transition: none;
+      }
       .live-backdrop ~ .circuit-menu {
         background: linear-gradient(rgba(14, 13, 22, 0.05), rgba(14, 13, 22, 0.15) 18%, rgba(14, 13, 22, 0.7) 30%, rgba(14, 13, 22, 0.8));
       }
