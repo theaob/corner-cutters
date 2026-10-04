@@ -113,7 +113,12 @@ language sql stable security definer set search_path = public as $$
     'by_mode', (select coalesce(jsonb_object_agg(mode, n), '{}') from (select mode, count(*) n from events where kind = 'race_finish' and mode is not null group by mode) m),
     'by_circuit', (select coalesce(jsonb_object_agg(circuit, n), '{}') from (select circuit, count(*) n from events where kind = 'race_finish' and circuit is not null group by circuit) c),
     'daily_players', (select coalesce(jsonb_agg(jsonb_build_object('day', d, 'players', n) order by d), '[]') from
-      (select (at at time zone 'utc')::date d, count(distinct player) n from events where at > now() - interval '30 days' group by 1) x)
+      (select (at at time zone 'utc')::date d, count(distinct player) n from events where at > now() - interval '30 days' group by 1) x),
+    -- and the launches, and the time in the game (s), on each of the last 30 days
+    'daily_launches', (select coalesce(jsonb_agg(jsonb_build_object('day', d, 'launches', n) order by d), '[]') from
+      (select (at at time zone 'utc')::date d, count(*) n from events where kind = 'launch' and at > now() - interval '30 days' group by 1) x),
+    'daily_seconds', (select coalesce(jsonb_agg(jsonb_build_object('day', d, 'seconds', n) order by d), '[]') from
+      (select (at at time zone 'utc')::date d, round(sum(seconds)) n from events where kind = 'session' and at > now() - interval '30 days' group by 1) x)
   );
 $$;
 revoke all on function public.game_stats() from public;
