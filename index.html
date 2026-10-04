@@ -1429,6 +1429,124 @@
       html.desktop .menu-report {
         right: max(12px, calc(50% - 215px + 12px));
       }
+      /* the title splash as the game opens (src/f1/screens/splash.ts): the logo over the backdrop race, TAP TO START */
+      .splash {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+        box-sizing: border-box;
+        background: radial-gradient(ellipse 90% 45% at 50% 48%, rgba(14, 13, 22, 0.72), rgba(14, 13, 22, 0.5) 100%);
+        color: var(--text);
+        font-family: var(--pixel);
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .splash-logo {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        font-weight: 400;
+        line-height: 1;
+        animation: splash-drop 0.5s steps(5) both;
+      }
+      .splash-word {
+        display: block;
+        font-size: 46px;
+        letter-spacing: 4px;
+        /* (the letter spacing's after every letter, the last too: as much before the first, so the word's centred) */
+        padding-left: 4px;
+        color: var(--gold);
+        text-shadow: 0 3px 0 #b07a22, 0 6px 0 #5e3a10, 0 9px 0 rgba(0, 0, 0, 0.45);
+      }
+      .splash-word + .splash-kerb + .splash-word {
+        margin-top: 4px;
+      }
+      /* a kerb, red and white, sweeping across between the words */
+      .splash-kerb {
+        display: block;
+        width: 100%;
+        height: 10px;
+        margin-top: 6px;
+        /* (tiled out from the middle, a red block in the centre: both ends the same) */
+        background: linear-gradient(90deg, #f4f2fa 0 25%, #e8463c 25% 75%, #f4f2fa 75% 100%) center / 32px 100% repeat-x;
+        box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+        transform-origin: 50% 50%;
+        animation: splash-kerb 0.4s 0.4s steps(8) both;
+      }
+      .splash-tag {
+        margin: 22px 0 0;
+        padding-left: 3px;
+        font-size: 12px;
+        letter-spacing: 3px;
+        color: var(--text);
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+        animation: splash-fade 0.4s 0.8s steps(4) both;
+      }
+      .splash-start {
+        margin: 64px 0 0;
+        padding-left: 2px;
+        font-size: 14px;
+        letter-spacing: 2px;
+        color: var(--text);
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+        animation: splash-fade 0.4s 1s steps(4) both, splash-blink 1.1s 1.4s steps(1) infinite;
+      }
+      /* started: the prompt flashes gold */
+      .splash.go .splash-start {
+        color: var(--gold);
+        animation: splash-blink 0.12s steps(1) infinite;
+      }
+      .splash .version-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        margin: 0;
+        text-align: center;
+        font: 9px var(--pixel);
+        letter-spacing: 1px;
+        padding-left: 1px;
+        color: var(--muted);
+        opacity: 0.8;
+      }
+      @keyframes splash-drop {
+        from { opacity: 0; transform: translateY(-24px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes splash-kerb {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
+      }
+      @keyframes splash-fade {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes splash-blink {
+        50% { opacity: 0; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .splash-logo,
+        .splash-kerb,
+        .splash-tag,
+        .splash-start,
+        .splash.go .splash-start {
+          animation: none;
+        }
+      }
+      /* (nothing else on the screen while it's up: no REPORT, no WIDE) */
+      html.splash-up .menu-report,
+      html.splash-up .sys .layout {
+        display: none;
+      }
     </style>
   </head>
   <body>
