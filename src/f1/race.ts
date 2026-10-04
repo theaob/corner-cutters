@@ -4,11 +4,10 @@
 // this is the picture and the HUD. A pauses (so does leaving the app or tab); START restarts;
 // SELECT goes back to choose a circuit.
 
-import { gridFor, underDeck } from './bridge';
+import { gridFor } from './bridge';
 import { carOutline, type CarOutline } from './outline3d';
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
-import type { DeckButton } from '../engine/deck';
 import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { newSeed, seededRandom } from '../engine/rng';
@@ -33,10 +32,9 @@ import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame,
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
-import { CEREMONY, createCeremony, podiumSpot } from './podium3d';
+import { CEREMONY } from './podium3d';
 import { between, inLimitZone, wantsPit } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
-import { logoSvg } from './logos';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { distance, newAttack, stepAttack, type Attack } from './timeAttack';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
@@ -66,11 +64,19 @@ import { overtakeOf, towerGap, towerRows } from './tower';
 import { achievementToast, stampMedal } from './screens/celebrate';
 import { medalAchievements, raceAchievements, raced, unlock } from './achievements';
 import { LAYOUTS } from './layouts';
-/** the blue flag's colour on the screen */
-const BLUE_COLOR = '#4fa3ff';
 import { type Medal, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
+import { style } from './race/dom';
+import { createHud } from './race/hud';
+import { drawCars } from './race/drawCars';
+import { BLUE_COLOR, renderTower } from './race/towerView';
+import { createCeremonyView } from './race/ceremonyView';
+import { ghostText, limitsText, readoutText, towText, tyreText } from './race/readout';
+import { bannerMessage } from './race/banner';
+import { deckLabels as labelsFor } from './race/deckLabels';
+import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
+import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
 import { F1_TUNING } from './tuning';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
@@ -105,8 +111,6 @@ interface Look {
 /** A driver as the screens name them: their number first, when they have one (#44 HAM). */
 const numbered = (l: Pick<Look, 'name' | 'number'>) => (l.number === undefined ? l.name : `#${l.number} ${l.name}`);
 
-/** The rear light: lit while a car slows by more than this (px/s²: braking, or lifting at speed, as the hybrid harvests), held this long (s) so it doesn't flicker. */
-const REAR_LIGHT = { decel: 140, hold: 0.18 };
 
 
 /** How a race weekend is set up. */
@@ -211,47 +215,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   resize(fit);
 
   // ---------------------------------------------------------------- overlays
-  const style = (e: HTMLElement, css: Partial<CSSStyleDeclaration>) => Object.assign(e.style, css);
-  const readout = document.createElement('div');
-  style(readout, {
-    // (under your position and lap, along the top on a phone)
-    position: 'absolute', zIndex: '2', padding: '2px 6px', borderRadius: '6px',
-    background: 'rgba(21,20,31,.75)', color: '#9d9ab8', font: '12px Silkscreen, monospace', whiteSpace: 'pre',
-  });
-  const tyreLine = document.createElement('span');
-  // the slipstream: TOW and a bar that fills as it builds, in cyan, while you're in a car's wake
-  const towLine = document.createElement('span');
-  towLine.style.color = '#5fe0d0';
-  // Time Trial: the live gap to your record lap's ghost, green ahead of it, red behind
-  const ghostLine = document.createElement('span');
-  // Time Trial and Time Attack: the next medal here and what it asks for (or the gold, held)
-  const medalLine = document.createElement('span');
-  // track limits: your strikes, amber while they're warnings, red once they cost you
-  const limitsLine = document.createElement('span');
-  const banner = document.createElement('div');
-  style(banner, {
-    position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center',
-    font: '20px Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', pointerEvents: 'none',
-  });
-  // the team radio: your engineer's line in a panel in your team's colour, keyed with a click and a squelch
-  const radioPanel = document.createElement('div');
-  style(radioPanel, {
-    position: 'absolute', zIndex: '2', padding: '4px 8px', borderRadius: '6px',
-    background: 'rgba(21,20,31,.88)', borderLeft: `3px solid ${team.body}`, color: '#f4f2fa', font: '11px Silkscreen, monospace',
-    pointerEvents: 'none', display: 'none',
-  });
-  const radioLabel = document.createElement('div');
-  // (the brighter of your team's colours, so it reads on the dark panel)
-  const lightness = (hex: string) => {
-    const n = parseInt(hex.slice(1), 16);
-    return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
-  };
-  const radioColor = [team.body, team.trim, ...(team.accent ? [team.accent] : [])].reduce((a, c) => (lightness(c) > lightness(a) ? c : a));
-  radioPanel.style.borderLeftColor = radioColor;
-  style(radioLabel, { color: radioColor, fontSize: '9px', marginBottom: '2px' });
-  radioLabel.textContent = '◉ RADIO';
-  const radioText = document.createElement('div');
-  radioPanel.append(radioLabel, radioText);
+  // the HUD (race/hud.ts)
+  const {
+    readout, tyreLine, towLine, ghostLine, medalLine, limitsLine, banner, radioPanel, radioText, results, teamCard, weatherTag,
+    mini, miniCtx, tower, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place: layHud,
+  } = createHud(team, difficulty, circuit);
+  const map = world.minimap(MINI_W * 2, MINI_H * 2);
   let radioQ = newRadio();
   /** Your engineer says `cue` (in a race or qualifying: not on your own against the clock; and once your car's
    * wrecked, only that: the safety car and the rest are no news to a driver who's out). */
@@ -260,209 +229,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (race.entrants[you].car.wrecked && cue !== 'wreck') return;
     say(radioQ, radioLine(cue));
   };
-  const results = document.createElement('div');
-  style(results, {
-    position: 'absolute', left: '10px', right: '10px', top: '18%', zIndex: '3', padding: '10px', borderRadius: '10px',
-    // (its height capped to the room there is: placeHud; scrolled if it's longer)
-    boxSizing: 'border-box', overflowY: 'auto',
-    background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '12px Silkscreen, monospace', display: 'none',
-  });
-  // the minimap fits the circuit in a 136 × 140 box, whatever its shape (on a phone, shrunk to the room between the
-  // readout and the timing tower: placeHud)
-  const miniScale = Math.min(136 / circuit.width, 140 / circuit.height);
-  const MINI_W = Math.round(circuit.width * miniScale);
-  // your team's card under the start lights: its logo and name, gone at lights out
-  const teamCard = document.createElement('div');
-  style(teamCard, {
-    position: 'absolute', left: '50%', top: 'calc(30% + 34px)', zIndex: '3', transform: 'translateX(-50%)',
-    display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px 4px 4px', borderRadius: '10px',
-    background: 'rgba(21,20,31,.8)', color: '#f4f2fa', font: '12px Silkscreen, monospace', whiteSpace: 'nowrap',
-    pointerEvents: 'none', transition: 'opacity .4s',
-  });
-  const cardLogo = logoSvg(team.id, 36);
-  if (cardLogo) teamCard.append(cardLogo);
-  const weatherTag = document.createElement('span');
-  teamCard.append(`${team.name.toUpperCase()} · ${difficulty.name} · `, weatherTag);
-  const MINI_H = Math.round(circuit.height * miniScale);
-  const map = world.minimap(MINI_W * 2, MINI_H * 2);
-  const mini = document.createElement('canvas');
-  mini.width = MINI_W * 2;
-  mini.height = MINI_H * 2;
-  style(mini, {
-    position: 'absolute', zIndex: '2', width: `${MINI_W}px`, height: `${MINI_H}px`,
-    background: 'rgba(21,20,31,.6)', borderRadius: '6px',
-  });
-  const miniCtx = mini.getContext('2d')!;
-  // the timing tower under the minimap, as on TV: the top three, then the cars around you, each with its team's
-  // colour and its gap to the leader (in a race)
-  const tower = document.createElement('div');
-  style(tower, {
-    position: 'absolute', zIndex: '2', minWidth: `${Math.max(96, MINI_W)}px`,
-    background: 'rgba(21,20,31,.75)', borderRadius: '6px', padding: '2px 0', color: '#f4f2fa',
-    font: '10px Silkscreen, monospace', pointerEvents: 'none', display: 'none',
-  });
-  // the pause screen: resume, restart or back to the circuits, by tap or with the deck (A, START, SELECT)
-  const pauseScreen = document.createElement('div');
-  style(pauseScreen, {
-    position: 'absolute', inset: '0', zIndex: '4', display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    gap: '10px', background: 'rgba(14,13,22,.72)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
-  });
-  const pauseTitle = document.createElement('div');
-  pauseTitle.textContent = 'PAUSED';
-  style(pauseTitle, { font: '22px Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', marginBottom: '6px' });
-  const pauseButton = (label: string, action: () => void) => {
-    const b = document.createElement('button');
-    b.textContent = label;
-    style(b, {
-      width: '60%', padding: '10px 0', borderRadius: '10px', border: '1px solid #3a3858', background: '#25233a',
-      color: '#f4f2fa', font: '14px Silkscreen, monospace', cursor: 'pointer', touchAction: 'none',
-    });
-    // on the press's release, not 'click' (in a cross-origin frame on a phone a tap's click can go astray)
-    let armed = false;
-    b.addEventListener('pointerdown', () => (armed = true));
-    b.addEventListener('pointerleave', () => (armed = false));
-    b.addEventListener('pointerup', () => {
-      if (armed) action();
-      armed = false;
-    });
-    return b;
-  };
-  // rain over the picture: streaks falling at a slant, under the readouts
-  // the rush of speed: pale streaks flowing past the screen's edges near top speed and in a tow (none in the middle,
-  // where the racing is), the way the car's going
-  const streaks = document.createElement('canvas');
-  style(streaks, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none' });
-  const streakCtx = streaks.getContext('2d')!;
-  const streakAt = () => ({ x: Math.random(), y: Math.random(), len: 0.05 + Math.random() * 0.07, v: 1.4 + Math.random() * 1.4 });
-  const streakList = Array.from({ length: 28 }, streakAt);
+  // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
+  const streaks = createStreaks();
   /** the rush now (eased toward what the speed says) */
   let rushNow = 0;
   /** wheel to wheel: a rival this close (px) pulls the camera back this much more, eased in and slowly out */
   const BATTLE = { near: 50, pullBack: 0.08 };
   let battleNow = 0;
-  /** Draw the streaks for `rush` (0…1), flowing back from the way the car's going on the screen (`dx`, `dy`, a unit vector). */
-  const drawStreaks = (dt: number, rush: number, dx: number, dy: number) => {
-    const w = streaks.clientWidth;
-    const h = streaks.clientHeight;
-    if (streaks.width !== w || streaks.height !== h) [streaks.width, streaks.height] = [w, h];
-    streakCtx.clearRect(0, 0, w, h);
-    if (rush < 0.02) return;
-    streakCtx.strokeStyle = `rgba(244,242,250,${(0.5 * rush).toFixed(3)})`;
-    streakCtx.lineWidth = 1;
-    streakCtx.beginPath();
-    for (const st of streakList) {
-      st.x -= dx * st.v * rush * dt;
-      st.y -= dy * st.v * rush * dt;
-      if (st.x < -0.1 || st.x > 1.1 || st.y < -0.1 || st.y > 1.1) Object.assign(st, streakAt());
-      // (only round the edges: outside an oval over the middle)
-      const ox = (st.x - 0.5) / 0.5;
-      const oy = (st.y - 0.5) / 0.5;
-      if (ox * ox + oy * oy < 0.55) continue;
-      const len = st.len * h * (0.5 + rush);
-      streakCtx.moveTo(Math.round(st.x * w), Math.round(st.y * h));
-      streakCtx.lineTo(Math.round(st.x * w - dx * len), Math.round(st.y * h - dy * len));
-    }
-    streakCtx.stroke();
-  };
-  const rain = document.createElement('canvas');
-  style(rain, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none', display: 'none' });
-  const rainCtx = rain.getContext('2d')!;
-  // (as many drops as the heaviest rain has: as many of them drawn as it's raining now)
-  const drops = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), v: 0.9 + Math.random() * 0.6 }));
-  const drawRain = (dt: number) => {
-    const falling = Math.round(drops.length * race.rain);
-    rain.style.display = falling > 0 ? 'block' : 'none';
-    if (falling <= 0) return;
-    const w = (rain.width = rain.clientWidth);
-    const h = (rain.height = rain.clientHeight);
-    rainCtx.clearRect(0, 0, w, h);
-    rainCtx.strokeStyle = 'rgba(210,220,236,.45)';
-    rainCtx.lineWidth = 1;
-    rainCtx.beginPath();
-    for (const d of drops.slice(0, falling)) {
-      d.y += d.v * dt * 1.6;
-      d.x -= d.v * dt * 0.25;
-      if (d.y > 1) Object.assign(d, { y: d.y - 1, x: Math.random() + 0.1 });
-      if (d.x < 0) d.x += 1.1;
-      const px = d.x * w;
-      const py = d.y * h;
-      rainCtx.moveTo(px, py);
-      rainCtx.lineTo(px + 4, py - 16);
-    }
-    rainCtx.stroke();
-  };
-  // your chequered flag: a big waving one over the picture for a few seconds as you cross the line
-  const flagOverlay = document.createElement('canvas');
-  flagOverlay.width = 168;
-  flagOverlay.height = 112;
-  style(flagOverlay, { position: 'absolute', left: '50%', top: 'calc(30% + 34px)', transform: 'translateX(-50%)', width: '168px', height: '112px', zIndex: '3', pointerEvents: 'none', display: 'none', imageRendering: 'pixelated' });
-  const flagCtx = flagOverlay.getContext('2d')!;
-  /** Draw the waving flag at `t` s: a pole, and 8 × 5 squares, each column lifted and shaded by a wave running along it. */
-  const drawFlag = (t: number) => {
-    flagCtx.clearRect(0, 0, 168, 112);
-    flagCtx.fillStyle = '#c9ccd4';
-    flagCtx.fillRect(8, 6, 4, 104);
-    const cell = 18;
-    for (let c = 0; c < 8; c++) {
-      const phase = c * 0.8 - t * 9;
-      const lift = Math.sin(phase) * 5 * ((c + 1) / 8);
-      const light = 0.78 + 0.22 * Math.cos(phase);
-      for (let r = 0; r < 5; r++) {
-        const white = (c + r) % 2 === 0;
-        const v = Math.round((white ? 244 : 21) * light);
-        flagCtx.fillStyle = `rgb(${v},${v},${white ? Math.round(248 * light) : Math.round(31 * light)})`;
-        flagCtx.fillRect(12 + c * cell, 8 + r * cell + lift, cell, cell);
-      }
-    }
-  };
-  // the name plates under the cars' boards: the place in gold, the number and the name (YOU in gold)
-  const plates = [0, 1, 2].map(() => {
-    const plate = document.createElement('div');
-    style(plate, {
-      position: 'absolute', transform: 'translate(-50%, 0)', padding: '3px 8px', borderRadius: '6px', background: 'rgba(21,20,31,.85)',
-      color: '#f4f4f8', fontSize: '11px', whiteSpace: 'nowrap', textAlign: 'center', zIndex: '2', pointerEvents: 'none', display: 'none',
-    });
-    return plate;
-  });
-  host.append(streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay, ...plates);
-  // the wide screen: the readout top left, the minimap and timing tower top right (TUNE above them), the radio along the
-  // bottom. The phone (the layout drawn in the HUD Lab): RESTART and PAUSE in the top corners (index.html) with the
-  // minimap between them, the readout down the left, the timing tower down the right, your lap under the minimap, the
-  // banner and then the radio across the middle above the track, and the controls along the bottom
+  const rain = createRain();
+  const flagOverlay = createFlagOverlay();
+  host.append(streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay.el);
   placeHud = (desktop) => {
     phoneHud = !desktop;
-    if (desktop) {
-      style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
-      style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none', width: `${MINI_W}px`, height: `${MINI_H}px` });
-      style(tower, { right: '6px', top: `${46 + MINI_H}px`, minWidth: `${Math.max(96, MINI_W)}px`, width: 'auto' });
-      style(radioPanel, { left: '6px', right: '6px', top: 'auto', bottom: '8px' });
-      banner.style.top = '30%';
-      results.style.maxHeight = 'calc(82% - 8px)';
-      results.style.fontSize = '12px';
-    } else {
-      // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
-      // (as wide as the timing tower on the other side, so the two mirror each other about the middle)
-      style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px', width: '116px', boxSizing: 'border-box' });
-      // the readout and the timing tower the same width either side, and the minimap in the middle of the screen
-      // between them (as big as fits, with a gap to each), your lap centred under it; on your own (no tower) the
-      // minimap's still in the middle, the same size
-      const TOWER_W = 116;
-      const w = host.clientWidth || 390;
-      const from = 12 + TOWER_W + 8;
-      const to = w - from;
-      const fitMini = Math.min(1, (to - from) / MINI_W);
-      const centre = w / 2;
-      style(mini, { left: `${centre - (MINI_W * fitMini) / 2}px`, right: 'auto', top: '12px', transform: 'none', width: `${MINI_W * fitMini}px`, height: `${MINI_H * fitMini}px` });
-      style(tower, { right: '12px', top: '48px', minWidth: '0', width: `${TOWER_W}px`, boxSizing: 'border-box' });
-      document.documentElement.style.setProperty('--mini-x', `${centre}px`);
-      document.documentElement.style.setProperty('--mini-h', `${Math.round(MINI_H * fitMini)}px`);
-      style(radioPanel, { left: '36px', right: '36px', top: '236px', bottom: 'auto' });
-      banner.style.top = '198px';
-      // (the table, centred top to bottom with the buttons under it, clear of the stick above and below)
-      results.style.maxHeight = 'calc(100% - 2 * var(--deck-cover, 0px) - 80px)';
-      // (as big as its widest row fits: 12 px on most phones, 11 on a narrow one)
-      results.style.fontSize = (host.clientWidth || 390) >= 380 ? '12px' : '11px';
-    }
+    layHud(desktop, host);
   };
   placeHud(fit.desktop);
 
@@ -505,28 +284,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     chequered.group.visible = false;
     world.scene.add(chequered.group);
   }
-  // the champagne ceremony: parc fermé, a set of its own by the main straight (the camera on it sees nothing else: on
-  // layer 1, with the lights, while the circuit stays on layer 0)
-  const spot = podiumSpot(circuit);
-  const ceremony = createCeremony(layout.name.toUpperCase());
-  ceremony.group.position.set(spot.x, spot.h, spot.y);
-  // (facing the camera's side, the south: the wall behind the cars)
-  ceremony.group.rotation.y = 0;
-  ceremony.group.visible = false;
-  world.scene.add(ceremony.group);
-  const CEREMONY_LAYER = 1;
-  world.scene.traverse((o) => {
-    if (o instanceof THREE.Light) o.layers.enable(CEREMONY_LAYER);
-  });
-  /** Show the ceremony's set alone (or the circuit again). */
-  const ceremonySet = (on: boolean) => {
-    if (camera.layers.isEnabled(CEREMONY_LAYER) === on && camera.layers.isEnabled(0) === !on) return;
-    camera.layers.set(on ? CEREMONY_LAYER : 0);
-    // (and the shadows: cast by the set alone)
-    world.scene.traverse((o) => {
-      if (o instanceof THREE.DirectionalLight) o.shadow.camera.layers.set(on ? CEREMONY_LAYER : 0);
-    });
-  };
+  // the champagne ceremony: parc fermé, a set of its own by the main straight (race/ceremonyView.ts)
+  const ceremonyView = createCeremonyView(circuit, layout.name.toUpperCase(), world.scene, camera);
+  const { ceremony, plates } = ceremonyView;
+  host.append(...plates);
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
@@ -545,34 +306,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const lead = order[0];
     const n = track.samples.length;
     const along = (i: number) => race.entrants[i].progress.lap * n + race.entrants[i].progress.idx;
-    tower.replaceChildren(...towerRows(order, you).map((i) => {
-      const row = document.createElement('div');
-      if (i === 'gap') {
-        row.textContent = '···';
-        style(row, { textAlign: 'center', color: '#6c6a88', lineHeight: '8px' });
-        return row;
-      }
+    renderTower(tower, towerRows(order, you).map((i) => {
+      if (i === 'gap') return 'gap';
       const e = race.entrants[i];
       const place = order.indexOf(i) + 1;
       const gap = e.progress.retired ? 'OUT' : e.pit ? 'PIT' : e.blue !== undefined ? '▮ BLUE' : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
-      style(row, {
-        display: 'grid', gridTemplateColumns: '16px 3px 14px 28px 1fr', gap: '4px', alignItems: 'center', padding: '1px 6px 1px 4px',
-        background: i === you ? 'rgba(242,193,78,.18)' : '', color: i === you ? '#f2c14e' : e.progress.retired ? '#6c707a' : '#f4f2fa',
-      });
-      const bar = document.createElement('i');
-      style(bar, { height: '9px', background: looks[i].color, boxShadow: `inset 0 -2px ${looks[i].team.trim}` });
-      const cells = [String(place), bar, looks[i].number === undefined ? '' : String(looks[i].number), looks[i].name, gap].map((c) => {
-        if (typeof c !== 'string') return c;
-        const span = document.createElement('span');
-        span.textContent = c;
-        return span;
-      });
-      // (the number small and dim beside the name)
-      Object.assign((cells[2] as HTMLElement).style, { textAlign: 'right', fontSize: '8px', color: i === you ? '' : '#9d9ab8' });
-      (cells[4] as HTMLElement).style.textAlign = 'right';
-      (cells[4] as HTMLElement).style.color = e.blue !== undefined ? BLUE_COLOR : '#9d9ab8';
-      row.append(...cells);
-      return row;
+      return { place, color: looks[i].color, trim: looks[i].team.trim, number: looks[i].number, name: looks[i].name, gap, you: i === you, out: !!e.progress.retired, blue: e.blue !== undefined };
     }));
   };
   /** Show the next medal here and what it asks for (on starting a Time Trial or a Time Attack, and on winning one). */
@@ -675,12 +414,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     podium = { top: skipToParked(race), time: 0 };
     before = undefined;
     hudState.flashUntil = 0;
-    ceremony.setDrivers(podium.top.map((i) => ({ body: looks[i].team.body, trim: looks[i].team.trim, helmet: i === you ? '#f2c14e' : '#f4f4f8', car: createCarMesh('f1', looks[i].livery) })));
-    ceremony.group.traverse((o) => o.layers.enable(CEREMONY_LAYER));
-    podium.top.forEach((i, k) => {
-      const gold = (text: string) => `<span style="color:#f2c14e">${text}</span>`;
-      plates[k].innerHTML = `${gold(`P${k + 1}`)} ${looks[i].number === undefined ? '' : `#${looks[i].number} `}${i === you ? gold('YOU') : looks[i].name}`;
-    });
+    ceremonyView.setDrivers(podium.top.map((i) => ({
+      body: looks[i].team.body, trim: looks[i].team.trim, car: createCarMesh('f1', looks[i].livery), number: looks[i].number, name: looks[i].name, you: i === you,
+    })));
   };
 
   /**
@@ -1041,120 +777,33 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     return call === me.tyres.compound ? 'box' : `box-${call}`;
   };
 
-  /**
-   * The results as a table, so the columns line up (the pixel font isn't monospaced): position,
-   * driver, team, time (the winner's, then the gap), best lap, and penalties and pit stops. Your row is in gold.
-   */
-
+  /** The results (race/resultsView.ts): rebuilt as the others finish, the rows sliding in from when they first went up. */
   const showResults = (order: number[]) => {
-    // (the rows slide in one after another from when the results first went up: rebuilt as the others finish, each
-    // row's animation carries on where it was)
     if (results.style.display !== 'block') {
       resultsUpAt = performance.now();
       results.style.animation = 'row-in 0.25s ease-out both';
     }
-    const since = (performance.now() - resultsUpAt) / 1000;
-    const first = race.entrants[order[0]].progress;
-    const winner = (first.finished ?? 0) + first.penalty;
-    const cell = (tag: 'td' | 'th', text: string, right = false) => {
-      const c = document.createElement(tag);
-      c.textContent = text;
-      Object.assign(c.style, { padding: '1px 2px', textAlign: right ? 'right' : 'left', fontWeight: 'normal', whiteSpace: 'nowrap' });
-      return c;
-    };
-    const table = document.createElement('table');
-    Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: 'inherit', color: 'inherit' });
-    const head = document.createElement('tr');
-    head.style.color = '#9d9ab8';
-    head.append(cell('th', '', true), cell('th', ''), cell('th', 'NO', true), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'BEST', true), cell('th', ''));
-    table.append(head);
-    order.forEach((i, pos) => {
-      const e = race.entrants[i];
-      const p = e.progress;
-      const time = p.retired
-        ? 'DNF'
-        : p.finished !== undefined
-          ? pos === 0
-            ? fmt(p.finished + p.penalty)
-            : `+${(p.finished + p.penalty - winner).toFixed(2)}`
-          : `${p.lap}/${race.laps} LAPS`;
-      const best = p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–';
-      const fastest = hudState.fastest?.who === i;
-      const notes = [p.penalty ? `+${p.penalty}S` : '', e.stops ? `${e.stops}P` : ''].filter(Boolean).join(' ');
-      const row = document.createElement('tr');
-      if (i === you) row.style.color = '#f2c14e';
-      row.style.animation = `row-in 0.35s ease-out ${(0.15 + pos * 0.07 - since).toFixed(3)}s both`;
-      // places gained (green) or lost (red) from the grid slot (the entrants are in grid order)
-      const moved = i - pos;
-      const change = cell('td', moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '–');
-      change.style.color = moved > 0 ? '#5fe0d0' : moved < 0 ? '#d8323c' : '#6c6a88';
-      row.append(cell('td', `${pos + 1}`, true), change, cell('td', looks[i].number === undefined ? '' : `${looks[i].number}`, true), cell('td', looks[i].name), cell('td', looks[i].team.code), cell('td', time, true), cell('td', best, true), cell('td', notes));
-      // the race's fastest lap in purple
-      if (fastest) (row.children[6] as HTMLElement).style.color = '#b36bff';
-      table.append(row);
-    });
-    const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
-      const d = document.createElement('div');
-      d.textContent = text;
-      Object.assign(d.style, css);
-      return d;
-    };
-    results.replaceChildren(
-      line(championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px' }),
-      table,
-      line('▲▼ PLACES FROM THE GRID · P = PIT STOPS · S = PENALTY SECONDS', { color: '#9d9ab8', marginTop: '8px' }),
-      line(`LAP RECORD ${fmt(rec()?.bestLap)}${saved.newLap ? ' · NEW!' : ''}`, { color: saved.newLap ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
-      line(`BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}${saved.newRace ? ' · NEW!' : ''}`, { color: saved.newRace ? '#f2c14e' : '#f4f2fa' }),
-      // (RESTART and EXIT are buttons under the table: no lines for them here)
-      ...(championship ? [line('NEXT: on to the standings', { marginTop: '8px' })] : []),
+    renderResults(
+      results,
+      championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`,
+      resultRows(race, order, looks, you, hudState.fastest?.who),
+      [
+        { text: `LAP RECORD ${fmt(rec()?.bestLap)}`, isNew: saved.newLap },
+        { text: `BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}`, isNew: saved.newRace },
+      ],
+      championship ? 'NEXT: on to the standings' : undefined,
+      (performance.now() - resultsUpAt) / 1000,
     );
-    results.style.display = 'block';
   };
 
   /** Qualifying's times as a table, in grid order: your row in gold; then A or START to go to the grid. */
   const showQualifying = () => {
     if (!quali?.over) return;
-    const { grid: slots, times } = quali.over;
     const w = quali.weekend;
-    const pole = times[slots[0]];
-    const cell = (tag: 'td' | 'th', text: string, right = false) => {
-      const c = document.createElement(tag);
-      c.textContent = text;
-      Object.assign(c.style, { padding: '1px 3px', textAlign: right ? 'right' : 'left', fontWeight: 'normal', whiteSpace: 'nowrap' });
-      return c;
-    };
-    const table = document.createElement('table');
-    Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: 'inherit', color: 'inherit' });
-    const head = document.createElement('tr');
-    head.style.color = '#9d9ab8';
-    head.append(cell('th', '', true), cell('th', 'NAME'), cell('th', 'TEAM'), cell('th', 'TIME', true), cell('th', 'GAP', true));
-    table.append(head);
-    slots.forEach((k, pos) => {
-      const d = w.drivers[k];
-      const time = times[k];
-      const row = document.createElement('tr');
-      if (k === w.youDriver) row.style.color = '#f2c14e';
-      const gap = time === undefined || pole === undefined ? '' : pos === 0 ? '' : `+${(time - pole).toFixed(3)}`;
-      row.append(cell('td', `${pos + 1}`, true), cell('td', k === w.youDriver ? 'YOU' : d.livery.drivers[d.seat]), cell('td', d.livery.code), cell('td', time === undefined ? 'NO TIME' : fmt(time), true), cell('td', gap, true));
-      row.style.animation = `row-in 0.35s ease-out ${(0.15 + pos * 0.07).toFixed(2)}s both`;
-      table.append(row);
+    const named = w.drivers.map((d, k) => ({ name: k === w.youDriver ? 'YOU' : d.livery.drivers[d.seat], team: d.livery }));
+    renderQualifying(results, `QUALIFYING · ${difficulty.name} · ${weather.name}`, qualifyingRows(quali.over.grid, quali.over.times, named, w.youDriver), {
+      text: `QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}`, isNew: saved.newQualifying,
     });
-    const line = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
-      const d = document.createElement('div');
-      d.textContent = text;
-      Object.assign(d.style, css);
-      return d;
-    };
-    const place = slots.indexOf(w.youDriver) + 1;
-    results.replaceChildren(
-      line(`QUALIFYING · ${difficulty.name} · ${weather.name}`, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px' }),
-      table,
-      line(place === 1 ? 'POLE POSITION!' : `YOU START P${place}`, { color: '#f2c14e', marginTop: '8px' }),
-      line(`QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}${saved.newQualifying ? ' · NEW!' : ''}`, { color: saved.newQualifying ? '#f2c14e' : '#f4f2fa', marginTop: '8px' }),
-      line('RACE: on to the grid', { marginTop: '8px' }),
-    );
-    results.style.animation = 'row-in 0.25s ease-out both';
-    results.style.display = 'block';
   };
 
   // vibration on or off, from the pause screen (and remembered)
@@ -1348,30 +997,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   ghostMesh.visible = false;
   world.scene.add(ghostMesh);
 
-  /**
-   * What each deck button does just now ('' for nothing), as the loop below reads them: A the session's own action
-   * (skip, on to what's next), B drift while you're driving (on the keys or a gamepad: the touch deck has no
-   * drift button), START restart, SELECT pause while racing (A still pauses on the keys and a gamepad), else exit.
-   */
-  const deckLabels = (): Record<DeckButton, string> => {
-    if (pauseSettingsOn) return { a: 'DONE', b: '', start: '', select: '' };
-    const resultsUp = results.style.display === 'block';
-    const roundOver = !!championship && done;
-    let a = '';
-    if (roundOver && resultsUp) a = 'NEXT';
-    else if (quali?.over) a = 'RACE';
-    else if (attack?.result) a = 'AGAIN';
-    else if (session === 'qualifying') a = 'SKIP';
-    else if (session === 'tutorial') a = learn?.o.step === 'done' ? 'MENU' : 'SKIP';
-    else if (gridPan || replay) a = 'SKIP';
-    // (paused: no A on the deck, the pause screen's own RESUME does it; A, Esc and P still resume on the keys and a gamepad)
-    else if (!done) a = paused ? '' : 'PAUSE';
-    else if (!resultsUp) a = 'SKIP';
-    const driving = !paused && !done && !replay && !gridPan && !quali?.over && !attack?.result;
-    // (while racing the small button pauses, in EXIT's place: you leave from the pause screen)
-    const racing = a === 'PAUSE';
-    return { a: racing ? '' : a, b: driving ? 'DRIFT' : '', start: roundOver || quali?.over || attack?.result ? '' : 'RESTART', select: racing ? 'PAUSE' : 'EXIT' };
-  };
+  /** What each deck button does just now (race/deckLabels.ts). */
+  const deckLabels = () => labelsFor({
+    settings: pauseSettingsOn, resultsUp: results.style.display === 'block', roundOver: !!championship && done, qualifyingOver: !!quali?.over,
+    attackOver: !!attack?.result, session, learnt: learn?.o.step === 'done', watching: !!gridPan || !!replay, done, paused,
+  });
   const deckEl = document.getElementById('deck');
   const showDeckLabels = () => {
     const labels = deckLabels();
@@ -1760,57 +1390,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       }
       saveRecords(records);
     }
-    // (spray off a damp or wet track)
-    const spray = race.wetness > 0.4;
-    race.entrants.forEach((e, i) => {
-      const l = looks[i];
-      if (!running(e)) {
-        // (cleared off the track: only in the replay, where it was then)
-        const then = replay && replayPose(recorder, i, replay.t);
-        l.mesh.visible = !!then;
-        if (then) {
-          l.mesh.position.set(then.x, then.z, then.y);
-          l.mesh.rotation.set(0, -then.heading, 0, 'YXZ');
-          l.outline?.update(l.mesh, !!track.levels && underDeck(track.levels, grid, then.x, then.y, then.z));
-        } else l.outline?.update(l.mesh, false);
-        return;
-      }
-      const ev = step.cars[i];
-      const onDeck = !!deckSkids && gridFor(track, grid, e.progress.idx) !== grid;
-      if (ev.skidding && !replay) (onDeck ? deckSkids! : skids).mark(i, e.car.x, e.car.y, e.car.heading, Math.min(1, speedOf(e.car) / e.car.cls.topSpeed), e.car.cls);
-      // (lifted on the other level, so a slide onto or off the deck doesn't join the two)
-      if (!ev.skidding || replay || onDeck) skids.lift(i);
-      if (!ev.skidding || replay || !onDeck) deckSkids?.lift(i);
-      // (in the replay, where it was then)
-      const then = replay && replayPose(recorder, i, replay.t);
-      l.mesh.visible = !replay || !!then;
-      const tilt = then ? { pitch: 0, roll: 0 } : bodyTilt(e.car, gridFor(track, grid, e.progress.idx));
-      const at = then || pose(e.car, i, alpha);
-      l.mesh.position.set(at.x, at.z, at.y);
-      l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
-      l.outline?.update(l.mesh, !!track.levels && underDeck(track.levels, grid, at.x, at.y, at.z));
-      const speed = speedOf(e.car);
-      // (in the replay, as it was then: whole before its crash, not burning before it caught fire)
-      l.fx.update(dt, then ? (then.condition ?? 'ok') : condition(e.car), particles, !then && ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
-      // the tyres' compound colour, and spray off a wet track from behind the car at speed
-      l.mesh.userData.tyreMark.color.set(COMPOUNDS[e.tyres.compound].color);
-      // the rear light: lit while the car slows (braking, or lifting at speed: the hybrid harvesting, as in F1), and on a
-      // damp or wet track blinking besides, each car a little out of step with the rest
-      const was = l.was ?? { speed, health: e.car.health };
-      if (!replay && dt > 0 && speed > 30 && (was.speed - speed) / dt > REAR_LIGHT.decel) l.lit = REAR_LIGHT.hold;
-      else l.lit = Math.max(0, (l.lit ?? 0) - dt);
-      l.mesh.userData.rainLight.visible = l.lit > 0 || (spray && (performance.now() / 1000 * 4 + i * 0.37) % 1 < 0.5);
-      // sparks: off a hit (a wall, another car), thrown back the way it was going, and off a hard landing, from under it
-      if (!replay && !then) {
-        const lost = was.health - e.car.health;
-        const back = speed > 1 ? { x: -e.car.vx / speed, z: -e.car.vy / speed } : { x: 0, z: 0 };
-        if (lost > 0.5) particles.sparks(e.car.x, e.car.y, e.car.z, Math.min(14, 4 + Math.round(lost)), back.x * 0.6, back.z * 0.6);
-        if (ev.landed > 160) particles.sparks(e.car.x, e.car.y, e.car.z, 6);
-      }
-      l.was = { speed, health: e.car.health };
-      if (spray && speed > 60 && Math.random() < dt * (6 + 8 * race.rain) * Math.min(1, speed / 250)) {
-        particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);
-      }
+    // every car (race/drawCars.ts)
+    drawCars({
+      race, looks, events: step.cars, track, grid, skids, deckSkids, particles, recorder, replayAt: replay?.t,
+      pose: (i) => pose(race.entrants[i].car, i, alpha), dt, now: performance.now() / 1000,
     });
     // the ghost: your record lap from the line, drawn where it was as far into its lap as you are into yours
     {
@@ -1873,8 +1456,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     chequered.group.visible = flagOut;
     if (flagOut) chequered.update(performance.now() / 1000);
     const yourFlag = p.finished !== undefined && clock < p.finished + 3.5 && !podium && !replay && results.style.display !== 'block';
-    flagOverlay.style.display = yourFlag ? 'block' : 'none';
-    if (yourFlag) drawFlag(performance.now() / 1000);
+    flagOverlay.el.style.display = yourFlag ? 'block' : 'none';
+    if (yourFlag) flagOverlay.draw(performance.now() / 1000);
     if (p.finished !== undefined && !soundState.flag) {
       soundState.flag = true;
       sounds.flag();
@@ -1887,8 +1470,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the rest have finished
     const others = race.entrants.filter((e) => e !== me && running(e));
     if (!podium && p.finished !== undefined && replayed) startCeremony();
-    ceremony.group.visible = !!podium && results.style.display !== 'block';
-    ceremonySet(ceremony.group.visible);
+    ceremonyView.show(!!podium && results.style.display !== 'block');
     if (podium) {
       podium.time += dt;
       const beat = ceremony.update(podium.time, dt);
@@ -1959,66 +1541,45 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       banner.style.color = '#d8323c';
     } else {
       const stop = me.pit;
-      const [text, color] =
-        replay ? [`${Math.floor(performance.now() / 500) % 2 ? '●' : '○'} REPLAY`, '#d8323c']
-        // (the ceremony's names are on its plates)
-        : podium && results.style.display !== 'block' ? ['', '']
-        : me.car.wrecked || p.retired ? [championship ? 'DNF' : 'DNF · RESTART to go again', '#d8323c']
-        : done && p.finished !== undefined && results.style.display !== 'block' ? [`FINISHED · P${order.indexOf(you) + 1}`, order.indexOf(you) < 3 ? '#f2c14e' : '#f4f4f8']
-        : done ? ['', '']
-        : stop?.phase === 'stopped' ? [`PIT STOP ${Math.max(0, stop.left).toFixed(1)}`, '#f2c14e']
-        : stop ? [inLimitZone(circuit.pit, circuit.pit.points[stop.at].s) ? 'PIT LIMITER' : 'PIT LANE', '#f2c14e']
-        : boxBox() ? [`BOX, BOX · PITS ${pitSide}`, '#f2c14e']
-        : p.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
-        : clock < 1.2 && session === 'race' ? ['GO!', '#5fe0d0']
-        : clock < notice.until ? [notice.text, notice.color]
-        : learn ? [prompt(learn.o.step, device(), pointsOn(device())), learn.o.step === 'done' ? '#f2c14e' : '#f4f4f8']
-        : session !== 'race' && session !== 'tutorial' && p.lapStart === undefined ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
-        : sc ? ['SAFETY CAR', '#f2c14e']
-        : race.vsc ? ['VIRTUAL SAFETY CAR', '#f2c14e']
-        // (a Time Attack's clock, red in its last seconds)
-        : attack?.a.left !== undefined ? [`${attack.a.left.toFixed(1)} S`, attack.a.left < 5 ? '#d8323c' : '#f4f4f8']
-        : ['', ''];
+      const [text, color] = bannerMessage({
+        replay: !!replay, blink: Math.floor(performance.now() / 500) % 2 === 1, ceremony: !!podium, resultsUp: results.style.display === 'block',
+        out: me.car.wrecked || !!p.retired, championship: !!championship, done, finishedPlace: p.finished !== undefined ? order.indexOf(you) + 1 : undefined,
+        pit: stop && { stopped: stop.phase === 'stopped', left: stop.left, limiter: inLimitZone(circuit.pit, circuit.pit.points[stop.at].s) },
+        boxBox: !done && !stop && boxBox(), pitSide, wrongWay: p.wrongWay, clock, session, notice,
+        learn: learn && { text: prompt(learn.o.step, device(), pointsOn(device())), last: learn.o.step === 'done' },
+        beforeLine: p.lapStart === undefined, safetyCar: !!sc, vsc: !!race.vsc, attackLeft: attack?.a.left,
+      });
       banner.textContent = text;
       banner.style.color = color;
     }
     const lapTime = p.lapStart !== undefined && p.finished === undefined ? clock - p.lapStart : undefined;
     // (in a Time Trial your best good lap: a deleted one doesn't count)
     const best = session === 'timetrial' ? trial?.best?.time : p.lapTimes.length ? Math.min(...p.lapTimes) : undefined;
-    // your car's health as five blocks (each is 20%)
-    const blocks = Math.ceil((me.car.health / me.car.cls.health) * 5);
-    const car = me.car.wrecked ? 'WRECKED' : '■'.repeat(blocks) + '□'.repeat(5 - blocks);
-    // your tyres as five blocks and a share left, amber once they're past their best
-    const left = 1 - me.tyres.wear;
-    const tyreBlocks = Math.ceil(left * 5);
-    const tyres = `${COMPOUNDS[me.tyres.compound].short} ${'■'.repeat(tyreBlocks)}${'□'.repeat(5 - tyreBlocks)}${phoneHud ? '' : ` ${Math.round(left * 100)}%`}${me.tyres.wear >= 0.7 ? ' WORN' : ''}`;
-    // the gaps to the cars either side of you (by the timing points), while you're racing
-    const gapLine = (other: number | undefined, mark: string) => {
-      if (other === undefined || done || phoneHud) return '';
-      const gap = mark === '▲' ? gapBetween(hudState.gaps, other, you) : gapBetween(hudState.gaps, you, other);
-      // (just after a pass the last shared timing point can put the gap the wrong way round: 0 then)
-      return `\n${mark} ${looks[other].name.padEnd(6)}${gap === undefined ? '–' : `${mark === '▲' ? '+' : '−'}${Math.max(0, gap).toFixed(2)}`}`;
-    };
+    // the cars either side of you (by the timing points), while you're racing (on the wide screen: the phone's tower has them)
     const ahead = pos > 1 ? order[pos - 2] : undefined;
     const behindCar = order[pos];
     const behind = behindCar !== undefined && running(race.entrants[behindCar]) && !race.entrants[behindCar].car.wrecked ? behindCar : undefined;
-    readout.textContent = attack
-      ? // a Time Attack: the clock, how far you've got, and your best here
-        `TIME ${attack.a.left === undefined ? '–' : attack.a.left.toFixed(1)}\nGOT  ${distance(attack.a.passed)}\nBEST ${attack.best ? distance(attack.best) : '–'}\nLAP  ${fmt(lapTime)}\nCAR  ${car}\n`
-      : `LAP  ${fmt(lapTime)}\nLAST ${fmt(p.lapTimes[p.lapTimes.length - 1])}\nBEST ${fmt(best)}\nREC  ${fmt(session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap)}${gapLine(ahead, '▲')}${gapLine(behind, '▼')}\nCAR  ${car}\n`;
-    // the tyre line in its compound's colour
-    // (the wrong ones for the weather: what the crew would fit, in amber)
+    const showGaps = !done && !phoneHud;
+    readout.textContent = readoutText({
+      lapTime, last: p.lapTimes[p.lapTimes.length - 1], best,
+      record: session === 'qualifying' ? rec()?.bestQualifying : session === 'timetrial' ? trial?.record?.time : rec()?.bestLap,
+      ahead: showGaps && ahead !== undefined ? { name: looks[ahead].name, gap: gapBetween(hudState.gaps, ahead, you) } : undefined,
+      behind: showGaps && behind !== undefined ? { name: looks[behind].name, gap: gapBetween(hudState.gaps, you, behind) } : undefined,
+      health: me.car.health / me.car.cls.health, wrecked: me.car.wrecked,
+      attack: attack && { left: attack.a.left, passed: attack.a.passed, best: attack.best },
+    });
+    // the tyre line in its compound's colour (the wrong ones for the weather: what the crew would fit, in amber)
     const wrong = session === 'race' && !done && race.forecast && wrongTyres(race, you);
-    tyreLine.textContent = `TYRE ${tyres}\n${wrong ? `BOX  FOR ${COMPOUNDS[tyreCall(race, me)].name}\n` : ''}`;
+    tyreLine.textContent = tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud, wrong ? COMPOUNDS[tyreCall(race, me)].name : undefined);
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
-    towLine.textContent = me.tow > 0.1 && !done ? `TOW  ${'▶'.repeat(Math.ceil(me.tow * 5))}\n` : '';
+    towLine.textContent = done ? '' : towText(me.tow);
     const strikes = me.limits.strikes;
-    limitsLine.textContent = strikes && session === 'race' ? `LIMITS ${strikes > LIMITS.warnings ? `+${(strikes - LIMITS.warnings) * LIMITS.penalty}S` : `${strikes}/${LIMITS.warnings}`}\n` : '';
+    limitsLine.textContent = session === 'race' ? limitsText(strikes) : '';
     limitsLine.style.color = strikes > LIMITS.warnings ? '#d8323c' : '#f2c14e';
     // (the gap: how much sooner or later than the ghost you've reached this point of the lap)
     const ghostAt = trial?.record && p.lapStart !== undefined && !trial.lap.deleted ? ghostTimeAt(trial.record, p.idx, track.samples.length) : undefined;
     const ghostGap = ghostAt === undefined ? undefined : clock - p.lapStart! - ghostAt;
-    ghostLine.textContent = ghostGap === undefined ? '' : `GAP  ${ghostGap < 0 ? '−' : '+'}${Math.abs(ghostGap).toFixed(2)}\n`;
+    ghostLine.textContent = ghostText(ghostGap);
     ghostLine.style.color = (ghostGap ?? 0) < 0 ? '#5fe0d0' : '#d8323c';
     readout.append(medalLine, ghostLine, towLine, tyreLine, limitsLine);
 
@@ -2044,13 +1605,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (in the replay, thrown again as they flew then)
     if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);
     else debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
-    drawRain(dt);
+    rain.draw(dt, race.rain);
     {
       // (the way the car's going, on the screen: the ground's y is foreshortened by the camera's pitch)
       const c = race.entrants[you].car;
       const sy = c.vy * Math.sin(deg(LOOK.pitch));
       const len = Math.hypot(c.vx, sy) || 1;
-      drawStreaks(dt, rushNow, c.vx / len, sy / len);
+      streaks.draw(dt, rushNow, c.vx / len, sy / len);
     }
     skids.update(dt);
     deckSkids?.update(dt);
@@ -2100,24 +1661,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     // the ceremony: its own camera, from third across to the three of them (the plates under them)
     const onSet = ceremony.group.visible && !!podium;
-    if (onSet) {
-      const v = ceremony.view(podium!.time, camera.aspect, camera.fov);
-      ceremony.group.localToWorld(v.eye);
-      ceremony.group.localToWorld(v.at);
-      camera.position.copy(v.eye);
-      camera.lookAt(v.at);
-      focus.copy(v.at);
-      camera.updateMatrixWorld();
-    }
-    plates.forEach((plate, k) => {
-      const at = ceremony.group.localToWorld(ceremony.plate(k)).project(camera);
-      // (not one out of the picture, as the camera holds on third)
-      const show = onSet && !paused && k < podium!.top.length && Math.abs(at.x) < 0.9 && Math.abs(at.y) < 0.9;
-      plate.style.display = show ? 'block' : 'none';
-      if (!show) return;
-      plate.style.left = `${((at.x + 1) / 2) * host.clientWidth}px`;
-      plate.style.top = `${((1 - at.y) / 2) * host.clientHeight}px`;
-    });
+    if (onSet) focus.copy(ceremonyView.aim(podium!.time, camera));
+    ceremonyView.placePlates(onSet && !paused, host.clientWidth, host.clientHeight);
     world.followSun(focus);
     world.animate(performance.now() / 1000);
     // the weather's look, eased as the track wets and dries and the rain comes and goes (redone only as it changes)
@@ -2162,7 +1707,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.forceContextLoss();
     renderer.domElement.remove();
     offBack();
-    for (const el of [streaks, rain, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay, ...plates]) el.remove();
+    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, ...plates]) el.remove();
     deckEl?.classList.remove('results-up');
     document.documentElement.classList.remove('results-up', 'ceremony', 'paused');
     delete (window as { __cc?: unknown }).__cc;
