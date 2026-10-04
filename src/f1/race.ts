@@ -13,7 +13,7 @@ import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car, 
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
-import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, nearestSample, playerInput, wheelInput, type AiDriver } from './racing';
+import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, nearestSample, playerInput, stickWheel, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
 import { numberOf, styleOf } from './drivers';
 import { DRY, lookAt as weatherLook, type Weather, type WeatherId } from './weather';
@@ -28,6 +28,7 @@ import { landmarksOf } from './town3d';
 import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
+import { pointsOn } from './driveStyle';
 import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder, type SplitMark } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
@@ -1477,14 +1478,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
     // the race: everyone drives, the rules run
     const pad = { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') };
-    // the device you last used decides how you drive: the touch thumbstick points where to go; keys and a
-    // gamepad drive the car itself (up or the right trigger is gas, down or the left trigger the brake)
+    // the device you last used, and DRIVING in the settings, decide how you drive: pointing where to go (the touch
+    // stick, the arrows as eight ways, a gamepad's left stick), or steering the car itself (up or the right trigger
+    // is gas, down or the left trigger the brake; on the touch stick, up and down, across steers)
     const source = controls.lastSource();
     const drive = source === 'gamepad' ? controls.drive('gamepad') : undefined;
+    const points = pointsOn(device());
     const driveInput = (car: Car) =>
-      drive ? wheelInput({ ...drive, drift: pad.b }, car)
+      points ? playerInput(drive ? { ...pad, stick: drive.stick ?? { x: 0, y: 0 } } : pad)
+      : drive ? wheelInput({ ...drive, drift: pad.b }, car)
       : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
-      : playerInput(pad);
+      : wheelInput(stickWheel(pad.stick, pad.b), car);
     // the start: once all five lights are lit, going is a jump start; after they're out, your reaction is judged
     if (session === 'race' && !gridPan) {
       const car = race.entrants[you].car;
@@ -1968,7 +1972,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         : p.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
         : clock < 1.2 && session === 'race' ? ['GO!', '#5fe0d0']
         : clock < notice.until ? [notice.text, notice.color]
-        : learn ? [prompt(learn.o.step, device()), learn.o.step === 'done' ? '#f2c14e' : '#f4f4f8']
+        : learn ? [prompt(learn.o.step, device(), pointsOn(device())), learn.o.step === 'done' ? '#f2c14e' : '#f4f4f8']
         : session !== 'race' && session !== 'tutorial' && p.lapStart === undefined ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
         : sc ? ['SAFETY CAR', '#f2c14e']
         : race.vsc ? ['VIRTUAL SAFETY CAR', '#f2c14e']

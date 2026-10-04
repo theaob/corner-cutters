@@ -11,15 +11,18 @@ export type Device = 'touch' | 'keys' | 'pad';
 export type Step = 'go' | 'faster' | 'bend' | 'drift' | 'limits' | 'lap' | 'done';
 export const STEPS: Step[] = ['go', 'faster', 'bend', 'drift', 'limits', 'lap', 'done'];
 
-/** What the prompt says for `step` on `device`. */
-export function prompt(step: Step, device: Device): string {
+/** What the prompt says for `step` on `device`, driving where you point (`points`: the touch stick's way, unless DRIVING
+ * in the settings says otherwise) or steering the car. */
+export function prompt(step: Step, device: Device, points = device === 'touch'): string {
   switch (step) {
     case 'go':
-      return device === 'touch' ? 'PUSH THE STICK THE WAY YOU WANT TO GO' : device === 'keys' ? 'UP TO GO · LEFT AND RIGHT TO STEER' : 'RIGHT TRIGGER TO GO · STICK TO STEER';
+      if (points) return device === 'keys' ? 'POINT THE ARROWS THE WAY YOU WANT TO GO' : 'PUSH THE STICK THE WAY YOU WANT TO GO';
+      return device === 'touch' ? 'STICK UP TO GO · ACROSS TO STEER' : device === 'keys' ? 'UP TO GO · LEFT AND RIGHT TO STEER' : 'RIGHT TRIGGER TO GO · STICK TO STEER';
     case 'faster':
-      return device === 'touch' ? 'PUSH IT ALL THE WAY OUT FOR FULL SPEED' : 'KEEP IT HELD FOR FULL SPEED';
+      return points && device !== 'keys' ? 'PUSH IT ALL THE WAY OUT FOR FULL SPEED' : device === 'touch' ? 'PUSH IT ALL THE WAY UP FOR FULL SPEED' : 'KEEP IT HELD FOR FULL SPEED';
     case 'bend':
-      return device === 'touch' ? 'EASE THE STICK IN BEFORE A BEND TO SLOW' : device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
+      if (points) return device === 'keys' ? 'LET GO OF THE ARROWS BEFORE A BEND TO SLOW' : 'EASE THE STICK IN BEFORE A BEND TO SLOW';
+      return device === 'touch' ? 'STICK DOWN TO BRAKE BEFORE A BEND' : device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
     case 'drift':
       return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : 'HOLD A IN A BEND TO DRIFT ROUND IT';
     case 'limits':

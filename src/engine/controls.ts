@@ -8,11 +8,13 @@
 export type Button = 'up' | 'down' | 'left' | 'right' | 'a' | 'b' | 'start' | 'select';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
-/** Analogue car-relative driving from a gamepad: steering −1 (left) … 1 (right), gas and brake 0…1. */
+/** Analogue car-relative driving from a gamepad: steering −1 (left) … 1 (right), gas and brake 0…1; and its left stick as a
+ * screen direction (y down, length 0…1), for pointing the way to go. */
 export interface Drive {
   turn: number;
   gas: number;
   brake: number;
+  stick?: Stick;
 }
 
 export interface Stick {
@@ -82,7 +84,7 @@ export class Controls {
 
   /** Analogue driving from a gamepad. */
   setDrive(source: string, drive: Drive): void {
-    if (drive.turn || drive.gas || drive.brake) this.last = source;
+    if (drive.turn || drive.gas || drive.brake || drive.stick?.x || drive.stick?.y) this.last = source;
     this.drives.set(source, drive);
   }
 
@@ -245,12 +247,17 @@ const PAD_BUTTONS: [index: number, button: Button][] = [
 /** Stick travel ignored around the centre (worn sticks don't rest at 0). */
 const PAD_DEAD_ZONE = 0.15;
 
-/** A gamepad's state as the handheld's buttons and analogue driving: the left stick steers, the right trigger is gas, the left the brake. */
+/** A gamepad's state as the handheld's buttons and analogue driving: the left stick steers (or points), the right trigger is gas, the left the brake. */
 export function readGamepad(pad: { buttons: readonly { pressed: boolean; value: number }[]; axes: readonly number[] }): { buttons: Button[]; drive: Drive } {
   const buttons = PAD_BUTTONS.filter(([i]) => pad.buttons[i]?.pressed).map(([, b]) => b);
   const x = pad.axes[0] ?? 0;
   const turn = Math.abs(x) < PAD_DEAD_ZONE ? 0 : Math.sign(x) * ((Math.abs(x) - PAD_DEAD_ZONE) / (1 - PAD_DEAD_ZONE));
-  return { buttons, drive: { turn, gas: pad.buttons[7]?.value ?? 0, brake: pad.buttons[6]?.value ?? 0 } };
+  // (the stick as a direction: its dead zone round the centre, then out to the rim)
+  const y = pad.axes[1] ?? 0;
+  const len = Math.hypot(x, y);
+  const out = len < PAD_DEAD_ZONE ? 0 : Math.min(1, (len - PAD_DEAD_ZONE) / (1 - PAD_DEAD_ZONE));
+  const stick = out ? { x: (x / len) * out, y: (y / len) * out } : { x: 0, y: 0 };
+  return { buttons, drive: { turn, gas: pad.buttons[7]?.value ?? 0, brake: pad.buttons[6]?.value ?? 0, stick } };
 }
 
 /** Poll the first connected gamepad every frame, as the 'gamepad' source. */
