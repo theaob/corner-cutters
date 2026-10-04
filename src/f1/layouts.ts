@@ -50,7 +50,7 @@ export interface StreetSpec {
 }
 
 /** The landmarks a street circuit can have (town3d.ts builds them). */
-export type LandmarkKind = 'casino' | 'pool' | 'tennis' | 'maiden' | 'flames';
+export type LandmarkKind = 'casino' | 'pool' | 'tennis' | 'maiden' | 'flames' | 'crescent';
 
 /**
  * Crescent Park. Anticlockwise over the hills, after the one on the edge of the
@@ -659,14 +659,16 @@ export const BAKU: CircuitLayout = {
   tyreWear: 0.4,
   street: {
     runoff: 28,
-    // the Caspian, right up to the barriers along the sea front and round the hairpin past the line (a quay between)
+    // the Caspian, right up to the barriers along the sea front (a quay between) as far as the line; past it the shore
+    // turns away south-east, and the land round the hairpin is the Crescent's
     sea: ([
-      [677, 1114], [708, 1078], [989, 861], [1055, 797], [2036, 376], [2070, 356], [2099, 323], [2108, 295],
-      [2108, 255], [2076, 164], [2001, 9], [2400, -200], [4307, -200], [4307, 2635], [2144, 3787],
+      [677, 1114], [708, 1078], [989, 861], [1055, 797], [1850, 456], [1990, 590], [2500, 1100], [4307, 2635],
+      [2144, 3787],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
-    // Qız Qalası, the Maiden Tower, in the old town inside the walls; the Flame Towers on the hill above it, to the
-    // north-west
-    landmarks: { maiden: { x: 419, y: 874 }, flames: { x: 210, y: 640 } },
+    // Qız Qalası, the Maiden Tower, in the old town inside the walls, by the stretch out of the castle section onto the
+    // sea front; the Flame Towers on the hill above it, to the north-west; and the Crescent past the line, by the run
+    // to the hairpin, where the shore turns away
+    landmarks: { maiden: { x: 515, y: 1125 }, flames: { x: 210, y: 640 }, crescent: { x: 2088, y: 383 } },
     // the old city walls along the castle section, on its inside, round the old town (on the camera's side of the
     // track there, kept low enough to see the racing surface over)
     castle: { from: 0.39, to: 0.53, side: -1 },

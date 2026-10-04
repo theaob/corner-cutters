@@ -100,6 +100,51 @@ export function offsetLine(samples: { x: number; y: number; dir: number }[], nor
   return out;
 }
 
+/**
+ * The tiles the barriers stand on (i, j): every wall tile that touches the run-off, but the ones behind the garages
+ * (along the pit lane's entry and exit roads past them, the barriers carry on); beside the banking, its concrete
+ * wall instead; and the pit wall's.
+ */
+export function barrierTiles(circuit: Circuit): { walls: [number, number][]; pitWall: [number, number][]; bankWall: [number, number][] } {
+  const { width: W, height: H, cells } = circuit;
+  const cell = (i: number, j: number) => (i >= 0 && j >= 0 && i < W && j < H ? cells[j * W + i] : 'wall');
+  const garageAt = garageSpots(circuit);
+  const byGarage = (i: number, j: number) => garageAt.some((g) => Math.hypot(g.x - (i + 0.5) * T, g.y - (j + 0.5) * T) < PIT.boxSpacing);
+  const walls: [number, number][] = [];
+  const pitWall: [number, number][] = [];
+  /** the banking's: a concrete wall with a catch fence on top */
+  const bankWall: [number, number][] = [];
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      if (cells[j * W + i] === 'pitwall') pitWall.push([i, j]);
+      if (cells[j * W + i] !== 'wall') continue;
+      let near = false;
+      let byPits = false;
+      let byApron = false;
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          const c = cell(i + di, j + dj);
+          near ||= c !== 'wall' && c !== 'pitwall';
+          byPits ||= c === 'pit';
+          byApron ||= c === 'apron';
+        }
+      }
+      if (near && !(byPits && byGarage(i, j))) (byApron ? bankWall : walls).push([i, j]);
+    }
+  }
+  return { walls, pitWall, bankWall };
+}
+
+/** Where each garage stands (its middle, and the lane's direction there): behind the pit lane, one to each box. */
+export function garageSpots(circuit: Circuit): { x: number; y: number; dir: number }[] {
+  const { pit } = circuit;
+  const back = GARAGE_ACROSS * pit.side;
+  return pit.boxes.map((b) => {
+    const q = pit.points.find((p) => p.s >= b)!;
+    return { x: q.x + Math.cos(q.dir) * back, y: q.y + Math.sin(q.dir) * back, dir: q.dir };
+  });
+}
+
 function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
@@ -389,7 +434,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   scene.background = new THREE.Color('#8fb8e8');
   const light = addDaylight(scene);
   light.setSky(weather.sky);
-  const { width: W, height: H, cells, grid, track } = circuit;
+  const { width: W, height: H, grid, track } = circuit;
 
   const geo = new THREE.PlaneGeometry(W * T, H * T, W, H).rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -407,30 +452,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   scene.add(ground, outer);
 
   // tyre walls: on every wall tile that touches the run-off, stacked red and white (the garages
-  // stand behind the pit lane instead); concrete blocks along the pit wall
-  const cell = (i: number, j: number) => (i >= 0 && j >= 0 && i < W && j < H ? cells[j * W + i] : 'wall');
-  const walls: [number, number][] = [];
-  const pitWall: [number, number][] = [];
-  /** the banking's: a concrete wall with a catch fence on top */
-  const bankWall: [number, number][] = [];
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      if (cells[j * W + i] === 'pitwall') pitWall.push([i, j]);
-      if (cells[j * W + i] !== 'wall') continue;
-      let near = false;
-      let byPits = false;
-      let byApron = false;
-      for (let dj = -1; dj <= 1; dj++) {
-        for (let di = -1; di <= 1; di++) {
-          const c = cell(i + di, j + dj);
-          near ||= c !== 'wall' && c !== 'pitwall';
-          byPits ||= c === 'pit';
-          byApron ||= c === 'apron';
-        }
-      }
-      if (near && !byPits) (byApron ? bankWall : walls).push([i, j]);
-    }
-  }
+  // stand behind the pit lane instead, where they are: along the lane's entry and exit roads, past them, the walls
+  // carry on); concrete blocks along the pit wall
+  const { walls, pitWall, bankWall } = barrierTiles(circuit);
   // (a street circuit: steel barriers, grey with red and white bands, in place of tyre stacks)
   const tyres = new THREE.InstancedMesh(street ? new THREE.BoxGeometry(T, 9, T) : new THREE.CylinderGeometry(7, 7, 7, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }), walls.length);
   const m = new THREE.Matrix4();
@@ -473,14 +497,10 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const roof = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
   // (turned to the track's direction, a box's +x face looks to the right of the way of the race)
   const faces = pit.side < 0 ? [door, grey, roof, grey, grey, grey] : [grey, door, roof, grey, grey, grey];
-  const back = GARAGE_ACROSS * pit.side;
-  for (const b of pit.boxes) {
-    const q = pit.points.find((p) => p.s >= b)!;
-    const gx = q.x + Math.cos(q.dir) * back;
-    const gy = q.y + Math.sin(q.dir) * back;
+  for (const { x: gx, y: gy, dir } of garageSpots(circuit)) {
     const garage = new THREE.Mesh(new THREE.BoxGeometry(28, 22, PIT.boxSpacing - 2), faces);
     garage.position.set(gx, groundAt(grid, gx, gy).h + 11, gy);
-    garage.rotation.y = -q.dir;
+    garage.rotation.y = -dir;
     garage.castShadow = garage.receiveShadow = true;
     scene.add(garage);
   }

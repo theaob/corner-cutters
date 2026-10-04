@@ -113,19 +113,25 @@ const LANDMARK: Record<LandmarkKind, { w: number; d: number; h: number; turns: b
   // hill above it (tall: they stand where no track is behind them)
   // (the Maiden Tower inside the walls on the camera's side of the track: its foot partly out of the picture, but its
   // height standing up into it)
-  maiden: { w: 64, d: 56, h: 66, turns: false, seen: 0.35 },
+  maiden: { w: 80, d: 70, h: 80, turns: false, seen: 0.35 },
+  // the Crescent: a tall crescent of glass, its horns up, standing broadside to the camera on its plaza (seen by its
+  // height: a quarter of its foot will do)
+  crescent: { w: 120, d: 46, h: 96, turns: false, seen: 0.25 },
   flames: { w: 150, d: 96, h: 150, turns: false, seen: 0.25 },
 };
 
-/**
- * The landmarks that stand inside the old city walls, where a circuit has them (behind where the walls go), and may
- * hide what the walls do (seeSurfaceOver): the Maiden Tower, on the camera's side of the track.
- */
+/** The landmarks that stand inside the old city walls, where a circuit has them: clear of where the walls go. */
 export const INSIDE_WALLS: Partial<Record<LandmarkKind, true>> = { maiden: true };
+
+/**
+ * The landmarks that may hide the barriers and the run-off's edge (seeSurfaceOver), never the racing surface: the
+ * Maiden Tower inside the walls, and the Crescent, tall on the camera's side of the run to the hairpin.
+ */
+export const HIDES_RUNOFF: Partial<Record<LandmarkKind, true>> = { maiden: true, crescent: true };
 
 /** How tall landmark `kind` on footprint (x, y, w across, d deep) can be and let the camera see the track behind it. */
 export function landmarkSeeOver(circuit: Circuit, kind: LandmarkKind, x: number, y: number, w: number, d: number): number {
-  return circuit.layout.street?.castle && INSIDE_WALLS[kind] ? seeSurfaceOver(circuit, x, y, w, d) : seeOver(circuit, x, y, w, d);
+  return HIDES_RUNOFF[kind] ? seeSurfaceOver(circuit, x, y, w, d) : seeOver(circuit, x, y, w, d);
 }
 
 /** px of pavement left between the barriers and a landmark's footprint */
@@ -182,13 +188,17 @@ export function landmarksOf(circuit: Circuit): Landmark[] {
   const out: Landmark[] = [];
   for (const kind of (Object.keys(LANDMARK) as LandmarkKind[]).filter((k) => marks[k])) {
     const { h, turns } = LANDMARK[kind];
-    // (one that may hide the run-off stands inside the old city walls, where there are any: clear of where they go)
-    const clear = circuit.layout.street?.castle && INSIDE_WALLS[kind] ? behindWalls : HALF_WIDTH + runoff + LANDMARK_SET_BACK;
+    const clear = HALF_WIDTH + runoff + LANDMARK_SET_BACK;
+    // (one that may hide the run-off stands inside the old city walls, where there are any: clear of where they go,
+    // along the castle section)
+    const castle = circuit.layout.street?.castle;
+    const walled = castle && INSIDE_WALLS[kind] ? samples.slice(Math.round(castle.from * samples.length), Math.round(castle.to * samples.length) + 1) : [];
     const want = onMap(circuit, marks[kind]!);
     let w: number = LANDMARK[kind].w;
     let d: number = LANDMARK[kind].d;
     const fits = (x: number, y: number) =>
       clearOf(samples, x, y, w, d) >= clear &&
+      (!walled.length || clearOf(walled, x, y, w, d) >= behindWalls) &&
       [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]].every(([u, v]) => !inside(sea, x + (u * w) / 2, y + (v * d) / 2)) &&
       clearOf(pits, x, y, w, d) >= GARAGE_ACROSS + 24 &&
       stands.every((st) => Math.abs(st.x - x) >= w / 2 + st.len / 2 + STAND.depth || Math.abs(st.y - y) >= d / 2 + st.len / 2 + STAND.depth) &&
@@ -709,6 +719,49 @@ function maidenTower(l: Landmark): THREE.Group {
 }
 
 /**
+ * The Crescent: a tower of blue glass in the shape of a crescent moon standing on end, its horns up, as wide as its
+ * plaza and as tall as it may be, broadside to the camera; floors of windows across it, lit here and there.
+ */
+function crescentTower(l: Landmark): THREE.Group {
+  const g = new THREE.Group();
+  const plaza = new THREE.Mesh(new THREE.BoxGeometry(l.w, 1, l.d), new THREE.MeshLambertMaterial({ color: 0xd9d4c8 }));
+  plaza.position.y = 0.5;
+  g.add(plaza);
+  // the crescent: between the lower halves of two ellipses on the same middle, the inner one narrower and shallower
+  const rx = l.w / 2 - 6;
+  const top = l.h;
+  const ri = rx * 0.6;
+  const hi = top * 0.58;
+  const shape = new THREE.Shape();
+  shape.moveTo(-rx, top);
+  shape.absellipse(0, top, rx, top - 1, Math.PI, Math.PI * 2, false, 0);
+  shape.lineTo(ri, top);
+  shape.absellipse(0, top, ri, hi, Math.PI * 2, Math.PI, true, 0);
+  shape.lineTo(-rx, top);
+  const depth = Math.max(10, l.d - 16);
+  const body = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 32 });
+  body.translate(0, 0, -depth / 2);
+  // (the glass: floors of windows, a few lit)
+  const glass = drawn(16, 16, (x) => {
+    x.fillStyle = '#3d6fa6';
+    x.fillRect(0, 0, 16, 16);
+    x.fillStyle = '#9cc6ea';
+    for (let y = 1; y < 16; y += 4) for (let c = 1; c < 16; c += 3) x.fillRect(c, y, 2, 2);
+    x.fillStyle = '#f2d36b';
+    x.fillRect(4, 5, 2, 2);
+    x.fillRect(13, 13, 2, 2);
+  });
+  glass.wrapS = glass.wrapT = THREE.RepeatWrapping;
+  glass.repeat.set(1 / 16, 1 / 16);
+  const tower = new THREE.Mesh(body, [new THREE.MeshLambertMaterial({ map: glass }), new THREE.MeshLambertMaterial({ color: 0xc9d4de })]);
+  g.add(tower);
+  g.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
+  });
+  return g;
+}
+
+/**
  * The Flame Towers: three towers of blue glass, each a flame (round, swelling a little, then tapering to a point), the
  * tallest at the back and two lower in front; flames of light run up them, as their LED skins show at night.
  */
@@ -1007,6 +1060,7 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
       : l.kind === 'pool' ? pool(shape, r)
       : l.kind === 'maiden' ? { group: maidenTower(shape) }
       : l.kind === 'flames' ? flameTowers(shape)
+      : l.kind === 'crescent' ? { group: crescentTower(shape) }
       : tennis(shape);
     made.group.position.set(l.x, high, l.y);
     if (l.turned) made.group.rotation.y = Math.PI / 2;
