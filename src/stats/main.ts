@@ -30,6 +30,8 @@ interface Stats {
   by_mode: Record<string, number>;
   by_circuit: Record<string, number>;
   daily_players: { day: string; players: number }[];
+  daily_launches?: { day: string; launches: number }[];
+  daily_seconds?: { day: string; seconds: number }[];
 }
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -113,20 +115,31 @@ function bars(id: string, data: Record<string, number>, name: (k: string) => str
   }));
 }
 
-/** The last 30 days' players: an area under a line, a nice y scale, a crosshair and tooltip on hover. */
-let lastDays: Stats['daily_players'] = [];
-function chart(days: Stats['daily_players']) {
-  lastDays = days;
-  const box = $('chart');
+/** What a chart counts: its name in the tooltip (after the value), what it says with no data, and how a value reads. */
+interface Measure {
+  what: string;
+  empty: string;
+  /** a day's value as the tooltip says it (default: the number) */
+  says?: (n: number) => string;
+}
+
+/** The charts on the page (the box, the days, the measure), redrawn to a new width. */
+const charts = new Map<string, [{ day: string; n: number }[], Measure]>();
+
+/** The last 30 days of something: an area under a line, a nice y scale, a crosshair and tooltip on hover. */
+function chart(id: string, days: { day: string; n: number }[], m: Measure) {
+  charts.set(id, [days, m]);
+  const box = $(id);
   // (every one of the last 30 days, the quiet ones at 0)
-  const byDay = new Map(days.map((d) => [d.day, d.players]));
+  const byDay = new Map(days.map((d) => [d.day, d.n]));
   const today = Date.parse(`${dayOf()}T00:00:00Z`);
   const series = Array.from({ length: 30 }, (_, k) => {
     const day = dayOf(new Date(today - (29 - k) * 86400000));
     return { day, n: byDay.get(day) ?? 0 };
   });
   if (!series.some((d) => d.n)) {
-    box.innerHTML = '<p class="empty">No players in the last 30 days yet.</p>';
+    box.innerHTML = '<p class="empty"></p>';
+    (box.firstChild as HTMLElement).textContent = m.empty;
     return;
   }
   // (drawn at the box's own width, so its type stays the same size on a phone)
@@ -145,7 +158,7 @@ function chart(days: Stats['daily_players']) {
     if (text !== undefined) e.textContent = text;
     return e;
   };
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Players per day over the last 30 days, peaking at ${peak}` });
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${m.what} per day over the last 30 days, peaking at ${peak}` });
   const css = getComputedStyle(document.documentElement);
   const tok = (n: string) => css.getPropertyValue(n).trim();
   for (let v = 0; v <= top; v += step) {
@@ -180,8 +193,8 @@ function chart(days: Stats['daily_players']) {
       node.setAttribute('visibility', 'visible');
     }
     tip.hidden = false;
-    tip.innerHTML = `<b></b> players · <span></span>`;
-    (tip.children[0] as HTMLElement).textContent = fmt(d.n);
+    tip.innerHTML = `<b></b> ${m.what.toLowerCase()} · <span></span>`;
+    (tip.children[0] as HTMLElement).textContent = m.says ? m.says(d.n) : fmt(d.n);
     (tip.children[1] as HTMLElement).textContent = d.day;
     const bx = box.getBoundingClientRect();
     tip.style.left = `${Math.min(bx.width - 70, Math.max(70, (x(k) / W) * r.width + (r.left - bx.left)))}px`;
@@ -282,7 +295,16 @@ async function load() {
   }
   n.hidden = true;
   tiles(s);
-  chart(s.daily_players ?? []);
+  chart('chart', (s.daily_players ?? []).map((d) => ({ day: d.day, n: d.players })), { what: 'Players', empty: 'No players in the last 30 days yet.' });
+  chart('chart-launches', (s.daily_launches ?? []).map((d) => ({ day: d.day, n: d.launches })), { what: 'Launches', empty: 'No launches in the last 30 days yet.' });
+  // (the time: in minutes, or in hours once a day's had a few)
+  const secs = s.daily_seconds ?? [];
+  const inHours = Math.max(0, ...secs.map((d) => d.seconds)) >= 3 * 3600;
+  chart('chart-time', secs.map((d) => ({ day: d.day, n: d.seconds / (inHours ? 3600 : 60) })), {
+    what: inHours ? 'Hours played' : 'Minutes played', empty: 'No time in the game recorded in the last 30 days yet.',
+    says: (n) => clock(n * (inHours ? 3600 : 60)),
+  });
+  $('time-title').textContent = `TIME PLAYED PER DAY (${inHours ? 'HOURS' : 'MINUTES'}) · LAST 30 DAYS (UTC)`;
   bars('platform', s.by_platform ?? {}, (k) => PLATFORM_NAMES[k] ?? k);
   bars('mode', s.by_mode ?? {}, (k) => MODE_NAMES[k] ?? k);
   bars('circuit', s.by_circuit ?? {}, circuitName);
@@ -298,7 +320,7 @@ $('refresh').addEventListener('click', () => void load());
 let resized: ReturnType<typeof setTimeout> | undefined;
 window.addEventListener('resize', () => {
   clearTimeout(resized);
-  resized = setTimeout(() => lastDays.length && chart(lastDays), 150);
+  resized = setTimeout(() => charts.forEach(([days, m], id) => chart(id, days, m)), 150);
 });
 void load();
 setInterval(() => {

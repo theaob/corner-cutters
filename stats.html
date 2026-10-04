@@ -57,6 +57,7 @@
       .chart svg { display: block; width: 100%; height: auto; }
       .tip { position: absolute; pointer-events: none; background: var(--ground); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -110%); }
       .tip b { font: 12px var(--pixel); color: var(--amber); }
+      .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
       .splits { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
       .bars { list-style: none; margin: 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; display: flex; flex-direction: column; gap: 9px; }
       .bars li { display: grid; grid-template-columns: minmax(0, 10.5em) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
@@ -95,6 +96,16 @@
         <h2>PLAYERS PER DAY · LAST 30 DAYS (UTC)</h2>
         <div class="chart" id="chart"><p class="empty">Waiting for the first day of play.</p></div>
       </section>
+      <div class="pair">
+        <section>
+          <h2>LAUNCHES PER DAY · LAST 30 DAYS (UTC)</h2>
+          <div class="chart" id="chart-launches"><p class="empty">Waiting for the first launch.</p></div>
+        </section>
+        <section>
+          <h2 id="time-title">TIME PLAYED PER DAY · LAST 30 DAYS (UTC)</h2>
+          <div class="chart" id="chart-time"><p class="empty">Waiting for the first minutes of play.</p></div>
+        </section>
+      </div>
       <div class="splits">
         <section><h2>PLAYERS BY PLATFORM</h2><ul class="bars" id="platform"></ul></section>
         <section><h2>FINISHED SESSIONS BY MODE</h2><ul class="bars" id="mode"></ul></section>
