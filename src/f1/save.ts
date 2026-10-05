@@ -11,6 +11,7 @@
 //   trophies  medals: your best Time Trial and Time Attack medal on each circuit; titles: Championships won (medals.ts)
 //             achievements: those unlocked, and raced: the circuits you've raced on (achievements.ts)
 //   boards    pending: your Time Trial lap records not yet on the online boards (boards.ts)
+//   race      kept: the race in progress (a Quick Race or a Championship round), to come back to (raceSave.ts)
 //   circuits  each circuit's hash when last played: records and ghosts on one changed since are forgotten (circuitHash.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //

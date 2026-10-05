@@ -377,7 +377,8 @@ The goal: longer races with strategy, once players have mastered the sprints.
       quickest (the field splits), re-planned from the measured wear after a stop off the plan
 - [x] Grand Prix length: a Quick Race's LAPS up to 20, and a Championship's LENGTH row (SPRINT 5
       laps a round, GRAND PRIX 10)
-- [ ] Mid-race save, so a long race survives the app being closed
+- [x] Mid-race save, so a long race survives the app being closed (`f1/raceSave.ts`: kept as the app goes into
+      the background, on pause and at each lap; RESUME RACE on the menu picks it up, paused)
 - [ ] Headless tests: a whole Grand Prix with stops runs in a test; strategies are balanced
       (no single strategy always wins)
 - [ ] Music: a "final laps" track
