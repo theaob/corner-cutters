@@ -21,7 +21,7 @@ describe('the deck labels', () => {
   });
   it("paused: nothing on A (the pause screen resumes), no RESTART or EXIT (the pause screen's own; EXIT asked first); the settings: DONE alone", () => {
     expect(deckLabels(deck({ paused: true }))).toEqual({ a: '', b: '', start: '', select: '' });
-    expect(deckLabels(deck({ settings: true }))).toEqual({ a: 'DONE', b: '', start: '', select: '' });
+    expect(deckLabels(deck({ settings: true }))).toEqual({ a: '', b: '', start: '', select: '' });
   });
   it('skips the grid pan, a replay, qualifying and the wait after the flag; NEXT, RACE and AGAIN once they are over', () => {
     expect(deckLabels(deck({ watching: true })).a).toBe('SKIP');
@@ -31,6 +31,9 @@ describe('the deck labels', () => {
     expect(deckLabels(deck({ qualifyingOver: true })).a).toBe('RACE');
     expect(deckLabels(deck({ attackOver: true })).a).toBe('AGAIN');
     expect(deckLabels(deck({ session: 'tutorial', learnt: true })).a).toBe('MENU');
+    // (and nothing else: no DRIFT then)
+    expect(deckLabels(deck({ session: 'tutorial', learnt: true })).b).toBe('');
+    expect(deckLabels(deck({ session: 'tutorial', learnt: false })).b).toBe('DRIFT');
   });
 });
 

@@ -160,7 +160,8 @@ function lapWith(layout: (typeof LAYOUTS)[number], kind: 'none' | 'late' | 'wide
   return { time: race.clock - t0, mistakes: events.filter((x) => x.kind === 'mistake').length, damage: f1.health - e.car.health };
 }
 
-describe.each(LAYOUTS)('mistakes at $name', (layout) => {
+// (not on dirt: its line has no braking bend, the cars lifting and sliding through every one instead)
+describe.each(LAYOUTS.filter((l) => !l.dirt))('mistakes at $name', (layout) => {
   const clean = lapWith(layout, 'none');
   it.each(['late', 'wide'] as const)('%s: costs time at each braking bend (a few tenths), and nothing worse', (kind) => {
     const lap = lapWith(layout, kind);

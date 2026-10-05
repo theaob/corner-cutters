@@ -75,8 +75,9 @@ describe("a new circuit in the Daily Challenge's rotation", () => {
       const before = new Date(Date.parse(`${from}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
       expect(dailyLayouts(before).map((l) => l.id)).not.toContain(id);
       expect(dailyLayouts(from).map((l) => l.id)).toContain(id);
-      // (the day before: the same challenge as without it)
-      expect(challengeOn(before).layout.id).toBe(challengeOn(before, LAYOUTS.filter((l) => l.id !== id)).layout.id);
+      // (the day before: the same challenge as without it, among the circuits in the rotation by then)
+      const then = LAYOUTS.filter((l) => l.id !== id && (!DAILY_FROM[l.id] || before >= DAILY_FROM[l.id]));
+      expect(challengeOn(before).layout.id).toBe(challengeOn(before, then).layout.id);
     }
   });
 });

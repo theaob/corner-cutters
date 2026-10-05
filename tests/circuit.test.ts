@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, GLACIER_PASS, SUZUKA, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, DUST_BOWL, GLACIER_PASS, SUZUKA, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -31,6 +31,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: SUZUKA, length: [9800, 10600], lap: [28, 35], flatGap: 1.5, braking: 1.2 },
   // the mountain: the switchbacks' hairpins want a stop each, the jumps are flat out
   { layout: GLACIER_PASS, length: [9800, 10800], lap: [28, 36], flatGap: 2, braking: 1.5 },
+  // the dirt: short and twisty, but flat out all the way round on tarmac's grip (on dirt's, the cars slide: tyres.test.ts)
+  { layout: DUST_BOWL, length: [5800, 6800], lap: [16, 22], flatGap: 0.5 },
 ];
 
 describe('circuit list', () => {
@@ -320,7 +322,7 @@ describe('stretches side by side', () => {
 
 describe('Glacier Pass', () => {
   const c = buildCircuit(GLACIER_PASS, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
-  const others = LAYOUTS.filter((l) => l !== GLACIER_PASS).map((l) => buildCircuit(l, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) }));
+  const others = LAYOUTS.filter((l) => !l.jumps).map((l) => buildCircuit(l, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) }));
   const range = (x: typeof c) => {
     const h = x.track.samples.map((p) => groundAt(x.grid, p.x, p.y).h);
     return Math.max(...h) - Math.min(...h);
@@ -355,7 +357,7 @@ describe('Glacier Pass', () => {
     expect(car.health).toBe(f1.health);
   });
 
-  it("has no jump anywhere else: none of the other circuits throws a car in the air", () => {
+  it("has no jump on a circuit without any: none of them throws a car in the air", () => {
     for (const o of others) {
       const start = o.slots[0];
       const car = newCar(f1, start.x, start.y, start.heading);

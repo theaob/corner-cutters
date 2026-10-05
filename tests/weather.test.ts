@@ -10,7 +10,8 @@ import { WEATHERS, type WeatherId } from '../src/f1/weather';
 import type { Forecast } from '../src/f1/forecast';
 
 const f1 = carClass('f1');
-const compounds = Object.keys(COMPOUNDS) as Compound[];
+/** the tarmac's compounds (off-road tyres are for dirt alone: tyres.test.ts) */
+const compounds = (Object.keys(COMPOUNDS) as Compound[]).filter((c) => c !== 'dirt');
 
 describe('weather and tyres', () => {
   it.each(WEATHERS)('fit the quickest compound in the $name: slicks dry, intermediates damp, full wets wet', (w) => {

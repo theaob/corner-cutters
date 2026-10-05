@@ -58,6 +58,8 @@ export interface Track {
   tyreWear?: number;
   /** a bridge, where the track crosses itself (bridge.ts) */
   levels?: Levels;
+  /** on dirt: every car on off-road tyres (tyres.ts) */
+  dirt?: boolean;
 }
 
 /** A closed Catmull-Rom spline through `points`, resampled every `spacing` px. The first point is the start line. */

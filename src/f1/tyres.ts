@@ -14,12 +14,19 @@
 // (the track wetting in the rain or drying after it: forecast.ts) each does as
 // it would between the two. The crew fits the right compound for the weather
 // at the start and, at every stop, for the weather a lap on.
+//
+// On dirt (a circuit's `dirt`: Dust Bowl) every car runs off-road tyres, the
+// only compound there: knobbly, they bite into the loose earth, but it gives
+// less grip than tarmac (the cars slide through the bends); in the rain it
+// turns to mud, slower and slipperier still. Sliding's the way round on dirt,
+// and it hardly wears them. No choice of tyres there, so no strategy: a car
+// stops only for worn tyres or repairs, and gets a fresh set of the same.
 // Engine-free and unit-tested.
 
 import { speedOf, type Car, type StepEvents } from '../engine/driving';
 import type { WeatherId } from './weather';
 
-export type Compound = 'slick' | 'hard' | 'inter' | 'wet';
+export type Compound = 'slick' | 'hard' | 'inter' | 'wet' | 'dirt';
 /** The dry compounds: a race's strategy is which of them, and when (strategy.ts). */
 export type DryCompound = 'slick' | 'hard';
 export const DRY_COMPOUNDS: DryCompound[] = ['slick', 'hard'];
@@ -50,6 +57,11 @@ export const COMPOUNDS: Record<Compound, { name: string; short: string; color: s
     name: 'FULL WETS', short: 'WET', color: '#2f8bff',
     on: { dry: { grip: 0.75, speed: 0.86, wear: 3.5 }, damp: { grip: 0.8, speed: 0.9, wear: 1.6 }, wet: { grip: 0.85, speed: 0.9, wear: 1 } },
   },
+  // (on dirt, the only tyre: the loose earth's grip with it, then mud's)
+  dirt: {
+    name: 'OFF-ROAD', short: 'OFF', color: '#d08a3e',
+    on: { dry: { grip: 0.8, speed: 1, wear: 0.3 }, damp: { grip: 0.7, speed: 0.95, wear: 0.3 }, wet: { grip: 0.62, speed: 0.9, wear: 0.3 } },
+  },
 };
 
 /** A weather, or a track's wetness (0 dry … 1 damp … 2 wet: forecast.ts), as a wetness. */
@@ -65,8 +77,8 @@ export function fitAt(compound: Compound, w: WeatherId | number): Fit {
 
 const ALL: Compound[] = ['slick', 'hard', 'inter', 'wet'];
 
-/** The compound for a weather (or a track's wetness): the one that grips best there. */
-export const tyreFor = (w: WeatherId | number): Compound => ALL.reduce((best, c) => (fitAt(c, w).grip > fitAt(best, w).grip ? c : best));
+/** The compound for a weather (or a track's wetness): the one that grips best there; on `dirt`, off-road tyres whatever the weather. */
+export const tyreFor = (w: WeatherId | number, dirt = false): Compound => (dirt ? 'dirt' : ALL.reduce((best, c) => (fitAt(c, w).grip > fitAt(best, w).grip ? c : best)));
 
 /**
  * The grip `compound` gives up on a track `w` wet against the right compound there (0: it is the right one). The
@@ -74,6 +86,8 @@ export const tyreFor = (w: WeatherId | number): Compound => ALL.reduce((best, c)
  * grip for its life, and that's strategy's to weigh), and against the right tyre for the wet they're both slicks.
  */
 export const wrongTyreLoss = (compound: Compound, w: WeatherId | number): number => {
+  // (off-road tyres: on dirt, where they're all there is)
+  if (compound === 'dirt') return 0;
   const right = tyreFor(w);
   if (isDry(compound) && isDry(right)) return 0;
   return 1 - fitAt(isDry(compound) ? 'slick' : compound, w).grip / fitAt(right, w).grip;

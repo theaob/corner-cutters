@@ -70,7 +70,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   const race = newRace(circuit.track, circuit.grid, handling, 9999, field, 0, undefined, 'dry');
   const meshes = field.map((_, k) => {
     const t = TEAMS[k % TEAMS.length];
-    const mesh = createCarMesh('f1', { body: t.body, stripe: t.trim, accent: t.accent, pattern: t.pattern });
+    const mesh = createCarMesh('f1', { body: t.body, stripe: t.trim, accent: t.accent, pattern: t.pattern }, !!circuit.layout.dirt);
     world.scene.add(mesh);
     return mesh;
   });
