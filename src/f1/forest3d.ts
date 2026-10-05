@@ -10,6 +10,10 @@
 // In a park (layout.park), broadleaf trees in groves over the lawns, a cedar
 // here and there, and lining both sides of its woods, by the same rules.
 //
+// In the mountains (layout.mountain), spruces scattered thinner up to the tree
+// line and none above it, and boulders strewn over the meadows, the rock and
+// the snow (low, so never in the way), by the same rules.
+//
 // In the desert (layout.desert), palms instead: in groves here and there round
 // the circuit and out over the sand, a curved trunk and a crown of drooping
 // fronds, by the same rules (clear of the track, the pits and the stands, and
@@ -28,7 +32,7 @@ export interface Tree {
   y: number;
   /** px tall, from the ground at its foot */
   h: number;
-  kind: 'spruce' | 'broadleaf' | 'palm';
+  kind: 'spruce' | 'broadleaf' | 'palm' | 'rock';
   /** its crown's colour */
   color: number;
 }
@@ -72,6 +76,22 @@ export const PALMS = {
   crown: 0.34,
 };
 
+export const MOUNTAIN = {
+  /** px between the spots a spruce may stand (before a random nudge), and the share of them that have one */
+  spacing: 40,
+  trees: 0.55,
+  /** px up (the ground's height) past which no tree grows */
+  treeLine: 120,
+  /** px between the spots a boulder may lie, the share of them that have one, and its size (px across: at least, and up to this much more) */
+  rockEvery: 64,
+  rocks: 0.4,
+  rockSize: [7, 14] as const,
+  /** px up past which the boulders are snowy */
+  snowLine: 150,
+  /** px out past the edge of the map they go on */
+  beyond: 300,
+};
+
 export const PARK = {
   /** px between the spots a grove may stand (before a random nudge), and the share of them that have one */
   every: 150,
@@ -94,6 +114,9 @@ export const PARK = {
 };
 
 const SPRUCE = [0x24492a, 0x2d5a32, 0x1f4026, 0x335f38];
+/** boulders: granite greys, and snow-capped up high */
+const ROCK = [0x8a8780, 0x7a776f, 0x96928a, 0x6e6b64];
+const SNOWY_ROCK = [0xd6dde4, 0xc4ccd4, 0xe4e9ee];
 /** a park's broadleaves in summer: greens, light and dark */
 const PARKLAND = [0x4f8a3c, 0x5f9a44, 0x3f7a34, 0x6ba84a, 0x467f3a];
 const FRONDS = [0x3f8a34, 0x4c9a3a, 0x5a9e3c, 0x6f9a3a];
@@ -155,6 +178,7 @@ function growth(circuit: Circuit, clear: number) {
 export function treesOf(circuit: Circuit): Tree[] {
   if (circuit.layout.desert) return palmsOf(circuit);
   if (circuit.layout.park) return parkOf(circuit, circuit.layout.park.avenue);
+  if (circuit.layout.mountain) return mountainOf(circuit);
   if (!circuit.layout.forest) return [];
   const W = circuit.width * T;
   const H = circuit.height * T;
@@ -173,6 +197,44 @@ export function treesOf(circuit: Circuit): Tree[] {
       const kind = pick < 0.82 ? 'spruce' : 'broadleaf';
       const palette = kind === 'spruce' ? SPRUCE : BROADLEAF;
       out.push({ x, y, h, kind, color: palette[Math.floor(r() * palette.length)] });
+    }
+  }
+  return out;
+}
+
+/** The mountains': spruces up to the tree line, thinner than a forest's, and boulders strewn over it all. */
+function mountainOf(circuit: Circuit): Tree[] {
+  const W = circuit.width * T;
+  const H = circuit.height * T;
+  const grow = growth(circuit, FOREST.clear);
+  const r = rng(53);
+  const out: Tree[] = [];
+  const M = MOUNTAIN;
+  for (let gy = -M.beyond; gy < H + M.beyond; gy += M.spacing) {
+    for (let gx = -M.beyond; gx < W + M.beyond; gx += M.spacing) {
+      const x = gx + (r() - 0.5) * M.spacing * 0.8;
+      const y = gy + (r() - 0.5) * M.spacing * 0.8;
+      const keep = r() < M.trees;
+      const want = FOREST.tallest * (0.55 + 0.45 * r());
+      const pick = r();
+      if (!keep || groundAt(circuit.grid, x, y).h > M.treeLine) continue;
+      const h = grow(x, y, want, FOREST.crown);
+      if (h >= FOREST.shortest) out.push({ x, y, h, kind: 'spruce', color: SPRUCE[Math.floor(pick * SPRUCE.length)] });
+    }
+  }
+  for (let gy = -M.beyond; gy < H + M.beyond; gy += M.rockEvery) {
+    for (let gx = -M.beyond; gx < W + M.beyond; gx += M.rockEvery) {
+      const x = gx + (r() - 0.5) * M.rockEvery;
+      const y = gy + (r() - 0.5) * M.rockEvery;
+      const keep = r() < M.rocks;
+      const want = M.rockSize[0] + r() * M.rockSize[1];
+      const pick = r();
+      if (!keep) continue;
+      // (a boulder's as wide as it's high: its "crown" all of it)
+      const h = grow(x, y, want, 0.5);
+      if (h < M.rockSize[0] * 0.8) continue;
+      const palette = groundAt(circuit.grid, x, y).h > M.snowLine ? SNOWY_ROCK : ROCK;
+      out.push({ x, y, h, kind: 'rock', color: palette[Math.floor(pick * palette.length)] });
     }
   }
   return out;
@@ -303,7 +365,9 @@ function shapes() {
   }
   const palm = mergeGeometries(fronds)!;
   const dates = new THREE.IcosahedronGeometry(0.035, 0).translate(top.x, top.y - 0.03, top.z);
-  return { spruce, broadleaf, trunk, palm, palmTrunk, dates };
+  // (a boulder: a rough lump, wider than it's high, sunk a little into the ground)
+  const rock = new THREE.DodecahedronGeometry(0.62, 0).scale(1, 0.62, 0.86).translate(0, 0.22, 0);
+  return { spruce, broadleaf, trunk, palm, palmTrunk, dates, rock };
 }
 
 /** Plant the forest in `scene`, in chunks. */
@@ -326,15 +390,17 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): void {
   const c = new THREE.Color();
   for (const list of chunks.values()) {
     const palms = list.filter((t) => t.kind === 'palm').length;
+    const rocks = list.filter((t) => t.kind === 'rock').length;
     const meshes = {
       spruce: new THREE.InstancedMesh(geo.spruce, crown, list.filter((t) => t.kind === 'spruce').length),
       broadleaf: new THREE.InstancedMesh(geo.broadleaf, crown, list.filter((t) => t.kind === 'broadleaf').length),
       palm: new THREE.InstancedMesh(geo.palm, crown, palms),
-      trunk: new THREE.InstancedMesh(geo.trunk, bark, list.length - palms),
+      rock: new THREE.InstancedMesh(geo.rock, crown, rocks),
+      trunk: new THREE.InstancedMesh(geo.trunk, bark, list.length - palms - rocks),
       palmTrunk: new THREE.InstancedMesh(geo.palmTrunk, palmBark, palms),
       dates: new THREE.InstancedMesh(geo.dates, dates, palms),
     };
-    const n = { spruce: 0, broadleaf: 0, palm: 0, trunk: 0 };
+    const n = { spruce: 0, broadleaf: 0, palm: 0, rock: 0, trunk: 0 };
     list.forEach((t) => {
       const foot = groundAt(circuit.grid, t.x, t.y).h;
       // (each turned its own way, a little wider or narrower)
@@ -346,7 +412,7 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): void {
         m.compose(new THREE.Vector3(t.x, foot - 1, t.y), q, new THREE.Vector3(t.h, t.h, t.h));
         meshes.palmTrunk.setMatrixAt(n.palm, m);
         meshes.dates.setMatrixAt(n.palm, m);
-      } else meshes.trunk.setMatrixAt(n.trunk++, m);
+      } else if (t.kind !== 'rock') meshes.trunk.setMatrixAt(n.trunk++, m);
       meshes[t.kind].setMatrixAt(n[t.kind], m);
       meshes[t.kind].setColorAt(n[t.kind]++, c.set(t.color));
     });

@@ -80,6 +80,19 @@ export function kerbed(track: Track): boolean[] {
 /** px over which a banked bend's tilt eases in and out */
 export const BANK_EASE = 240;
 
+/**
+ * A jump (layout.jumps): px of run-up to its lip (the ground rising steadily to it), and px beyond over which it falls
+ * back (a gentler slope than the run-up, to land on); and px past the run-off's edge over which it eases out into the
+ * ground round it. The lip is sharp (laid over the ground after it's smoothed): taken at speed, a car flies off it.
+ */
+export const JUMP = { up: 160, down: 230, edge: 64 };
+
+/** A jump's lift (px) of the ground `d` px along the lap from its lip (− before it), for a jump `rise` px high. */
+export function jumpLift(d: number, rise: number): number {
+  if (d <= -JUMP.up || d >= JUMP.down) return 0;
+  return d <= 0 ? rise * (1 + d / JUMP.up) : rise * (1 - d / JUMP.down);
+}
+
 /** Height (px) at a share of the lap, eased between the profile's points. */
 export function elevationAt(profile: [number, number][], share: number): number {
   for (let i = 1; i < profile.length; i++) {
@@ -308,6 +321,26 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         wsum += w;
       }
       heights.push(wsum ? sum / wsum : 0);
+    }
+  }
+  // the jumps: each crest laid over the smoothed ground, across the track and its run-off, easing out beyond
+  if (layout.jumps?.length) {
+    const reach = HALF_WIDTH + RUNOFF + JUMP.edge;
+    for (let cy = 0; cy <= H; cy++) {
+      for (let cx = 0; cx <= W; cx++) {
+        const { i, d } = nearest(cx * TILE, cy * TILE);
+        if (i < 0 || d > reach) continue;
+        const fade = Math.min(1, (reach - d) / JUMP.edge);
+        const s = track.samples[i].s;
+        let lift = 0;
+        for (const j of layout.jumps) {
+          let along = s - j.at;
+          if (along > track.length / 2) along -= track.length;
+          if (along < -track.length / 2) along += track.length;
+          lift += jumpLift(along, j.rise);
+        }
+        heights[cy * (W + 1) + cx] += lift * fade;
+      }
     }
   }
 

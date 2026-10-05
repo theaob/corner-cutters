@@ -35,6 +35,15 @@ export interface CircuitLayout {
   /** the track crosses itself on a bridge: px along the lap where the stretch on the bridge (`over`) and the one
    * underneath (`under`) cross, the deck `height` px up there (the elevation profile has both at the same height) */
   bridge?: { over: number; under: number; height: number };
+  /**
+   * jumps: at `at` px along the lap, a crest with a sharp lip the cars fly off (the ground rising `rise` px up a
+   * run-up to it, and falling away beyond to land on: circuit.ts's JUMP); each on a straight, as no car steers in the air
+   */
+  jumps?: { at: number; rise: number }[];
+  /** free: open to everyone from the start (the Google Play build without the Championship too), and not a round of the Championship */
+  free?: boolean;
+  /** in the mountains: rock and alpine meadow beyond the barriers, snow up high, pines below the tree line and boulders */
+  mountain?: boolean;
   /** the podium hangs over the main straight on a deck from the pit side, this many px up (else it stands on the run-off) */
   podiumDeck?: number;
   /** a word painted across the garages' roofs, a few letters on each, read from the camera (AZERBAIJAN) */
@@ -759,7 +768,99 @@ export const SUZUKA: CircuitLayout = {
   bridge: { over: 8188, under: 4200, height: 36 },
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA];
+/**
+ * Glacier Pass. Clockwise over a mountain pass, a circuit of our own: from the
+ * valley floor down the main straight to Turn 1, up the switchbacks (three
+ * hairpins stacked up the mountainside, the climb steady all the way), along
+ * the summit and over the Crest, a jump the cars fly off at full speed, then
+ * down off the mountain, back through the infield over the Kicker, a second
+ * jump, and the long sweep onto the main straight. About 10300 px, about 33 s.
+ */
+export const GLACIER_PASS: CircuitLayout = {
+  id: 'glacier-pass',
+  name: 'Glacier Pass',
+  about: 'clockwise · up the switchbacks, over two jumps',
+  points: ([
+    [0, 0], [20, 0], [40, 0], [61, 0], [81, 0], [101, 0],
+    [121, 0], [142, 0], [162, 0], [182, 0], [202, 0], [223, 0],
+    [243, 0], [263, 0], [283, 0], [304, 0], [324, 0], [344, 0],
+    [364, 0], [384, 0], [405, 0], [425, 0], [444, 3], [463, 10],
+    [478, 22], [490, 38], [498, 56], [500, 75], [500, 96], [500, 116],
+    [500, 137], [500, 157], [500, 178], [500, 198], [500, 218], [500, 239],
+    [500, 259], [500, 280], [500, 300], [502, 321], [507, 341], [516, 360],
+    [528, 377], [543, 392], [560, 404], [579, 413], [600, 419], [620, 420],
+    [641, 420], [662, 420], [683, 420], [704, 420], [725, 420], [745, 420],
+    [762, 427], [768, 443], [768, 466], [768, 488], [762, 505], [745, 512],
+    [725, 512], [705, 512], [685, 512], [665, 512], [645, 512], [625, 512],
+    [605, 512], [585, 512], [565, 512], [545, 512], [525, 512], [505, 512],
+    [485, 512], [465, 512], [445, 512], [429, 518], [422, 535], [422, 557],
+    [422, 580], [429, 596], [445, 603], [465, 603], [485, 603], [505, 603],
+    [525, 603], [545, 603], [565, 603], [585, 603], [605, 603], [625, 603],
+    [645, 603], [665, 603], [685, 603], [705, 603], [725, 603], [745, 603],
+    [762, 610], [768, 626], [768, 648], [768, 671], [762, 687], [745, 694],
+    [727, 694], [708, 694], [689, 694], [670, 694], [652, 694], [633, 694],
+    [614, 694], [595, 694], [575, 696], [556, 703], [539, 714], [525, 728],
+    [514, 745], [507, 764], [505, 784], [505, 804], [505, 824], [505, 844],
+    [505, 864], [505, 884], [503, 904], [498, 922], [488, 940], [476, 955],
+    [461, 967], [443, 977], [425, 982], [405, 984], [384, 984], [363, 984],
+    [342, 984], [321, 984], [300, 984], [279, 984], [258, 984], [237, 984],
+    [216, 984], [195, 984], [175, 984], [155, 984], [135, 984], [115, 984],
+    [95, 984], [75, 984], [55, 984], [35, 984], [15, 984], [-5, 984],
+    [-25, 984], [-45, 984], [-65, 984], [-85, 984], [-105, 984], [-125, 984],
+    [-145, 984], [-165, 984], [-184, 983], [-202, 978], [-220, 970], [-236, 958],
+    [-249, 945], [-260, 929], [-268, 912], [-273, 893], [-275, 874], [-275, 855],
+    [-275, 837], [-275, 818], [-275, 799], [-275, 780], [-275, 762], [-275, 743],
+    [-275, 724], [-277, 705], [-282, 686], [-292, 668], [-304, 653], [-319, 641],
+    [-337, 632], [-355, 626], [-375, 624], [-396, 624], [-418, 624], [-439, 624],
+    [-460, 624], [-481, 624], [-502, 624], [-522, 624], [-543, 624], [-564, 624],
+    [-585, 624], [-604, 622], [-623, 617], [-640, 609], [-656, 598], [-669, 585],
+    [-680, 569], [-688, 552], [-694, 533], [-695, 514], [-695, 494], [-695, 474],
+    [-695, 455], [-695, 435], [-695, 415], [-695, 396], [-695, 376], [-695, 356],
+    [-695, 337], [-695, 317], [-695, 297], [-695, 278], [-695, 258], [-695, 238],
+    [-695, 219], [-695, 199], [-695, 179], [-695, 160], [-695, 140], [-695, 120],
+    [-693, 99], [-688, 79], [-679, 60], [-667, 43], [-652, 28], [-635, 16],
+    [-616, 7], [-596, 2], [-575, 0], [-555, 0], [-535, 0], [-516, 0],
+    [-496, 0], [-476, 0], [-456, 0], [-436, 0], [-416, 0], [-397, 0],
+    [-377, 0], [-357, 0], [-337, 0], [-317, 0], [-297, 0], [-278, 0],
+    [-258, 0], [-238, 0], [-218, 0], [-198, 0], [-178, 0], [-159, 0],
+    [-139, 0], [-119, 0], [-99, 0], [-79, 0], [-60, 0], [-40, 0],
+    [-20, 0],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2,
+  // (a share of the lap): the valley floor, up the switchbacks to the summit, along it, down off the mountain (the
+  // Kicker where it eases) and down onto the main straight
+  elevation: [
+    [0, 20],
+    [0.1, 22],
+    [0.2, 56],
+    [0.3, 98],
+    [0.4, 140],
+    [0.47, 170],
+    [0.51, 180],
+    [0.6, 182],
+    [0.65, 162],
+    [0.7, 124],
+    [0.72, 118],
+    [0.745, 112],
+    [0.8, 72],
+    [0.86, 28],
+    [1, 20],
+  ],
+  // on the right of the main straight, from the last bend to past the line
+  pit: { from: -740, to: 640, side: 1 },
+  // the Crest, along the summit, and the Kicker, on the way back down
+  jumps: [{ at: 5575, rise: 28 }, { at: 7425, rise: 26 }],
+  mountain: true,
+  // (open to everyone from the start, not a round of the Championship)
+  free: true,
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, GLACIER_PASS];
+
+/** The Championship's circuits, a round on each, in order (the free circuits aren't among them). */
+export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.free);
+/** The free circuits: open to everyone from the start. */
+export const FREE_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => l.free);
 
 /** The layout with this id, or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {

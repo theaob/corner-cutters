@@ -12,8 +12,8 @@ describe('the Daily Challenge', () => {
     expect(untilNext(new Date('2026-10-04T23:00:00Z'))).toBe(3600000);
   });
 
-  it('goes round every circuit over a few months, never the same one two days running, mostly dry', () => {
-    const days = Array.from({ length: 120 }, (_, k) => dayOf(new Date(Date.UTC(2026, 0, 1) + k * 86400000)));
+  it('goes round every circuit over a few months (from the day the newest joins), never the same one two days running, mostly dry', () => {
+    const days = Array.from({ length: 120 }, (_, k) => dayOf(new Date(Date.UTC(2026, 9, 6) + k * 86400000)));
     const picks = days.map((d) => challengeOn(d));
     expect(new Set(picks.map((p) => p.layout.id)).size).toBe(LAYOUTS.length);
     for (let k = 1; k < picks.length; k++) expect(picks[k].layout.id).not.toBe(picks[k - 1].layout.id);
@@ -64,5 +64,19 @@ describe('the Daily Challenge', () => {
     expect(a.passed).toBe(2);
     expect(a.lastAt).toBeCloseTo(17.5, 0);
     expect(a.elapsed).toBeGreaterThan(a.lastAt);
+  });
+});
+
+describe("a new circuit in the Daily Challenge's rotation", () => {
+  it('joins from its day on, so a day already under way keeps its circuit', async () => {
+    const { DAILY_FROM, challengeOn, dailyLayouts } = await import('../src/f1/daily');
+    const { LAYOUTS } = await import('../src/f1/layouts');
+    for (const [id, from] of Object.entries(DAILY_FROM)) {
+      const before = new Date(Date.parse(`${from}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+      expect(dailyLayouts(before).map((l) => l.id)).not.toContain(id);
+      expect(dailyLayouts(from).map((l) => l.id)).toContain(id);
+      // (the day before: the same challenge as without it)
+      expect(challengeOn(before).layout.id).toBe(challengeOn(before, LAYOUTS.filter((l) => l.id !== id)).layout.id);
+    }
   });
 });

@@ -26,9 +26,9 @@ export const ownsChampionship = (): boolean => championshipOpen(PAYWALL, bought(
 
 /**
  * The circuits open for a Quick Race, a Time Attack or a Time Trial, given what's open with the Championship
- * (`unlocked`: as the Championship has reached them): without it, the first circuit only.
+ * (`unlocked`: as the Championship has reached them): without it, the first circuit only; the `free` ones either way.
  */
-export const circuitsOpen = (owned: boolean, first: string, unlocked: ReadonlySet<string>): Set<string> => (owned ? new Set(unlocked) : new Set([first]));
+export const circuitsOpen = (owned: boolean, first: string, unlocked: ReadonlySet<string>, free: string[] = []): Set<string> => new Set([...(owned ? unlocked : [first]), ...free]);
 
 /** What the store says about the Championship. */
 export interface ShopState {

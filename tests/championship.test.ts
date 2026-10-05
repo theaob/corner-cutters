@@ -104,3 +104,13 @@ describe("a season's length", () => {
     expect(seasonLength(GRAND_PRIX_LAPS).name).toBe('GRAND PRIX');
   });
 });
+
+describe("the Championship's circuits", () => {
+  it('a round on every circuit but the free ones (Glacier Pass): those are open to everyone, and no round', async () => {
+    const { CHAMPIONSHIP_LAYOUTS, FREE_LAYOUTS, LAYOUTS } = await import('../src/f1/layouts');
+    expect(FREE_LAYOUTS.map((l) => l.id)).toEqual(['glacier-pass']);
+    expect(CHAMPIONSHIP_LAYOUTS.map((l) => l.id)).not.toContain('glacier-pass');
+    expect(CHAMPIONSHIP_LAYOUTS.length + FREE_LAYOUTS.length).toBe(LAYOUTS.length);
+    expect(CHAMPIONSHIP_LAYOUTS[0]).toBe(LAYOUTS[0]);
+  });
+});

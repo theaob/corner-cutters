@@ -273,7 +273,7 @@ The goal: someone who opens the itch.io page plays three races in a row.
 - [x] Pause: A pauses, auto-pause when the tab or app is hidden, resume/restart/circuits screen
 - [x] Sound effects: engine note (V6 orders, gearshift cuts, overrun pops, a rival's Doppler), tyre squeal, impacts, lights beeps, flag; volume, remembered (synthesised, no files)
 - [x] Music playback (`engine/music.ts`): looping, crossfades, loop points, its own volume setting; synthesised placeholder loops (`f1/music.ts`), so the composed tracks can be dropped in
-- [ ] Music: menu theme and a first race loop
+- [x] Music: menu theme and a first race loop (`music/theme.mp3`, `music/race.mp3`)
 - [x] Difficulty levels on the menu (Easy / Normal / Hard): crash damage and AI pace
 - [x] Saved best lap and best race per circuit (per number of laps), shown on the menu, in the race and at the results ("NEW!")
 - [x] HUD: gap to the car ahead/behind; a flash on position change and fastest lap
@@ -313,14 +313,14 @@ The goal: a full first season.
 - [x] Alpine Ring, Twin Lakes and Oasis (`ALPINE_RING`, `TWIN_LAKES`, `OASIS` in `f1/layouts.ts`), traced from the same outline data, their tight bends opened out (so the touch stick keeps up with the wheel and the AI) and close stretches eased apart; rounds six to eight of the Championship, each unlocked by it. Oasis in the desert (`desert`: sand all round)
 - [x] Pit lanes: wider than the track, long entry and exit roads, the limiter only between the speed-limit lines; a minimum pit lane (`PIT_LANE_MIN`, 1,040 px) and main straight (`PIT_STRAIGHT_MIN`, 1,120 px), every lane on its straight (Crescent Park, Silver Heath and Ardennes lengthened for it)
 - [x] Track designer, a tool of its own (`designer.html`, `src/designer/`, `npm run designer`): the circuit in 3D through a free first-person camera (fly or walk), control points dragged over the ground, heights per point, the pit lane and the rest in a panel, live checks and an AI lap, export as code for `layouts.ts` or JSON
-- [ ] Mountain circuit (elevation, crests, jumps)
+- [x] Mountain circuit (elevation, crests, jumps): Glacier Pass (`GLACIER_PASS` in `f1/layouts.ts`): up the switchbacks, over the Crest and the Kicker (`jumps`: `JUMP` in `f1/circuit.ts`), in the mountains (`mountain`: meadow, rock, snow, spruces to the tree line, boulders); free (`free`: open to everyone from the start, the Google Play build's free tier included; not a Championship round)
 - [x] Desert circuit (straights, slipstream): Oasis (night races were tried and taken out)
 - [x] Weather: dry, damp and wet, with three tyre compounds, rain and spray (done early)
-- [ ] Weather that changes during a race; the player picking tyres at a stop
+- [x] Weather that changes during a race; the player picking tyres at a stop
 - [x] Start-of-race grid pan (`f1/gridPan.ts`): before the lights the camera glides from pole to the back of the grid, naming each car (yours in gold); A skips it
 - [x] 10-second replay after the flag (`f1/replay.ts`): every car and the safety car recorded at 20 Hz (the last 15 s kept); a few seconds after your flag the race holds and the 10 s up to just past your finish play again, slow through the line; A skips it
 - [ ] Music: a race track per circuit (or per pair of circuits), stings for fastest lap / podium / title
-- [ ] A pit lane in every new circuit's layout data (repair stops already use it)
+- [x] A pit lane in every new circuit's layout data (repair stops already use it; `tests/pits.test.ts` checks it)
 
 ### M5: Release
 
@@ -379,8 +379,8 @@ The goal: longer races with strategy, once players have mastered the sprints.
       laps a round, GRAND PRIX 10)
 - [x] Mid-race save, so a long race survives the app being closed (`f1/raceSave.ts`: kept as the app goes into
       the background, on pause and at each lap; RESUME RACE on the menu picks it up, paused)
-- [ ] Headless tests: a whole Grand Prix with stops runs in a test; strategies are balanced
-      (no single strategy always wins)
+- [x] Headless tests: a whole Grand Prix with stops runs in a test; strategies are balanced
+      (no single strategy always wins): `tests/grandPrix.test.ts`
 - [ ] Music: a "final laps" track
 
 ### Later: teams that matter (after 1.0, to be decided)

@@ -491,7 +491,8 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
       events.landed = -car.vz;
       damage += Math.max(0, -car.vz - p.landThreshold) * p.crashDamage;
       car.z = ground;
-      car.vz = 0;
+      // (on the ground's own climb rate: landed on a downslope, it doesn't take off again at once)
+      car.vz = Math.max(-speedOf(car) * MAX_LAUNCH_GRADE, Math.min(speedOf(car) * MAX_LAUNCH_GRADE, under.gx * car.vx + under.gy * car.vy));
       car.airborne = false;
     }
   } else if (Math.abs(ground - car.z) > 20) {

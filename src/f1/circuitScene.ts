@@ -52,6 +52,12 @@ const FOREST_FLOOR = '#2f5a2c';
 /** The desert's colours: the sand (its run-off, beyond the barriers, and the specks in it), and the gravel traps, redder so they stand out from it */
 const DESERT = { runoff: '#e4c896', runoffStripe: '#dcbf8a', sand: '#d8b47c', speck: '#c49e66', ripple: '#e8d0a2', gravel: '#c08a5e', gravelDot: ['#ad7a50', '#d29e72'] };
 
+/** The mountains' colours beyond the barriers: alpine meadow, bare rock on the steep ground, and snow up high */
+const MOUNTAIN = { meadow: '#5c7f3c', meadowDot: ['#4b6c31', '#7a7a58'], rock: '#7e7a72', rockDot: ['#69655e', '#99948b'], snow: '#eef2f6', snowDot: '#cdd6df' };
+/** px up past which the ground beyond the barriers is snow; the steepness (rise per px) past which it's bare rock */
+const SNOW_LINE = 150;
+const ROCK_STEEP = 0.45;
+
 /** The banking's concrete, and the seams along it */
 const CONCRETE = '#b4b2ac';
 const SEAM = '#99978f';
@@ -209,7 +215,15 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const street = !!circuit.layout.street;
   const forest = !!circuit.layout.forest;
   const desert = !!circuit.layout.desert;
+  const mountain = !!circuit.layout.mountain;
   const sea = seaOf(circuit);
+  /** a tile's height (its corners' average) and steepness (its corners' spread over its width) */
+  const relief = (i: number, j: number) => {
+    const hs = circuit.grid.heights!;
+    const row = W + 1;
+    const c = [hs[j * row + i], hs[j * row + i + 1], hs[(j + 1) * row + i], hs[(j + 1) * row + i + 1]];
+    return { h: (c[0] + c[1] + c[2] + c[3]) / 4, steep: (Math.max(...c) - Math.min(...c)) / T };
+  };
   // run-off and surroundings, tile by tile
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
@@ -248,6 +262,17 @@ function paint(circuit: Circuit): HTMLCanvasElement {
         for (let k = 0; k < 10; k++) {
           x.fillStyle = desert ? DESERT.gravelDot[r() < 0.5 ? 0 : 1] : r() < 0.5 ? '#c4ae82' : '#e6d6b0';
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
+        }
+      } else if (mountain && cell === 'wall') {
+        // in the mountains, beyond the barriers: snow up high, bare rock where it's steep, alpine meadow elsewhere
+        const { h, steep } = relief(i, j);
+        const snow = h > SNOW_LINE;
+        const rock = !snow && steep > ROCK_STEEP;
+        x.fillStyle = snow ? MOUNTAIN.snow : rock ? MOUNTAIN.rock : MOUNTAIN.meadow;
+        x.fillRect(px, py, T, T);
+        for (let k = 0; k < 3; k++) {
+          x.fillStyle = snow ? (steep > ROCK_STEEP && r() < 0.6 ? MOUNTAIN.rockDot[0] : MOUNTAIN.snowDot) : rock ? MOUNTAIN.rockDot[r() < 0.5 ? 0 : 1] : MOUNTAIN.meadowDot[r() < 0.7 ? 0 : 1];
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), rock ? 2 : 1, rock ? 1 : 2);
         }
       } else if (desert) {
         // in the desert, sand: smoothed and striped on the run-off, rippled beyond the barriers
@@ -502,7 +527,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : 0x4b9444);
+  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: outerColor.clone().multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
