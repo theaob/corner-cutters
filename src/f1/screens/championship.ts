@@ -8,7 +8,8 @@ import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { carRow, menuButton, optionRow } from '../circuitSelect';
-import { confetti, trophy } from './celebrate';
+import { trophy } from './celebrate';
+import { celebrateTitle } from './titleWin';
 import { onBack } from '../../engine/backButton';
 import { POINTS, numberIn, pointsOf, roundSeed, saveSeason, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
@@ -118,6 +119,8 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     return p;
   };
   const over = !!season && seasonOver(season);
+  /** the title's celebration, while it's up (its A or START closes it, nothing else) */
+  let celebrating: ReturnType<typeof celebrateTitle> | undefined;
   if (season) {
     const table = standings(season);
     const settings = `${difficultyById(season.difficulty)?.name ?? ''} · ${seasonLength(season.laps).name} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
@@ -126,7 +129,16 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       // yours: the trophy (and, as the title's just been won, confetti)
       if (champ.name === 'YOU') {
         screen.append(trophy(96));
-        if (justWon) requestAnimationFrame(() => confetti(host, 4500));
+        // just won: the title's celebration over it all first (screens/titleWin.ts), the standings under it
+        if (justWon) {
+          const runnerUp = table[1]?.points ?? 0;
+          celebrating = celebrateTitle(host, {
+            team: { name: teamOf(champ).name, body: teamOf(champ).body, trim: teamOf(champ).trim },
+            points: table[0].points, wins: table[0].wins, clear: table[0].points - runnerUp,
+            how: `${difficultyById(season.difficulty)?.name ?? ''} · ${seasonLength(season.laps).name} · ${season.rounds.length} ROUNDS`,
+          });
+          void celebrating.done.then(() => (celebrating = undefined));
+        }
       }
       screen.append(line(champ.name === 'YOU' ? 'YOU ARE THE CHAMPION!' : `CHAMPION: ${champ.name} (${teamOf(champ).code})`, 'var(--gold)'));
     } else {
@@ -252,6 +264,11 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       if (done) return;
       // (a report being made: its, not this screen's)
       const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map((k) => pressed(k) && !reportOpen());
+      if (celebrating) {
+        if (a || start) celebrating.close();
+        requestAnimationFrame(tick);
+        return;
+      }
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
         focus = (focus + move + places.length) % places.length;
