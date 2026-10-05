@@ -50,6 +50,8 @@ export interface CircuitLayout {
   yeti?: boolean;
   /** an aerial tramway (tramway.ts): its two stations (px, as the circuit's laid out): on the valley floor, and up the mountain */
   tramway?: { from: [number, number]; to: [number, number] };
+  /** the crowd on its feet in the grandstands, on steps in front of each, cheering the cars by (crowd3d.ts) */
+  crowds?: boolean;
   /** monster trucks jumping a pile of wrecks in the infield (monsterTrucks.ts): their arena's middle (px, as the circuit's laid out) and the way its lanes run (radians) */
   monsterTrucks?: { at: [number, number]; angle: number };
   /** on dirt: the track's surface loose earth, every car on off-road tyres (tyres.ts), sliding through the bends */
@@ -935,6 +937,8 @@ export const DUST_BOWL: CircuitLayout = {
   dirt: true,
   // (and monster trucks in the infield, jumping a pile of wrecks)
   monsterTrucks: { at: [1040, 900], angle: 0 },
+  // (and the crowd in the grandstands on its feet, cheering the cars by)
+  crowds: true,
   // (open to everyone from the start, not a round of the Championship)
   free: true,
 };
