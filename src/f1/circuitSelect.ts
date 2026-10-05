@@ -127,6 +127,8 @@ export interface MenuChoice {
   qualifying: boolean;
   /** a Quick Race's laps (a Championship round is always RACE_LAPS) */
   laps: number;
+  /** RESUME RACE picked: back to the race kept on the device (raceSave.ts), the rest of the choice as it was */
+  resume?: true;
 }
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
@@ -273,6 +275,8 @@ export function chooseCircuit(
   closed?: AbortSignal,
   /** a Quick Race's start tyres, as last chosen */
   tyres: TyrePick = 'auto',
+  /** a race kept on the device to come back to (raceSave.ts): RESUME RACE above the modes, its circuit and your lap under it */
+  kept?: { about: string },
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
@@ -580,6 +584,22 @@ export function chooseCircuit(
     focus = -1;
     show();
   };
+  /** RESUME RACE, the race kept on the device: first of the modes (a place of its own for up/down) */
+  let resumePicked = false;
+  const resumeButton = kept ? menuButton('', () => {
+    resumePicked = true;
+    finish(layouts[selected]);
+  }) : undefined;
+  if (resumeButton) {
+    resumeButton.classList.add('mode-button', 'resume-button');
+    const name = document.createElement('strong');
+    name.textContent = 'RESUME RACE';
+    const about = document.createElement('span');
+    about.textContent = kept!.about;
+    resumeButton.append(name, about);
+  }
+  /** places on the modes screen before the modes themselves (RESUME RACE) */
+  const R = resumeButton ? 1 : 0;
   const modeButtons = MODES.map((m) => {
     const b = menuButton('', () => pickMode(m));
     b.classList.add('mode-button');
@@ -599,7 +619,7 @@ export function chooseCircuit(
   /** the circuit screen's places for up/down: the circuit, the rows, the race button, BACK */
   const raceAt = () => 1 + rows.length;
   const backAt = () => raceAt() + 1;
-  const modesParts: HTMLElement[] = [...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
+  const modesParts: HTMLElement[] = [...(resumeButton ? [resumeButton] : []), ...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   // (REPORT under DONE, but not on YouTube: a report goes to the game's own backend)
@@ -611,9 +631,10 @@ export function chooseCircuit(
     for (const el of modesParts) el.style.display = view === 'modes' ? '' : 'none';
     for (const el of circuitParts) el.style.display = view === 'circuit' ? '' : 'none';
     for (const el of settingsParts) el.style.display = view === 'settings' ? '' : 'none';
-    modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === k));
-    settingsButton.classList.toggle('focused', view === 'modes' && focus === MODES.length);
-    trophiesButton.classList.toggle('focused', view === 'modes' && focus === MODES.length + 1);
+    resumeButton?.classList.toggle('focused', view === 'modes' && focus === 0);
+    modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === R + k));
+    settingsButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length);
+    trophiesButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length + 1);
     cabinetDone.classList.toggle('focused', view === 'trophies');
     card.classList.toggle('focused', view === 'circuit' && focus === 0);
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
@@ -637,7 +658,7 @@ export function chooseCircuit(
   renderCard();
   renderRace();
   options.append(...rows.map((r) => r.el));
-  menu.append(...modeButtons, settingsButton, trophiesButton, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
+  menu.append(...(resumeButton ? [resumeButton] : []), ...modeButtons, settingsButton, trophiesButton, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
@@ -668,7 +689,7 @@ export function chooseCircuit(
     finish = (layout) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
-      if (!open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
+      if (!resumePicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
         menuTick();
         hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
         return;
@@ -677,7 +698,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value() });
+      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value(), ...(resumePicked ? { resume: true as const } : {}) });
     };
     closed?.addEventListener('abort', () => {
       done = true;
@@ -712,7 +733,7 @@ export function chooseCircuit(
         if (a || start || b) closeCabinet();
       } else if (view === 'modes') {
         // the modes: up/down moves, A or START picks (or opens SETTINGS or TROPHIES)
-        const places = MODES.length + 2;
+        const places = R + MODES.length + 2;
         if (move) {
           // (from none highlighted: down to the first, up to the last)
           focus = focus < 0 ? (move > 0 ? 0 : places - 1) : (focus + move + places) % places;
@@ -720,9 +741,12 @@ export function chooseCircuit(
         }
         if (focus < 0) {
           // (nothing to pick until something is highlighted)
-        } else if ((a || start) && focus === MODES.length) openSettings();
-        else if ((a || start) && focus === MODES.length + 1) openCabinet();
-        else if (a || start) pickMode(MODES[focus]);
+        } else if ((a || start) && resumeButton && focus === 0) {
+          resumePicked = true;
+          finish(layouts[selected]);
+        } else if ((a || start) && focus === R + MODES.length) openSettings();
+        else if ((a || start) && focus === R + MODES.length + 1) openCabinet();
+        else if (a || start) pickMode(MODES[focus - R]);
       } else {
         const places = backAt() + 1;
         if (move) {

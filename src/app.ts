@@ -17,6 +17,7 @@ import { showDaily } from './f1/screens/daily';
 import { F1_TUNING } from './f1/tuning';
 import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
+import { dropKeptRace, keptLap, keptRace, type KeptRace } from './f1/raceSave';
 import { RACE_LAPS, lapsFrom, seasonLength } from './f1/laps';
 import { curtainDown, curtainFirstUp, curtainUp } from './f1/screens/curtain';
 import { YOUTUBE, firstFrameReady, gameReady } from './engine/host';
@@ -158,6 +159,24 @@ const startTyres = (): DryCompound | undefined => {
 const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' || v === 'daily' ? v : 'race');
 const savedMode = (): GameMode => asMode(choice('mode'));
 
+/** RESUME RACE picked on the menu: the kept race (raceSave.ts) the next race screen picks up */
+let resumeNext: KeptRace | undefined;
+/**
+ * The race kept on the device, if it can still be come back to: its circuit's still there, and a Championship round's
+ * still the season's next (a season moved on or started afresh since: it's thrown away).
+ */
+function keptToOffer(): KeptRace | undefined {
+  const k = keptRace();
+  if (!k) return undefined;
+  const season = k.mode === 'championship' ? loadSeason() : undefined;
+  const stale = !layoutById(k.circuit) || (k.mode === 'championship' && (!season || seasonOver(season) || season.round !== k.round || season.rounds[season.round] !== k.circuit));
+  if (stale) {
+    dropKeptRace();
+    return undefined;
+  }
+  return k;
+}
+
 /** The screen showing now (the menu or a race): closed before the next one opens. */
 let current: { close(): void } | undefined;
 /** Counts screen changes: a screen that finishes opening after a newer change is closed at once. */
@@ -273,7 +292,8 @@ async function showMenu(id: number): Promise<void> {
   let stopBackdrop = () => {};
   closed.signal.addEventListener('abort', () => stopBackdrop());
   current = { close: () => closed.abort() };
-  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal, savedTyres());
+  const kept = keptToOffer();
+  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal, savedTyres(), kept && { about: `${kept.name} · ${keptLap(kept)}${kept.mode === 'championship' ? ` · round ${(kept.round ?? 0) + 1}` : ''}`.toLowerCase() });
   curtainUp();
   const backdropOn = backdropCircuit();
   // (a still of it up at once, so the menu never opens on black; the live race fades in over it)
@@ -285,6 +305,12 @@ async function showMenu(id: number): Promise<void> {
   const picked = await picking;
   stopBackdrop();
   if (id !== routeId) return;
+  // RESUME RACE: back to the kept race (its own set-up, not the menu's)
+  if (picked.resume && kept) {
+    resumeNext = kept;
+    navigate(withCircuit(kept.circuit, kept.mode));
+    return;
+  }
   save('choices', 'circuit', picked.layout.id);
   save('choices', 'team', picked.team.id);
   save('choices', 'seat', String(picked.seat));
@@ -416,7 +442,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
           navigate(withCircuit(null));
         }
       : () => navigate(withCircuit(null));
-  const options: RaceOptions = season
+  let options: RaceOptions = season
     ? {
         team: teamOf(season.drivers[season.you]), difficulty: difficultyById(season.difficulty) ?? NORMAL, qualifying: season.qualifying, laps: season.laps ?? RACE_LAPS,
         championship: {
@@ -445,6 +471,17 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     : today
       ? { team: savedTeam(), seat: savedSeat(), difficulty: NORMAL, weather: today.weather, mode: 'timeattack', daily: { day: today.day } }
       : { team: savedTeam(), seat: savedSeat(), difficulty: savedDifficulty(), weather: mode === 'timetrial' || mode === 'timeattack' ? clockWeather() : savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), startTyres: mode === 'timetrial' || mode === 'timeattack' ? undefined : startTyres(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
+  // RESUME RACE: the kept race picked up (a Quick Race with the set-up it was started with; a Championship round as the season has it)
+  const resume = resumeNext && resumeNext.circuit === layout.id && (resumeNext.mode === 'championship') === !!season ? resumeNext : undefined;
+  resumeNext = undefined;
+  if (resume && !season) {
+    const k = resume.setup;
+    options = {
+      team: teamById(k.team) ?? savedTeam(), seat: k.seat === 1 ? 1 : 0, difficulty: difficultyById(k.difficulty) ?? NORMAL, weather: weatherById(k.weather) ?? DRY,
+      qualifying: resume.grid !== undefined, laps: k.laps, startTyres: k.startTyres, mode: 'race',
+    };
+  }
+  if (resume) options = { ...options, resume };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();
