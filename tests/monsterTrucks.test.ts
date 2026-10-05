@@ -19,15 +19,22 @@ describe('the monster trucks', () => {
     for (const l of LAYOUTS) if (l !== DUST_BOWL) expect(l.monsterTrucks).toBeUndefined();
   });
 
-  it('keep to their arena in the infield, clear of the track, the pits and the grandstands', () => {
+  it('keep to their arena in the infield, close by the track but clear of it, the pits and the grandstands', () => {
     const reach = HALF_WIDTH + RUNOFF + 40;
+    let nearest = Infinity;
     for (const k of [0, 1]) {
       for (const p of poses(k).filter((_, i) => i % 10 === 0)) {
-        for (const s of c.track.samples) expect(Math.hypot(s.x - p.x, s.y - p.y)).toBeGreaterThan(reach);
+        for (const s of c.track.samples) {
+          const d = Math.hypot(s.x - p.x, s.y - p.y);
+          expect(d).toBeGreaterThan(reach);
+          nearest = Math.min(nearest, d);
+        }
         for (const q of c.pit.points) expect(Math.hypot(q.x - p.x, q.y - p.y)).toBeGreaterThan(150);
         for (const s of standsOf(c)) expect(Math.hypot(s.x - p.x, s.y - p.y)).toBeGreaterThan(s.len / 2 + 40);
       }
     }
+    // (near enough to watch from the cars going by)
+    expect(nearest).toBeLessThan(reach + 60);
   }, 30_000);
 
   it('go round and round: up a ramp, through the air over the pile, down the far ramp, and round the hairpin, smoothly', () => {

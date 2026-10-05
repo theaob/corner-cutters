@@ -935,8 +935,8 @@ export const DUST_BOWL: CircuitLayout = {
   jumps: [{ at: 3220, rise: 20 }],
   // on dirt: every car on off-road tyres
   dirt: true,
-  // (and monster trucks in the infield, jumping a pile of wrecks)
-  monsterTrucks: { at: [1040, 900], angle: 0 },
+  // (and monster trucks in the infield, jumping a pile of wrecks alongside the back straight)
+  monsterTrucks: { at: [1040, 1100], angle: 0 },
   // (and the crowd in the grandstands on its feet, cheering the cars by)
   crowds: true,
   // (open to everyone from the start, not a round of the Championship)
