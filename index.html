@@ -1042,6 +1042,41 @@
       }
       html:not(.desktop) .stick {
         background: radial-gradient(circle, rgba(27, 26, 41, 0.45) 0 58%, rgba(37, 35, 58, 0.6) 60%);
+        /* (floating: the zone takes the touches, and the stick glides back to its corner when let go) */
+        pointer-events: none !important;
+        transition: transform 0.15s ease-out, opacity 0.15s;
+      }
+      /* at rest in its corner, dimmed: a hint of where it is, not in the way */
+      html:not(.desktop) #deck .stick:not(.pressed) {
+        opacity: 0.6;
+      }
+      html:not(.desktop) #deck .stick.pressed {
+        transition: opacity 0.15s;
+      }
+      /* the floating stick's zone: the stick's side of the lower half of the screen, short of the middle (TUNE's
+         there); a thumb landing anywhere on it brings the stick there (deck.ts) */
+      .stick-zone {
+        display: none;
+      }
+      html:not(.desktop) #deck:not(.steer-deck) .stick-zone {
+        display: block;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: calc(50% - 36px);
+        height: 50%;
+        pointer-events: auto;
+        touch-action: none;
+      }
+      html:not(.desktop) #deck.stick-right:not(.steer-deck) .stick-zone {
+        left: auto;
+        right: 0;
+      }
+      html.results-up:not(.desktop) #deck .stick-zone,
+      html.ceremony:not(.desktop) #deck .stick-zone,
+      html.paused:not(.desktop) #deck .stick-zone,
+      html.menu #deck .stick-zone {
+        display: none;
       }
       html:not(.desktop) .sys button {
         background: rgba(37, 35, 58, 0.75);

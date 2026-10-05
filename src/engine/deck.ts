@@ -55,7 +55,7 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
   holdTouches(deck);
 
   const stick = deck.querySelector<HTMLElement>('[data-dpad]');
-  if (stick) bindStick(stick, controls);
+  if (stick) bindStick(stick, controls, deck);
   bindWheel(deck, controls);
 
   for (const el of deck.querySelectorAll<HTMLElement>('[data-button]')) {
@@ -92,14 +92,36 @@ function releaseAnywhere(held: () => number | undefined, release: () => void): v
   }
 }
 
+/** px between a floating stick's base and the screen's edge, at the closest */
+export const FLOAT_MARGIN = 8;
+
+/**
+ * Where a floating stick's base goes for a thumb landing at (`x`, `y`): centred under the thumb, kept `FLOAT_MARGIN`
+ * px inside `bounds` (the screen). As the offset (px) from its place at rest, whose centre is (`homeX`, `homeY`).
+ */
+export function floatOffset(x: number, y: number, homeX: number, homeY: number, radius: number, bounds: { left: number; top: number; right: number; bottom: number }): { x: number; y: number } {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(Math.max(lo, hi), v));
+  const r = radius + FLOAT_MARGIN;
+  return { x: clamp(x, bounds.left + r, bounds.right - r) - homeX, y: clamp(y, bounds.top + r, bounds.bottom - r) - homeY };
+}
+
 /**
  * The thumbstick: a round base with a knob that follows the thumb (stopped at
  * the rim). It reports the thumb's exact direction and push (analogue), and the
  * 8-way direction buttons once it's pushed well out, for menus.
+ *
+ * On a touch screen it floats: a thumb landing anywhere on the stick's side of the lower screen (the zone) brings the
+ * stick there, centred under it, and drives it from there; let go, it glides back to its place at rest, in the corner.
  */
-function bindStick(pad: HTMLElement, controls: Controls): void {
+function bindStick(pad: HTMLElement, controls: Controls, deck: HTMLElement): void {
   const knob = pad.querySelector<HTMLElement>('.knob');
   let held: number | undefined;
+  /** where the stick has floated to (px from its place at rest) */
+  let offset = { x: 0, y: 0 };
+  const place = (o: { x: number; y: number }) => {
+    offset = o;
+    pad.style.transform = o.x || o.y ? `translate(${o.x}px, ${o.y}px)` : '';
+  };
   const moveKnob = (x: number, y: number) => knob?.style.setProperty('transform', `translate(${x}px, ${y}px)`);
   const update = (e: PointerEvent) => {
     const r = pad.getBoundingClientRect();
@@ -115,21 +137,39 @@ function bindStick(pad: HTMLElement, controls: Controls): void {
     controls.clear('dpad');
     pad.classList.remove('pressed');
     moveKnob(0, 0);
+    place({ x: 0, y: 0 });
   };
-  pad.addEventListener('pointerdown', (e) => {
+  const press = (e: PointerEvent, on: HTMLElement) => {
     e.preventDefault();
     held = e.pointerId;
     pad.classList.add('pressed');
     update(e);
-    capture(pad, e.pointerId);
+    capture(on, e.pointerId);
     buzz();
+  };
+  pad.addEventListener('pointerdown', (e) => press(e, pad));
+  // the zone the stick floats over (on a touch screen: the CSS shows it there, the stick itself left to it)
+  const zone = document.createElement('div');
+  zone.className = 'stick-zone';
+  zone.setAttribute('aria-hidden', 'true');
+  deck.prepend(zone);
+  zone.addEventListener('pointerdown', (e) => {
+    if (held !== undefined) return;
+    const r = pad.getBoundingClientRect();
+    const b = deck.getBoundingClientRect();
+    place(floatOffset(e.clientX, e.clientY, r.left + r.width / 2 - offset.x, r.top + r.height / 2 - offset.y, r.width / 2, b));
+    press(e, zone);
   });
-  pad.addEventListener('pointermove', (e) => {
-    if (e.pointerId === held) update(e);
-  });
-  pad.addEventListener('pointerup', release);
-  pad.addEventListener('pointercancel', release);
-  pad.addEventListener('lostpointercapture', release);
+  for (const el of [pad, zone]) {
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerId === held) update(e);
+    });
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('lostpointercapture', (e) => {
+      if (e.pointerId === held) release();
+    });
+  }
   releaseAnywhere(() => held, release);
 }
 
