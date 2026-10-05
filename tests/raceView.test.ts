@@ -156,3 +156,29 @@ describe('the results rows', () => {
     expect(rows[2]).toMatchObject({ time: 'NO TIME', gap: '', you: true });
   });
 });
+
+describe('the sector lines', () => {
+  it("are painted where the lap's sectors start (the first at the line: chequered, not one of them)", async () => {
+    const { sectorStarts, SECTORS, newProgress, stepProgress, lineCornerSpeed, lineDecel } = await import('../src/f1/racing');
+    const { buildCircuit } = await import('../src/f1/circuit');
+    const { LAYOUTS } = await import('../src/f1/layouts');
+    const { carClass, newCar } = await import('../src/engine/driving');
+    const f1 = carClass('f1');
+    const c = buildCircuit(LAYOUTS[0], { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const starts = sectorStarts(c.track);
+    expect(starts).toHaveLength(SECTORS - 1);
+    expect(starts).not.toContain(0);
+    // driven round sample by sample: each sector's counted on its line's sample
+    let p = newProgress(c.track.samples.length - 3);
+    const car = newCar(f1, 0, 0);
+    const counted: number[] = [];
+    for (let i = 0; i < c.track.samples.length; i++) {
+      const s = c.track.samples[i];
+      Object.assign(car, { x: s.x, y: s.y });
+      const before = p.sector;
+      p = stepProgress(p, c.track, car, i, 3, 1 / 60);
+      if (p.sector > before) counted.push(i);
+    }
+    expect(counted).toEqual(starts);
+  });
+});

@@ -14,6 +14,10 @@
 // line and none above it, and boulders strewn over the meadows, the rock and
 // the snow (low, so never in the way), by the same rules.
 //
+// Where the cherry trees are in blossom (layout.blossoms: Nippon), groves of
+// them here and there over the grass, and clumps of them lining the lap (so
+// their petals drift onto the track: petals.ts), by the same rules.
+//
 // In the desert (layout.desert), palms instead: in groves here and there round
 // the circuit and out over the sand, a curved trunk and a crown of drooping
 // fronds, by the same rules (clear of the track, the pits and the stands, and
@@ -32,7 +36,7 @@ export interface Tree {
   y: number;
   /** px tall, from the ground at its foot */
   h: number;
-  kind: 'spruce' | 'broadleaf' | 'palm' | 'rock';
+  kind: 'spruce' | 'broadleaf' | 'palm' | 'rock' | 'blossom';
   /** its crown's colour */
   color: number;
 }
@@ -92,6 +96,25 @@ export const MOUNTAIN = {
   beyond: 300,
 };
 
+export const BLOSSOM = {
+  /** px tall at the most */
+  tallest: 44,
+  /** px past the run-off's edge (the barriers) before they start */
+  clear: 12,
+  /** lining the lap: every this many px along it, each side, the chance of a clump of one to three there, and px out past the barriers (at least, and up to this much more) */
+  liningEvery: 70,
+  lining: 0.65,
+  liningOut: [0, 36] as const,
+  /** the groves: px between the spots one may stand, the share of them that have one, trees in each (at least, and up to this many more), and px round its middle */
+  every: 150,
+  groves: 0.45,
+  least: 3,
+  more: 4,
+  spread: 50,
+  /** px out past the edge of the map they go on */
+  beyond: 300,
+};
+
 export const PARK = {
   /** px between the spots a grove may stand (before a random nudge), and the share of them that have one */
   every: 150,
@@ -114,6 +137,8 @@ export const PARK = {
 };
 
 const SPRUCE = [0x24492a, 0x2d5a32, 0x1f4026, 0x335f38];
+/** cherry blossom: pinks, pale to deep */
+export const BLOSSOM_PINKS = [0xf4b6c8, 0xf7c6d4, 0xeea2b8, 0xfbd3de, 0xf0aec2];
 /** boulders: granite greys, and snow-capped up high */
 const ROCK = [0x8a8780, 0x7a776f, 0x96928a, 0x6e6b64];
 const SNOWY_ROCK = [0xd6dde4, 0xc4ccd4, 0xe4e9ee];
@@ -179,6 +204,7 @@ export function treesOf(circuit: Circuit): Tree[] {
   if (circuit.layout.desert) return palmsOf(circuit);
   if (circuit.layout.park) return parkOf(circuit, circuit.layout.park.avenue);
   if (circuit.layout.mountain) return mountainOf(circuit);
+  if (circuit.layout.blossoms) return blossomsOf(circuit);
   if (!circuit.layout.forest) return [];
   const W = circuit.width * T;
   const H = circuit.height * T;
@@ -197,6 +223,54 @@ export function treesOf(circuit: Circuit): Tree[] {
       const kind = pick < 0.82 ? 'spruce' : 'broadleaf';
       const palette = kind === 'spruce' ? SPRUCE : BROADLEAF;
       out.push({ x, y, h, kind, color: palette[Math.floor(r() * palette.length)] });
+    }
+  }
+  return out;
+}
+
+/** The cherry trees in blossom: clumps lining the lap, and groves over the grass round it. */
+function blossomsOf(circuit: Circuit): Tree[] {
+  const W = circuit.width * T;
+  const H = circuit.height * T;
+  const B = BLOSSOM;
+  const grow = growth(circuit, B.clear);
+  const r = rng(83);
+  const out: Tree[] = [];
+  const plant = (x: number, y: number) => {
+    const want = B.tallest * (0.6 + 0.4 * r());
+    const pick = r();
+    const h = grow(x, y, want, FOREST.crown);
+    // (no two crowns on top of each other)
+    if (h < FOREST.shortest || out.some((t) => Math.hypot(t.x - x, t.y - y) < h * FOREST.crown)) return;
+    out.push({ x, y, h, kind: 'blossom', color: BLOSSOM_PINKS[Math.floor(pick * BLOSSOM_PINKS.length)] });
+  };
+  const { samples, spacing } = circuit.track;
+  const step = Math.max(1, Math.round(B.liningEvery / spacing));
+  const reach = HALF_WIDTH + RUNOFF + B.clear;
+  for (let i = 0; i < samples.length; i += step) {
+    const p = samples[i];
+    for (const side of [-1, 1]) {
+      if (r() > B.lining) continue;
+      const clump = 1 + Math.floor(r() * 3);
+      const out0 = reach + B.liningOut[0] + r() * B.liningOut[1];
+      for (let k = 0; k < clump; k++) {
+        const along = (r() - 0.5) * 34;
+        const off = out0 + r() * 18;
+        plant(p.x + Math.cos(p.dir) * off * side + Math.sin(p.dir) * along, p.y + Math.sin(p.dir) * off * side - Math.cos(p.dir) * along);
+      }
+    }
+  }
+  for (let gy = -B.beyond; gy < H + B.beyond; gy += B.every) {
+    for (let gx = -B.beyond; gx < W + B.beyond; gx += B.every) {
+      const cx = gx + (r() - 0.5) * B.every * 0.7;
+      const cy = gy + (r() - 0.5) * B.every * 0.7;
+      const count = B.least + Math.floor(r() * (B.more + 1));
+      if (r() > B.groves) continue;
+      for (let k = 0; k < count; k++) {
+        const a = r() * Math.PI * 2;
+        const d = Math.sqrt(r()) * B.spread;
+        plant(cx + Math.cos(a) * d, cy + Math.sin(a) * d);
+      }
     }
   }
   return out;
@@ -370,10 +444,10 @@ function shapes() {
   return { spruce, broadleaf, trunk, palm, palmTrunk, dates, rock };
 }
 
-/** Plant the forest in `scene`, in chunks. */
-export function buildForest(scene: THREE.Scene, circuit: Circuit): void {
+/** Plant the forest in `scene`, in chunks. Gives back its trees. */
+export function buildForest(scene: THREE.Scene, circuit: Circuit): Tree[] {
   const trees = treesOf(circuit);
-  if (!trees.length) return;
+  if (!trees.length) return trees;
   const geo = shapes();
   const crown = new THREE.MeshLambertMaterial({ color: 0xffffff });
   const bark = new THREE.MeshLambertMaterial({ color: 0x5a4030 });
@@ -396,11 +470,13 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): void {
       broadleaf: new THREE.InstancedMesh(geo.broadleaf, crown, list.filter((t) => t.kind === 'broadleaf').length),
       palm: new THREE.InstancedMesh(geo.palm, crown, palms),
       rock: new THREE.InstancedMesh(geo.rock, crown, rocks),
+      // (a cherry tree: a broadleaf's crown, in blossom)
+      blossom: new THREE.InstancedMesh(geo.broadleaf, crown, list.filter((t) => t.kind === 'blossom').length),
       trunk: new THREE.InstancedMesh(geo.trunk, bark, list.length - palms - rocks),
       palmTrunk: new THREE.InstancedMesh(geo.palmTrunk, palmBark, palms),
       dates: new THREE.InstancedMesh(geo.dates, dates, palms),
     };
-    const n = { spruce: 0, broadleaf: 0, palm: 0, rock: 0, trunk: 0 };
+    const n = { spruce: 0, broadleaf: 0, palm: 0, rock: 0, blossom: 0, trunk: 0 };
     list.forEach((t) => {
       const foot = groundAt(circuit.grid, t.x, t.y).h;
       // (each turned its own way, a little wider or narrower)
@@ -424,4 +500,5 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): void {
       scene.add(mesh);
     }
   }
+  return trees;
 }

@@ -40,6 +40,8 @@ export interface CircuitLayout {
    * run-up to it, and falling away beyond to land on: circuit.ts's JUMP); each on a straight, as no car steers in the air
    */
   jumps?: { at: number; rise: number }[];
+  /** the cherry trees in blossom: groves of them round the circuit and lining the lap, their petals drifting onto the track (petals.ts) */
+  blossoms?: boolean;
   /** free: open to everyone from the start (the Google Play build without the Championship too), and not a round of the Championship */
   free?: boolean;
   /** in the mountains: rock and alpine meadow beyond the barriers, snow up high, pines below the tree line and boulders */
@@ -766,6 +768,8 @@ export const SUZUKA: CircuitLayout = {
   tyreWear: 0.5,
   // the back straight over the stretch after Degner
   bridge: { over: 8188, under: 4200, height: 36 },
+  // (spring: the cherry trees in blossom)
+  blossoms: true,
 };
 
 /**

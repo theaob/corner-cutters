@@ -2038,6 +2038,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       drawTower();
     }
     particles.update(dt);
+    // the cherry blossom's petals (where there's blossom): falling round your car, kicked up as the cars drive over them
+    // (still while paused, or as the replay plays)
+    if (!paused && !replay) world.stepPetals(dt, race.entrants.map((e) => e.car), race.entrants[you].car);
     // (in the replay, thrown again as they flew then)
     if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);
     else debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);

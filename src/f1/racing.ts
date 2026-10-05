@@ -159,6 +159,9 @@ export function nearestSample(track: Track, x: number, y: number, hint?: number,
 
 export const SECTORS = 3;
 
+/** The samples where each sector after the first starts (the first starts at the line): where a lap's split is taken. */
+export const sectorStarts = (track: Track): number[] => Array.from({ length: SECTORS - 1 }, (_, k) => (k + 1) * Math.floor(track.samples.length / SECTORS));
+
 export interface RaceProgress {
   /** completed laps */
   lap: number;
