@@ -164,6 +164,19 @@ export function rowGesture(dx: number, at: number): -1 | 0 | 1 {
 }
 
 /**
+ * A wrapped line of text's box narrowed to its longest line (a box wraps at its widest, leaving its lines short
+ * of it either side): what's beside it then sits right beside the text. One line: left as it is.
+ */
+function hugLines(el: HTMLElement): void {
+  el.style.width = '';
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const lines = [...range.getClientRects()];
+  if (new Set(lines.map((r) => Math.round(r.top))).size < 2) return;
+  el.style.width = `${Math.ceil(Math.max(...lines.map((r) => r.width)))}px`;
+}
+
+/**
  * A row of options under the circuits: its label and the current value (with a
  * line about it and, for a team, its colours), switched with left/right or a tap.
  */
@@ -173,6 +186,7 @@ export function optionRow<T>(
   const el = document.createElement('button');
   el.className = 'option-row';
   let i = Math.max(0, values.indexOf(start));
+  let fitName = () => {};
   const render = () => {
     const v = show(values[i]);
     el.innerHTML = '';
@@ -181,8 +195,12 @@ export function optionRow<T>(
     name.textContent = label;
     const right = document.createElement('div');
     right.className = 'value';
+    // (its arrows either side; a name too long for the row wraps between them)
     const top = document.createElement('strong');
-    top.textContent = `◀ ${v.name} ▶`;
+    const arrow = (a: string) => Object.assign(document.createElement('em'), { textContent: a });
+    const text = Object.assign(document.createElement('em'), { className: 'name', textContent: v.name });
+    top.append(arrow('◀'), text, arrow('▶'));
+    fitName = () => hugLines(text);
     const line = document.createElement('div');
     line.className = 'line';
     if (v.colors || v.icon) {
@@ -205,6 +223,7 @@ export function optionRow<T>(
   const step = (by: number) => {
     i = (i + by + values.length) % values.length;
     render();
+    fitName();
     menuTick();
     onChange?.(values[i]);
   };
@@ -220,6 +239,8 @@ export function optionRow<T>(
     if (by) step(by);
   });
   render();
+  // (as it's laid out, and again whenever the row's size changes: a wrapped name's box hugging its lines)
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => fitName()).observe(el);
   // (refresh: draw it again, when what it shows depends on another row)
   return { el, step, value: () => values[i], refresh: render };
 }
@@ -627,6 +648,8 @@ export function chooseCircuit(
   const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, ...(reports ? [reportButton] : []), versionLine()];
   const show = () => {
     hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
+    // (the settings on black, for reading: the race behind the menu hidden)
+    menu.classList.toggle('settings-view', view === 'settings');
     for (const el of cabinetParts) el.style.display = view === 'trophies' ? '' : 'none';
     for (const el of modesParts) el.style.display = view === 'modes' ? '' : 'none';
     for (const el of circuitParts) el.style.display = view === 'circuit' ? '' : 'none';
