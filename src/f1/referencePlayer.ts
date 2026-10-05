@@ -67,7 +67,8 @@ export function referenceInput(car: Car, track: Track, idx: number, player: Refe
   if (player.device === 'touch') {
     // the stick toward the line ahead, pushed as far as the speed it wants (full over the top speed)
     const want = Math.min(cap, speedToCarry(track, idx, skill, LIFT));
-    const mag = Math.max(0.15, Math.min(1, want / car.cls.topSpeed));
+    // (the stick's full push is the car's own top speed: less on tyres that can't put the power down)
+    const mag = Math.max(0.15, Math.min(1, want / (car.cls.topSpeed * (car.speedScale ?? 1))));
     return playerInput({ stick: { x: Math.sin(heading) * mag, y: -Math.cos(heading) * mag }, a: false, b: false });
   }
   // the wheel: turn toward the line ahead (full lock past ~9°, as a quick hand on the keys does), gas unless over the

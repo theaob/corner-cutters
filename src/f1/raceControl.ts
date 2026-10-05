@@ -263,6 +263,9 @@ export interface Race {
   holdBehind: Set<number>[];
 }
 
+/** On dirt: × the impact speed a car takes before it's hurt */
+export const DIRT_KNOCKS = 2;
+
 /**
  * A race about to start: the lights come on, then go out `lightsOut` s after the
  * fifth. With a `pit` lane, cars can stop there, each at its `box`. Every car
@@ -272,6 +275,8 @@ export function newRace(
   track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver; box?: number; start?: DryCompound }[], lightsOut = 0.5, pit?: PitLane,
   weather: WeatherId | Forecast = 'dry',
 ): Race {
+  // (on dirt, knocks and rubs that would hurt on tarmac don't: soft earth, hay bales, rallycross's banging doors)
+  if (track.dirt) handling = { ...handling, crashThreshold: handling.crashThreshold * DIRT_KNOCKS };
   const forecast = typeof weather === 'string' ? undefined : weather;
   const now = forecast ? startWeather(forecast) : { wetness: WETNESS[weather as WeatherId], rain: weather === 'wet' ? 1 : 0 };
   const entrants: Entrant[] = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(now.wetness, track.dirt)), progress: newProgress(track.samples.length - 4) }));

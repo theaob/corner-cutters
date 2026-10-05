@@ -17,10 +17,10 @@
 //
 // On dirt (a circuit's `dirt`: Dust Bowl) every car runs off-road tyres, the
 // only compound there: knobbly, they bite into the loose earth, but it gives
-// far less grip than tarmac (the cars slide through every bend) and holds them
-// back on the straights; in the rain it turns to mud, and gives less still. No
-// choice of tyres there, so no strategy: a car stops only for worn tyres or
-// repairs, and gets a fresh set of the same.
+// less grip than tarmac (the cars slide through the bends); in the rain it
+// turns to mud, slower and slipperier still. Sliding's the way round on dirt,
+// and it hardly wears them. No choice of tyres there, so no strategy: a car
+// stops only for worn tyres or repairs, and gets a fresh set of the same.
 // Engine-free and unit-tested.
 
 import { speedOf, type Car, type StepEvents } from '../engine/driving';
@@ -57,10 +57,10 @@ export const COMPOUNDS: Record<Compound, { name: string; short: string; color: s
     name: 'FULL WETS', short: 'WET', color: '#2f8bff',
     on: { dry: { grip: 0.75, speed: 0.86, wear: 3.5 }, damp: { grip: 0.8, speed: 0.9, wear: 1.6 }, wet: { grip: 0.85, speed: 0.9, wear: 1 } },
   },
-  // (on dirt, the only tyre: the loose earth's grip and pace with it, then mud's)
+  // (on dirt, the only tyre: the loose earth's grip with it, then mud's)
   dirt: {
     name: 'OFF-ROAD', short: 'OFF', color: '#d08a3e',
-    on: { dry: { grip: 0.55, speed: 0.85, wear: 0.6 }, damp: { grip: 0.48, speed: 0.81, wear: 0.6 }, wet: { grip: 0.42, speed: 0.77, wear: 0.6 } },
+    on: { dry: { grip: 0.8, speed: 1, wear: 0.3 }, damp: { grip: 0.7, speed: 0.95, wear: 0.3 }, wet: { grip: 0.62, speed: 0.9, wear: 0.3 } },
   },
 };
 

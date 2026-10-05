@@ -109,14 +109,15 @@ describe('a 5-lap race on tyres', () => {
 });
 
 describe('off-road tyres', () => {
-  it('are the only tyres on dirt, in any weather; the loose earth gives far less grip than tarmac, and mud less still', () => {
+  it('are the only tyres on dirt, in any weather; the loose earth gives less grip than tarmac, and mud less still', () => {
     for (const w of ['dry', 'damp', 'wet'] as const) {
       expect(tyreFor(w, true)).toBe('dirt');
       expect(tyreFor(w)).not.toBe('dirt');
       expect(wrongTyreLoss('dirt', w)).toBe(0);
     }
-    expect(fitAt('dirt', 'dry').grip).toBeLessThan(fitAt('slick', 'dry').grip * 0.6);
-    expect(fitAt('dirt', 'dry').speed).toBeLessThan(fitAt('hard', 'dry').speed);
+    expect(fitAt('dirt', 'dry').grip).toBeLessThan(fitAt('slick', 'dry').grip * 0.85);
+    // (and sliding's no harm to them: they last longer than HARDS on tarmac)
+    expect(fitAt('dirt', 'dry').wear).toBeLessThan(fitAt('hard', 'dry').wear);
     expect(fitAt('dirt', 'wet').grip).toBeLessThan(fitAt('dirt', 'damp').grip);
     expect(fitAt('dirt', 'damp').grip).toBeLessThan(fitAt('dirt', 'dry').grip);
     expect(isDry('dirt')).toBe(false);
