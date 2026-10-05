@@ -29,7 +29,8 @@ export interface DeckState {
 }
 
 export function deckLabels(s: DeckState): Record<DeckButton, string> {
-  if (s.settings) return { a: 'DONE', b: '', start: '', select: '' };
+  // (the settings: nothing on the deck, their own DONE closes them; A, B and START still do on the keys and a gamepad)
+  if (s.settings) return { a: '', b: '', start: '', select: '' };
   let a = '';
   if (s.roundOver && s.resultsUp) a = 'NEXT';
   else if (s.qualifyingOver) a = 'RACE';

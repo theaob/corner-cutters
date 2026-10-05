@@ -676,7 +676,8 @@ export function chooseCircuit(
     settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
     doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
     reportButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length + 1);
-    hud.setLabel('a', view === 'circuit' ? 'RACE' : view === 'modes' ? 'PICK' : 'DONE');
+    // (the settings: no A on the deck, their own DONE closes them; A still does on the keys and a gamepad)
+    hud.setLabel('a', view === 'circuit' ? 'RACE' : view === 'modes' ? 'PICK' : view === 'settings' ? '' : 'DONE');
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
   };
   // a tap on a row focuses it too
