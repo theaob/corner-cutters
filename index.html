@@ -1395,6 +1395,16 @@
       html:not(.desktop) .face .col.low {
         display: none;
       }
+      /* on dirt (race.ts sets html.dirt), a DRIFT button on the touch deck too: drifting's the way round there. It
+         stands in A's place, centred where the thumbstick's centre is mirrored, while A has nothing to do (racing);
+         either, idle, is out of the way, so the one up is centred */
+      html.dirt:not(.desktop) .face .col.low {
+        display: flex;
+        margin-top: 0;
+      }
+      html.dirt:not(.desktop) .face .col.idle {
+        display: none;
+      }
       /* a button that does nothing just now is out of sight (still in its place, so the others don't move) */
       #deck .idle {
         visibility: hidden;

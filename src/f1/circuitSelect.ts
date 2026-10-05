@@ -96,20 +96,21 @@ function ownTabButton(): HTMLButtonElement {
 
 /** What the menu comes back with. */
 /** What to play: a race weekend, a Championship season, a Time Attack (beat the clock), or a Time Trial (flying laps against your ghost). */
-export type GameMode = 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial';
+export type GameMode = 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial' | 'drift';
 export const MODES: { id: GameMode; name: string; about: string }[] = [
   { id: 'daily', name: 'DAILY CHALLENGE', about: 'one Time Attack a day, the same for everyone: get on the board' },
   { id: 'race', name: 'QUICK RACE', about: 'a race against the field, your circuit, your laps' },
   { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season: a round on every circuit, points and standings' },
   { id: 'timeattack', name: 'TIME ATTACK', about: 'beat the clock: each sector you pass adds time' },
   { id: 'timetrial', name: 'TIME TRIAL', about: 'flying laps against your ghost' },
+  { id: 'drift', name: 'DRIFT SCHOOL', about: 'learn to drift, on the dirt at Dust Bowl' },
 ];
 
 /** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen); on dirt, no TYRES (off-road tyres, the only ones). */
 export const rowsOf = (mode: GameMode, layout?: CircuitLayout): ('team' | 'car' | 'weather' | 'qualifying' | 'laps' | 'tyres')[] =>
   mode === 'race'
     ? ['team', 'car', 'weather', 'qualifying', 'laps', ...(layout?.dirt ? [] : ['tyres' as const])]
-    : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
+    : mode === 'championship' || mode === 'daily' || mode === 'drift' ? [] : ['team', 'car', 'weather'];
 
 /** The dry tyres you start a race on: the pit wall's strategy's (AUTO), or the SOFTs or the HARDs. */
 export type TyrePick = 'auto' | DryCompound;
@@ -596,6 +597,11 @@ export function chooseCircuit(
     current = m;
     if (m.id === 'championship' || m.id === 'daily') {
       finish(layouts[selected]);
+      return;
+    }
+    // (the Drift School: on the dirt)
+    if (m.id === 'drift') {
+      finish(layouts.find((l) => l.dirt) ?? layouts[selected]);
       return;
     }
     menuPick();

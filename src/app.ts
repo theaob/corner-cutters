@@ -216,6 +216,7 @@ async function route(): Promise<void> {
     return route();
   }
   if (params.get('mode') === 'tutorial' && layout) await showRace(id, layout, 'tutorial');
+  else if (params.get('mode') === 'drift' && layout) await showRace(id, layout, 'drift');
   else if (mode === 'championship' && !layout) await showSeason(id);
   else if (mode === 'daily' && !layout) await showDailyScreen(id);
   else if (!layout) await showMenu(id);
@@ -225,6 +226,7 @@ async function route(): Promise<void> {
 /** The line under a race's name on its loading card: the mode (a Championship's round) and the weather. */
 function raceLine(mode: string | null): string {
   if (mode === 'tutorial') return 'CONTROLS LAP';
+  if (mode === 'drift') return 'DRIFT SCHOOL';
   if (mode === 'daily') return `DAILY CHALLENGE · ${challengeOn(dayOf()).weather.name}`;
   const season = mode === 'championship' ? loadSeason() : undefined;
   const what = season ? `CHAMPIONSHIP · ROUND ${season.round + 1} OF ${season.rounds.length}` : mode === 'timetrial' ? 'TIME TRIAL' : mode === 'timeattack' ? 'TIME ATTACK' : 'QUICK RACE';
@@ -319,7 +321,8 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'qualifying', picked.qualifying ? 'on' : 'off');
   save('choices', 'laps', String(picked.laps));
   save('choices', 'tyres', picked.tyres);
-  save('choices', 'mode', picked.mode);
+  // (the Drift School isn't one to come back to on the menu: the mode last raced stays)
+  if (picked.mode !== 'drift') save('choices', 'mode', picked.mode);
   // (a Championship picks its own circuits, and the Daily Challenge has the day's: to their screens)
   navigate(withCircuit(picked.mode === 'championship' || picked.mode === 'daily' ? null : picked.layout.id, picked.mode));
 }
@@ -467,8 +470,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
           },
         },
       }
-    : mode === 'tutorial'
-      ? { team: savedTeam(), seat: savedSeat(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' }
+    : mode === 'tutorial' || mode === 'drift'
+      ? { team: savedTeam(), seat: savedSeat(), difficulty: NORMAL, weather: DRY, mode }
     : today
       ? { team: savedTeam(), seat: savedSeat(), difficulty: NORMAL, weather: today.weather, mode: 'timeattack', daily: { day: today.day } }
       : { team: savedTeam(), seat: savedSeat(), difficulty: savedDifficulty(), weather: mode === 'timetrial' || mode === 'timeattack' ? clockWeather() : savedWeather(), qualifying: savedQualifying(), laps: savedLaps(), startTyres: mode === 'timetrial' || mode === 'timeattack' ? undefined : startTyres(), mode: mode === 'timetrial' || mode === 'timeattack' ? mode : 'race' };
