@@ -119,7 +119,7 @@ npm run dev        # http://localhost:5173
 | `npm run typecheck` | TypeScript only |
 
 **Controls:** each device drives the way it suits, and the game follows whichever you used last:
-- **Touch:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts.
+- **Touch:** the analogue thumbstick points where you want to go, and how far you push it is the throttle (full from about 85% of the way out). B drifts. The stick floats: put your thumb down anywhere on its side of the lower half of the screen and it comes to it, centred under it; let go and it glides back to its corner, where it rests dimmed (`floatOffset` in `src/engine/deck.ts`).
 - **Keyboard:** the car itself: ↑ (or W) is the gas, ↓ (S) the brake (held once stopped, it reverses), ← → (A, D) steer, X or Shift drifts.
 - **Gamepad:** the right trigger is the gas, the left the brake, the left stick steers (gently near the centre), A drifts, Start pauses, Y restarts, Back is SELECT and the d-pad works the menu.
 - **DRIVING** in the settings (`src/f1/driveStyle.ts`) picks the way on any device:
