@@ -249,6 +249,111 @@
       @keyframes trophy-glow {
         to { filter: drop-shadow(0 0 18px #f2c14ecc); }
       }
+      /* the Championship won (screens/titleWin.ts): over the whole screen, before the standings */
+      .title-win {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 16px;
+        overflow: hidden;
+        text-align: center;
+        color: #f4f2fa;
+        font: calc(13px * var(--ts, 1)) var(--pixel);
+        background: radial-gradient(circle at 50% 38%, #3c2e0c, #0e0d16 62%);
+        animation: title-in 0.35s ease-out both;
+        touch-action: none;
+      }
+      .title-win.going {
+        animation: title-out 0.3s ease-in both;
+      }
+      @keyframes title-in {
+        from { opacity: 0; }
+      }
+      @keyframes title-out {
+        to { opacity: 0; }
+      }
+      .title-win .rays {
+        position: absolute;
+        left: 50%;
+        top: 38%;
+        width: 260vmax;
+        height: 260vmax;
+        margin: -130vmax 0 0 -130vmax;
+        background: repeating-conic-gradient(rgba(242, 193, 78, 0.16) 0 7deg, transparent 7deg 18deg);
+        mask-image: radial-gradient(circle, #000 0, transparent 36%);
+        -webkit-mask-image: radial-gradient(circle, #000 0, transparent 36%);
+        animation: rays-turn 18s linear infinite;
+        pointer-events: none;
+      }
+      @keyframes rays-turn {
+        to { transform: rotate(360deg); }
+      }
+      .title-win .fireworks {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .title-win .trophy {
+        position: relative;
+        filter: drop-shadow(0 0 22px #f2c14ecc);
+        animation: trophy-drop 0.8s cubic-bezier(0.2, 1.5, 0.4, 1) both, title-cup 1.4s 0.8s ease-in-out infinite alternate;
+      }
+      @keyframes title-cup {
+        to { transform: translateY(-6px) scale(1.04); filter: drop-shadow(0 0 34px #f2c14e); }
+      }
+      .title-win h1 {
+        position: relative;
+        margin: 6px 0 0;
+        font: calc(30px * var(--ts, 1)) var(--pixel);
+        color: var(--gold);
+        text-shadow: 0 3px 0 #6b4b10, 0 0 18px rgba(242, 193, 78, 0.6);
+        white-space: nowrap;
+      }
+      .title-win h1 span {
+        display: inline-block;
+        animation: letter-stamp 0.35s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+      }
+      @keyframes letter-stamp {
+        from { transform: scale(3) translateY(-12px); opacity: 0; }
+        to { transform: none; opacity: 1; }
+      }
+      .title-win .team-band {
+        position: relative;
+        padding: 8px 22px;
+        border-top: 4px solid;
+        border-bottom: 4px solid;
+        font: calc(15px * var(--ts, 1)) var(--pixel);
+        color: #f4f2fa;
+        text-shadow: 0 2px 0 #000;
+        animation: letter-stamp 0.4s 1.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+      }
+      .title-win p {
+        position: relative;
+        margin: 0;
+        animation: title-in 0.4s 1.6s both;
+      }
+      .title-win .how {
+        color: #9d9ab8;
+        font-size: calc(11px * var(--ts, 1));
+      }
+      .title-win .tap {
+        margin-top: 18px;
+        color: var(--accent-b);
+        animation: title-in 0.4s 2s both, tap-blink 1s 2.4s steps(2) infinite;
+      }
+      @keyframes tap-blink {
+        50% { opacity: 0.35; }
+      }
+      .title-win.still, .title-win.still * {
+        animation: none !important;
+      }
       .confetti {
         position: absolute;
         inset: 0;
