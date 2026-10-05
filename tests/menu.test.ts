@@ -8,7 +8,7 @@ describe('the menu', () => {
   });
 
   it("then shows each mode's own options with the circuit: a Quick Race's qualifying and laps, the time modes' team and weather", () => {
-    expect(rowsOf('race')).toEqual(['team', 'car', 'weather', 'qualifying', 'laps']);
+    expect(rowsOf('race')).toEqual(['team', 'car', 'weather', 'qualifying', 'laps', 'tyres']);
     expect(rowsOf('timeattack')).toEqual(['team', 'car', 'weather']);
     expect(rowsOf('timetrial')).toEqual(['team', 'car', 'weather']);
     // (the Daily Challenge too: the day's circuit and weather are everyone's)

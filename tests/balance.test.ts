@@ -98,9 +98,10 @@ describe.each(LAYOUTS)('the balance at $name: a race from mid-grid', (layout) =>
   // (on the streets, where there's hardly a place to pass, from pole: as after a good qualifying lap)
   it(layout.street ? 'HARD: a very good player on pole stays at the front (top four)' : 'HARD: a very good player can race at the front (top four)', () => {
     const c = build(layout, byId('hard'));
-    // (over four races, not one: a race's luck can cost a place; on average in the top four, and at least half of them there)
-    const places = [1, 2, 3, 4].map((seed) => race(c, byId('hard'), veryGood, seed, layout.street ? 0 : 5).place);
-    expect(places.reduce((a, b) => a + b, 0) / places.length).toBeLessThanOrEqual(4);
-    expect(places.filter((p) => p <= 4).length).toBeGreaterThanOrEqual(2);
-  }, 120_000);
+    // (over eight races, not one: a race's luck can cost a place, and with the field on different strategies a lap-one
+    // knock can cost a stop the others don't make; the middle of them in the top four, and at least half of them there)
+    const places = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => race(c, byId('hard'), veryGood, seed, layout.street ? 0 : 5).place).sort((a, b) => a - b);
+    expect((places[3] + places[4]) / 2).toBeLessThanOrEqual(4);
+    expect(places.filter((p) => p <= 4).length).toBeGreaterThanOrEqual(4);
+  }, 240_000);
 });

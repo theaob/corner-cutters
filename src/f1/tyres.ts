@@ -5,8 +5,10 @@
 // set lasts about two laps before the cliff: a 3-lap race is best run without
 // stopping, a 5-lap race with one stop, and a slide-happy driver stops sooner.
 //
-// Three compounds, each at its best in its own weather: slicks on a dry track,
-// intermediates on a damp one, full wets in the rain. The wrong tyre for the
+// Four compounds, each at its best in its own weather: on a dry track two
+// slicks, the SOFT ('slick': the quicker) and the HARD (4% slower, but
+// lasting twice as long: the choice between them is a race's strategy,
+// strategy.ts); intermediates on a damp track, full wets in the rain. The wrong tyre for the
 // track grips less, is slower, and (a wet tyre on a dry track) wears out fast;
 // a wet track is slower than a dry one even on the right tyres. In between
 // (the track wetting in the rain or drying after it: forecast.ts) each does as
@@ -17,7 +19,11 @@
 import { speedOf, type Car, type StepEvents } from '../engine/driving';
 import type { WeatherId } from './weather';
 
-export type Compound = 'slick' | 'inter' | 'wet';
+export type Compound = 'slick' | 'hard' | 'inter' | 'wet';
+/** The dry compounds: a race's strategy is which of them, and when (strategy.ts). */
+export type DryCompound = 'slick' | 'hard';
+export const DRY_COMPOUNDS: DryCompound[] = ['slick', 'hard'];
+export const isDry = (c: Compound): c is DryCompound => c === 'slick' || c === 'hard';
 
 /** How a compound does on a track: its share of grip and of top speed, and how fast it wears (× a slick's in the dry). */
 export interface Fit {
@@ -26,11 +32,15 @@ export interface Fit {
   wear: number;
 }
 
-/** Each compound's name, its colour (as F1 marks them: yellow slicks, green intermediates, blue wets), and how it does in each weather. */
+/** Each compound's name, its colour (as F1 marks them: red softs, white hards, green intermediates, blue wets), and how it does in each weather. */
 export const COMPOUNDS: Record<Compound, { name: string; short: string; color: string; on: Record<WeatherId, Fit> }> = {
   slick: {
-    name: 'SLICKS', short: 'SLK', color: '#ffd21f',
+    name: 'SOFTS', short: 'SFT', color: '#e8463c',
     on: { dry: { grip: 1, speed: 1, wear: 1 }, damp: { grip: 0.7, speed: 0.88, wear: 0.8 }, wet: { grip: 0.5, speed: 0.78, wear: 0.6 } },
+  },
+  hard: {
+    name: 'HARDS', short: 'HRD', color: '#f4f2fa',
+    on: { dry: { grip: 0.96, speed: 0.96, wear: 0.5 }, damp: { grip: 0.66, speed: 0.85, wear: 0.32 }, wet: { grip: 0.47, speed: 0.75, wear: 0.24 } },
   },
   inter: {
     name: 'INTERMEDIATES', short: 'INT', color: '#3ccf4e',
@@ -53,13 +63,21 @@ export function fitAt(compound: Compound, w: WeatherId | number): Fit {
   return { grip: a.grip + (b.grip - a.grip) * t, speed: a.speed + (b.speed - a.speed) * t, wear: a.wear + (b.wear - a.wear) * t };
 }
 
-const ALL: Compound[] = ['slick', 'inter', 'wet'];
+const ALL: Compound[] = ['slick', 'hard', 'inter', 'wet'];
 
 /** The compound for a weather (or a track's wetness): the one that grips best there. */
 export const tyreFor = (w: WeatherId | number): Compound => ALL.reduce((best, c) => (fitAt(c, w).grip > fitAt(best, w).grip ? c : best));
 
-/** The grip `compound` gives up on a track `w` wet against the right compound there (0: it is the right one). */
-export const wrongTyreLoss = (compound: Compound, w: WeatherId | number): number => 1 - fitAt(compound, w).grip / fitAt(tyreFor(w), w).grip;
+/**
+ * The grip `compound` gives up on a track `w` wet against the right compound there (0: it is the right one). The
+ * two slicks are the same kind of tyre: on a dry track the HARD's no more wrong than the SOFT (it gives up a little
+ * grip for its life, and that's strategy's to weigh), and against the right tyre for the wet they're both slicks.
+ */
+export const wrongTyreLoss = (compound: Compound, w: WeatherId | number): number => {
+  const right = tyreFor(w);
+  if (isDry(compound) && isDry(right)) return 0;
+  return 1 - fitAt(isDry(compound) ? 'slick' : compound, w).grip / fitAt(right, w).grip;
+};
 
 export const TYRES = {
   /** wear per second at top speed, driving cleanly */
@@ -136,10 +154,10 @@ function stintLoss(laps: number, wear: number, perLap: number, lapTime: number):
   return loss;
 }
 
-/** The wear a set does per lap: measured once it has done half a lap, assumed before. */
+/** The wear a set does per lap: measured once it has done half a lap, assumed before (for its compound, on a dry track). */
 export function wearPerLap(set: TyreSet, trackLength: number): number {
   const laps = set.driven / trackLength;
-  return laps >= 0.5 ? set.wear / laps : TYRES.lapWear;
+  return laps >= 0.5 ? set.wear / laps : TYRES.lapWear * COMPOUNDS[set.compound].on.dry.wear;
 }
 
 export interface StopPlan {

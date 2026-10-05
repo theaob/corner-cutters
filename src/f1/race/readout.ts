@@ -44,7 +44,8 @@ export function readoutText(r: {
 
 /**
  * The tyre line: the compound, five blocks (and the share left, on the wide screen); past their best, WORN on a line of
- * its own, lined up with the labels (beside the blocks it widened the readout); and the crew's call when they're the wrong ones.
+ * its own, lined up with the labels (beside the blocks it widened the readout); and the crew's call when they're the wrong ones
+ * (by its short name, as the tyre's: a full one, INTERMEDIATES, widened the readout).
  */
 export function tyreText(short: string, wear: number, showShare: boolean, boxFor?: string): string {
   const left = 1 - wear;

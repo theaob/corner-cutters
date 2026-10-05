@@ -13,20 +13,23 @@ import { onBack } from '../../engine/backButton';
 import { POINTS, numberIn, pointsOf, roundSeed, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
+import { RACE_LAPS, SEASON_LENGTHS, seasonLength } from '../laps';
 import { menuPick, menuTick } from '../sounds';
 import { roundForecast } from '../forecast';
 import { TEAMS, type Seat, type Team } from '../teams';
 import { logoSvg } from '../logos';
 import { reportOpen } from '../report';
 
-/** What next: the next round, a new season (with the team and qualifying picked for it), or back to the menu. */
-export type ChampionshipAction = 'race' | 'back' | { new: { team: Team; seat: Seat; qualifying: boolean } };
+/** What next: the next round, a new season (with the team, qualifying and length picked for it), or back to the menu. */
+export type ChampionshipAction = 'race' | 'back' | { new: { team: Team; seat: Seat; qualifying: boolean; laps: number } };
 
 /** A new season's choices, as last picked. */
 export interface SeasonChoices {
   team: Team;
   seat: Seat;
   qualifying: boolean;
+  /** each round's laps */
+  laps: number;
 }
 
 const nameOf = (id: string) => layoutById(id)?.name.toUpperCase() ?? id.toUpperCase();
@@ -100,7 +103,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
   const over = !!season && seasonOver(season);
   if (season) {
     const table = standings(season);
-    const settings = `${difficultyById(season.difficulty)?.name ?? ''} · QUALIFYING ${season.qualifying ? 'ON' : 'OFF'} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
+    const settings = `${difficultyById(season.difficulty)?.name ?? ''} · QUALIFYING ${season.qualifying ? 'ON' : 'OFF'} · ${seasonLength(season.laps).name} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
     if (over) {
       const champ = season.drivers[table[0].driver];
       // yours: the trophy (and, as the title's just been won, confetti)
@@ -120,12 +123,13 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     // a circuit just unlocked: said once
     if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE, TIME ATTACK AND TIME TRIAL`, 'var(--accent-b)'));
     screen.append(standingsTable(season));
-  } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('PICK YOUR TEAM AND CAR AND QUALIFYING (DIFFICULTY IN SETTINGS)'), line('EACH ROUND HAS ITS OWN WEATHER: RAIN MAY COME OR GO, BOX FOR THE RIGHT TYRES'));
+  } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('PICK YOUR TEAM, CAR, QUALIFYING AND LENGTH (DIFFICULTY IN SETTINGS)'), line('EACH ROUND HAS ITS OWN WEATHER: RAIN MAY COME OR GO, BOX FOR THE RIGHT TYRES'));
   // a new season's team and qualifying: shown when one can be started (mid-season, once NEW SEASON is pressed)
   const teamRow = optionRow('TEAM', TEAMS, picked.team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }), () => carChoice.refresh());
   const carChoice = carRow(() => teamRow.value(), picked.seat);
   const qualifyingRow = optionRow('QUALIFYING', [false, true], picked.qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
-  const rows = [teamRow, carChoice, qualifyingRow];
+  const lengthRow = optionRow('LENGTH', SEASON_LENGTHS.map((l) => l.laps), seasonLength(picked.laps).laps, (n) => ({ name: seasonLength(n).name, about: n > RACE_LAPS ? `${n} laps a round: a strategy race, one stop or two` : `${n} laps a round: one stop` }));
+  const rows = [teamRow, carChoice, qualifyingRow, lengthRow];
   const options = document.createElement('div');
   options.className = 'options';
   options.append(...rows.map((r) => r.el));
@@ -154,7 +158,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
         layOut();
         return;
       }
-      finish({ new: { team: teamRow.value(), seat: carChoice.value(), qualifying: qualifyingRow.value() } });
+      finish({ new: { team: teamRow.value(), seat: carChoice.value(), qualifying: qualifyingRow.value(), laps: lengthRow.value() } });
     };
     const newButton = menuButton(season && !over ? 'NEW SEASON' : 'START A SEASON', pickNew);
     const choices: { el: HTMLButtonElement; pick: () => void }[] = [

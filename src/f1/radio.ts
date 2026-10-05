@@ -6,11 +6,12 @@
 // line in a radio panel, keyed with a click and a squelch, and holds the next
 // until it's done (and drops a stale one). Engine-free and unit-tested.
 
-export type RadioCue = 'box' | 'box-slick' | 'box-inter' | 'box-wet' | 'rain' | 'rain-stops' | 'safety-car' | 'vsc' | 'green' | 'pit-out' | 'final-lap' | 'fastest-lap' | 'warning' | 'penalty' | 'wreck' | 'jump-start' | 'blue';
+export type RadioCue = 'box' | 'box-slick' | 'box-hard' | 'box-inter' | 'box-wet' | 'rain' | 'rain-stops' | 'safety-car' | 'vsc' | 'green' | 'pit-out' | 'final-lap' | 'fastest-lap' | 'warning' | 'penalty' | 'wreck' | 'jump-start' | 'blue';
 
 export const RADIO_LINES: Record<RadioCue, string[]> = {
   box: ['BOX, BOX. BOX THIS LAP.', 'BOX, BOX. PIT THIS LAP.', 'BOX NOW, BOX NOW.'],
-  'box-slick': ['BOX, BOX. SLICKS ARE READY, THE TRACK IS DRY.', 'BOX FOR SLICKS. IT IS DRY ENOUGH NOW.'],
+  'box-slick': ['BOX, BOX. SOFTS ARE READY, THE TRACK IS DRY.', 'BOX FOR SOFTS. IT IS DRY ENOUGH NOW.'],
+  'box-hard': ['BOX, BOX. HARDS ON, TO THE END.', 'BOX THIS LAP. WE GO TO THE HARDS.'],
   'box-inter': ['BOX, BOX. INTERS ARE READY.', 'BOX FOR INTERMEDIATES. THE TRACK IS DAMP.'],
   'box-wet': ['BOX, BOX. FULL WETS, IT IS POURING.', 'BOX FOR WETS. THE RAIN IS HEAVY NOW.'],
   rain: ['RAIN STARTING. CAREFUL OUT THERE.', 'WE HAVE RAIN. WATCH THE GRIP.', 'IT IS RAINING. TRACK WILL GET WET.'],

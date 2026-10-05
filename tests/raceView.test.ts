@@ -69,7 +69,7 @@ describe('the readout', () => {
     expect(readoutText({ health: 0, wrecked: true })).toContain('CAR  WRECKED');
     expect(readoutText({ health: 1, wrecked: false, attack: { left: 12.34, passed: 3 } })).toMatch(/^TIME 12\.3\n/);
     // (WORN on a line of its own, lined up with the labels: beside the blocks it widened the readout)
-    expect(tyreText('SFT', 0.8, true, 'INTERS')).toBe('TYRE SFT ■□□□□ 20%\nWORN\nBOX  FOR INTERS\n');
+    expect(tyreText('SFT', 0.8, true, 'INT')).toBe('TYRE SFT ■□□□□ 20%\nWORN\nBOX  FOR INT\n');
     expect(tyreText('SFT', 0.8, false)).toBe('TYRE SFT ■□□□□\nWORN\n');
     expect(tyreText('MED', 0, false)).toBe('TYRE MED ■■■■■\n');
     expect(towText(0.05)).toBe('');
