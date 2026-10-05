@@ -27,7 +27,7 @@ import { landmarksOf } from './town3d';
 import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
-import { pointsOn } from './driveStyle';
+import { driveStyle, pointsOn } from './driveStyle';
 import { GHOST_HZ, ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
@@ -798,6 +798,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         },
         /** your car driven by the AI's line at `pace`, for trying out a session hands-off */
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
+        /** your car: where, which way, how fast (px/s) */
+        me: () => {
+          const c = race.entrants[you].car;
+          return { x: c.x, y: c.y, heading: c.heading, speed: Math.hypot(c.vx, c.vy) };
+        },
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
         /** Time Attack: seconds left, checkpoints passed, whether it's over, and your best here */
         attack: () => attack && { left: attack.a.left, passed: attack.a.passed, over: attack.a.over, best: attack.best, rival: attack.rival?.name, rivalShown: rivalMesh.visible, frames: attack.rec.frames.length / 4 },
@@ -1061,7 +1066,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const s = controls.lastSource();
     if (s === 'keyboard') return 'keys';
     if (s === 'gamepad') return 'pad';
-    if (s === 'dpad') return 'touch';
+    if (s === 'dpad' || s === 'wheel') return 'touch';
     return window.matchMedia?.('(any-pointer: coarse)').matches ? 'touch' : 'keys';
   };
 
@@ -1220,7 +1225,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     attackOver: !!attack?.result, session, learnt: learn?.o.step === 'done', watching: !!gridPan || !!replay, done, paused,
   });
   const deckEl = document.getElementById('deck');
+  /** a touch screen: STEER there is the steering slider and the pedals, in the thumbstick's and A's places (index.html) */
+  const touchScreen = window.matchMedia?.('(any-pointer: coarse)').matches ?? false;
   const showDeckLabels = () => {
+    deckEl?.classList.toggle('steer-deck', touchScreen && driveStyle() === 'steer');
     const labels = deckLabels();
     for (const k of ['a', 'b', 'start', 'select'] as const) hud.setLabel(k, labels[k]);
     // with the results (or qualifying's times) up, RESTART and EXIT go under the table, big (on a phone: index.html)
@@ -1372,10 +1380,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // is gas, down or the left trigger the brake; on the touch stick, up and down, across steers)
     const source = controls.lastSource();
     const drive = source === 'gamepad' ? controls.drive('gamepad') : undefined;
+    // (STEER on a touch screen: the slider turns, the pedals are the gas and the brake)
+    const pedals = source === 'wheel' ? controls.drive('wheel') ?? { turn: 0, gas: 0, brake: 0 } : undefined;
     const points = pointsOn(device());
     const driveInput = (car: Car) =>
       points ? playerInput(drive ? { ...pad, stick: drive.stick ?? { x: 0, y: 0 } } : pad)
       : drive ? wheelInput({ ...drive, drift: pad.b }, car)
+      : pedals ? wheelInput({ ...pedals, drift: false }, car)
       : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
       : wheelInput(stickWheel(pad.stick, pad.b), car);
     // the start: once all five lights are lit, going is a jump start; after they're out, your reaction is judged
@@ -2000,6 +2011,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     offBack();
     for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, ...plates]) el.remove();
     deckEl?.classList.remove('results-up');
+    deckEl?.classList.remove('steer-deck');
     document.documentElement.classList.remove('results-up', 'ceremony', 'paused');
     delete (window as { __cc?: unknown }).__cc;
   };

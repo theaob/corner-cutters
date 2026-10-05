@@ -3,6 +3,7 @@ import { pointsOn } from '../src/f1/driveStyle';
 import { prompt } from '../src/f1/onboarding';
 import { readGamepad } from '../src/engine/controls';
 import { stickWheel } from '../src/f1/racing';
+import { SLIDER_DEAD, sliderTurn } from '../src/engine/deck';
 
 describe('DRIVING in the settings', () => {
   it('AUTO: the touch stick points the way, keys and a gamepad steer; POINT and STEER the same on every device', () => {
@@ -37,12 +38,23 @@ describe('DRIVING in the settings', () => {
 
   it('the controls lap says how you drive: pointing or steering, on each device', () => {
     expect(prompt('go', 'touch')).toContain('THE WAY YOU WANT TO GO');
-    expect(prompt('go', 'touch', false)).toContain('STICK UP TO GO');
-    expect(prompt('bend', 'touch', false)).toContain('STICK DOWN TO BRAKE');
+    // (STEER on a touch screen: the slider and the pedals)
+    expect(prompt('go', 'touch', false)).toBe('GAS TO GO · SLIDE TO STEER');
+    expect(prompt('bend', 'touch', false)).toBe('BRAKE BEFORE A BEND');
     expect(prompt('go', 'keys')).toContain('UP TO GO');
     expect(prompt('go', 'keys', true)).toContain('POINT THE ARROWS');
     expect(prompt('bend', 'keys', true)).toContain('LET GO');
     expect(prompt('go', 'pad', true)).toContain('THE WAY YOU WANT TO GO');
     expect(prompt('go', 'pad')).toContain('TRIGGER');
+  });
+
+  it("STEER's slider on a touch screen: turn as far as the thumb is from the middle, straight on near it, no further than the ends", () => {
+    expect(sliderTurn(0, 50)).toBe(0);
+    expect(sliderTurn(2, 50)).toBe(0);
+    expect(sliderTurn(SLIDER_DEAD * 50 + 1, 50)).toBeGreaterThan(0);
+    expect(sliderTurn(25, 50)).toBeCloseTo(0.5);
+    expect(sliderTurn(-25, 50)).toBeCloseTo(-0.5);
+    expect(sliderTurn(80, 50)).toBe(1);
+    expect(sliderTurn(-80, 50)).toBe(-1);
   });
 });

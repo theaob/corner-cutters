@@ -17,12 +17,12 @@ export function prompt(step: Step, device: Device, points = device === 'touch'):
   switch (step) {
     case 'go':
       if (points) return device === 'keys' ? 'POINT THE ARROWS THE WAY YOU WANT TO GO' : 'PUSH THE STICK THE WAY YOU WANT TO GO';
-      return device === 'touch' ? 'STICK UP TO GO · ACROSS TO STEER' : device === 'keys' ? 'UP TO GO · LEFT AND RIGHT TO STEER' : 'RIGHT TRIGGER TO GO · STICK TO STEER';
+      return device === 'touch' ? 'GAS TO GO · SLIDE TO STEER' : device === 'keys' ? 'UP TO GO · LEFT AND RIGHT TO STEER' : 'RIGHT TRIGGER TO GO · STICK TO STEER';
     case 'faster':
-      return points && device !== 'keys' ? 'PUSH IT ALL THE WAY OUT FOR FULL SPEED' : device === 'touch' ? 'PUSH IT ALL THE WAY UP FOR FULL SPEED' : 'KEEP IT HELD FOR FULL SPEED';
+      return points && device !== 'keys' ? 'PUSH IT ALL THE WAY OUT FOR FULL SPEED' : device === 'touch' ? 'KEEP GAS HELD FOR FULL SPEED' : 'KEEP IT HELD FOR FULL SPEED';
     case 'bend':
       if (points) return device === 'keys' ? 'LET GO OF THE ARROWS BEFORE A BEND TO SLOW' : 'EASE THE STICK IN BEFORE A BEND TO SLOW';
-      return device === 'touch' ? 'STICK DOWN TO BRAKE BEFORE A BEND' : device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
+      return device === 'touch' ? 'BRAKE BEFORE A BEND' : device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
     case 'drift':
       return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : 'HOLD A IN A BEND TO DRIFT ROUND IT';
     case 'limits':

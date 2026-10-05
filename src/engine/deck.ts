@@ -1,4 +1,5 @@
-// The control deck under the game screen: an analogue thumbstick, two face
+// The control deck under the game screen: an analogue thumbstick (or, to STEER on a touch screen, a steering
+// slider and GAS and BRAKE pedals), two face
 // buttons and two small ones (A, B, START and SELECT inside), each showing what
 // it does now, an icon on it and the action's name (hidden when it does
 // nothing), and the status strip (race position, lap).
@@ -55,6 +56,7 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
 
   const stick = deck.querySelector<HTMLElement>('[data-dpad]');
   if (stick) bindStick(stick, controls);
+  bindWheel(deck, controls);
 
   for (const el of deck.querySelectorAll<HTMLElement>('[data-button]')) {
     const button = el.dataset.button as Button;
@@ -131,10 +133,87 @@ function bindStick(pad: HTMLElement, controls: Controls): void {
   releaseAnywhere(() => held, release);
 }
 
+/** The steering slider's turn (−1 left … 1 right) for the thumb `dx` px from its middle, `travel` px from the middle to an end. */
+export function sliderTurn(dx: number, travel: number): number {
+  const t = Math.max(-1, Math.min(1, dx / Math.max(1, travel)));
+  // (a hair either side of the middle is straight on)
+  return Math.abs(t) < SLIDER_DEAD ? 0 : t;
+}
+/** share of the slider's travel either side of the middle that's still straight on */
+export const SLIDER_DEAD = 0.06;
+
+/**
+ * STEER on a touch screen: a slider that turns the wheel (its knob follows the thumb left and right, as far as the
+ * thumb is from the middle, and springs back there when let go) and two pedals, GAS and BRAKE, held. Together they're
+ * the 'wheel' source's analogue driving (as a gamepad's: turn, gas, brake).
+ */
+function bindWheel(deck: HTMLElement, controls: Controls): void {
+  const slider = deck.querySelector<HTMLElement>('[data-slider]');
+  const knob = slider?.querySelector<HTMLElement>('.knob');
+  const state = { turn: 0, gas: 0, brake: 0 };
+  const send = () => (state.turn || state.gas || state.brake ? controls.setDrive('wheel', { ...state }) : controls.clear('wheel'));
+  if (slider) {
+    let held: number | undefined;
+    const update = (e: PointerEvent) => {
+      const r = slider.getBoundingClientRect();
+      const travel = (r.width - (knob?.offsetWidth ?? r.height)) / 2;
+      state.turn = sliderTurn(e.clientX - (r.left + r.width / 2), travel);
+      knob?.style.setProperty('transform', `translateX(${state.turn * travel}px)`);
+      send();
+    };
+    const release = () => {
+      held = undefined;
+      slider.classList.remove('pressed');
+      state.turn = 0;
+      knob?.style.setProperty('transform', 'translateX(0px)');
+      send();
+    };
+    slider.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      held = e.pointerId;
+      slider.classList.add('pressed');
+      update(e);
+      capture(slider, e.pointerId);
+      buzz();
+    });
+    slider.addEventListener('pointermove', (e) => {
+      if (e.pointerId === held) update(e);
+    });
+    slider.addEventListener('pointerup', release);
+    slider.addEventListener('pointercancel', release);
+    slider.addEventListener('lostpointercapture', release);
+    releaseAnywhere(() => held, release);
+  }
+  for (const pedal of deck.querySelectorAll<HTMLElement>('[data-pedal]')) {
+    const which = pedal.dataset.pedal === 'brake' ? 'brake' : 'gas';
+    let held: number | undefined;
+    const release = () => {
+      held = undefined;
+      pedal.classList.remove('pressed');
+      state[which] = 0;
+      send();
+    };
+    pedal.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      held = e.pointerId;
+      pedal.classList.add('pressed');
+      state[which] = 1;
+      send();
+      capture(pedal, e.pointerId);
+      buzz();
+    });
+    pedal.addEventListener('pointerup', release);
+    pedal.addEventListener('pointercancel', release);
+    pedal.addEventListener('lostpointercapture', release);
+    releaseAnywhere(() => held, release);
+  }
+}
+
 /** Show every deck button as let go (after the controls were cleared from outside). */
 export function releaseDeck(deck: HTMLElement): void {
   deck.querySelectorAll('.pressed').forEach((el) => el.classList.remove('pressed'));
   deck.querySelector<HTMLElement>('[data-dpad] .knob')?.style.setProperty('transform', 'translate(0px, 0px)');
+  deck.querySelector<HTMLElement>('[data-slider] .knob')?.style.setProperty('transform', 'translateX(0px)');
 }
 
 /** The deck's buttons that show what they do (the thumbstick aside). */
