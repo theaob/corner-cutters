@@ -28,7 +28,7 @@ import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { pointsOn } from './driveStyle';
-import { ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder } from './timeTrial';
+import { GHOST_HZ, ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
@@ -72,6 +72,7 @@ import { createHud } from './race/hud';
 import { createShareButton } from './race/shareButton';
 import { kmOf, track as noteStat } from './metrics';
 import { fetchBoard, loadDaily, logRun, saveDaily, sendPending, type Run } from './daily';
+import { fetchDailyGhost, fetchLapBoard, isBoardWeather, packGhost, queueLap, sendLaps, type DailyRival } from './boards';
 import { initials, playerId } from './profile';
 import { attackCard, raceCard, type ShareCard } from './shareCard';
 import { drawCars } from './race/drawCars';
@@ -328,6 +329,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
+  /** an announcement waiting for the one up now to be over (news from the boards: never over a record's) */
+  let nextNotice: { text: string; color: string; seconds: number } | undefined;
+  const announceNext = (text: string, color: string, seconds = 3) => {
+    if (race.clock >= notice.until) announce(text, color, seconds);
+    else nextNotice = { text, color, seconds };
+  };
   /** Whether car `i` is near yours (within about a screen's height). */
   const near = (i: number) => {
     const a = race.entrants[i].car;
@@ -450,6 +457,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** a Time Attack: the clock, and the best distance here when it started (checkpoints) */
   let attack: {
     a: Attack; best?: number;
+    /** the run as it's driven (from the clock starting), and the Daily Challenge's leading run to chase */
+    rec: LapRecorder; rival?: DailyRival;
     result?: { passed: number; record: boolean; medal?: Medal; newMedal: boolean; daily?: { best: boolean; dayBest: Run; place?: number; entries?: number } };
   } | undefined;
 
@@ -529,11 +538,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** The session, as the play stats name it. */
   const statsMode = () => (championship && session === 'race' ? 'championship' : options.daily ? 'daily' : session);
   /** A Daily Challenge run over: kept (your streak, your best today), on to the board, and your place there. */
-  const dailyRun = (day: string, run: Run) => {
+  const dailyRun = (day: string, run: Run, ghost?: Ghost) => {
     const result = attack?.result;
     if (!result) return;
     const log = loadDaily();
-    const best = logRun(log, day, run);
+    const best = logRun(log, day, run, ghost);
     saveDaily(log);
     result.daily = { best, dayBest: log.best[day] };
     const name = initials();
@@ -571,6 +580,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     podium = undefined;
     saved = { laps: 0, race: false, newLap: false, newRace: false, newQualifying: false };
     notice = { text: '', color: '', until: 0 };
+    nextNotice = undefined;
     skids.clear();
     deckSkids?.clear();
     particles.clear();
@@ -684,7 +694,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     race = newQualifying(track, grid, HANDLING, sessionWeather());
     reference ??= referenceLap(track, grid, HANDLING, sessionWeather());
     const best = rec()?.bestAttack;
-    attack = { a: newAttack(reference, difficulty), best };
+    const run = { a: newAttack(reference, difficulty), best, rec: newRecorder() } as NonNullable<typeof attack>;
+    attack = run;
+    // the Daily Challenge: the day's leading run, as a gold ghost to chase (once it's here)
+    const daily = options.daily;
+    if (daily) {
+      void fetchDailyGhost(daily.day).then((rival) => {
+        if (!rival || attack !== run) return;
+        run.rival = rival;
+        announceNext(`CHASING ${rival.name} · ${distance(rival.score)}`, '#f2c14e', 3);
+      });
+    }
     showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
     announce(best ? `TIME ATTACK · BEAT ${distance(best)}` : 'TIME ATTACK · THE CLOCK STARTS AT THE LINE', '#f2c14e', 3);
@@ -779,7 +799,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
         /** Time Trial: laps done, the session's best, your record lap's time and splits */
         /** Time Attack: seconds left, checkpoints passed, whether it's over, and your best here */
-        attack: () => attack && { left: attack.a.left, passed: attack.a.passed, over: attack.a.over, best: attack.best },
+        attack: () => attack && { left: attack.a.left, passed: attack.a.passed, over: attack.a.over, best: attack.best, rival: attack.rival?.name, rivalShown: rivalMesh.visible, frames: attack.rec.frames.length / 4 },
         /** a Time Attack's clock run down now (once it's started), for trying out its end */
         timeUp: () => attack && attack.a.left !== undefined && (attack.a.left = 0.01),
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
@@ -1015,6 +1035,25 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
 
   // ---------------------------------------------------------------- time trial
+  /**
+   * A new lap record of yours in a Time Trial: on to the circuit's online board (with your initials; kept to send
+   * later without them, or offline), and your place there said once the record's announcement is over.
+   */
+  const boardLap = (time: number) => {
+    if (!isBoardWeather(recordKind)) return;
+    queueLap({ circuit: layout.id, weather: recordKind, time });
+    const name = initials();
+    if (!name) return;
+    const player = playerId();
+    const weatherNow = recordKind;
+    void sendLaps(player, name, typeof __APP_VERSION__ === 'string' ? __APP_VERSION__.slice(0, 40) : undefined).then(async (sent) => {
+      if (!sent) return;
+      const board = await fetchLapBoard(layout.id, weatherNow, player, 1);
+      if (board?.you && session === 'timetrial') {
+        announceNext(board.you.place === 1 ? `WORLD RECORD · #1 OF ${board.entries}` : `WORLD BOARD · #${board.you.place} OF ${board.entries}`, board.you.place === 1 ? '#f2c14e' : '#5fe0d0', 3);
+      }
+    });
+  };
   const signed = (d: number) => `${d < 0 ? '−' : '+'}${Math.abs(d).toFixed(2)}`;
   /** A Time Trial lap done, `g`: a new record (saved, and the ghost from now on), the session's best, or neither. */
   const trialLapDone = (g: Ghost) => {
@@ -1023,6 +1062,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (!record || g.time < record.time) {
       trial.record = g;
       saveGhost(recordId, g);
+      boardLap(g.time);
       announce(`NEW RECORD ${fmt(g.time)}${record ? ` · ${signed(g.time - record.time)}` : ''}`, splitColor('record'), 3);
       sounds.record();
     } else if (!best || g.time < best.time) announce(`BEST LAP ${fmt(g.time)} · ${signed(g.time - record.time)}`, splitColor('better'), 3);
@@ -1085,6 +1125,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     fitTyres(me.tyres, me.car, race.wetness);
     const reachedBefore = attackMedal(attack.a.passed, attack.a.generous);
     const step = stepAttack(attack.a, SIM_DT, p.lapStart !== undefined, p.lapTimes.length * SECTORS + p.sector, cut);
+    // (the run, for the board's ghost: from the clock starting)
+    if (attack.a.left !== undefined) recordFrame(attack.rec, attack.a.elapsed, me.car, p.idx);
     // a medal's distance passed: the line shows the next one's
     if (attackMedal(attack.a.passed, attack.a.generous) !== reachedBefore) showMedal();
     if (step.started) announce('THE CLOCK IS RUNNING', '#5fe0d0', 1.5);
@@ -1100,7 +1142,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (record) saveRecords(records);
       const medal = attackMedal(passed, attack.a.generous);
       attack.result = { passed, record, medal, newMedal: awardMedal(layout.id, 'attack', medal) };
-      if (options.daily) dailyRun(options.daily.day, { score: passed, time: attack.a.lastAt });
+      if (options.daily) dailyRun(options.daily.day, { score: passed, time: attack.a.lastAt }, packGhost(toGhost(attack.rec, attack.a.elapsed), GHOST_HZ));
       if (attack.result.newMedal && medal) {
         sounds.record();
         stampMedal(host, medal, distance(passed));
@@ -1126,6 +1168,20 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   });
   ghostMesh.visible = false;
   world.scene.add(ghostMesh);
+  // the Daily Challenge's leading run: a gold ghost, as far into its run as you are into yours
+  const rivalMesh = createCarMesh('f1', { body: '#f2c14e', stripe: '#b07a22' });
+  let rivalIdx: number | undefined;
+  rivalMesh.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    for (const m of [mesh.material ?? []].flat() as THREE.Material[]) {
+      m.transparent = true;
+      m.opacity = 0.4;
+      m.depthWrite = false;
+    }
+    mesh.castShadow = false;
+  });
+  rivalMesh.visible = false;
+  world.scene.add(rivalMesh);
 
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
@@ -1563,6 +1619,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         ghostMesh.position.set(pose.x, groundAt(gridFor(track, grid, gi), pose.x, pose.y).h, pose.y);
         ghostMesh.rotation.set(0, -pose.heading, 0);
       }
+      // (the Daily Challenge's leader: from the clock starting, till its run or yours is over)
+      const rival = attack?.rival;
+      const rivalPose = rival && attack && attack.a.left !== undefined && !attack.result ? ghostPose(rival.ghost, attack.a.elapsed - (1 - alpha) * SIM_DT) : undefined;
+      rivalMesh.visible = !!rivalPose;
+      if (rivalPose) {
+        const gi = nearestSample(track, rivalPose.x, rivalPose.y, rivalIdx);
+        rivalIdx = gi;
+        rivalMesh.position.set(rivalPose.x, groundAt(gridFor(track, grid, gi), rivalPose.x, rivalPose.y).h, rivalPose.y);
+        rivalMesh.rotation.set(0, -rivalPose.heading, 0);
+      } else rivalIdx = undefined;
     }
     // your marker, on the grid while the lights are on
     {
@@ -1691,6 +1757,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         sounds.radio(Math.max(0.6, radioFor(line) - 0.5));
       }
       if (!radioQ.now) radioPanel.style.display = 'none';
+    }
+    // (an announcement waiting: up once the one before is over)
+    if (nextNotice && race.clock >= notice.until) {
+      announce(nextNotice.text, nextNotice.color, nextNotice.seconds);
+      nextNotice = undefined;
     }
     // the banner: start lights, GO!, then the most urgent message
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';

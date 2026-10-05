@@ -10,6 +10,7 @@ import { rpc } from '../engine/backend';
 import { save, saved } from '../engine/save';
 import { LAYOUTS, type CircuitLayout } from './layouts';
 import { DRY, WEATHERS, type Weather } from './weather';
+import { parseGhost, type Ghost } from './timeTrial';
 
 /** The day (UTC) as YYYY-MM-DD. */
 export const dayOf = (at: Date = new Date()): string => at.toISOString().slice(0, 10);
@@ -60,41 +61,41 @@ export interface Run {
 /** Whether `a` beats `b`: further, or as far sooner. */
 export const beats = (a: Run, b: Run | undefined): boolean => !b || a.score > b.score || (a.score === b.score && a.time < b.time);
 
-/** What's kept: the last day you played and your streak of days running, your best on each day lately, and a best not yet on the board. */
+/** What's kept: the last day you played and your streak of days running, your best on each day lately, and a best not yet on the board (with its ghost, for others to chase). */
 export interface DailyLog {
   last?: string;
   streak: number;
   best: Record<string, Run>;
-  pending?: Run & { day: string };
+  pending?: Run & { day: string; ghost?: Ghost };
 }
 
 const isRun = (r: unknown): r is Run => !!r && typeof (r as Run).score === 'number' && typeof (r as Run).time === 'number';
 
 export function loadDaily(): DailyLog {
   const best = saved('daily', 'best');
-  const pending = saved('daily', 'pending') as (Run & { day: string }) | undefined;
+  const pending = saved('daily', 'pending') as (Run & { day: string; ghost?: unknown }) | undefined;
   const streak = saved('daily', 'streak');
   const last = saved('daily', 'last');
   return {
     last: typeof last === 'string' ? last : undefined,
     streak: typeof streak === 'number' && streak > 0 ? Math.floor(streak) : 0,
     best: best && typeof best === 'object' ? Object.fromEntries(Object.entries(best as Record<string, unknown>).filter(([, r]) => isRun(r))) as Record<string, Run> : {},
-    pending: isRun(pending) && typeof pending.day === 'string' ? pending : undefined,
+    pending: isRun(pending) && typeof pending.day === 'string' ? { day: pending.day, score: pending.score, time: pending.time, ...(parseGhost(pending.ghost) ? { ghost: parseGhost(pending.ghost) } : {}) } : undefined,
   };
 }
 
 /** Your streak as of `today`: days played running, up to today or yesterday (0 once a day's been missed). */
 export const streakOn = (log: DailyLog, today: string): number => (log.last === today || log.last === dayBefore(today) ? log.streak : 0);
 
-/** A run of `day`'s challenge, into `log`: the streak, your best on the day (and, if it's better, to send). True if it's your best. */
-export function logRun(log: DailyLog, day: string, run: Run): boolean {
+/** A run of `day`'s challenge (and its `ghost`), into `log`: the streak, your best on the day (and, if it's better, to send). True if it's your best. */
+export function logRun(log: DailyLog, day: string, run: Run, ghost?: Ghost): boolean {
   if (log.last !== day) log.streak = log.last === dayBefore(day) ? log.streak + 1 : 1;
   log.last = day;
   const better = beats(run, log.best[day]);
   if (better) {
     log.best[day] = run;
     // (a run that passed no checkpoint isn't one for the board)
-    if (run.score > 0) log.pending = { day, ...run };
+    if (run.score > 0) log.pending = { day, score: run.score, time: run.time, ...(ghost ? { ghost } : {}) };
   }
   // (a fortnight's bests are plenty)
   for (const d of Object.keys(log.best).sort().slice(0, -14)) delete log.best[d];
@@ -128,7 +129,10 @@ export interface Board {
 export async function sendPending(log: DailyLog, player: string, name: string): Promise<boolean> {
   const run = log.pending;
   if (!run) return true;
-  const ok = (await rpc('submit_daily', { p_day: run.day, p_player: player, p_name: name, p_score: run.score, p_time: Math.round(run.time * 100) / 100 })) !== undefined;
+  const args = { p_day: run.day, p_player: player, p_name: name, p_score: run.score, p_time: Math.round(run.time * 100) / 100 };
+  // (with its ghost; a project whose schema is older refuses that: then without)
+  let ok = (await rpc('submit_daily', run.ghost ? { ...args, p_ghost: run.ghost } : args)) !== undefined;
+  if (!ok && run.ghost) ok = (await rpc('submit_daily', args)) !== undefined;
   if (ok) {
     log.pending = undefined;
     saveDaily(log);

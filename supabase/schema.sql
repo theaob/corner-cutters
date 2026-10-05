@@ -52,21 +52,38 @@ alter table public.daily_times enable row level security;
 revoke all on public.daily_times from anon;
 -- (no direct access with the public key: only submit_daily() and daily_board())
 
--- A run of today's (or, round midnight, yesterday's or tomorrow's) challenge: kept if it's the player's best.
-create or replace function public.submit_daily(p_day date, p_player uuid, p_name text, p_score int, p_time real) returns void
+-- (run again on a project made before: the column added since) the run as driven, for others to chase as a ghost:
+-- where the car was, 10 times a second, from the clock starting (src/f1/timeTrial.ts's Ghost)
+alter table public.daily_times add column if not exists ghost jsonb check (pg_column_size(ghost) <= 200000);
+
+-- A run of today's (or, round midnight, yesterday's or tomorrow's) challenge: kept if it's the player's best, with its
+-- ghost if it came with one. (The one before, without the ghost, gone: a call without one takes the default.)
+drop function if exists public.submit_daily(date, uuid, text, int, real);
+create or replace function public.submit_daily(p_day date, p_player uuid, p_name text, p_score int, p_time real, p_ghost jsonb default null) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   if abs(p_day - (now() at time zone 'utc')::date) > 1 then raise exception 'not a challenge being played'; end if;
-  insert into daily_times (day, player, name, score, time) values (p_day, p_player, upper(p_name), p_score, p_time)
+  insert into daily_times (day, player, name, score, time, ghost) values (p_day, p_player, upper(p_name), p_score, p_time, p_ghost)
   on conflict (day, player) do update set
     name = excluded.name,
     score = case when (excluded.score, -excluded.time) > (daily_times.score, -daily_times.time) then excluded.score else daily_times.score end,
     time = case when (excluded.score, -excluded.time) > (daily_times.score, -daily_times.time) then excluded.time else daily_times.time end,
+    ghost = case when (excluded.score, -excluded.time) > (daily_times.score, -daily_times.time) then excluded.ghost else daily_times.ghost end,
     at = case when (excluded.score, -excluded.time) > (daily_times.score, -daily_times.time) then now() else daily_times.at end;
 end;
 $$;
-revoke all on function public.submit_daily(date, uuid, text, int, real) from public;
-grant execute on function public.submit_daily(date, uuid, text, int, real) to anon;
+revoke all on function public.submit_daily(date, uuid, text, int, real, jsonb) from public;
+grant execute on function public.submit_daily(date, uuid, text, int, real, jsonb) to anon;
+
+-- The day's leading run that has a ghost (the best on the board, unless it came without one): its initials, how far,
+-- how soon, and the ghost; null before there's one.
+create or replace function public.daily_ghost(p_day date) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('name', name, 'score', score, 'time', time, 'ghost', ghost)
+  from daily_times where day = p_day and ghost is not null order by score desc, time asc limit 1;
+$$;
+revoke all on function public.daily_ghost(date) from public;
+grant execute on function public.daily_ghost(date) to anon;
 
 -- A day's board: the top `p_top`, and the player's own place and run (if they have one), and how many have run it.
 create or replace function public.daily_board(p_day date, p_player uuid, p_top int default 100) returns jsonb
@@ -83,6 +100,52 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.daily_board(date, uuid, int) from public;
 grant execute on function public.daily_board(date, uuid, int) to anon;
+
+-- ---------------------------------------------------------------- the Time Trial boards
+-- Each player's best Time Trial lap on each circuit, in each weather, by their initials (as the Daily Challenge's).
+create table if not exists public.lap_times (
+  circuit text not null check (char_length(circuit) <= 40),
+  weather text not null check (weather in ('dry', 'damp', 'wet')),
+  player uuid not null,
+  name text not null check (name ~ '^[A-Z0-9]{3}$'),
+  time real not null check (time > 5 and time < 1200),
+  version text check (char_length(version) <= 40),
+  at timestamptz not null default now(),
+  primary key (circuit, weather, player)
+);
+create index if not exists lap_board on public.lap_times (circuit, weather, time asc);
+alter table public.lap_times enable row level security;
+revoke all on public.lap_times from anon;
+-- (no direct access with the public key: only submit_lap() and lap_board())
+
+-- A lap: kept if it's the player's best there (their initials as they are now, either way).
+create or replace function public.submit_lap(p_circuit text, p_weather text, p_player uuid, p_name text, p_time real, p_version text default null) returns void
+language sql security definer set search_path = public as $$
+  insert into lap_times (circuit, weather, player, name, time, version) values (p_circuit, p_weather, p_player, upper(p_name), p_time, p_version)
+  on conflict (circuit, weather, player) do update set
+    name = excluded.name,
+    time = least(lap_times.time, excluded.time),
+    version = case when excluded.time < lap_times.time then excluded.version else lap_times.version end,
+    at = case when excluded.time < lap_times.time then now() else lap_times.at end;
+$$;
+revoke all on function public.submit_lap(text, text, uuid, text, real, text) from public;
+grant execute on function public.submit_lap(text, text, uuid, text, real, text) to anon;
+
+-- A circuit's board in a weather: the top `p_top`, the player's own place and lap (if they have one), and how many.
+create or replace function public.lap_board(p_circuit text, p_weather text, p_player uuid, p_top int default 10) returns jsonb
+language sql stable security definer set search_path = public as $$
+  with ranked as (
+    select player, name, time, rank() over (order by time asc) as place from lap_times where circuit = p_circuit and weather = p_weather
+  )
+  select jsonb_build_object(
+    'entries', (select count(*) from ranked),
+    'top', (select coalesce(jsonb_agg(jsonb_build_object('place', place, 'name', name, 'time', time, 'you', player = p_player) order by place, time), '[]')
+            from (select * from ranked order by place, time limit least(greatest(p_top, 1), 100)) t),
+    'you', (select jsonb_build_object('place', place, 'name', name, 'time', time) from ranked where player = p_player)
+  );
+$$;
+revoke all on function public.lap_board(text, text, uuid, int) from public;
+grant execute on function public.lap_board(text, text, uuid, int) to anon;
 
 -- ---------------------------------------------------------------- reports
 -- REPORT in the game (the pause screen, the menu's settings): what happened, in the player's words, and where; the
@@ -218,6 +281,9 @@ language sql stable security definer set search_path = public as $$
     'by_team', (select coalesce(jsonb_object_agg(t, n), '{}') from (select data->>'team' t, count(*) n from events where kind = 'race_start' and data ? 'team' group by 1) x),
     'by_driver', (select coalesce(jsonb_object_agg(d, n), '{}') from (select data->>'driver' d, count(*) n from events where kind = 'race_start' and data ? 'driver' group by 1) x),
     'daily_players_today', (select count(*) from daily_times where day = (now() at time zone 'utc')::date),
+    -- the Time Trial boards: laps on them, and the drivers with one
+    'board_laps', (select count(*) from lap_times),
+    'board_drivers', (select count(distinct player) from lap_times),
     'by_platform', (select coalesce(jsonb_object_agg(platform, n), '{}') from (select platform, count(distinct player) n from events where platform is not null group by platform) p),
     'by_mode', (select coalesce(jsonb_object_agg(mode, n), '{}') from (select mode, count(*) n from events where kind = 'race_finish' and mode is not null group by mode) m),
     'by_circuit', (select coalesce(jsonb_object_agg(circuit, n), '{}') from (select circuit, count(*) n from events where kind = 'race_finish' and circuit is not null group by circuit) c),

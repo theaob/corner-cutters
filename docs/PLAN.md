@@ -358,7 +358,8 @@ Everywhere:
 - [ ] Performance pass on a low-end Android phone; quality governor thresholds re-checked
 - [x] Accessibility: COLOURS (COLOUR-SAFE splits, in words too), TEXT (LARGE), the left-handed deck (STICK: LEFT), less motion for a device asking for it (`f1/access.ts`)
 - [x] Crash reporting: errors nothing caught to the play stats, the dashboard's ERRORS (`f1/crashes.ts`)
-- [ ] Daily Challenge (seeded circuit + conditions, best result kept locally)
+- [x] Daily Challenge: one seeded Time Attack a day, a global board by initials, a streak (`f1/daily.ts`); the day's leader as a ghost to chase
+- [x] Time Trial world boards: everyone's best lap per circuit and weather (`f1/boards.ts`)
 - [ ] itch.io page: free with optional donation; screenshots, GIF, soundtrack as an optional
       download; version 1.0.0
 

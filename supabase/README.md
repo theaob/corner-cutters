@@ -5,7 +5,8 @@ The game talks to one Supabase project for two things, and plays on fine without
 - **Play stats**: anonymous events (the game launched, a race started or finished, km driven, a result shared, an
   error nothing caught), so you can see how many players there are, what they play and what goes wrong on their devices. A player is a random id made on the device; STATS in the
   settings turns it off.
-- **The Daily Challenge's board**: each day's best runs, by three initials, top 100 and your own place.
+- **The Daily Challenge's board**: each day's best runs, by three initials, top 100 and your own place; the leading run's ghost, for everyone to chase.
+- **The Time Trial boards**: everyone's best lap on each circuit in each weather (`lap_times`), by the same initials.
 - **Reports**: REPORT on the pause screen (or in the top right corner of any menu screen) takes a screenshot of the game, lets
   the player draw on it and say what happened, and sends it: the words to the `reports` table, the picture to the
   private `reports` storage bucket.
