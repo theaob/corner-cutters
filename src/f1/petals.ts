@@ -4,13 +4,14 @@
 // driving over petals on the ground kicks them up: thrown out from under it
 // and along in its wake, the faster it goes the higher, tumbling back down a
 // way on to settle again. Some lie on the track from the start, under the
-// trees that line it. A petal lies a while, then goes (the oldest first when
-// there are too many). Engine-free (PetalField) and unit-tested; drawn by
+// trees that line it. A petal on the track lies there till a car kicks it off;
+// one on the grass lies a while, then goes (and when there are too many, those
+// on the grass farthest from the camera go first). Engine-free (PetalField) and unit-tested; drawn by
 // circuitScene.ts as one instanced mesh.
 
 import { groundAt, type Grid } from '../engine/sim';
 import { HALF_WIDTH } from './circuit';
-import type { Track } from './racing';
+import { lateralOffset, nearestSample, type Track } from './racing';
 
 export const PETALS = {
   /** the most petals there are at once */
@@ -35,7 +36,7 @@ export const PETALS = {
   up: 70,
   /** px of height between a car and a petal past which the car's on another level (a bridge) */
   level: 14,
-  /** s a petal lies before it goes */
+  /** s a petal on the grass lies before it goes (one on the track stays till it's kicked off) */
   life: 50,
 };
 
@@ -52,8 +53,10 @@ export interface Petal {
   tumble: number;
   /** lying on the ground (or in the air) */
   resting: boolean;
-  /** s left lying (it goes at 0) */
+  /** s left lying (it goes at 0; Infinity on the track) */
   life: number;
+  /** lying on the track (not the grass) */
+  onTrack: boolean;
   /** its pink (an index into the palette) */
   shade: number;
   /** its own sway's phase */
@@ -92,7 +95,10 @@ export class PetalField {
   private due = 0;
   private time = 0;
 
-  constructor(private readonly grid: Grid, track: Track, private readonly trees: BlossomTree[], seed = 7) {
+  /** the camera's last focus: the petals farthest from it are the first to go */
+  private focus = { x: 0, y: 0 };
+
+  constructor(private readonly grid: Grid, private readonly track: Track, private readonly trees: BlossomTree[], seed = 7) {
     this.r = rng(seed);
     // lying on the track at the start, where trees line it (within a petal's drift of them)
     // (none on a bridge's stretch: they'd lie on the ground under its deck)
@@ -109,29 +115,46 @@ export class PetalField {
       const x = p.x + Math.cos(p.dir) * across + Math.sin(p.dir) * along;
       const y = p.y + Math.sin(p.dir) * across - Math.cos(p.dir) * along;
       this.add(x, y, groundAt(grid, x, y).h, true);
-      this.petals[this.petals.length - 1].life = PETALS.life * this.r();
+      this.settle(this.petals[this.petals.length - 1]);
     }
   }
 
   /** A petal at (x, y, z), lying there or (falling) on the breeze. */
   private add(x: number, y: number, z: number, resting: boolean): void {
     if (this.petals.length >= PETALS.max) {
-      // (too many: the one that's lain longest goes)
-      let oldest = -1;
-      for (let i = 0; i < this.petals.length; i++) if (this.petals[i].resting && (oldest < 0 || this.petals[i].life < this.petals[oldest].life)) oldest = i;
-      if (oldest < 0) return;
-      this.petals.splice(oldest, 1);
+      // (too many: one lying on the grass goes, the farthest from the camera; failing that, one on the track, likewise)
+      let gone = -1;
+      let far = -1;
+      for (const grass of [true, false]) {
+        for (let i = 0; i < this.petals.length; i++) {
+          const p = this.petals[i];
+          if (!p.resting || p.onTrack === grass) continue;
+          const d = (p.x - this.focus.x) ** 2 + (p.y - this.focus.y) ** 2;
+          if (d > far) [gone, far] = [i, d];
+        }
+        if (gone >= 0) break;
+      }
+      if (gone < 0) return;
+      this.petals.splice(gone, 1);
     }
     this.petals.push({
       x, y, z, vx: resting ? 0 : PETALS.wind.x, vy: resting ? 0 : PETALS.wind.y, vz: resting ? 0 : -PETALS.sink, spin: this.r() * Math.PI * 2,
-      tumble: (this.r() * 2 - 1) * 6, resting, life: PETALS.life, shade: Math.floor(this.r() * 5), phase: this.r() * Math.PI * 2,
+      tumble: (this.r() * 2 - 1) * 6, resting, life: PETALS.life, onTrack: false, shade: Math.floor(this.r() * 5), phase: this.r() * Math.PI * 2,
     });
+  }
+
+  /** Lay `p` down where it is: on the track it stays (till it's kicked), on the grass it lies its while. */
+  private settle(p: Petal): void {
+    const i = nearestSample(this.track, p.x, p.y);
+    p.onTrack = Math.abs(lateralOffset(this.track, i, p.x, p.y)) <= HALF_WIDTH;
+    p.life = p.onTrack ? Infinity : PETALS.life;
   }
 
   /** `dt` s on: petals falling from the trees near `focus` (the camera's), drifting and settling; any `cars` drive over kick up. */
   step(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void {
     if (dt <= 0) return;
     this.time += dt;
+    this.focus = { x: focus.x, y: focus.y };
     // falling from the trees round the camera
     this.due += PETALS.fallRate * dt;
     const near = this.trees.filter((t) => Math.abs(t.x - focus.x) < PETALS.near && Math.abs(t.y - focus.y) < PETALS.near);
@@ -173,7 +196,7 @@ export class PetalField {
           p.vz = PETALS.up * pace * (0.5 + 0.5 * this.r());
           p.tumble = (this.r() * 2 - 1) * 14;
           p.resting = false;
-          p.life = PETALS.life;
+          p.onTrack = false;
           break;
         }
         continue;
@@ -192,6 +215,7 @@ export class PetalField {
         p.z = ground;
         p.vx = p.vy = p.vz = 0;
         p.resting = true;
+        this.settle(p);
       }
     }
   }

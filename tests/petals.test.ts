@@ -79,12 +79,29 @@ describe('the petals', () => {
     }
   });
 
-  it('never more than PETALS.max at once (the longest lying go first), and each goes after its time', () => {
+  it('never more than PETALS.max at once (those on the grass farthest from the camera go first)', () => {
     const f = field();
     for (let t = 0; t < 30; t += 1 / 30) f.step(1 / 30, [], trees[0]);
     expect(f.petals.length).toBeLessThanOrEqual(PETALS.max);
-    const g = field();
-    for (let t = 0; t < PETALS.life + 1; t += 1 / 10) g.step(1 / 10, [], { x: -99999, y: -99999 });
-    expect(g.petals.length).toBe(0);
+  });
+
+  it('on the track, lie there lap after lap till a car kicks them off; on the grass, go after their while', () => {
+    const f = field();
+    const start = f.petals.filter((p) => p.resting && p.onTrack);
+    expect(start.length).toBe(PETALS.onTrack);
+    // three laps' worth of petals falling all round the lap (the camera going round with the cars), no car on them
+    const round = c.track.samples.filter((_, i) => i % 40 === 0);
+    for (let t = 0; t < 100; t += 1 / 20) f.step(1 / 20, [], round[Math.floor(t / 2) % round.length]);
+    for (const p of start) expect(f.petals).toContain(p);
+    for (const p of f.petals.filter((q) => q.resting)) {
+      const i = nearestSample(c.track, p.x, p.y);
+      expect(p.onTrack).toBe(Math.abs(lateralOffset(c.track, i, p.x, p.y)) <= HALF_WIDTH);
+      // (on the grass, gone within their while)
+      if (!p.onTrack) expect(p.life).toBeLessThanOrEqual(PETALS.life);
+    }
+    // with none falling (those still in the air landing first), those on the grass go; those on the track stay
+    for (let t = 0; t < PETALS.life + 20; t += 1 / 10) f.step(1 / 10, [], { x: -99999, y: -99999 });
+    expect(f.petals.every((p) => p.onTrack)).toBe(true);
+    expect(f.petals.length).toBeGreaterThanOrEqual(PETALS.onTrack);
   });
 });
