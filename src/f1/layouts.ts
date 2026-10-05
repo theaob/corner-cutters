@@ -42,6 +42,8 @@ export interface CircuitLayout {
   jumps?: { at: number; rise: number }[];
   /** the cherry trees in blossom: groves of them round the circuit and lining the lap, their petals drifting onto the track (petals.ts) */
   blossoms?: boolean;
+  /** a gopher now and then popping up out of its hole by the track near the camera and scurrying across (gopher.ts) */
+  gophers?: boolean;
   /** free: open to everyone from the start (the Google Play build without the Championship too), and not a round of the Championship */
   free?: boolean;
   /** in the mountains: rock and alpine meadow beyond the barriers, snow up high, pines below the tree line and boulders */
@@ -498,6 +500,7 @@ export const TWIN_LAKES: CircuitLayout = {
     [75, 661], [82, 688], [89, 715],
   ] as [number, number][]).map(([x, y]) => ({ x, y })),
   scale: 2.0,
+  gophers: true,
   // (a share of the lap): down through the esses and the back straight to the lake, up through the infield, down the dip, and the long climb to the line
   elevation: [
     [0, 36],
