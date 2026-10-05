@@ -879,7 +879,7 @@ export const GLACIER_PASS: CircuitLayout = {
  * straight into a fast right, through the twisty section (a tight right, a
  * left, the hairpin), the long back straight over the jump, the kink and the
  * sweeping right onto the main straight. Every car on off-road tyres (tyres.ts:
- * the circuit's `dirt`), sliding through the bends. About 5800 px, about 21 s.
+ * the circuit's `dirt`), sliding through the bends. About 6300 px, about 23 s.
  */
 export const DUST_BOWL: CircuitLayout = {
   id: 'dust-bowl',
@@ -903,13 +903,15 @@ export const DUST_BOWL: CircuitLayout = {
     [20, 520], [0, 520], [-20, 520], [-40, 520], [-60, 520], [-80, 520],
     [-100, 520], [-120, 520], [-140, 520], [-160, 520], [-180, 520], [-200, 520],
     [-220, 520], [-240, 520], [-260, 520], [-280, 520], [-300, 520], [-320, 520],
-    [-342, 517], [-361, 507], [-377, 491], [-387, 472], [-390, 450], [-390, 430],
-    [-390, 410], [-390, 390], [-390, 370], [-385, 349], [-372, 332], [-359, 315],
-    [-354, 293], [-354, 273], [-354, 253], [-354, 232], [-354, 212], [-354, 192],
-    [-354, 172], [-354, 151], [-354, 131], [-354, 111], [-354, 90], [-354, 70],
-    [-351, 48], [-341, 29], [-325, 13], [-306, 3], [-284, 0], [-264, 0],
-    [-244, 0], [-223, 0], [-203, 0], [-183, 0], [-162, 0], [-142, 0],
-    [-122, 0], [-102, 0], [-81, 0], [-61, 0], [-41, 0], [-20, 0],
+    [-340, 520], [-360, 520], [-380, 520], [-400, 520], [-420, 520], [-440, 520],
+    [-462, 517], [-481, 507], [-497, 491], [-507, 472], [-510, 450], [-510, 430],
+    [-510, 410], [-510, 390], [-510, 370], [-505, 349], [-492, 332], [-479, 315],
+    [-474, 293], [-474, 273], [-474, 253], [-474, 232], [-474, 212], [-474, 192],
+    [-474, 172], [-474, 151], [-474, 131], [-474, 111], [-474, 90], [-474, 70],
+    [-471, 48], [-461, 29], [-445, 13], [-426, 3], [-404, 0], [-384, 0],
+    [-364, 0], [-344, 0], [-323, 0], [-303, 0], [-283, 0], [-263, 0],
+    [-243, 0], [-222, 0], [-202, 0], [-182, 0], [-162, 0], [-141, 0],
+    [-121, 0], [-101, 0], [-81, 0], [-61, 0], [-40, 0], [-20, 0],
   ] as [number, number][]).map(([x, y]) => ({ x, y })),
   scale: 2,
   // (a share of the lap): a gentle rise through the twisty section, down the back straight, and up again to the line
@@ -923,9 +925,9 @@ export const DUST_BOWL: CircuitLayout = {
     [1, 12],
   ],
   // on the right of the main straight, from the last bend to past the line
-  pit: { from: -520, to: 480, side: 1 },
+  pit: { from: -660, to: 540, side: 1 },
   // the jump, half-way down the back straight
-  jumps: [{ at: 3300, rise: 20 }],
+  jumps: [{ at: 3380, rise: 20 }],
   // on dirt: every car on off-road tyres
   dirt: true,
   // (open to everyone from the start, not a round of the Championship)

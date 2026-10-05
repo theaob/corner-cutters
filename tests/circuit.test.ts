@@ -32,7 +32,7 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   // the mountain: the switchbacks' hairpins want a stop each, the jumps are flat out
   { layout: GLACIER_PASS, length: [9800, 10800], lap: [28, 36], flatGap: 2, braking: 1.5 },
   // the dirt: short and twisty, but flat out all the way round on tarmac's grip (on dirt's, the cars slide: tyres.test.ts)
-  { layout: DUST_BOWL, length: [5400, 6300], lap: [15, 21], flatGap: 0.5 },
+  { layout: DUST_BOWL, length: [5800, 6800], lap: [16, 22], flatGap: 0.5 },
 ];
 
 describe('circuit list', () => {
