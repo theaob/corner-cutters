@@ -28,6 +28,7 @@ import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { ownsChampionship } from './purchase';
 import { distance } from './timeAttack';
 import { settingsRows as settingsRowsNow, versionLine } from './settingsRows';
+import { worldBoard } from './screens/worldBoard';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
@@ -293,7 +294,7 @@ export function chooseCircuit(
   const carChoice = carRow(() => teamRow.value(), seat);
   // (a Quick Race's weather may be changeable; against the clock it's the same all session)
   const raceWeatherRow = optionRow('WEATHER', RACE_WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
-  const clockWeatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
+  const clockWeatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }), () => showWorld());
   const weatherRow = () => (current.id === 'race' ? raceWeatherRow : clockWeatherRow);
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   // (a Quick Race's: a Championship round is always RACE_LAPS, and a Time Trial is laps until you stop)
@@ -450,6 +451,12 @@ export function chooseCircuit(
   card.className = 'circuit-card';
   const dots = document.createElement('div');
   dots.className = 'dots';
+  // a Time Trial's world board: the circuit's best laps from everyone, in the weather picked (screens/worldBoard.ts)
+  const world = worldBoard();
+  const showWorld = () => {
+    if (current.id === 'timetrial') world.show(layouts[selected].id, clockWeatherRow.value().id);
+    else world.el.hidden = true;
+  };
   const renderCard = () => {
     const layout = layouts[selected];
     const locked = !open.has(layout.id);
@@ -484,6 +491,7 @@ export function chooseCircuit(
       text.append(m);
     }
     card.append(prev, outline(layout, 112, 84), text, next);
+    showWorld();
     dots.innerHTML = '';
     layouts.forEach((l, k) => {
       const d = document.createElement('i');
@@ -577,7 +585,7 @@ export function chooseCircuit(
   const backAt = () => raceAt() + 1;
   const modesParts: HTMLElement[] = [...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
-  const circuitParts: HTMLElement[] = [card, dots, options, raceButton, backButton];
+  const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, reportButton, versionLine()];
   const show = () => {
     hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
@@ -611,7 +619,7 @@ export function chooseCircuit(
   renderCard();
   renderRace();
   options.append(...rows.map((r) => r.el));
-  menu.append(...modeButtons, settingsButton, trophiesButton, card, dots, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
+  menu.append(...modeButtons, settingsButton, trophiesButton, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);

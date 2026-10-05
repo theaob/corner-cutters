@@ -568,6 +568,75 @@
       .circuit-menu .initials input::placeholder {
         color: var(--key-edge);
       }
+      /* a Time Trial's world board on the circuit screen (src/f1/screens/worldBoard.ts): the top three and your place */
+      .circuit-menu .world-board {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 8px 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: rgba(37, 35, 58, 0.85);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
+      }
+      .circuit-menu .world-board[hidden] {
+        display: none !important;
+      }
+      .circuit-menu .world-board .world-line {
+        margin: 0;
+        color: var(--muted);
+        font-size: calc(10px * var(--ts, 1));
+      }
+      .circuit-menu .world-board .world-title {
+        color: var(--accent-b);
+        letter-spacing: 1px;
+        margin-bottom: 2px;
+      }
+      /* (the place right, the initials, the time right: the same columns each row, the row centred) */
+      .circuit-menu .world-row {
+        display: grid;
+        grid-template-columns: 3em 4em 7em;
+        column-gap: 0.8em;
+        color: var(--text);
+      }
+      .circuit-menu .world-row.you {
+        color: var(--gold);
+      }
+      .circuit-menu .world-row .place,
+      .circuit-menu .world-row .time {
+        text-align: right;
+      }
+      .circuit-menu .world-row span {
+        font-size: inherit;
+        color: inherit;
+      }
+      .circuit-menu .world-board .world-gap {
+        line-height: 0.8;
+      }
+      .circuit-menu .world-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: calc(10px * var(--ts, 1));
+      }
+      .circuit-menu .world-name input {
+        width: 4.6em;
+        padding: 2px 0 2px 0.4em;
+        border: 0;
+        border-bottom: 2px solid var(--gold);
+        background: transparent;
+        color: var(--gold);
+        font: calc(16px * var(--ts, 1)) var(--pixel);
+        letter-spacing: 0.4em;
+        text-align: center;
+        text-transform: uppercase;
+        outline: none;
+      }
       /* the build's version, under the settings: centred and quiet */
       .circuit-menu .version-line {
         margin: 2px 0 0;

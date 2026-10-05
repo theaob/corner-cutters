@@ -17,8 +17,10 @@ const STRIDE = 4;
 export interface Ghost {
   time: number;
   splits: number[];
-  /** frame k (at k / GHOST_HZ s into the lap) is x, y, heading, idx at [k * 4 …] */
+  /** frame k (at k / hz s into the lap) is x, y, heading, idx at [k * 4 …] */
   frames: number[];
+  /** frames a second (GHOST_HZ unless said: a Daily Challenge run sent to the board has fewer) */
+  hz?: number;
 }
 
 /** A lap being recorded. */
@@ -29,10 +31,10 @@ export interface LapRecorder {
 
 export const newRecorder = (): LapRecorder => ({ splits: [], frames: [] });
 
-/** Record the car at `t` s into the lap (a frame whenever one is due), at nearest sample `idx`. */
-export function recordFrame(r: LapRecorder, t: number, car: Car, idx: number): void {
+/** Record the car at `t` s into the lap (a frame whenever one is due, `hz` a second), at nearest sample `idx`. */
+export function recordFrame(r: LapRecorder, t: number, car: Car, idx: number, hz = GHOST_HZ): void {
   // (a frame per 1/20 s: the sim steps at 60 Hz, so every third step; a step late is caught up on the next)
-  while (r.frames.length / STRIDE <= t * GHOST_HZ + 1e-6) {
+  while (r.frames.length / STRIDE <= t * hz + 1e-6) {
     r.frames.push(Math.round(car.x * 10) / 10, Math.round(car.y * 10) / 10, Math.round(car.heading * 1000) / 1000, idx);
   }
 }
@@ -43,7 +45,7 @@ export const toGhost = (r: LapRecorder, time: number): Ghost => ({ time, splits:
 /** Where the ghost is `t` s into its lap (between its frames); undefined once its lap is over, or before it starts. */
 export function ghostPose(g: Ghost, t: number): { x: number; y: number; heading: number } | undefined {
   const count = g.frames.length / STRIDE;
-  const at = t * GHOST_HZ;
+  const at = t * (g.hz ?? GHOST_HZ);
   if (t < 0 || t > g.time || count < 2) return undefined;
   const k = Math.min(count - 2, Math.floor(at));
   const f = Math.min(1, at - k);
@@ -72,7 +74,7 @@ export function ghostTimeAt(g: Ghost, idx: number, n: number): number | undefine
     if (i < idx || i > n * 0.95) continue;
     const prev = g.frames[(k - 1) * STRIDE + 3];
     const f = i === prev ? 0 : Math.max(0, Math.min(1, (idx - prev) / (i - prev)));
-    return (k - 1 + f) / GHOST_HZ;
+    return (k - 1 + f) / (g.hz ?? GHOST_HZ);
   }
   return undefined;
 }
@@ -95,7 +97,8 @@ export function parseGhost(v: unknown): Ghost | undefined {
   if (!g || typeof g !== 'object' || typeof g.time !== 'number' || !(g.time > 0) || !Array.isArray(g.splits) || !Array.isArray(g.frames)) return undefined;
   if (g.frames.length < STRIDE * 2 || g.frames.length % STRIDE || !g.frames.every((x) => typeof x === 'number' && Number.isFinite(x))) return undefined;
   if (!g.splits.every((x) => typeof x === 'number' && Number.isFinite(x))) return undefined;
-  return { time: g.time, splits: g.splits, frames: g.frames };
+  if (g.hz !== undefined && !(typeof g.hz === 'number' && g.hz > 0 && g.hz <= 60)) return undefined;
+  return { time: g.time, splits: g.splits, frames: g.frames, ...(g.hz !== undefined ? { hz: g.hz } : {}) };
 }
 
 /** Your best Time Trial lap on circuit `id` (the records' id: circuit and weather), kept on the device. */

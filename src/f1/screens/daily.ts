@@ -15,6 +15,7 @@ import { distance } from '../timeAttack';
 import { fetchBoard, loadDaily, sendPending, streakOn, untilNext, type Board, type Challenge } from '../daily';
 import { INITIALS, initials, playerId, setInitials } from '../profile';
 import { reportOpen } from '../report';
+import { sendLaps } from '../boards';
 
 /** `ms` as hours and minutes: 5H 12M. */
 const hm = (ms: number) => `${Math.floor(ms / 3600000)}H ${Math.floor((ms % 3600000) / 60000)}M`;
@@ -90,6 +91,8 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     void (async () => {
       const name = initials();
       if (name) await sendPending(log, player, name);
+      // (and any Time Trial lap records waiting for the world boards)
+      if (name) void sendLaps(player, name, typeof __APP_VERSION__ === 'string' ? __APP_VERSION__.slice(0, 40) : undefined);
       const b = await fetchBoard(c.day, player, 10);
       if (closed?.aborted) return;
       if (!b) say("OFFLINE · YOUR BEST GOES ON THE BOARD WHEN YOU'RE BACK");
