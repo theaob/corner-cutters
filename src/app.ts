@@ -15,7 +15,7 @@ import { startClock, track } from './f1/metrics';
 import { challengeOn, dayOf } from './f1/daily';
 import { showDaily } from './f1/screens/daily';
 import { F1_TUNING } from './f1/tuning';
-import { LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
+import { CHAMPIONSHIP_LAYOUTS, FREE_LAYOUTS, LAYOUTS, layoutById, type CircuitLayout } from './f1/layouts';
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
 import { dropKeptRace, keptLap, keptRace, type KeptRace } from './f1/raceSave';
 import { RACE_LAPS, lapsFrom, seasonLength } from './f1/laps';
@@ -342,7 +342,8 @@ function menuScreen(): void {
 }
 
 /** The circuits open for a Quick Race, a Time Attack or a Time Trial now (in the Google Play build, without the Championship bought: the first only). */
-const openNow = () => circuitsOpen(ownsChampionship(), LAYOUTS[0].id, openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits)));
+const freeIds = FREE_LAYOUTS.map((l) => l.id);
+const openNow = () => circuitsOpen(ownsChampionship(), LAYOUTS[0].id, openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits), freeIds), freeIds);
 /** A new player: never done (or skipped) the controls lap, and nothing played yet (no records, no season, nothing unlocked). */
 const needsControlsLap = () => saved('progress', 'onboarded') !== true && !Object.keys(loadRecords().circuits).length && !loadSeason() && !savedUnlocks().length;
 /** A circuit the Championship just unlocked (said on its screen once). */
@@ -383,7 +384,7 @@ async function showSeason(id: number): Promise<void> {
     save('choices', 'seat', String(seat));
     save('choices', 'qualifying', qualifying ? 'on' : 'off');
     save('choices', 'season-laps', String(laps));
-    saveSeason(newSeason({ seed: newSeed(), team, seat, difficulty: savedDifficulty().id, qualifying, rounds: LAYOUTS.map((l) => l.id), total: 10, laps }));
+    saveSeason(newSeason({ seed: newSeed(), team, seat, difficulty: savedDifficulty().id, qualifying, rounds: CHAMPIONSHIP_LAYOUTS.map((l) => l.id), total: 10, laps }));
     void route();
   } else navigate(withCircuit(null));
 }

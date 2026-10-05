@@ -34,19 +34,40 @@ export interface Challenge {
   weather: Weather;
 }
 
-/** The circuit `day` would draw (none twice running: a day drawing yesterday's takes the next). */
-function circuitOn(day: string, layouts: CircuitLayout[], depth = 0): number {
-  const k = hash(`circuit:${day}`) % layouts.length;
-  if (depth > 0) return k;
-  const yesterday = circuitOn(dayBefore(day), layouts, depth + 1);
-  return k === yesterday ? (k + 1) % layouts.length : k;
+/** The day from which a day drawing yesterday's circuit is judged by the circuit yesterday actually had (before it,
+ * by the one yesterday drew before any move off its own day before's: two days running could then come out the same) */
+export const ROTATION_FIX = '2026-10-06';
+
+/** The circuit `day` has (none twice running: a day drawing yesterday's takes the next), out of `poolOn(day)`. */
+function circuitOn(day: string, poolOn: (day: string) => CircuitLayout[], depth = 0): CircuitLayout {
+  const layouts = poolOn(day);
+  const raw = layouts[hash(`circuit:${day}`) % layouts.length];
+  const next = () => layouts[(layouts.indexOf(raw) + 1) % layouts.length];
+  if (day < ROTATION_FIX) {
+    // (as it always was: against yesterday's draw)
+    if (depth > 0) return raw;
+    const drew = poolOn(dayBefore(day));
+    return drew[hash(`circuit:${dayBefore(day)}`) % drew.length].id === raw.id ? next() : raw;
+  }
+  // (from then: against the circuit yesterday actually had; far enough back, its draw)
+  if (depth >= 40) return raw;
+  return circuitOn(dayBefore(day), poolOn, depth + 1).id === raw.id ? next() : raw;
 }
 
-/** `day`'s challenge: its circuit (out of `layouts`) and weather (dry most days, damp some, wet now and then). */
-export function challengeOn(day: string, layouts: CircuitLayout[] = LAYOUTS): Challenge {
+/**
+ * A circuit added since the Daily Challenge began joins its rotation from this day (UTC), not the day it's released:
+ * the rotation is by the circuits' count, so a day's challenge changing under the players already on it is avoided.
+ */
+export const DAILY_FROM: Record<string, string> = { 'glacier-pass': '2026-10-06' };
+
+/** The circuits in the Daily Challenge's rotation on `day`. */
+export const dailyLayouts = (day: string): CircuitLayout[] => LAYOUTS.filter((l) => !DAILY_FROM[l.id] || day >= DAILY_FROM[l.id]);
+
+/** `day`'s challenge: its circuit (out of `layouts`, else the day's rotation) and weather (dry most days, damp some, wet now and then). */
+export function challengeOn(day: string, layouts?: CircuitLayout[]): Challenge {
   const roll = (hash(`weather:${day}`) % 100) / 100;
   const id = roll < 0.65 ? 'dry' : roll < 0.85 ? 'damp' : 'wet';
-  return { day, layout: layouts[circuitOn(day, layouts)], weather: WEATHERS.find((w) => w.id === id) ?? DRY };
+  return { day, layout: circuitOn(day, layouts ? () => layouts : dailyLayouts), weather: WEATHERS.find((w) => w.id === id) ?? DRY };
 }
 
 /** ms until the next day's challenge (midnight UTC). */

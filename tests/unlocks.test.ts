@@ -6,6 +6,9 @@ describe('circuit unlocks', () => {
   it('open the first circuit from the start, and no others', () => {
     expect([...openCircuits(circuits, [], [])]).toEqual(['crescent-park']);
   });
+  it('open a free circuit from the start too', () => {
+    expect(openCircuits([...circuits, 'glacier-pass'], [], [], ['glacier-pass'])).toEqual(new Set(['crescent-park', 'glacier-pass']));
+  });
   it('open a circuit once a championship has reached it', () => {
     expect(openCircuits(circuits, ['silver-heath'], []).has('silver-heath')).toBe(true);
     expect(openCircuits(circuits, ['silver-heath'], []).has('harbour')).toBe(false);

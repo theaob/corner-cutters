@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, SUZUKA, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, GLACIER_PASS, SUZUKA, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -29,6 +29,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: BAKU, length: [10400, 11400], lap: [30, 38], flatGap: 1.5, braking: 1.2 },
   // the figure of eight: the esses, the hairpin and the chicane want a lift
   { layout: SUZUKA, length: [9800, 10600], lap: [28, 35], flatGap: 1.5, braking: 1.2 },
+  // the mountain: the switchbacks' hairpins want a stop each, the jumps are flat out
+  { layout: GLACIER_PASS, length: [9800, 10800], lap: [28, 36], flatGap: 2, braking: 1.5 },
 ];
 
 describe('circuit list', () => {
@@ -233,8 +235,9 @@ describe('Ardennes', () => {
     const a = hills(ardennes);
     expect(a.range).toBeGreaterThan(100);
     expect(a.steepest).toBeGreaterThan(0.16);
+    // (the mountain aside: it climbs higher still, but more gently, up its switchbacks)
     for (const c of circuits) {
-      if (c === ardennes) continue;
+      if (c === ardennes || c.layout.mountain) continue;
       const h = hills(c);
       expect(a.range).toBeGreaterThan(h.range * 1.5);
       expect(a.steepest).toBeGreaterThan(h.steepest);
@@ -313,4 +316,57 @@ describe('stretches side by side', () => {
       }
     }
   }, 60_000);
+});
+
+describe('Glacier Pass', () => {
+  const c = buildCircuit(GLACIER_PASS, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+  const others = LAYOUTS.filter((l) => l !== GLACIER_PASS).map((l) => buildCircuit(l, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) }));
+  const range = (x: typeof c) => {
+    const h = x.track.samples.map((p) => groundAt(x.grid, p.x, p.y).h);
+    return Math.max(...h) - Math.min(...h);
+  };
+
+  it('climbs the highest of all: from the valley floor to the summit', () => {
+    for (const o of others) expect(range(c)).toBeGreaterThan(range(o) * 1.4);
+  });
+
+  it('flies the cars off both its jumps at speed, half a second or so in the air, and lands them unhurt; nowhere else', () => {
+    const start = c.slots[0];
+    const car = newCar(f1, start.x, start.y, start.heading);
+    let p = newProgress(c.track.samples.length - 3);
+    let up: { t: number; s: number } | undefined;
+    const hops: { s: number; air: number; land: number }[] = [];
+    for (let t = 0; t < 80 && p.lap < 1; t += 1 / 60) {
+      const ev = stepCar(car, aiInput(car, c.track, p.idx, { lane: 0, pace: 1 }), RACE_HANDLING, 1 / 60, c.grid);
+      if (car.airborne && !up) up = { t, s: c.track.samples[p.idx].s };
+      if (!car.airborne && up) {
+        hops.push({ s: up.s, air: t - up.t, land: ev.landed });
+        up = undefined;
+      }
+      p = stepProgress(p, c.track, car, t, 3, 1 / 60);
+    }
+    expect(hops.length).toBe(GLACIER_PASS.jumps!.length);
+    hops.forEach((h, k) => {
+      expect(Math.abs(h.s - GLACIER_PASS.jumps![k].at)).toBeLessThan(40);
+      expect(h.air).toBeGreaterThan(0.3);
+      expect(h.air).toBeLessThan(0.8);
+      expect(h.land).toBeLessThan(RACE_HANDLING.landThreshold);
+    });
+    expect(car.health).toBe(f1.health);
+  });
+
+  it("has no jump anywhere else: none of the other circuits throws a car in the air", () => {
+    for (const o of others) {
+      const start = o.slots[0];
+      const car = newCar(f1, start.x, start.y, start.heading);
+      let p = newProgress(o.track.samples.length - 3);
+      let flew = false;
+      for (let t = 0; t < 80 && p.lap < 1; t += 1 / 60) {
+        stepCar(car, aiInput(car, o.track, p.idx, { lane: 0, pace: 1 }), RACE_HANDLING, 1 / 60, o.grid);
+        flew ||= car.airborne;
+        p = stepProgress(p, o.track, car, t, 3, 1 / 60);
+      }
+      expect(flew).toBe(false);
+    }
+  });
 });

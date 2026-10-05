@@ -26,6 +26,12 @@ describe('the Championship as a purchase', () => {
     expect([...circuitsOpen(false, 'crescent-park', reached)]).toEqual(['crescent-park']);
     expect(circuitsOpen(true, 'crescent-park', reached)).toEqual(reached);
   });
+
+  it('opens the free circuits either way', () => {
+    const reached = new Set(['crescent-park', 'silver-heath']);
+    expect([...circuitsOpen(false, 'crescent-park', reached, ['glacier-pass'])]).toEqual(['crescent-park', 'glacier-pass']);
+    expect(circuitsOpen(true, 'crescent-park', reached, ['glacier-pass'])).toEqual(new Set([...reached, 'glacier-pass']));
+  });
 });
 
 /** A stand-in for Google Play's store (the plugin's CdvPurchase): one product, bought or not. */

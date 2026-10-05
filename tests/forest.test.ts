@@ -15,9 +15,9 @@ describe('the forest', () => {
   const circuit = build(ARDENNES);
   const trees = treesOf(circuit);
 
-  it('grows only round a circuit in a forest (palms only in the desert, and parkland trees in a park)', () => {
+  it('grows only round a circuit in a forest (palms only in the desert, parkland trees in a park, spruces and boulders in the mountains)', () => {
     for (const l of LAYOUTS) {
-      if (l.forest || l.desert || l.park) continue;
+      if (l.forest || l.desert || l.park || l.mountain) continue;
       expect(treesOf(build(l))).toHaveLength(0);
     }
     expect(trees.some((t) => t.kind === 'palm')).toBe(false);
@@ -142,4 +142,21 @@ describe('the trees at Royal Park', () => {
     expect(lining.filter((t) => side(t) > 0).length).toBeGreaterThan(10);
     expect(lining.filter((t) => side(t) < 0).length).toBeGreaterThan(10);
   });
+});
+
+describe('the mountains', () => {
+  it('scatter spruces below the tree line only, and boulders all over (snowy up high), none tall enough to hide the track', async () => {
+    const { GLACIER_PASS } = await import('../src/f1/layouts');
+    const { MOUNTAIN } = await import('../src/f1/forest3d');
+    const { groundAt } = await import('../src/engine/sim');
+    const c = build(GLACIER_PASS);
+    const all = treesOf(c);
+    const spruces = all.filter((t) => t.kind === 'spruce');
+    const rocks = all.filter((t) => t.kind === 'rock');
+    expect(spruces.length).toBeGreaterThan(500);
+    expect(rocks.length).toBeGreaterThan(100);
+    for (const t of spruces) expect(groundAt(c.grid, t.x, t.y).h).toBeLessThanOrEqual(MOUNTAIN.treeLine);
+    for (const t of rocks) expect(t.h).toBeLessThanOrEqual(MOUNTAIN.rockSize[0] + MOUNTAIN.rockSize[1]);
+    expect(all.some((t) => t.kind === 'palm' || t.kind === 'broadleaf')).toBe(false);
+  }, 30_000);
 });

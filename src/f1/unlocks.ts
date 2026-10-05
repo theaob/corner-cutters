@@ -1,13 +1,14 @@
 // Circuit unlocks: the first circuit is open from the start; each later one
 // opens for Quick Race, Time Attack and Time Trial once a Championship reaches it (you've
 // raced the round before it). Anyone who already has a record on a circuit
-// (from before unlocks) keeps it open. Kept in the save's 'progress' section.
+// (from before unlocks) keeps it open, and a free circuit (layout.free) is open
+// from the start. Kept in the save's 'progress' section.
 
 import { save, saved } from '../engine/save';
 
-/** The circuits open (by id): the first of `circuits`, those `unlocked` so far, and any with a record (ids like 'silver-heath:wet' included). */
-export function openCircuits(circuits: string[], unlocked: string[], recordIds: string[]): Set<string> {
-  const open = new Set<string>(circuits.slice(0, 1));
+/** The circuits open (by id): the first of `circuits`, the `free` ones, those `unlocked` so far, and any with a record (ids like 'silver-heath:wet' included). */
+export function openCircuits(circuits: string[], unlocked: string[], recordIds: string[], free: string[] = []): Set<string> {
+  const open = new Set<string>([...circuits.slice(0, 1), ...free]);
   const known = new Set(circuits);
   for (const id of [...unlocked, ...recordIds.map((r) => r.split(':')[0])]) if (known.has(id)) open.add(id);
   return open;
