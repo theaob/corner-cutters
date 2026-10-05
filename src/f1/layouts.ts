@@ -50,6 +50,8 @@ export interface CircuitLayout {
   yeti?: boolean;
   /** an aerial tramway (tramway.ts): its two stations (px, as the circuit's laid out): on the valley floor, and up the mountain */
   tramway?: { from: [number, number]; to: [number, number] };
+  /** monster trucks jumping a pile of wrecks in the infield (monsterTrucks.ts): their arena's middle (px, as the circuit's laid out) and the way its lanes run (radians) */
+  monsterTrucks?: { at: [number, number]; angle: number };
   /** on dirt: the track's surface loose earth, every car on off-road tyres (tyres.ts), sliding through the bends */
   dirt?: boolean;
   /** free: open to everyone from the start (the Google Play build without the Championship too), and not a round of the Championship */
@@ -931,6 +933,8 @@ export const DUST_BOWL: CircuitLayout = {
   jumps: [{ at: 3220, rise: 20 }],
   // on dirt: every car on off-road tyres
   dirt: true,
+  // (and monster trucks in the infield, jumping a pile of wrecks)
+  monsterTrucks: { at: [1040, 900], angle: 0 },
   // (open to everyone from the start, not a round of the Championship)
   free: true,
 };

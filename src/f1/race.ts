@@ -28,7 +28,6 @@ import { landmarksOf } from './town3d';
 import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
-import { DRIFT_STEPS, driftPrompt, newDriftLesson, stepDriftLesson, type DriftLesson } from './driftSchool';
 import { driveStyle, pointsOn } from './driveStyle';
 import { GHOST_HZ, ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder } from './timeTrial';
 import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, stopCalled, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, running, skipToParked, stepRace, type Race } from './raceControl';
@@ -143,8 +142,8 @@ export interface RaceOptions {
   startTyres?: DryCompound;
   /** a race kept on the device to come back to (raceSave.ts): built as it was and picked up where it was left, paused */
   resume?: KeptRace;
-  /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), the controls lap for a new player, or the Drift School (on dirt) */
-  mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial' | 'drift';
+  /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
+  mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
    * a round of a Championship: the season (its field, all season), and where the result goes once you've seen the
    * results: the drivers (the season's indexes) in finishing order, and those who didn't finish
@@ -467,8 +466,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    */
   /** the controls lap: the prompt you're on, the bends you've been through, and where you were last frame */
   let learn: { o: Onboarding; bends: number; lastIdx: number } | undefined;
-  /** the Drift School (a 'tutorial' session too: SKIP, then MENU), its lesson */
-  let school: DriftLesson | undefined;
   let trial: { recorder: LapRecorder; lapStart?: number; sector: number; lap: QualiLap; best?: Ghost; record?: Ghost } | undefined;
   /** a Time Attack: the clock, and the best distance here when it started (checkpoints) */
   let attack: {
@@ -627,7 +624,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const startRace = (gridSlots?: number[]) => {
     session = 'race';
     learn = undefined;
-    school = undefined;
     quali = undefined;
     trial = undefined;
     attack = undefined;
@@ -664,7 +660,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     session = 'qualifying';
     gridPan = undefined;
     learn = undefined;
-    school = undefined;
     trial = undefined;
     attack = undefined;
     resetSession();
@@ -684,7 +679,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     session = 'timetrial';
     gridPan = undefined;
     learn = undefined;
-    school = undefined;
     quali = undefined;
     resetSession();
     const w = drawWeekend();
@@ -706,7 +700,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     session = 'timeattack';
     gridPan = undefined;
     learn = undefined;
-    school = undefined;
     quali = undefined;
     trial = undefined;
     resetSession();
@@ -749,13 +742,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     race = newQualifying(track, grid, HANDLING, sessionWeather());
     learn = { o: newOnboarding(), bends: 0, lastIdx: race.entrants[0].progress.idx };
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
-  };
-
-  /** The Drift School: you on your own on the dirt, a prompt at a time for drifting. */
-  const startDriftSchool = () => {
-    startTutorial();
-    learn = undefined;
-    school = newDriftLesson();
   };
 
   /** A reference lap for the AI's qualifying times (worked out once: it's the same all weekend). */
@@ -838,7 +824,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     forecast = roundWeather || (weather.id === 'changeable' ? changeableForecast(seed, raceSeconds) : fixedForecast(weather.id));
     weatherTag.textContent = forecast.name;
     if (mode === 'tutorial') startTutorial();
-    else if (mode === 'drift') startDriftSchool();
     else if (mode === 'timetrial') startTimeTrial();
     else if (mode === 'timeattack') startTimeAttack();
     else if (resuming) resumeRace(resuming);
@@ -850,7 +835,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
    * need to qualify again); without qualifying, a new weekend (new rivals), as ever.
    */
-  const restart = () => (dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? (school ? startDriftSchool() : startTutorial()) : newWeekend());
+  const restart = () => (dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
@@ -907,8 +892,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** set your tyres' wear (0 new … 1 gone) */
         wear: (w: number) => (race.entrants[you].tyres.wear = Math.max(0, Math.min(1, w))),
         /** the gopher (a circuit with one): what it's doing, where, and its crossings so far */
-        /** the Drift School's lesson: its step, the drift going on, and the drifts so far */
-        school: () => school && { ...school },
         /** the yeti (a circuit with one): what it's doing and where, and its chases so far */
         yeti: () => world.yeti && { pose: world.yeti.pose && { ...world.yeti.pose }, chases: world.yeti.chases },
         gopher: () => world.gopher && { phase: world.gopher.crossing?.phase, pose: world.gopher.pose(), crossings: world.gopher.crossings, bolts: world.gopher.bolts },
@@ -1356,7 +1339,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
     settings: pauseSettingsOn, resultsUp: results.style.display === 'block', roundOver: !!championship && done, qualifyingOver: !!quali?.over,
-    attackOver: !!attack?.result, session, learnt: learn?.o.step === 'done' || school?.step === 'done', watching: !!gridPan || !!replay, done, paused,
+    attackOver: !!attack?.result, session, learnt: learn?.o.step === 'done', watching: !!gridPan || !!replay, done, paused,
   });
   const deckEl = document.getElementById('deck');
   /** a touch screen: STEER there is the steering slider and the pedals, in the thumbstick's and A's places (index.html) */
@@ -1652,16 +1635,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (nextPrompt(learn.o, facts)) sounds.record();
       if (me.car.wrecked) startTutorial();
     }
-    // the Drift School: the prompt moves on as you drift; each drift held long enough called out; a wreck starts it again
-    if (school) {
-      const me = race.entrants[you];
-      me.tyres.wear = 0;
-      fitTyres(me.tyres, me.car, race.wetness);
-      const { drift, moved } = stepDriftLesson(school, { speed: speedOf(me.car), top: me.car.cls.topSpeed, sliding: !!step.cars[you]?.skidding, laps: me.progress.lap }, dt);
-      if (moved) sounds.record();
-      if (drift !== undefined) announce(`DRIFT ${drift.toFixed(1)} S${drift >= school.best && school.drifts > 1 ? ' · YOUR BEST' : ''}`, '#f2c14e', 1.2);
-      if (me.car.wrecked) startDriftSchool();
-    }
     // your car's vibration: crashes, landings, grass and gravel, kerbs
     {
       const me = race.entrants[you];
@@ -1948,7 +1921,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (podium) playMusic(PODIUM_MUSIC, 1);
     const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished === undefined && others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
-    hud.setPosition(session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'timeattack' ? 'TIME ATTACK' : session === 'tutorial' ? (school ? 'DRIFT SCHOOL' : 'CONTROLS') : `P${pos}/${race.entrants.length}`);
+    hud.setPosition(session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'timeattack' ? 'TIME ATTACK' : session === 'tutorial' ? 'CONTROLS' : `P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
     // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
@@ -1969,7 +1942,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (session === 'race' && !done && p.lap !== keptAtLap && race.phase === 'racing') keepNow();
     hudState.lastPos = pos;
     hudState.lastOrder = order;
-    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : school ? `${Math.min(DRIFT_STEPS.length - 1, DRIFT_STEPS.indexOf(school.step) + 1)}/${DRIFT_STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // box, box: on the radio once a lap, as the pit wall's call goes up
     if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {
@@ -2017,8 +1990,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         out: me.car.wrecked || !!p.retired, championship: !!championship, done, finishedPlace: p.finished !== undefined ? order.indexOf(you) + 1 : undefined,
         pit: stop && { stopped: stop.phase === 'stopped', left: stop.left, limiter: inLimitZone(circuit.pit, circuit.pit.points[stop.at].s) },
         boxBox: !done && !stop && boxBox(), pitSide, wrongWay: p.wrongWay, clock, session, notice,
-        learn: learn ? { text: prompt(learn.o.step, device(), pointsOn(device())), last: learn.o.step === 'done' }
-          : school && { text: driftPrompt(school.step, device(), pointsOn(device())), last: school.step === 'done' },
+        learn: learn && { text: prompt(learn.o.step, device(), pointsOn(device())), last: learn.o.step === 'done' },
         beforeLine: p.lapStart === undefined, safetyCar: !!sc, vsc: !!race.vsc, attackLeft: attack?.a.left,
       });
       showBanner(text);

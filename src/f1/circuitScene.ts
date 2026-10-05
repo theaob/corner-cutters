@@ -15,6 +15,7 @@ import { PETALS, PetalField, type PetalCar } from './petals';
 import { buildGopher, type GopherRun } from './gopher';
 import { buildYeti, yetiAvoids, type YetiRun } from './yeti';
 import { buildTramway, tramwayOf } from './tramway';
+import { buildMonsterTrucks } from './monsterTrucks';
 import { GARAGE_ACROSS, PIT } from './pits';
 import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
@@ -36,7 +37,7 @@ export interface CircuitScene extends Daylight {
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery's people (a street circuit's swimmers and tennis players), `t` seconds on. */
   animate(t: number): void;
-  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway). */
+  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway); the monster trucks (layout.monsterTrucks). */
   stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void;
   /** the gopher's crossings (a circuit with one: layout.gophers) */
   gopher?: GopherRun;
@@ -107,12 +108,13 @@ const DESERT = { runoff: '#e4c896', runoffStripe: '#dcbf8a', sand: '#d8b47c', sp
 const MOUNTAIN = { meadow: '#5c7f3c', meadowDot: ['#4b6c31', '#7a7a58'], rock: '#7e7a72', rockDot: ['#69655e', '#99948b'], snow: '#eef2f6', snowDot: '#cdd6df' };
 /** px up past which the ground beyond the barriers is snow; the steepness (rise per px) past which it's bare rock */
 const SNOW_LINE = 150;
-/** On dirt (layout.dirt): the track's loose earth, its ruts (darker, where the cars run) and loose stones, the berms
- * along its edges in place of kerbs, the pit lane's packed earth; the run-off's dry grass, mown in stripes, and the
- * scrub beyond the barriers, bare earth showing through it; and the barriers hay bales */
+/** On dirt (layout.dirt): dirt everywhere. The track's wet, dark earth, its ruts deeper still where the cars run, wet
+ * clods over it and puddles catching the light; the berms along its edges (in place of kerbs) drier; the pit lane's
+ * packed earth; the run-off's dry earth, graded in stripes, and beyond the barriers the dry, rougher ground, stones
+ * strewn over it; and the barriers hay bales */
 const DIRT = {
-  track: '#8b5e3c', rut: '#704828', loose: ['#a57650', '#5e3d23'], berm: '#674124', lane: '#7a5636',
-  grass: ['#9aa451', '#a2ac58'], grassDot: '#86913f', scrub: '#7f8a43', scrubDot: ['#6b7536', '#9a7a52'], bale: ['#d9b25a', '#c39a40'],
+  track: '#4e3220', rut: '#382214', clods: ['#5e3d28', '#3f2818'], puddle: '#5b5650', shine: '#8c8c96', berm: '#7a5332', lane: '#9a7048',
+  graded: ['#b88a5a', '#b08254'], gradedDot: '#9c7148', ground: '#a87a4c', groundDot: ['#8e6440', '#c49464', '#d2b48c'], bale: ['#d9b25a', '#c39a40'],
 };
 /** Under snow (layout.snow): the run-off groomed in stripes, and the snow beyond the barriers, its shadows blue */
 const SNOWFIELD = { groomed: ['#f4f7fa', '#e9eef3'], groomedDot: '#dbe3ea', snow: '#eef2f6', snowDot: ['#d2dbe4', '#c6d2de'], rockDot: '#8a8f96' };
@@ -326,13 +328,13 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
         }
       } else if (dirt) {
-        // on dirt: the run-off's dry grass mown in stripes; beyond the barriers scrub, bare earth showing through
+        // on dirt, dry earth: the run-off graded in stripes; beyond the barriers rougher, stones strewn over it
         const wall = cell === 'wall';
-        x.fillStyle = wall ? DIRT.scrub : DIRT.grass[(i + j) % 4 < 2 ? 0 : 1];
+        x.fillStyle = wall ? DIRT.ground : DIRT.graded[(i + j) % 4 < 2 ? 0 : 1];
         x.fillRect(px, py, T, T);
         for (let k = 0; k < (wall ? 4 : 3); k++) {
-          x.fillStyle = wall ? DIRT.scrubDot[r() < 0.7 ? 0 : 1] : DIRT.grassDot;
-          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wall ? 2 : 1, wall ? 1 : 2);
+          x.fillStyle = wall ? DIRT.groundDot[Math.floor(r() * 3)] : DIRT.gradedDot;
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wall ? 2 : 1, 1);
         }
       } else if (snowy) {
         // under snow: the run-off groomed in stripes; beyond the barriers deep snow, the steep ground's rock showing through it
@@ -436,8 +438,8 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     x.lineTo(q.x + Math.cos(q.dir) * (b - PIT.offset) * pit.side, q.y + Math.sin(q.dir) * (b - PIT.offset) * pit.side);
     x.stroke();
   }
-  // asphalt (on dirt, loose earth: ruts worn along it where the cars run, stones and clods strewn over it, and a
-  // berm of earth thrown up along each edge)
+  // asphalt (on dirt, wet earth: ruts worn deep along it where the cars run, wet clods strewn over it, puddles in
+  // the ruts catching the light, and a berm of drier earth thrown up along each edge)
   x.strokeStyle = dirt ? DIRT.track : '#4a4d59';
   x.lineWidth = HALF_WIDTH * 2;
   path(pts);
@@ -458,9 +460,28 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     for (const p of pts) {
       for (let k = 0; k < 6; k++) {
         const across = (r() * 2 - 1) * (HALF_WIDTH - 4);
-        x.fillStyle = DIRT.loose[r() < 0.6 ? 0 : 1];
+        x.fillStyle = DIRT.clods[r() < 0.6 ? 0 : 1];
         x.fillRect(Math.round(p.x + Math.cos(p.dir) * across + (r() - 0.5) * 8), Math.round(p.y + Math.sin(p.dir) * across + (r() - 0.5) * 8), r() < 0.3 ? 2 : 1, 1);
       }
+    }
+    // (puddles lying in the ruts here and there, along the track, a glint of sky on each)
+    const ruts = [-24, -12, 12, 24].map(offset);
+    for (let i = 0; i < pts.length; i++) {
+      if (r() > 0.05) continue;
+      const rut = ruts[Math.floor(r() * ruts.length)];
+      const len = 2 + Math.floor(r() * 4);
+      x.strokeStyle = DIRT.puddle;
+      x.lineWidth = 4;
+      x.beginPath();
+      for (let k = 0; k <= len; k++) {
+        const q = rut[(i + k) % pts.length];
+        if (k) x.lineTo(q.x, q.y);
+        else x.moveTo(q.x, q.y);
+      }
+      x.stroke();
+      const q = rut[(i + 1) % pts.length];
+      x.fillStyle = DIRT.shine;
+      x.fillRect(Math.round(q.x), Math.round(q.y), 2, 1);
     }
   }
   // the banking: seams in its concrete running along the track, so it reads as a slope, out to the walls
@@ -643,7 +664,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.scrub : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
+  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: outerColor.clone().multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
@@ -743,6 +764,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (the aerial tramway up to the summit, its two cabins going up and down)
   const tram = tramwayOf(circuit);
   const tramway = tram ? buildTramway(scene, circuit.grid, tram) : undefined;
+  // (monster trucks jumping in the infield)
+  const mt = circuit.layout.monsterTrucks;
+  const trucks = mt ? buildMonsterTrucks(scene, circuit.grid, { x: mt.at[0], y: mt.at[1], angle: mt.angle }) : undefined;
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);
@@ -798,6 +822,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       gopher?.step(dt, cars, focus);
       yeti?.step(dt, focus);
       tramway?.(dt);
+      trucks?.(dt);
     },
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);
