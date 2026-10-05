@@ -275,6 +275,8 @@ export const DECK_ICONS: Record<string, string> = {
   BACK: stroke('M20 12H6') + fill('M11 5l-8 7 8 7z'),
   DONE: stroke('M4.5 12.5l5 5L19.5 7'),
   OK: stroke('M4.5 12.5l5 5L19.5 7'),
+  // (a sweep round a bend: an arc with its arrowhead, centred in the box)
+  DRIFT: stroke('M4.25 20c0-7 5-12 11.5-12.5') + fill('M13.25 4l6.5 3.6-6.5 3.4z'),
 };
 
 /** Status strip (race position and lap) + what each button does. */

@@ -1,8 +1,9 @@
 // The Drift School: a lap or two of Dust Bowl on your own, on the dirt, with a
 // prompt at a time for drifting on the device you're using (the touch deck's
-// DRIFT button, the keys' X, a gamepad's A): get up to speed; turn into a bend
-// holding DRIFT so the tail steps out; keep it sideways round the bend, pointing
-// (or steering) where you want to go; let go of DRIFT as the road straightens
+// DRIFT button, the keys' X, a gamepad's A): get up to speed; tap DRIFT turning
+// into a bend so the tail steps out (held, it brakes: a tap's enough to kick it
+// out, and the loose earth keeps it sliding); keep it sideways round the bend,
+// pointing (or steering) where you want to go; straighten up as the road does
 // and power out; then link drifts, bend after bend; and round to the line. Each
 // prompt moves on once you've done it. Every drift you hold long enough is
 // called out with its length. Engine-free.
@@ -33,13 +34,13 @@ export function driftPrompt(step: DriftStep, device: Device, points = device ===
     case 'go':
       return 'GET UP TO SPEED: A DRIFT STARTS WITH SPEED';
     case 'kick':
-      return `AS YOU TURN INTO A BEND, HOLD ${button(device)}: THE TAIL STEPS OUT`;
+      return `TURNING INTO A BEND, TAP ${button(device)}: THE TAIL STEPS OUT`;
     case 'hold':
       return points
         ? `KEEP IT SIDEWAYS: POINT ${device === 'keys' ? 'THE ARROWS' : 'THE STICK'} WHERE YOU WANT TO GO`
         : 'KEEP IT SIDEWAYS: STEER WHERE YOU WANT TO GO';
     case 'exit':
-      return `LET GO OF ${button(device)} AS IT STRAIGHTENS, AND POWER OUT`;
+      return points ? 'AS THE ROAD STRAIGHTENS, POINT DOWN IT AND POWER OUT' : 'AS THE ROAD STRAIGHTENS, STRAIGHTEN UP AND POWER OUT';
     case 'link':
       return 'NOW LINK THEM: THREE DRIFTS, BEND AFTER BEND';
     case 'lap':

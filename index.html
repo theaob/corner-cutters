@@ -1405,6 +1405,10 @@
       html.dirt:not(.desktop) .face .col.idle {
         display: none;
       }
+      /* (and A while DRIFT's up: no room for both beside the stick; SKIP's EXIT, up top) */
+      html.dirt:not(.desktop) .face .col.low:not(.idle) ~ .col {
+        display: none;
+      }
       /* a button that does nothing just now is out of sight (still in its place, so the others don't move) */
       #deck .idle {
         visibility: hidden;

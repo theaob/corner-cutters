@@ -31,6 +31,9 @@ describe('the deck labels', () => {
     expect(deckLabels(deck({ qualifyingOver: true })).a).toBe('RACE');
     expect(deckLabels(deck({ attackOver: true })).a).toBe('AGAIN');
     expect(deckLabels(deck({ session: 'tutorial', learnt: true })).a).toBe('MENU');
+    // (and nothing else: no DRIFT then)
+    expect(deckLabels(deck({ session: 'tutorial', learnt: true })).b).toBe('');
+    expect(deckLabels(deck({ session: 'tutorial', learnt: false })).b).toBe('DRIFT');
   });
 });
 

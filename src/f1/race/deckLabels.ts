@@ -46,5 +46,7 @@ export function deckLabels(s: DeckState): Record<DeckButton, string> {
   // once more; so paused, the deck has neither EXIT nor RESTART, the pause screen has both, and the top's left as
   // it's right)
   const racing = a === 'PAUSE';
-  return { a: racing ? '' : a, b: driving ? 'DRIFT' : '', start: s.paused || s.roundOver || s.qualifyingOver || s.attackOver ? '' : 'RESTART', select: racing ? 'PAUSE' : s.paused ? '' : 'EXIT' };
+  // (the lesson learnt: MENU, and nothing else, on the deck)
+  const lessonDone = s.session === 'tutorial' && s.learnt;
+  return { a: racing ? '' : a, b: driving && !lessonDone ? 'DRIFT' : '', start: s.paused || s.roundOver || s.qualifyingOver || s.attackOver ? '' : 'RESTART', select: racing ? 'PAUSE' : s.paused ? '' : 'EXIT' };
 }
