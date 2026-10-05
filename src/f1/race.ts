@@ -17,7 +17,8 @@ import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingF
 import { numberOf, styleOf } from './drivers';
 import { DRY, lookAt as weatherLook, type Weather, type WeatherId } from './weather';
 import { changeableForecast, conditionOf, fixedForecast, roundForecast, type Forecast } from './forecast';
-import { COMPOUNDS, fitTyres, tyreFor, type Compound } from './tyres';
+import { COMPOUNDS, fitTyres, isDry, tyreFor, type Compound, type DryCompound } from './tyres';
+import { planText } from './strategy';
 import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
@@ -29,11 +30,11 @@ import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay,
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { driveStyle, pointsOn } from './driveStyle';
 import { GHOST_HZ, ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder } from './timeTrial';
-import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, planLapTime, running, skipToParked, stepRace, type Race } from './raceControl';
+import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, stopCalled, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, running, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
 import { CEREMONY } from './podium3d';
-import { between, inLimitZone, wantsPit } from './pits';
+import { between, inLimitZone } from './pits';
 import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { distance, newAttack, shortDistance, stepAttack, type Attack } from './timeAttack';
@@ -133,8 +134,10 @@ export interface RaceOptions {
   weather?: Weather;
   /** a qualifying lap first, to set your grid slot */
   qualifying?: boolean;
-  /** how many laps the race is (a Championship round is always RACE_LAPS) */
+  /** how many laps the race is (a Championship round: its season's length, RACE_LAPS unless a Grand Prix season) */
   laps?: number;
+  /** the dry tyres you start on (none: the pit wall's strategy's) */
+  startTyres?: DryCompound;
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
   mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
@@ -152,7 +155,7 @@ export interface RaceOptions {
  */
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
   const { team = TEAMS[0], seat: yourSeat = 0, difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
-  const LAPS = championship ? RACE_LAPS : Math.max(1, Math.round(options.laps ?? RACE_LAPS));
+  const LAPS = Math.max(1, Math.round(options.laps ?? RACE_LAPS));
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
@@ -606,6 +609,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let raceGrid: number[] | undefined;
   /** the race's entrants' drivers (entrant i is driver raceDrivers[i]) */
   let raceDrivers: number[] = [];
+  /** your strategy's been said, after GO */
+  let strategySaid = false;
   /** The race, from the grid qualifying set (drivers by slot, pole first), or everyone in their own slot. */
   const startRace = (gridSlots?: number[]) => {
     session = 'race';
@@ -623,8 +628,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     looks = slots.map((k) => addLook(w.drivers[k].livery, w.drivers[k].seat, k === w.youDriver));
     const field = slots.map((k, i) => {
       const slot = circuit.slots[i];
-      return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai: w.drivers[k].ai, box: w.drivers[k].box };
+      return { car: newCar(carClass('f1'), slot.x, slot.y, slot.heading), ai: w.drivers[k].ai, box: w.drivers[k].box, start: k === w.youDriver ? options.startTyres : undefined };
     });
+    strategySaid = false;
     race = newRace(track, grid, HANDLING, LAPS, field, w.lightsOut, circuit.pit, forecast);
     // (on the ground from the start: the grid pan shows them before the first step puts them there)
     for (const e of race.entrants) e.car.z = groundAt(grid, e.car.x, e.car.y).h;
@@ -793,6 +799,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** the virtual safety car: seconds it's been out (undefined: it isn't) */
         vsc: () => race.vsc?.out,
         /** call the virtual safety car now, for trying it out */
+        /** a changeable race: a shower from now for `seconds`, as hard as `rain` (0…1), and the track soaked to it at once, for trying out the tyre calls */
+        shower: (seconds = 60, rain = 0.5) => {
+          if (!race.forecast) return;
+          race.forecast.showers.push({ from: race.clock, to: race.clock + seconds, rain });
+          race.wetness = 2 * rain;
+        },
         callVsc: () => {
           callVsc(race);
           announce('VIRTUAL SAFETY CAR', '#f2c14e', 2.5);
@@ -887,8 +899,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const p = me.progress;
     const n = track.samples.length;
     if (!race.pit || p.lapStart === undefined || p.finished !== undefined || !between(p.idx, circuit.pit.entry - 60, circuit.pit.entry + 4, n)) return false;
-    const lapsLeft = race.laps - p.lap - p.idx / n;
-    return (lapsLeft > 0.4 && wrongTyres(race, you)) || wantsPit(me.car, me.tyres, lapsLeft, planLapTime(race, me), HANDLING.damageSlow, track.length);
+    return stopCalled(race, me);
   };
   /** The radio's box call: for the tyres the weather wants (when it's turned), or plain. */
   const boxCue = (): RadioCue => {
@@ -947,6 +958,41 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   const shareButton = createShareButton(resultCard, () => map.canvas, () => noteStat('share', { circuit: layout.id, mode: statsMode() }));
   host.append(shareButton.float);
+  // the pit lane, the track dry: your next set picked on the way to your box (left/right, or ◀ ▶ tapped), the pit
+  // wall's strategy's to start with
+  const tyrePick = document.createElement('div');
+  style(tyrePick, {
+    position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: '3', display: 'none', justifyContent: 'center', alignItems: 'center', gap: '12px',
+    padding: '6px', borderRadius: '14px', background: 'rgba(18,17,28,.82)', border: '1px solid #3a3858',
+    font: 'calc(13px * var(--ts, 1)) Silkscreen, monospace', color: '#f4f2fa', textShadow: '0 2px 0 #1b1b26', pointerEvents: 'none',
+  });
+  const tyrePickName = document.createElement('span');
+  style(tyrePickName, { minWidth: '9.5em', textAlign: 'center' });
+  const stepTyrePick = () => {
+    const me = race.entrants[you];
+    const now = tyreCall(race, me);
+    if (!isDry(now) || !me.pit || me.pit.phase !== 'in') return;
+    me.next = now === 'slick' ? 'hard' : 'slick';
+    menuTick();
+  };
+  const tyrePickSide = (text: string) => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    style(b, {
+      width: '44px', height: '40px', borderRadius: '10px', border: '1px solid #3a3858', background: 'rgba(37,35,58,.85)', color: '#f4f2fa',
+      font: '14px Silkscreen, monospace', pointerEvents: 'auto', touchAction: 'none', cursor: 'pointer',
+    });
+    let armed = false;
+    b.addEventListener('pointerdown', () => (armed = true));
+    b.addEventListener('pointerleave', () => (armed = false));
+    b.addEventListener('pointerup', () => {
+      if (armed) stepTyrePick();
+      armed = false;
+    });
+    return b;
+  };
+  tyrePick.append(tyrePickSide('◀'), tyrePickName, tyrePickSide('▶'));
+  host.append(tyrePick);
 
   /** Qualifying's times as a table, in grid order: your row in gold; then A or START to go to the grid. */
   const showQualifying = () => {
@@ -1364,6 +1410,28 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (SHARE under a Time Attack's result)
     // (under the banner as it stands, however many lines it takes)
     shareButton.floatAt(attack?.result && !YOUTUBE ? `${banner.offsetTop + banner.offsetHeight + 12}px` : undefined);
+    // (your next set, on the way to your box in the dry: under the banner)
+    {
+      const me = race.entrants[you];
+      // (left and right watched every frame, so the first press in the pit lane counts)
+      const stepped = [pressed('left'), pressed('right')].some(Boolean);
+      const call = session === 'race' && me.pit?.phase === 'in' ? tyreCall(race, me) : undefined;
+      if (call && isDry(call) && !paused) {
+        if (stepped) stepTyrePick();
+        tyrePick.style.display = 'flex';
+        // (under the banner, and under the radio if it's on: never over either)
+        const radioOn = radioPanel.style.display !== 'none';
+        tyrePick.style.top = `${Math.max(banner.offsetTop + banner.offsetHeight, radioOn ? radioPanel.offsetTop + radioPanel.offsetHeight : 0) + 10}px`;
+        tyrePickName.textContent = `NEXT: ${COMPOUNDS[call].name}`;
+        tyrePickName.style.color = COMPOUNDS[call].color;
+      } else tyrePick.style.display = 'none';
+    }
+    // (your strategy, said once the race is under way: its tyres, its stops, and the lap you'll box)
+    if (session === 'race' && !strategySaid && race.phase === 'racing' && race.clock > 1.4) {
+      strategySaid = true;
+      const mine = race.entrants[you].plan;
+      if (mine && race.laps >= 3) announceNext(`STRATEGY: ${planText(mine.plan)}${mine.stopAt !== undefined ? ` · BOX LAP ${mine.stopAt}` : ''}`, '#5fe0d0', 4);
+    }
     if (paused || quali?.over || attack?.result) {
       // (a screenshot waiting for a frame, the report's: the still picture drawn again for it)
       if (frameWanted()) {
@@ -1873,7 +1941,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }));
     // the tyre line in its compound's colour (the wrong ones for the weather: what the crew would fit, in amber)
     const wrong = session === 'race' && !done && race.forecast && wrongTyres(race, you);
-    paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud, wrong ? COMPOUNDS[tyreCall(race, me)].name : undefined));
+    paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud, wrong ? COMPOUNDS[tyreCall(race, me)].short : undefined));
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
     paintRows(towLine, done ? '' : towText(me.tow));
     const strikes = me.limits.strikes;
@@ -2011,7 +2079,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.forceContextLoss();
     renderer.domElement.remove();
     offBack();
-    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, ...plates]) el.remove();
+    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, tyrePick, ...plates]) el.remove();
     deckEl?.classList.remove('results-up');
     deckEl?.classList.remove('steer-deck');
     document.documentElement.classList.remove('results-up', 'ceremony', 'paused');

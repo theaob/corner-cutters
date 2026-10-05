@@ -35,6 +35,7 @@ import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from '.
 import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
 import { openReport, reportOpen } from './report';
 import { YOUTUBE, gameHidden } from '../engine/host';
+import { COMPOUNDS, type DryCompound } from './tyres';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -105,12 +106,18 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
 ];
 
 /** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen). */
-export const rowsOf = (mode: GameMode): ('team' | 'car' | 'weather' | 'qualifying' | 'laps')[] =>
-  mode === 'race' ? ['team', 'car', 'weather', 'qualifying', 'laps'] : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
+export const rowsOf = (mode: GameMode): ('team' | 'car' | 'weather' | 'qualifying' | 'laps' | 'tyres')[] =>
+  mode === 'race' ? ['team', 'car', 'weather', 'qualifying', 'laps', 'tyres'] : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
+
+/** The dry tyres you start a race on: the pit wall's strategy's (AUTO), or the SOFTs or the HARDs. */
+export type TyrePick = 'auto' | DryCompound;
+export const TYRE_PICKS: TyrePick[] = ['auto', 'slick', 'hard'];
 
 export interface MenuChoice {
   mode: GameMode;
   layout: CircuitLayout;
+  /** a Quick Race's start tyres (in the dry) */
+  tyres: TyrePick;
   team: Team;
   /** which of the team's two cars you drive */
   seat: Seat;
@@ -264,6 +271,8 @@ export function chooseCircuit(
   open: ReadonlySet<string> = new Set(layouts.map((l) => l.id)),
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
   closed?: AbortSignal,
+  /** a Quick Race's start tyres, as last chosen */
+  tyres: TyrePick = 'auto',
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
   const menu = document.createElement('div');
@@ -300,7 +309,13 @@ export function chooseCircuit(
   const qualifyingRow = optionRow('QUALIFYING', [false, true], qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   // (a Quick Race's: a Championship round is always RACE_LAPS, and a Time Trial is laps until you stop)
   const lapsRow = optionRow('LAPS', [...LAP_CHOICES], laps, (n) => ({ name: `${n}`, about: lapsAbout(n) }));
-  const ROWS = { team: () => teamRow, car: () => carChoice, weather: weatherRow, qualifying: () => qualifyingRow, laps: () => lapsRow };
+  // (the tyres you start on in the dry: the pit wall's strategy's, or your own pick; strategy.ts)
+  const tyresRow = optionRow('TYRES', TYRE_PICKS, tyres, (t) => ({
+    name: t === 'auto' ? 'AUTO' : COMPOUNDS[t].name,
+    about: t === 'auto' ? "the pit wall's strategy, in the dry" : t === 'slick' ? 'start on softs: quick, but they wear' : 'start on hards: slower, they last',
+    colors: t === 'auto' ? undefined : [COMPOUNDS[t].color],
+  }));
+  const ROWS = { team: () => teamRow, car: () => carChoice, weather: weatherRow, qualifying: () => qualifyingRow, laps: () => lapsRow, tyres: () => tyresRow };
   /** the rows on the circuit screen, for the mode picked */
   let rows = rowsOf(current.id).map((k) => ROWS[k]());
 
@@ -662,7 +677,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value() });
+      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value() });
     };
     closed?.addEventListener('abort', () => {
       done = true;

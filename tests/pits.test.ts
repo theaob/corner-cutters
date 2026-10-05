@@ -119,6 +119,8 @@ describe('when to stop', () => {
 describe.each(LAYOUTS)('a pit stop at $name', (layout) => {
   it('repairs a damaged AI car: in on the limiter (between the speed-limit lines; no faster than the road speed on the way in), stopped in its box, out again, and it still finishes', () => {
     const race = raceOn(layout, 3);
+    // (the stops each car's strategy plans: strategy.ts)
+    const planned = race.entrants.map((e) => (e.plan ? e.plan.plan.stints.length - 1 : 0));
     const events: RaceEvent[] = [];
     let victim = -1;
     let fastestInLane = 0;
@@ -139,16 +141,17 @@ describe.each(LAYOUTS)('a pit stop at $name', (layout) => {
       }
     }
     const mine = events.filter((e) => 'who' in e && e.who === victim).map((e) => e.kind);
-    expect(mine).toEqual(['pit-in', 'pit-stop', 'pit-repaired', 'pit-out']);
+    expect(mine.slice(0, 4)).toEqual(['pit-in', 'pit-stop', 'pit-repaired', 'pit-out']);
     const e = race.entrants[victim];
-    expect(e.stops).toBe(1);
+    // (repaired, then on with its strategy, planned afresh from there)
+    expect(e.stops).toBeGreaterThanOrEqual(1);
     expect(e.car.health).toBe(f1.health);
     expect(fastestInLane).toBeLessThanOrEqual(PIT.limit + 5);
     expect(fastestOnRoads).toBeLessThanOrEqual(PIT.road + 5);
     expect(e.progress.finished).toBeDefined();
     expect(e.progress.lapTimes).toHaveLength(3);
-    // nobody else stopped, and no one was hurt
-    expect(events.filter((x) => x.kind === 'pit-in')).toHaveLength(1);
+    // nobody else stopped but as their strategies planned, and no one was hurt
+    race.entrants.forEach((x, k) => k !== victim && expect(x.stops).toBe(planned[k]));
     expect(race.entrants.every((x) => running(x) && !x.car.wrecked)).toBe(true);
   }, 30_000);
 });
@@ -204,6 +207,7 @@ describe.each(LAYOUTS)('after the race at $name', (layout) => {
   it('parks everyone in front of their garages, with no one hurt', () => {
     const c = build(layout);
     const race = raceOn(layout, 3);
+    const planned = race.entrants.map((e) => (e.plan ? e.plan.plan.stints.length - 1 : 0));
     const parked = () => race.entrants.every((e) => e.progress.retired || e.inLap?.parked);
     let t = 0;
     for (; t < 400 && !parked(); t += dt) stepRace(race, dt);
@@ -225,8 +229,8 @@ describe.each(LAYOUTS)('after the race at $name', (layout) => {
     // it stays that way
     for (let k = 0; k < 120; k++) stepRace(race, dt);
     expect(race.entrants.every((e) => speedOf(e.car) < 5 && !e.car.wrecked)).toBe(true);
-    // nobody stopped for tyres on the way in
-    expect(race.entrants.every((e) => e.stops === 0)).toBe(true);
+    // nobody stopped for tyres on the way in: only the stops their strategies planned
+    expect(race.entrants.map((e) => e.stops)).toEqual(planned);
   }, 60_000);
 });
 

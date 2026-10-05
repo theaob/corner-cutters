@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { numberOf } from '../src/f1/drivers';
 import { TEAMS } from '../src/f1/teams';
 import { POINTS, newSeason, numberIn, parseSeason, pointsFor, pointsOf, recordRound, roundSeed, seasonOver, standings } from '../src/f1/championship';
+import { GRAND_PRIX_LAPS, RACE_LAPS, seasonLength } from '../src/f1/laps';
 
 const season = () => newSeason({ seed: 42, team: TEAMS[2], difficulty: 'normal', qualifying: false, rounds: ['crescent-park', 'silver-heath'], total: 10 });
 
@@ -89,5 +90,17 @@ describe('a championship season', () => {
     expect(parseSeason({ ...s, round: 2 })).toBeUndefined();
     expect(parseSeason({ ...s, places: [[0, 1]] })).toBeUndefined();
     expect(parseSeason({ ...s, difficulty: 'insane' })).toBeUndefined();
+  });
+});
+
+describe("a season's length", () => {
+  it('a SPRINT or a GRAND PRIX, kept with the season; one saved before there was a choice, or an odd one, a SPRINT', () => {
+    const gp = newSeason({ seed: 7, team: TEAMS[0], difficulty: 'normal', qualifying: false, rounds: ['crescent-park'], total: 10, laps: GRAND_PRIX_LAPS });
+    expect(parseSeason(JSON.parse(JSON.stringify(gp)))?.laps).toBe(GRAND_PRIX_LAPS);
+    expect(seasonLength(parseSeason(JSON.parse(JSON.stringify(season())))?.laps).laps).toBe(RACE_LAPS);
+    const odd = parseSeason({ ...JSON.parse(JSON.stringify(gp)), laps: 13 });
+    expect(odd).toBeDefined();
+    expect(seasonLength(odd?.laps)).toEqual({ laps: RACE_LAPS, name: 'SPRINT' });
+    expect(seasonLength(GRAND_PRIX_LAPS).name).toBe('GRAND PRIX');
   });
 });

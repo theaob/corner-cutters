@@ -6,6 +6,8 @@ import { LAYOUTS } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
 import { TYRES, freshTyres, stopNow, tyreGrip, tyreSpeed, wearPerLap, wearTyres } from '../src/f1/tyres';
+import { choices, planText } from '../src/f1/strategy';
+import { PIT } from '../src/f1/pits';
 
 const f1 = carClass('f1');
 const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
@@ -73,16 +75,21 @@ describe('when to stop for tyres', () => {
 });
 
 describe('a 5-lap race on tyres', () => {
-  // (a circuit easy on its tyres, the streets: a stop pays for some and not for others)
-  it.each(LAYOUTS)('at $name: the whole field stops once for new tyres (on a circuit easy on them, at most once), teammates queuing at their box, and everyone finishes', (layout) => {
+  // (each car on its strategy: strategy.ts; the field split between plans close to the quickest)
+  it.each(LAYOUTS)('at $name: each car makes the stops its strategy planned, the field split where more than one strategy is close, teammates queuing at their box, and everyone finishes', (layout) => {
     const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
     const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
     const race = newRace(c.track, c.grid, handlingFor(NORMAL), 5, field, 0.5, c.pit);
+    const planned = race.entrants.map((e) => e.plan!.plan.stints.length - 1);
+    const strategies = new Set(race.entrants.map((e) => planText(e.plan!.plan)));
     const events: RaceEvent[] = [];
     for (let t = 0; t < 400 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) events.push(...stepRace(race, 1 / 60).race);
     expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'safety-car')).toEqual([]);
-    if ((layout.tyreWear ?? 1) < 1) expect(race.entrants.every((e) => e.stops <= 1)).toBe(true);
-    else expect(race.entrants.map((e) => e.stops)).toEqual(new Array(10).fill(1));
+    expect(race.entrants.map((e) => e.stops)).toEqual(planned);
+    // (split wherever more than one plan is close to the quickest: on an easy circuit for tyres, like the streets, it may be one)
+    const close = choices({ laps: 5, lapTime: race.practice!.lapTime, perLap: race.practice!.perLap, stopCost: PIT.stop + TYRES.laneCost }).length;
+    expect(strategies.size).toBeLessThanOrEqual(close);
+    if (close > 1) expect(strategies.size).toBeGreaterThan(1);
     expect(race.entrants.every((e) => e.progress.finished !== undefined && e.progress.lapTimes.length === 5)).toBe(true);
   }, 60_000);
 });

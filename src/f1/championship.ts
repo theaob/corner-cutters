@@ -9,6 +9,7 @@ import { save, saved } from '../engine/save';
 import { seededRandom } from '../engine/rng';
 import { paceRanks, type DifficultyId } from './difficulty';
 import { numberOf } from './drivers';
+import { seasonLength } from './laps';
 import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import type { WeatherId } from './weather';
 
@@ -36,6 +37,8 @@ export interface Season {
   /** the field, by driver: index `you` is you */
   drivers: SeasonDriver[];
   you: number;
+  /** each round's laps (a season saved before there was a choice: RACE_LAPS) */
+  laps?: number;
   /** which of your team's cars you drive (the first in a season saved before you could pick) */
   seat?: Seat;
   /** each round raced so far: each driver's place (0 = won), or -1 if they didn't finish */
@@ -50,7 +53,7 @@ export const pointsFor = (place: number) => (place >= 0 ? (POINTS[place] ?? 0) :
  * and four drawn at random, two cars each; each driver a pace rank for the
  * season), `total` drivers in all, you mid-field.
  */
-export function newSeason(o: { seed: number; team: Team; seat?: Seat; difficulty: DifficultyId; qualifying: boolean; rounds: string[]; total: number }): Season {
+export function newSeason(o: { seed: number; team: Team; seat?: Seat; difficulty: DifficultyId; qualifying: boolean; rounds: string[]; total: number; laps?: number }): Season {
   const rng = seededRandom(o.seed);
   const you = Math.floor(o.total / 2);
   const teams = teamGrid(o.team, o.total, you, rng);
@@ -58,7 +61,7 @@ export function newSeason(o: { seed: number; team: Team; seat?: Seat; difficulty
   const seats = driverSeats(teams, you, seat);
   const ranks = paceRanks(o.total, rng);
   const drivers = teams.map((t, k) => ({ name: k === you ? 'YOU' : t.drivers[seats[k]], team: t.id, rank: ranks[k] }));
-  return { seed: o.seed, difficulty: o.difficulty, qualifying: o.qualifying, rounds: [...o.rounds], round: 0, drivers, you, seat, places: [] };
+  return { seed: o.seed, difficulty: o.difficulty, qualifying: o.qualifying, rounds: [...o.rounds], round: 0, drivers, you, seat, places: [], ...(o.laps !== undefined ? { laps: seasonLength(o.laps).laps } : {}) };
 }
 
 /** The seed of round `k`: its start, the AI's dice (the field stays the season's). */
@@ -123,7 +126,8 @@ export function parseSeason(v: unknown): Season | undefined {
   if (!s.rounds.every((r) => typeof r === 'string')) return undefined;
   if (!s.drivers.every((d) => d && typeof d.name === 'string' && typeof d.team === 'string' && int(d.rank))) return undefined;
   if (!s.places.every((r) => Array.isArray(r) && r.length === n && r.every((p) => int(p) && p >= -1 && p < n))) return undefined;
-  // (a season saved before you could pick your car: the first)
+  // (a length that isn't one: a SPRINT)
+  if (s.laps !== undefined && seasonLength(s.laps).laps !== s.laps) return parseSeason({ ...s, laps: undefined });
   if (s.seat !== undefined && s.seat !== 0 && s.seat !== 1) return { ...(s as Season), seat: 0 };
   return s as Season;
 }

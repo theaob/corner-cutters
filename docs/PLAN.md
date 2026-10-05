@@ -136,10 +136,11 @@ as now).
    circuit has a pit lane with a box per team, the car drives itself through once it turns
    in, and a stop fits new tyres and repairs damage for about 7 s. Tyres wear with speed,
    faster sliding and off the track, and lose grip and speed, sharply past a cliff; a set
-   lasts about two laps at its best. Races default to 5 laps: no stop pays in 3 laps, one in 5,
-   two in 8. The AI (and the BOX, BOX call) plans the stop from wear, damage and laps left.
-   Still to come: two compounds (soft: fast, wears quickly; hard: slower, lasts), picked at
-   the stop, and AI cars gambling on different strategies.
+   lasts about two laps at its best. Races default to 5 laps, long enough for a stop. Two dry
+   compounds, SOFTS (quick, wear fast) and HARDS (4% slower, last twice as long), make the
+   strategy (`f1/strategy.ts`): every plan up to three stops timed from the circuit's practice
+   lap, the AI drivers spread over the plans close to the quickest, you given the quickest
+   (BOX, BOX on its lap) and picking your tyres on the menu and on the way into a stop.
 
    Every new circuit needs a pit lane in its layout data (`pit` in `layouts.ts`) along a
    straight long enough for five boxes; `tests/pits.test.ts` checks it.
@@ -368,12 +369,14 @@ Everywhere:
 The goal: longer races with strategy, once players have mastered the sprints.
 
 - [x] Tyre model: wear, grip and speed falling off past a cliff; tyre bar in the HUD (done early)
-- [ ] Two compounds (soft and hard), picked at a stop
+- [x] Two compounds (soft and hard), picked at a stop
 - [x] Pit lane: entry and exit, speed limit, the car drives itself through, repairs (done early, for damage)
-- [ ] Pick the next compound at a stop; the stop time covers tyres as well as repairs
-- [ ] AI strategy: when to stop and which compound, from wear and gaps; some AI cars take a
-      different strategy
-- [ ] Grand Prix mode (8–15 laps) and a Grand Prix length option in Championship
+- [x] Pick the next compound at a stop (NEXT: SOFTS ◀ ▶ on the way in) and the start tyres
+      (the Quick Race's TYRES row); the stop time covers tyres as well as repairs
+- [x] AI strategy: plans timed from the circuit's practice lap, each driver one close to the
+      quickest (the field splits), re-planned from the measured wear after a stop off the plan
+- [x] Grand Prix length: a Quick Race's LAPS up to 20, and a Championship's LENGTH row (SPRINT 5
+      laps a round, GRAND PRIX 10)
 - [ ] Mid-race save, so a long race survives the app being closed
 - [ ] Headless tests: a whole Grand Prix with stops runs in a test; strategies are balanced
       (no single strategy always wins)

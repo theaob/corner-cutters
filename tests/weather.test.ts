@@ -5,7 +5,7 @@ import { NORMAL, aiPaceFor, handlingFor } from '../src/f1/difficulty';
 import { ARDENNES, SILVER_HEATH } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
-import { COMPOUNDS, tyreFor, type Compound } from '../src/f1/tyres';
+import { COMPOUNDS, isDry, tyreFor, type Compound } from '../src/f1/tyres';
 import { WEATHERS, type WeatherId } from '../src/f1/weather';
 import type { Forecast } from '../src/f1/forecast';
 
@@ -52,15 +52,17 @@ describe('weather and tyres', () => {
 
   // the weather changing through a race: the crews box for the right tyres as it does
   it.each([
-    { name: 'rain setting in: slicks, then full wets', forecast: { name: 'RAIN', start: 0, showers: [{ from: 25, to: Infinity, rain: 1 }] }, from: 'slick', to: 'wet', rain: true },
-    { name: 'a wet start drying out: full wets, then slicks', forecast: { name: 'DRYING', start: 2, showers: [{ from: -Infinity, to: 10, rain: 1 }] }, from: 'wet', to: 'slick', rain: false },
+    { name: 'rain setting in: slicks (either), then full wets', forecast: { name: 'RAIN', start: 0, showers: [{ from: 25, to: Infinity, rain: 1 }] }, from: 'slick', to: 'wet', rain: true },
+    { name: 'a wet start drying out: full wets, then slicks (either)', forecast: { name: 'DRYING', start: 2, showers: [{ from: -Infinity, to: 10, rain: 1 }] }, from: 'wet', to: 'slick', rain: false },
   ] as { name: string; forecast: Forecast; from: Compound; to: Compound; rain: boolean }[])(
     'runs a 6-lap race at Silver Heath with $name: everyone changes tyres in the pits, all finish',
     ({ forecast, from, to, rain }) => {
       const c = buildCircuit(SILVER_HEATH, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
       const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
       const race = newRace(c.track, c.grid, handlingFor(NORMAL), 6, field, 0.5, c.pit, forecast);
-      expect(race.entrants.every((e) => e.tyres.compound === from)).toBe(true);
+      // (in the dry, either slick: each car on its strategy's, strategy.ts)
+      const on = (c: Compound, want: Compound) => (want === 'slick' ? isDry(c) : c === want);
+      expect(race.entrants.every((e) => on(e.tyres.compound, from))).toBe(true);
       const events: RaceEvent[] = [];
       /** the race time each car first stopped */
       const firstStop = new Map<number, number>();
@@ -74,7 +76,7 @@ describe('weather and tyres', () => {
       expect(events.some((e) => e.kind === 'track' && e.condition === (rain ? 'wet' : 'dry'))).toBe(true);
       expect(race.weather).toBe(rain ? 'wet' : 'dry');
       expect(events.filter((e) => e.kind === 'wreck')).toEqual([]);
-      expect(race.entrants.every((e) => e.progress.finished !== undefined && e.stops >= 1 && e.tyres.compound === to)).toBe(true);
+      expect(race.entrants.every((e) => e.progress.finished !== undefined && e.stops >= 1 && on(e.tyres.compound, to))).toBe(true);
       // (each crew calls it a little differently: not the whole field in on the same lap)
       const times = [...firstStop.values()];
       expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(5);

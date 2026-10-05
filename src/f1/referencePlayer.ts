@@ -16,8 +16,8 @@
 import { lateralOffset, playerInput, wheelInput, type Track } from './racing';
 import { speedOf, type Car, type DriveInput } from '../engine/driving';
 import { HALF_WIDTH } from './circuit';
-import { PIT, between, wantsPit } from './pits';
-import { planLapTime, type Entrant, type Race } from './raceControl';
+import { PIT, between } from './pits';
+import { stopCalled, type Entrant, type Race } from './raceControl';
 
 export type ReferenceDevice = 'touch' | 'wheel';
 
@@ -95,7 +95,7 @@ export function referenceDriver(race: Race, e: Entrant, player: ReferencePlayer)
   // once it's heading over, on in
   const called = pit && p.lapStart !== undefined && p.finished === undefined
     && (between(p.idx, pit.entry - PIT_APPROACH, pit.entry - PIT_DECIDE, n) || (between(p.idx, pit.entry - PIT_DECIDE, pit.wallTo, n) && mine * pit.side > 16))
-    && wantsPit(car, e.tyres, race.laps - p.lap - p.idx / n, planLapTime(race, e), race.handling.damageSlow, track.length);
+    && stopCalled(race, e);
   // (over to the track's edge on the approach; onto the entry road once it leaves the track, not across the grass before it)
   if (called) lane = pit.side * (between(p.idx, pit.entry, pit.wallTo, n) ? PIT.commit + 12 : HALF_WIDTH - 8);
   else {
