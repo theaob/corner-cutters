@@ -10,7 +10,7 @@ import type { Services } from '../../engine/services';
 import { carRow, menuButton, optionRow } from '../circuitSelect';
 import { confetti, trophy } from './celebrate';
 import { onBack } from '../../engine/backButton';
-import { POINTS, numberIn, pointsOf, roundSeed, seasonOver, standings, teamOf, type Season } from '../championship';
+import { POINTS, numberIn, pointsOf, roundSeed, saveSeason, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
 import { RACE_LAPS, SEASON_LENGTHS, seasonLength } from '../laps';
@@ -104,7 +104,7 @@ function standingsTable(s: Season): HTMLTableElement {
  * Show the Championship screen for `season` (none: no season yet) in `host`
  * until the player picks what next; `unlocked`, a circuit the season has just unlocked.
  */
-export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, unlocked: string | undefined, picked: SeasonChoices, closed?: AbortSignal, justWon = false): Promise<ChampionshipAction> {
+export function showChampionship(host: HTMLElement, services: Services, season: Season | undefined, unlocked: string | undefined, picked: SeasonChoices, closed?: AbortSignal, justWon = false, onQualifying?: (on: boolean) => void): Promise<ChampionshipAction> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
@@ -120,7 +120,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
   const over = !!season && seasonOver(season);
   if (season) {
     const table = standings(season);
-    const settings = `${difficultyById(season.difficulty)?.name ?? ''} · QUALIFYING ${season.qualifying ? 'ON' : 'OFF'} · ${seasonLength(season.laps).name} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
+    const settings = `${difficultyById(season.difficulty)?.name ?? ''} · ${seasonLength(season.laps).name} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
     if (over) {
       const champ = season.drivers[table[0].driver];
       // yours: the trophy (and, as the title's just been won, confetti)
@@ -156,6 +156,18 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
   const qualifyingRow = optionRow('QUALIFYING', [false, true], picked.qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
   const lengthRow = optionRow('LENGTH', SEASON_LENGTHS.map((l) => l.laps), seasonLength(picked.laps).laps, (n) => ({ name: seasonLength(n).name, about: n > RACE_LAPS ? `${n} laps a round: a strategy race, one stop or two` : `${n} laps a round: one stop` }));
   const rows = [teamRow, carChoice, qualifyingRow, lengthRow];
+  // mid-season: qualifying or not, picked before each round (kept with the season, so the round races as picked;
+  // and remembered for the next one), above the button that races it
+  const roundRow = season && !over
+    ? optionRow('QUALIFYING', [false, true], season.qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'this round: a flying lap sets your grid slot' : 'this round: start mid-grid' }), (on) => {
+      season.qualifying = on;
+      saveSeason(season);
+      onQualifying?.(on);
+    })
+    : undefined;
+  const roundOptions = document.createElement('div');
+  roundOptions.className = 'options';
+  if (roundRow) roundOptions.append(roundRow.el);
   const options = document.createElement('div');
   options.className = 'options';
   options.append(...rows.map((r) => r.el));
@@ -193,6 +205,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       { el: menuButton('BACK', () => finish('back')), pick: () => finish('back') },
     ];
     const buttons = choices.map((c) => c.el);
+    if (roundRow) screen.append(roundOptions);
     screen.append(...buttons);
     /** up/down: the rows (while they're up), then the buttons */
     let places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
@@ -200,18 +213,20 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     const show = () => places.forEach((p, i) => p.el.classList.toggle('focused', i === focus));
     const layOut = () => {
       options.style.display = setUp ? '' : 'none';
-      places = [...(setUp ? rows.map((r) => ({ el: r.el, step: r.step })) : []), ...choices];
+      // (the round's QUALIFYING gives way to the new season's own rows once NEW SEASON is pressed)
+      roundOptions.style.display = setUp ? 'none' : '';
+      places = [...(setUp ? rows.map((r) => ({ el: r.el, step: r.step })) : roundRow ? [{ el: roundRow.el, step: roundRow.step }] : []), ...choices];
       // (on the button that starts the season)
       focus = places.findIndex((p) => p.el === newButton);
       show();
     };
     layOut();
     if (season && !over) {
-      // (mid-season: on the next round)
-      focus = 0;
+      // (mid-season: on the next round's button)
+      focus = places.findIndex((p) => p.el === choices[0].el);
       show();
     }
-    rows.forEach((r) => r.el.addEventListener('pointerdown', () => {
+    [...rows, ...(roundRow ? [roundRow] : [])].forEach((r) => r.el.addEventListener('pointerdown', () => {
       focus = places.findIndex((p) => p.el === r.el);
       show();
     }));
