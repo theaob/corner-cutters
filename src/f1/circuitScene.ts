@@ -12,6 +12,7 @@ import { addDaylight, type Daylight } from '../engine/render/daylight';
 import { groundAt } from '../engine/sim';
 import { sectorStarts, type Pt } from './racing';
 import { PETALS, PetalField, type PetalCar } from './petals';
+import { buildGopher, type GopherRun } from './gopher';
 import { GARAGE_ACROSS, PIT } from './pits';
 import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
@@ -33,8 +34,10 @@ export interface CircuitScene extends Daylight {
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery's people (a street circuit's swimmers and tennis players), `t` seconds on. */
   animate(t: number): void;
-  /** The cherry blossom's petals (a circuit with them: layout.blossoms) `dt` s on: falling near `focus` (the camera's), kicked up by `cars`. */
-  stepPetals(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void;
+  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across. */
+  stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void;
+  /** the gopher's crossings (a circuit with one: layout.gophers) */
+  gopher?: GopherRun;
   /** Darken the ground (and the grass beyond) by `tint`, as the track wets or dries (weather.ts's look). */
   setGroundTint(tint: number): void;
 }
@@ -673,6 +676,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const trees = buildForest(scene, circuit);
   // (the cherry trees in blossom: their petals, falling, drifting and kicked up by the cars)
   const petals = circuit.layout.blossoms ? buildPetals(scene, circuit, trees.filter((t) => t.kind === 'blossom')) : undefined;
+  // (a gopher, now and then scurrying across the track near the camera)
+  const gopher = circuit.layout.gophers ? buildGopher(scene, circuit.grid, circuit.track) : undefined;
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);
@@ -721,7 +726,11 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       // the flags flap in the wind
       for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
     },
-    stepPetals: (dt, cars, focus) => petals?.(dt, cars, focus),
+    gopher: gopher?.run,
+    stepScenery: (dt, cars, focus) => {
+      petals?.(dt, cars, focus);
+      gopher?.step(dt, cars, focus);
+    },
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);
       (outer.material as THREE.MeshLambertMaterial).color.copy(outerColor).multiply(new THREE.Color(t));

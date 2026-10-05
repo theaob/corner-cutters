@@ -888,6 +888,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         look: (x?: number, y?: number) => (lookAt = x === undefined || y === undefined ? undefined : { x, y }),
         /** set your tyres' wear (0 new … 1 gone) */
         wear: (w: number) => (race.entrants[you].tyres.wear = Math.max(0, Math.min(1, w))),
+        /** the gopher (a circuit with one): what it's doing, where, and its crossings so far */
+        gopher: () => world.gopher && { phase: world.gopher.crossing?.phase, pose: world.gopher.pose(), crossings: world.gopher.crossings, bolts: world.gopher.bolts },
         /** the champagne ceremony: s it's been on (undefined: it isn't) */
         ceremony: () => podium?.time,
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
@@ -2040,7 +2042,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     particles.update(dt);
     // the cherry blossom's petals (where there's blossom): falling round your car, kicked up as the cars drive over them
     // (still while paused, or as the replay plays)
-    if (!paused && !replay) world.stepPetals(dt, race.entrants.map((e) => e.car), race.entrants[you].car);
+    if (!paused && !replay) world.stepScenery(dt, race.entrants.map((e) => e.car), race.entrants[you].car);
     // (in the replay, thrown again as they flew then)
     if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);
     else debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);

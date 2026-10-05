@@ -156,7 +156,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     world.followSun(focus);
     world.animate(now / 1000);
     // (the cherry blossom's petals, where there's blossom: kicked up by the cars as they race)
-    world.stepPetals(frameDt, race.entrants.map((e) => e.car), c);
+    world.stepScenery(frameDt, race.entrants.map((e) => e.car), c);
     post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: true, blurOn: true });
     // (faded in once a few frames are drawn: the first can take a while, compiling the shaders)
     if (++drawn === 3) {
