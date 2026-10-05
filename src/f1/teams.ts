@@ -34,7 +34,7 @@ export const TEAMS: Team[] = [
   { id: 'renee', code: 'REN', name: 'Reneé', body: '#f7d117', trim: '#1b1b26', pattern: 'band', drivers: ['GAS', 'COL'] },
   { id: 'frankies-groove', code: 'FRG', name: "Frankie's Groove", body: '#1868db', trim: '#f4f4f8', pattern: 'split', drivers: ['ALB', 'SAI'] },
   { id: 'cheaper-milk', code: 'CHM', name: 'Cheaper Milk', body: '#f4f4f8', trim: '#1634cc', pattern: 'stripe', drivers: ['LAW', 'LIN'] },
-  { id: 'dmw', code: 'DMW', name: 'DMW – DEUTCHE MOTOR WERKE', body: '#1c69d4', trim: '#f4f4f8', pattern: 'chevron', drivers: ['HUL', 'BOR'] },
+  { id: 'dmw', code: 'DMW', name: 'Deutche Motor Werke', body: '#1c69d4', trim: '#f4f4f8', pattern: 'chevron', drivers: ['HUL', 'BOR'] },
   { id: 'maas', code: 'MAS', name: 'MaaS', body: '#f4f4f8', trim: '#d8323c', accent: '#8a8d94', pattern: 'halves', drivers: ['OCO', 'BEA'] },
   { id: 'grandmas-fave', code: 'GMF', name: "Grandma's Fave", body: '#1b1b26', trim: '#f4f4f8', pattern: 'twin', drivers: ['BOT', 'PER'] },
 ];
