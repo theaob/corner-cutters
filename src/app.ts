@@ -342,7 +342,7 @@ async function showSeason(id: number): Promise<void> {
     menuName = 'championship';
   }
   const season = loadSeason();
-  const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), seat: savedSeat(), qualifying: savedQualifying(), laps: savedSeasonLaps() }, closed.signal, justWon);
+  const showing = showChampionship(screen, services, season, justUnlocked, { team: savedTeam(), seat: savedSeat(), qualifying: savedQualifying(), laps: savedSeasonLaps() }, closed.signal, justWon, (on) => save('choices', 'qualifying', on ? 'on' : 'off'));
   justWon = false;
   curtainUp();
   const action = await showing;
