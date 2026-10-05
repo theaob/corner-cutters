@@ -15,6 +15,7 @@ import { PETALS, PetalField, type PetalCar } from './petals';
 import { buildGopher, type GopherRun } from './gopher';
 import { buildYeti, yetiAvoids, type YetiRun } from './yeti';
 import { buildTramway, tramwayOf } from './tramway';
+import { buildMonsterTrucks } from './monsterTrucks';
 import { GARAGE_ACROSS, PIT } from './pits';
 import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
@@ -36,7 +37,7 @@ export interface CircuitScene extends Daylight {
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery's people (a street circuit's swimmers and tennis players), `t` seconds on. */
   animate(t: number): void;
-  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway). */
+  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway); the monster trucks (layout.monsterTrucks). */
   stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void;
   /** the gopher's crossings (a circuit with one: layout.gophers) */
   gopher?: GopherRun;
@@ -763,6 +764,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (the aerial tramway up to the summit, its two cabins going up and down)
   const tram = tramwayOf(circuit);
   const tramway = tram ? buildTramway(scene, circuit.grid, tram) : undefined;
+  // (monster trucks jumping in the infield)
+  const mt = circuit.layout.monsterTrucks;
+  const trucks = mt ? buildMonsterTrucks(scene, circuit.grid, { x: mt.at[0], y: mt.at[1], angle: mt.angle }) : undefined;
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);
@@ -818,6 +822,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       gopher?.step(dt, cars, focus);
       yeti?.step(dt, focus);
       tramway?.(dt);
+      trucks?.(dt);
     },
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);
