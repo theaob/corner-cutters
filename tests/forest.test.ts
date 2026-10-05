@@ -159,4 +159,22 @@ describe('the mountains', () => {
     for (const t of rocks) expect(t.h).toBeLessThanOrEqual(MOUNTAIN.rockSize[0] + MOUNTAIN.rockSize[1]);
     expect(all.some((t) => t.kind === 'palm' || t.kind === 'broadleaf')).toBe(false);
   }, 30_000);
+
+  it('under snow (Glacier Pass): every spruce laden with it, and none under the tramway', async () => {
+    const { GLACIER_PASS } = await import('../src/f1/layouts');
+    const { TRAMWAY, tramwayOf } = await import('../src/f1/tramway');
+    const c = build(GLACIER_PASS);
+    const all = treesOf(c);
+    expect(GLACIER_PASS.snow).toBe(true);
+    expect(all.filter((t) => t.kind === 'spruce').every((t) => t.snowy)).toBe(true);
+    const tram = tramwayOf(c)!;
+    const [ux, uy] = [Math.cos(tram.angle), Math.sin(tram.angle)];
+    for (const t of all) {
+      const along = (t.x - tram.from.x) * ux + (t.y - tram.from.y) * uy;
+      const off = Math.abs(-(t.x - tram.from.x) * uy + (t.y - tram.from.y) * ux);
+      if (along > 0 && along < tram.length) expect(off).toBeGreaterThanOrEqual(TRAMWAY.corridor);
+    }
+    // (nowhere else under snow)
+    for (const l of LAYOUTS) if (l !== GLACIER_PASS) expect(l.snow).toBeFalsy();
+  }, 30_000);
 });
