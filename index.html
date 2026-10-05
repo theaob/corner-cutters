@@ -525,6 +525,11 @@
       .live-backdrop ~ .circuit-menu {
         background: linear-gradient(rgba(14, 13, 22, 0.05), rgba(14, 13, 22, 0.15) 18%, rgba(14, 13, 22, 0.7) 30%, rgba(14, 13, 22, 0.8));
       }
+      /* (the settings on black, for reading: the race behind hidden) */
+      .circuit-menu.settings-view,
+      .live-backdrop ~ .circuit-menu.settings-view {
+        background: #000;
+      }
       /* the trophy cabinet: the titles won, the medal tally, each circuit's medals */
       .circuit-menu .cabinet {
         display: flex;
@@ -765,6 +770,8 @@
         letter-spacing: 1px;
       }
       .circuit-menu .option-row .value {
+        flex: 1;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         align-items: flex-end;
@@ -772,15 +779,35 @@
         text-align: right;
       }
       .circuit-menu .option-row .line {
+        max-width: 100%;
         display: flex;
         align-items: center;
+        justify-content: flex-end;
         gap: 6px;
       }
+      /* (the value between its arrows: one that doesn't fit the row wraps, its lines balanced and centred between them) */
       .circuit-menu .option-row strong {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
         font-size: calc(13px * var(--ts, 1));
         font-weight: 400;
         color: var(--accent-b);
-        white-space: pre;
+      }
+      .circuit-menu .option-row strong em {
+        flex: none;
+        font-style: normal;
+      }
+      .circuit-menu .option-row strong em.name {
+        flex: 0 1 auto;
+        min-width: 0;
+        text-align: center;
+        text-wrap: balance;
+        line-height: 1.25;
+      }
+      .circuit-menu .option-row .chips {
+        flex: none;
       }
       .circuit-menu .option-row span {
         font-size: calc(10px * var(--ts, 1));

@@ -232,8 +232,7 @@ function chart(id: string, days: { day: string; n: number }[], m: Measure) {
 }
 
 /** The teams and drivers picked: the most and least of each (ties named together), then every one of them. */
-// (DMW – DEUTCHE MOTOR WERKE: DMW)
-const teamName = (id: string) => (TEAMS.find((t) => t.id === id)?.name ?? id).split(' – ')[0];
+const teamName = (id: string) => TEAMS.find((t) => t.id === id)?.name ?? id;
 const teamColor = (id: string) => TEAMS.find((t) => t.id === id)?.body;
 const driverTeam = (code: string) => TEAMS.find((t) => t.drivers.includes(code));
 function picks(s: Stats) {

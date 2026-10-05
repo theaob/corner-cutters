@@ -1073,7 +1073,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // changes; tapped and swiped, or up/down and left/right on the deck, A, START or B back to the pause screen
   const pauseSettings = document.createElement('div');
   pauseSettings.className = 'circuit-menu pause-settings';
-  style(pauseSettings, { zIndex: '5', display: 'none', justifyContent: 'center', background: 'rgba(14,13,22,.9)' });
+  style(pauseSettings, { zIndex: '5', display: 'none', justifyContent: 'center', background: '#000' });
   const settingsTitle = document.createElement('h2');
   settingsTitle.textContent = 'SETTINGS';
   const pauseRows = settingsRows();
