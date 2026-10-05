@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { carClass, newCar, type StepEvents } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
 import { NORMAL, aiPaceFor, handlingFor } from '../src/f1/difficulty';
-import { LAYOUTS } from '../src/f1/layouts';
+import { DUST_BOWL, LAYOUTS } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
-import { TYRES, freshTyres, stopNow, tyreGrip, tyreSpeed, wearPerLap, wearTyres } from '../src/f1/tyres';
+import { TYRES, fitAt, freshTyres, isDry, stopNow, tyreFor, tyreGrip, tyreSpeed, wearPerLap, wearTyres, wrongTyreLoss } from '../src/f1/tyres';
 import { choices, planText } from '../src/f1/strategy';
 import { PIT } from '../src/f1/pits';
 
@@ -76,7 +76,7 @@ describe('when to stop for tyres', () => {
 
 describe('a 5-lap race on tyres', () => {
   // (each car on its strategy: strategy.ts; the field split between plans close to the quickest)
-  it.each(LAYOUTS)('at $name: each car makes the stops its strategy planned, the field split where more than one strategy is close, teammates queuing at their box, and everyone finishes', (layout) => {
+  it.each(LAYOUTS.filter((l) => !l.dirt))('at $name: each car makes the stops its strategy planned, the field split where more than one strategy is close, teammates queuing at their box, and everyone finishes', (layout) => {
     const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
     const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
     const race = newRace(c.track, c.grid, handlingFor(NORMAL), 5, field, 0.5, c.pit);
@@ -92,4 +92,33 @@ describe('a 5-lap race on tyres', () => {
     if (close > 1) expect(strategies.size).toBeGreaterThan(1);
     expect(race.entrants.every((e) => e.progress.finished !== undefined && e.progress.lapTimes.length === 5)).toBe(true);
   }, 60_000);
+  it('on dirt (Dust Bowl): every car on off-road tyres, whatever the weather, no strategy to it, and everyone finishes', () => {
+    const c = buildCircuit(DUST_BOWL, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    for (const weather of ['dry', 'wet'] as const) {
+      const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1, start: 'hard' as const }));
+      const race = newRace(c.track, c.grid, handlingFor(NORMAL), 5, field, 0.5, c.pit, weather);
+      expect(race.entrants.every((e) => e.tyres.compound === 'dirt' && !e.plan)).toBe(true);
+      const events: RaceEvent[] = [];
+      for (let t = 0; t < 400 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) events.push(...stepRace(race, 1 / 60).race);
+      expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'safety-car')).toEqual([]);
+      // (a stop, if any, for a fresh set of the same)
+      expect(race.entrants.every((e) => e.tyres.compound === 'dirt')).toBe(true);
+      expect(race.entrants.every((e) => e.progress.finished !== undefined && e.progress.lapTimes.length === 5)).toBe(true);
+    }
+  }, 60_000);
+});
+
+describe('off-road tyres', () => {
+  it('are the only tyres on dirt, in any weather; the loose earth gives far less grip than tarmac, and mud less still', () => {
+    for (const w of ['dry', 'damp', 'wet'] as const) {
+      expect(tyreFor(w, true)).toBe('dirt');
+      expect(tyreFor(w)).not.toBe('dirt');
+      expect(wrongTyreLoss('dirt', w)).toBe(0);
+    }
+    expect(fitAt('dirt', 'dry').grip).toBeLessThan(fitAt('slick', 'dry').grip * 0.6);
+    expect(fitAt('dirt', 'dry').speed).toBeLessThan(fitAt('hard', 'dry').speed);
+    expect(fitAt('dirt', 'wet').grip).toBeLessThan(fitAt('dirt', 'damp').grip);
+    expect(fitAt('dirt', 'damp').grip).toBeLessThan(fitAt('dirt', 'dry').grip);
+    expect(isDry('dirt')).toBe(false);
+  });
 });

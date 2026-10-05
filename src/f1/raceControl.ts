@@ -274,14 +274,14 @@ export function newRace(
 ): Race {
   const forecast = typeof weather === 'string' ? undefined : weather;
   const now = forecast ? startWeather(forecast) : { wetness: WETNESS[weather as WeatherId], rain: weather === 'wet' ? 1 : 0 };
-  const entrants: Entrant[] = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(now.wetness)), progress: newProgress(track.samples.length - 4) }));
+  const entrants: Entrant[] = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(now.wetness, track.dirt)), progress: newProgress(track.samples.length - 4) }));
   const race: Race = {
     track, grid, corners: markCorners(track), pit, weather: conditionOf(now.wetness), wetness: now.wetness, rain: now.rain, forecast, handling, laps, entrants,
     phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()),
   };
   // a dry start: each car on its strategy's tyres (the AI its pick of the plans close to the quickest, the player
   // the tyres they asked for, else the quickest plan's); the plans worked out once, for the whole field
-  if (isDry(tyreFor(now.wetness)) && laps > 0) {
+  if (isDry(tyreFor(now.wetness, track.dirt)) && laps > 0) {
     if (pit) race.practice = practiceOf(track, grid, handling);
     const options = race.pit ? choices(strategyInput(race, undefined, laps)) : undefined;
     entrants.forEach((e, k) => {
@@ -312,7 +312,7 @@ export function wetnessAhead(race: Race, ahead: number): number {
  * quicker set to the end at any other (a repair).
  */
 export function tyreCall(race: Race, e: Entrant): Compound {
-  const weather = tyreFor(wetnessAhead(race, planLapTime(race, e) * TYRE_LOOKAHEAD));
+  const weather = tyreFor(wetnessAhead(race, planLapTime(race, e) * TYRE_LOOKAHEAD), race.track.dirt);
   if (!isDry(weather)) return weather;
   if (e.next) return e.next;
   // (the plan's stop: its next stint's; any other (a repair, or off the plan's lap): the quicker set to the end)
@@ -327,7 +327,7 @@ export function tyreCall(race: Race, e: Entrant): Compound {
 
 /** Whether entrant `e`'s strategy calls it in now (it's on its planned lap, and the track's dry). */
 export function planDue(race: Race, e: Entrant): boolean {
-  if (e.plan?.stopAt === undefined || !isDry(tyreFor(race.wetness)) || !isDry(e.tyres.compound)) return false;
+  if (e.plan?.stopAt === undefined || !isDry(tyreFor(race.wetness, race.track.dirt)) || !isDry(e.tyres.compound)) return false;
   return e.progress.lap + e.progress.idx / race.track.samples.length >= e.plan.stopAt - 0.5;
 }
 
@@ -375,7 +375,7 @@ export function stopCalled(race: Race, e: Entrant): boolean {
   const pays = () => wantsPit(e.car, e.tyres, lapsLeft, planLapTime(race, e), race.handling.damageSlow, race.track.length);
   // (the dry: the plan's lap; a stop real damage's repairs alone pay for, as if the tyres were new (the plan's tyres
   // are its own); or a set worn out before the plan's lap, if a stop pays: the rest planned again)
-  if (e.plan && isDry(e.tyres.compound) && isDry(tyreFor(race.wetness))) {
+  if (e.plan && isDry(e.tyres.compound) && isDry(tyreFor(race.wetness, race.track.dirt))) {
     return planDue(race, e)
       || (e.car.health < e.car.cls.health * REPAIR_BELOW && wantsPit(e.car, { ...e.tyres, wear: 0 }, lapsLeft, planLapTime(race, e), race.handling.damageSlow, race.track.length))
       || (e.tyres.wear >= WORN_OUT && pays());

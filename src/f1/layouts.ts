@@ -50,6 +50,8 @@ export interface CircuitLayout {
   yeti?: boolean;
   /** an aerial tramway (tramway.ts): its two stations (px, as the circuit's laid out): on the valley floor, and up the mountain */
   tramway?: { from: [number, number]; to: [number, number] };
+  /** on dirt: the track's surface loose earth, every car on off-road tyres (tyres.ts), sliding through the bends */
+  dirt?: boolean;
   /** free: open to everyone from the start (the Google Play build without the Championship too), and not a round of the Championship */
   free?: boolean;
   /** in the mountains: rock and alpine meadow beyond the barriers, snow up high, pines below the tree line and boulders */
@@ -872,7 +874,65 @@ export const GLACIER_PASS: CircuitLayout = {
   free: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, GLACIER_PASS];
+/**
+ * Dust Bowl. Clockwise on dirt, a rallycross circuit of our own: down the main
+ * straight into a fast right, through the twisty section (a tight right, a
+ * left, the hairpin), the long back straight over the jump, the kink and the
+ * sweeping right onto the main straight. Every car on off-road tyres (tyres.ts:
+ * the circuit's `dirt`), sliding through the bends. About 5800 px, about 21 s.
+ */
+export const DUST_BOWL: CircuitLayout = {
+  id: 'dust-bowl',
+  name: 'Dust Bowl',
+  about: 'clockwise · on dirt, off-road tyres, over the jump',
+  points: ([
+    [0, 0], [20, 0], [40, 0], [60, 0], [80, 0], [100, 0],
+    [120, 0], [140, 0], [160, 0], [180, 0], [200, 0], [220, 0],
+    [240, 0], [260, 0], [280, 0], [300, 0], [320, 0], [340, 0],
+    [360, 0], [379, 3], [395, 11], [409, 25], [417, 41], [420, 60],
+    [420, 80], [420, 100], [420, 120], [420, 140], [420, 160], [416, 179],
+    [405, 195], [389, 206], [370, 210], [350, 210], [330, 210], [310, 210],
+    [291, 214], [275, 225], [264, 241], [260, 260], [260, 280], [260, 300],
+    [260, 320], [260, 340], [263, 359], [271, 375], [285, 389], [301, 397],
+    [320, 400], [340, 400], [360, 400], [380, 400], [400, 400], [420, 400],
+    [440, 400], [461, 404], [479, 414], [492, 430], [499, 450], [499, 470],
+    [492, 490], [479, 506], [461, 516], [440, 520], [420, 520], [400, 520],
+    [380, 520], [360, 520], [340, 520], [320, 520], [300, 520], [280, 520],
+    [260, 520], [240, 520], [220, 520], [200, 520], [180, 520], [160, 520],
+    [140, 520], [120, 520], [100, 520], [80, 520], [60, 520], [40, 520],
+    [20, 520], [0, 520], [-20, 520], [-40, 520], [-60, 520], [-80, 520],
+    [-100, 520], [-120, 520], [-140, 520], [-160, 520], [-180, 520], [-200, 520],
+    [-220, 520], [-240, 520], [-260, 520], [-280, 520], [-300, 520], [-320, 520],
+    [-342, 517], [-361, 507], [-377, 491], [-387, 472], [-390, 450], [-390, 430],
+    [-390, 410], [-390, 390], [-390, 370], [-385, 349], [-372, 332], [-359, 315],
+    [-354, 293], [-354, 273], [-354, 253], [-354, 232], [-354, 212], [-354, 192],
+    [-354, 172], [-354, 151], [-354, 131], [-354, 111], [-354, 90], [-354, 70],
+    [-351, 48], [-341, 29], [-325, 13], [-306, 3], [-284, 0], [-264, 0],
+    [-244, 0], [-223, 0], [-203, 0], [-183, 0], [-162, 0], [-142, 0],
+    [-122, 0], [-102, 0], [-81, 0], [-61, 0], [-41, 0], [-20, 0],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2,
+  // (a share of the lap): a gentle rise through the twisty section, down the back straight, and up again to the line
+  elevation: [
+    [0, 12],
+    [0.15, 16],
+    [0.3, 26],
+    [0.43, 20],
+    [0.69, 8],
+    [0.85, 14],
+    [1, 12],
+  ],
+  // on the right of the main straight, from the last bend to past the line
+  pit: { from: -520, to: 480, side: 1 },
+  // the jump, half-way down the back straight
+  jumps: [{ at: 3300, rise: 20 }],
+  // on dirt: every car on off-road tyres
+  dirt: true,
+  // (open to everyone from the start, not a round of the Championship)
+  free: true,
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, GLACIER_PASS, DUST_BOWL];
 
 /** The Championship's circuits, a round on each, in order (the free circuits aren't among them). */
 export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.free);

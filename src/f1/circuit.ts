@@ -142,6 +142,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   const control = layout.points.map((p) => ({ x: p.x * layout.scale, y: p.y * layout.scale }));
   const track = buildTrack(control, 8, opts.cornerSpeed, opts.decel);
   track.tyreWear = layout.tyreWear;
+  if (layout.dirt) track.dirt = true;
   // (room round the track for its run-off, or for the pit lane and its garages)
   const margin = Math.max(HALF_WIDTH + RUNOFF + 64, PIT.offset + LANE_OUT + 80);
   const minX = Math.min(...track.samples.map((p) => p.x)) - margin;

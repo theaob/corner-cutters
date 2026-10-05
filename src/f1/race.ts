@@ -186,8 +186,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
   // (a bridge: the marks of cars up on its deck on a layer of their own at the deck's height, over the road beneath)
   const deckSkids = track.levels ? new SkidLayer((x, y) => groundAt(track.levels!.upper, x, y).h) : undefined;
-  // (a bigger pool in the wet: every car throws up spray)
-  const particles = new Particles(weather.spray || changeable ? 220 : 90);
+  // (a bigger pool in the wet, and on dirt: every car throws up spray, or dust)
+  const particles = new Particles(weather.spray || changeable || circuit.layout.dirt ? 220 : 90);
   // parts torn off in big crashes: the nose, and wheels off a wreck
   const debris = new DebrisLayer();
   world.scene.add(skids.group, particles.group, debris.group);
@@ -480,7 +480,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     before = undefined;
     hudState.flashUntil = 0;
     ceremonyView.setDrivers(podium.top.map((i) => ({
-      body: looks[i].team.body, trim: looks[i].team.trim, car: createCarMesh('f1', looks[i].livery), number: looks[i].number, name: looks[i].name, you: i === you,
+      body: looks[i].team.body, trim: looks[i].team.trim, car: createCarMesh('f1', looks[i].livery, !!circuit.layout.dirt), number: looks[i].number, name: looks[i].name, you: i === you,
     })));
   };
 
@@ -523,7 +523,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const addLook = (livery: Team, seat: number, mine: boolean): Look => {
     const number = numberOf(livery.drivers[seat]);
     const look = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? ('gold' as const) : undefined, number };
-    const mesh = createCarMesh('f1', look);
+    // (on dirt, on off-road tyres)
+    const mesh = createCarMesh('f1', look, !!circuit.layout.dirt);
     world.scene.add(mesh);
     // (under a bridge, the deck hides it: its outline drawn through the deck, yours in gold)
     const outline = track.levels ? carOutline(mesh, mine ? 0xf2c14e : 0xf4f4f8) : undefined;
@@ -968,7 +969,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const boxCue = (): RadioCue => {
     const me = race.entrants[you];
     const call: Compound = tyreCall(race, me);
-    return call === me.tyres.compound ? 'box' : `box-${call}`;
+    // (off-road tyres: on dirt, the only ones, so never a change of compound)
+    return call === me.tyres.compound || call === 'dirt' ? 'box' : `box-${call}`;
   };
 
   /** The results (race/resultsView.ts): rebuilt as the others finish, the rows sliding in from when they first went up. */
@@ -1303,7 +1305,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
   };
   // your record lap's ghost: your car, see-through, driving it again from the line
-  const ghostMesh = createCarMesh('f1', { body: '#f4f4f8', stripe: '#9d9ab8' });
+  const ghostMesh = createCarMesh('f1', { body: '#f4f4f8', stripe: '#9d9ab8' }, !!circuit.layout.dirt);
   /** the track sample the ghost is beside (followed round, for its level on a bridge) */
   let ghostIdx: number | undefined;
   ghostMesh.traverse((o) => {
@@ -1318,7 +1320,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   ghostMesh.visible = false;
   world.scene.add(ghostMesh);
   // the Daily Challenge's leading run: a gold ghost, as far into its run as you are into yours
-  const rivalMesh = createCarMesh('f1', { body: '#f2c14e', stripe: '#b07a22' });
+  const rivalMesh = createCarMesh('f1', { body: '#f2c14e', stripe: '#b07a22' }, !!circuit.layout.dirt);
   let rivalIdx: number | undefined;
   rivalMesh.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -1735,7 +1737,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (e.kind === 'rain') {
         announce(e.on ? 'RAIN · THE TRACK IS GETTING WET' : 'THE RAIN HAS STOPPED · THE TRACK WILL DRY', '#8fb8e8', 2.5);
         sayRadio(e.on ? 'rain' : 'rain-stops');
-      } else if (e.kind === 'track' && race.clock >= notice.until) announce(`TRACK ${e.condition.toUpperCase()} · ${COMPOUNDS[tyreFor(e.condition)].name.toUpperCase()} TYRES`, '#8fb8e8', 2);
+      } else if (e.kind === 'track' && race.clock >= notice.until) announce(`TRACK ${e.condition.toUpperCase()} · ${COMPOUNDS[tyreFor(e.condition, race.track.dirt)].name.toUpperCase()} TYRES`, '#8fb8e8', 2);
       else if (e.kind === 'pit-repaired') debris.refit(looks[e.who].mesh, race.clock);
       else if (e.kind === 'pit-out') {
         if (e.who === you) {

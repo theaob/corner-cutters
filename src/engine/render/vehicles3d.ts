@@ -2,6 +2,7 @@
 // darkens as the car burns.
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { carClass, type CarClassId } from '../driving';
 
 const lambert = (extra: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial(extra);
@@ -137,6 +138,24 @@ function paintNumber(c: HTMLCanvasElement, n: number, area: [number, number, num
   );
 }
 
+/** Off-road tyres: px more radius and width than the tarmac's, and their tread blocks (how many round, how proud) */
+const OFF_ROAD = { radius: 0.7, width: 1, blocks: 14, proud: 0.45 };
+
+/** A knobbly tyre's tread blocks round a tyre `wr` px in radius and `ww` wide (its axle along x): two staggered rows. */
+function knobs(wr: number, ww: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < OFF_ROAD.blocks; k++) {
+    const a = (k / OFF_ROAD.blocks) * Math.PI * 2;
+    const r = wr + OFF_ROAD.proud / 2;
+    const block = new THREE.BoxGeometry(ww * 0.42, OFF_ROAD.proud, ((Math.PI * 2 * wr) / OFF_ROAD.blocks) * 0.55);
+    // (round to its place on the tread, and to one side or the other, in turn)
+    block.translate((k % 2 === 0 ? -1 : 1) * ww * 0.24, r, 0);
+    block.rotateX(a);
+    parts.push(block);
+  }
+  return mergeGeometries(parts)!;
+}
+
 export const CAR_LOOKS: Record<CarClassId, CarLook> = {
   f1: { body: '#d8323c', stripe: '#f4f4f8' },
 };
@@ -157,8 +176,10 @@ export interface CarMesh extends THREE.Group {
 /**
  * The car facing north (−z): a narrow tub with a long nose, sidepods, cockpit
  * and helmet, front and rear wings, and fat exposed tyres (bigger at the back).
+ * On `offRoad` tyres (a dirt circuit), bigger and wider, knobbly all round: a
+ * staggered ring of tread blocks standing proud of each tyre.
  */
-export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>): CarMesh {
+export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>, offRoad = false): CarMesh {
   // a colour paints the body; a livery can set the trim and sidepods too
   const look: CarLook = { ...CAR_LOOKS[id], ...(typeof livery === 'string' ? { body: livery } : livery) };
   const { width: W, length: L } = carClass(id);
@@ -236,7 +257,9 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   const axles: [number, number, number, number][] = [
     [-(L / 2 - 8), 3.2, 3, W / 2 - 1.5],
     [L / 2 - 6, 3.8, 3.6, W / 2 - 1.2],
-  ];
+  ].map(([z, wr, ww, half]) => (offRoad ? [z, wr + OFF_ROAD.radius, ww + OFF_ROAD.width, half + OFF_ROAD.width / 2] : [z, wr, ww, half]));
+  // (the tread blocks caked in earth, so the knobbly tread shows against the tyre)
+  const tread = offRoad ? lambert({ color: 0x6a5038 }) : undefined;
   const wheelMat = lambert({ color: 0x151515 });
   // the compound's colour round the outer edge of each tread (unlit, so it reads from afar and in shade)
   const tyreMark = new THREE.MeshBasicMaterial({ color: 0xffd21f, toneMapped: false });
@@ -252,6 +275,8 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
       band.rotation.z = Math.PI / 2;
       band.position.x = Math.sign(x) * (ww / 2 - 0.4);
       hub.add(band);
+      // (off-road: the knobbly tread, its blocks staggered side to side round the tyre)
+      if (tread) hub.add(new THREE.Mesh(knobs(wr, ww), tread));
       wheels.push(hub);
     }
   }

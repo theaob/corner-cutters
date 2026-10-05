@@ -105,9 +105,11 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
   { id: 'timetrial', name: 'TIME TRIAL', about: 'flying laps against your ghost' },
 ];
 
-/** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen). */
-export const rowsOf = (mode: GameMode): ('team' | 'car' | 'weather' | 'qualifying' | 'laps' | 'tyres')[] =>
-  mode === 'race' ? ['team', 'car', 'weather', 'qualifying', 'laps', 'tyres'] : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
+/** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen); on dirt, no TYRES (off-road tyres, the only ones). */
+export const rowsOf = (mode: GameMode, layout?: CircuitLayout): ('team' | 'car' | 'weather' | 'qualifying' | 'laps' | 'tyres')[] =>
+  mode === 'race'
+    ? ['team', 'car', 'weather', 'qualifying', 'laps', ...(layout?.dirt ? [] : ['tyres' as const])]
+    : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
 
 /** The dry tyres you start a race on: the pit wall's strategy's (AUTO), or the SOFTs or the HARDs. */
 export type TyrePick = 'auto' | DryCompound;
@@ -342,7 +344,7 @@ export function chooseCircuit(
   }));
   const ROWS = { team: () => teamRow, car: () => carChoice, weather: weatherRow, qualifying: () => qualifyingRow, laps: () => lapsRow, tyres: () => tyresRow };
   /** the rows on the circuit screen, for the mode picked */
-  let rows = rowsOf(current.id).map((k) => ROWS[k]());
+  let rows = rowsOf(current.id, layouts[selected]).map((k) => ROWS[k]());
 
   // the settings screen: difficulty, then the rows the pause screen has too (src/f1/settingsRows.ts)
   const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
@@ -543,6 +545,8 @@ export function chooseCircuit(
   };
   const stepCircuit = (by: number) => {
     selected = (selected + by + layouts.length) % layouts.length;
+    // (the rows for the circuit: on dirt, no TYRES)
+    if (view === 'circuit') setRows();
     hint.textContent = HINT;
     menuTick();
     renderCard();
@@ -580,6 +584,13 @@ export function chooseCircuit(
   const renderRace = () => (raceButton.textContent = `${current.name} ▶`);
   const options = document.createElement('div');
   options.className = 'options';
+  /** the circuit screen's rows: the mode's, for the circuit picked */
+  const setRows = () => {
+    const want = rowsOf(current.id, layouts[selected]);
+    if (want.length === rows.length && options.childElementCount === rows.length) return;
+    rows = want.map((k) => ROWS[k]());
+    options.replaceChildren(...rows.map((r) => r.el));
+  };
   /** a mode picked: a Championship to its screen; the others on to the circuit screen, with the mode's rows */
   const pickMode = (m: (typeof MODES)[number]) => {
     current = m;
@@ -589,8 +600,7 @@ export function chooseCircuit(
     }
     menuPick();
     view = 'circuit';
-    rows = rowsOf(m.id).map((k) => ROWS[k]());
-    options.replaceChildren(...rows.map((r) => r.el));
+    setRows();
     hint.textContent = HINT;
     focus = 0;
     renderCard();
