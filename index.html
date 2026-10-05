@@ -1006,7 +1006,13 @@
       html.results-up:not(.desktop) .tune-toggle,
       html.results-up:not(.desktop) #deck .stick,
       html.ceremony:not(.desktop) #deck .stick,
-      html.paused:not(.desktop) #deck .stick {
+      html.paused:not(.desktop) #deck .stick,
+      html.results-up:not(.desktop) #deck .slider,
+      html.ceremony:not(.desktop) #deck .slider,
+      html.paused:not(.desktop) #deck .slider,
+      html.results-up:not(.desktop) #deck .pedals,
+      html.ceremony:not(.desktop) #deck .pedals,
+      html.paused:not(.desktop) #deck .pedals {
         visibility: hidden;
       }
       /* (and the lap panel goes: the results have the screen to themselves; so do the pause screen and its settings,
@@ -1045,6 +1051,104 @@
       html:not(.desktop) #deck.stick-right .controls,
       html:not(.desktop) #deck.stick-right .face {
         flex-direction: row-reverse;
+      }
+      /* STEER on a touch screen (race.ts sets #deck.steer-deck): the steering slider where the thumbstick is, and the
+         GAS and BRAKE pedals where A is; each as wide as the other, so they mirror about the middle, GAS outermost */
+      .slider,
+      .pedals {
+        display: none;
+      }
+      #deck.steer-deck .stick,
+      #deck.steer-deck .face {
+        display: none;
+      }
+      #deck.steer-deck .slider {
+        display: block;
+      }
+      #deck.steer-deck .pedals {
+        display: flex;
+      }
+      .slider {
+        position: relative;
+        width: 140px;
+        height: 60px;
+        box-sizing: border-box;
+        border-radius: 30px;
+        border: 1px solid var(--key-edge);
+        background: linear-gradient(90deg, transparent calc(50% - 1px), rgba(111, 108, 140, 0.5) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)), rgba(27, 26, 41, 0.55);
+        box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
+        touch-action: none;
+        pointer-events: auto;
+      }
+      .slider .tick {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 10px;
+        line-height: 1;
+        color: #6f6c8c;
+        pointer-events: none;
+      }
+      .slider .tick.left { left: 10px; }
+      .slider .tick.right { right: 10px; }
+      .slider .knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 48px;
+        height: 48px;
+        margin: -24px 0 0 -24px;
+        border-radius: 50%;
+        border: 1px solid #5a577c;
+        background: radial-gradient(circle at 38% 32%, #56537a, #34324c 62%, #26253a);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+        transition: transform 0.12s ease-out;
+      }
+      .slider.pressed .knob {
+        transition: none;
+        border-color: var(--accent-b);
+      }
+      /* (each side 140 px: TUNE fits between them in the middle) */
+      .pedals {
+        width: 140px;
+        gap: 8px;
+        justify-content: center;
+        align-items: flex-end;
+      }
+      /* (the stick on the right: the pedals mirrored, GAS still outermost) */
+      #deck.stick-right .pedals {
+        flex-direction: row-reverse;
+      }
+      .pedal {
+        box-sizing: border-box;
+        font-size: 10px;
+        border: 1px solid var(--key-edge);
+        border-radius: 14px;
+        background: rgba(37, 35, 58, 0.78);
+        color: var(--text);
+        font-family: var(--pixel);
+        letter-spacing: 1px;
+        padding: 0 0 0 1px;
+        touch-action: none;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .pedal.brake {
+        width: 56px;
+        height: 68px;
+        color: #ff8a8a;
+      }
+      .pedal.gas {
+        width: 76px;
+        height: 100px;
+        font-size: 14px;
+        color: var(--accent-b);
+      }
+      .pedal.pressed {
+        background: var(--key-held);
+        transform: translateY(2px);
+        border-color: currentColor;
       }
       /* the analogue thumbstick: a round well with a knob that follows the thumb */
       .stick {
@@ -1205,7 +1309,9 @@
       html.menu.desktop .strip {
         display: none;
       }
-      .desktop .stick {
+      .desktop .stick,
+      .desktop #deck.steer-deck .slider,
+      .desktop #deck.steer-deck .pedals {
         display: none;
       }
       /* A and B as key prompts, bottom right: [Z] ENTER CAR  [X] RUN */
@@ -1630,6 +1736,17 @@
               <button class="a" data-button="a" aria-label="a"><span class="icon" data-hud="icon-a"></span></button>
               <span class="label" data-hud="label-a"></span>
             </div>
+          </div>
+          <!-- STEER on a touch screen, in the stick's and A's places: the steering slider (its knob follows the thumb
+               left and right) and the pedals (data-slider, data-pedal: the deck binds them) -->
+          <div class="slider" data-slider aria-label="Steering">
+            <span class="tick left">&#9664;</span>
+            <span class="tick right">&#9654;</span>
+            <span class="knob"></span>
+          </div>
+          <div class="pedals">
+            <button class="pedal brake" data-pedal="brake" aria-label="Brake">BRAKE</button>
+            <button class="pedal gas" data-pedal="gas" aria-label="Gas">GAS</button>
           </div>
         </div>
         <div class="sys">

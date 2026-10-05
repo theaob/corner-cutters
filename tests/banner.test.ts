@@ -11,7 +11,7 @@ describe("the banner's message on two lines", () => {
 
   it("breaks at the ' · ': a phrase a line, and the dot goes", () => {
     expect(lines('UP TO GO · LEFT AND RIGHT TO STEER')).toEqual(['UP TO GO', 'LEFT AND RIGHT TO STEER']);
-    expect(lines('STICK UP TO GO · ACROSS TO STEER')).toEqual(['STICK UP TO GO', 'ACROSS TO STEER']);
+    expect(lines('GAS TO GO · SLIDE TO STEER')).toEqual(['GAS TO GO', 'SLIDE TO STEER']);
     expect(lines('RIGHT TRIGGER TO GO · STICK TO STEER')).toEqual(['RIGHT TRIGGER TO GO', 'STICK TO STEER']);
     // (of two, the one nearer the middle)
     expect(lines('A · B C D · E')).toEqual(['A · B C D', 'E']);

@@ -44,7 +44,7 @@ export function settingsRows(): SettingsRow[] {
   });
   const drivingRow = optionRow('DRIVING', DRIVE_STYLES, driveStyle(), (s) => ({
     name: s.toUpperCase(),
-    about: s === 'auto' ? 'touch points the way · keys and pads steer' : s === 'point' ? 'the car goes where you point' : 'up gas · down brake · across steers',
+    about: s === 'auto' ? 'touch points the way · keys and pads steer' : s === 'point' ? 'the car goes where you point' : 'touch: a slider, gas and brake · keys and pads steer',
   }), setDriveStyle);
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);

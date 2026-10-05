@@ -2,8 +2,8 @@
 // POINT: the car goes where you point (the touch stick, the arrow keys as eight
 // ways, a gamepad's left stick), pushed further for more speed. STEER: you
 // drive the car itself (up or the right trigger is the gas, down or the left
-// trigger the brake, left and right turn the wheel; on the touch stick, up,
-// down and across). AUTO: each device its own way (the touch stick points,
+// trigger the brake, left and right turn the wheel; on a touch screen a
+// steering slider and GAS and BRAKE pedals in place of the stick). AUTO: each device its own way (the touch stick points,
 // keys and a gamepad steer). Remembered.
 
 import { save, saved } from '../engine/save';
