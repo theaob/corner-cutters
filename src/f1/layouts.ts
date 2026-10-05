@@ -44,6 +44,12 @@ export interface CircuitLayout {
   blossoms?: boolean;
   /** a gopher now and then popping up out of its hole by the track near the camera and scurrying across (gopher.ts) */
   gophers?: boolean;
+  /** under snow (a winter's circuit in the mountains): snow over the run-off and beyond, the spruces laden with it */
+  snow?: boolean;
+  /** a yeti, now and then lying in wait beside the track up the road, and chasing the car that comes by (yeti.ts) */
+  yeti?: boolean;
+  /** an aerial tramway (tramway.ts): its two stations (px, as the circuit's laid out): on the valley floor, and up the mountain */
+  tramway?: { from: [number, number]; to: [number, number] };
   /** free: open to everyone from the start (the Google Play build without the Championship too), and not a round of the Championship */
   free?: boolean;
   /** in the mountains: rock and alpine meadow beyond the barriers, snow up high, pines below the tree line and boulders */
@@ -858,6 +864,10 @@ export const GLACIER_PASS: CircuitLayout = {
   // the Crest, along the summit, and the Kicker, on the way back down
   jumps: [{ at: 5575, rise: 28 }, { at: 7425, rise: 26 }],
   mountain: true,
+  // (in winter: under snow, a yeti about, and the tramway up from the infield to the summit)
+  snow: true,
+  yeti: true,
+  tramway: { from: [1600, 900], to: [1700, 2095] },
   // (open to everyone from the start, not a round of the Championship)
   free: true,
 };

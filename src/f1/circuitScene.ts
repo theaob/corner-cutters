@@ -13,6 +13,8 @@ import { groundAt } from '../engine/sim';
 import { sectorStarts, type Pt } from './racing';
 import { PETALS, PetalField, type PetalCar } from './petals';
 import { buildGopher, type GopherRun } from './gopher';
+import { buildYeti, yetiAvoids, type YetiRun } from './yeti';
+import { buildTramway, tramwayOf } from './tramway';
 import { GARAGE_ACROSS, PIT } from './pits';
 import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
@@ -34,10 +36,12 @@ export interface CircuitScene extends Daylight {
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery's people (a street circuit's swimmers and tennis players), `t` seconds on. */
   animate(t: number): void;
-  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across. */
+  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway). */
   stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void;
   /** the gopher's crossings (a circuit with one: layout.gophers) */
   gopher?: GopherRun;
+  /** the yeti's chases (a circuit with one: layout.yeti) */
+  yeti?: YetiRun;
   /** Darken the ground (and the grass beyond) by `tint`, as the track wets or dries (weather.ts's look). */
   setGroundTint(tint: number): void;
 }
@@ -103,6 +107,8 @@ const DESERT = { runoff: '#e4c896', runoffStripe: '#dcbf8a', sand: '#d8b47c', sp
 const MOUNTAIN = { meadow: '#5c7f3c', meadowDot: ['#4b6c31', '#7a7a58'], rock: '#7e7a72', rockDot: ['#69655e', '#99948b'], snow: '#eef2f6', snowDot: '#cdd6df' };
 /** px up past which the ground beyond the barriers is snow; the steepness (rise per px) past which it's bare rock */
 const SNOW_LINE = 150;
+/** Under snow (layout.snow): the run-off groomed in stripes, and the snow beyond the barriers, its shadows blue */
+const SNOWFIELD = { groomed: ['#f4f7fa', '#e9eef3'], groomedDot: '#dbe3ea', snow: '#eef2f6', snowDot: ['#d2dbe4', '#c6d2de'], rockDot: '#8a8f96' };
 const ROCK_STEEP = 0.45;
 
 /** The banking's concrete, and the seams along it */
@@ -263,6 +269,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const forest = !!circuit.layout.forest;
   const desert = !!circuit.layout.desert;
   const mountain = !!circuit.layout.mountain;
+  const snowy = !!circuit.layout.snow;
   const sea = seaOf(circuit);
   /** a tile's height (its corners' average) and steepness (its corners' spread over its width) */
   const relief = (i: number, j: number) => {
@@ -309,6 +316,17 @@ function paint(circuit: Circuit): HTMLCanvasElement {
         for (let k = 0; k < 10; k++) {
           x.fillStyle = desert ? DESERT.gravelDot[r() < 0.5 ? 0 : 1] : r() < 0.5 ? '#c4ae82' : '#e6d6b0';
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
+        }
+      } else if (snowy) {
+        // under snow: the run-off groomed in stripes; beyond the barriers deep snow, the steep ground's rock showing through it
+        const { steep } = relief(i, j);
+        const wall = cell === 'wall';
+        const rock = wall && steep > ROCK_STEEP;
+        x.fillStyle = wall ? SNOWFIELD.snow : SNOWFIELD.groomed[(i + j) % 4 < 2 ? 0 : 1];
+        x.fillRect(px, py, T, T);
+        for (let k = 0; k < (rock ? 5 : 3); k++) {
+          x.fillStyle = rock && r() < 0.7 ? SNOWFIELD.rockDot : wall ? SNOWFIELD.snowDot[r() < 0.6 ? 0 : 1] : SNOWFIELD.groomedDot;
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wall ? 2 : 1, 1);
         }
       } else if (mountain && cell === 'wall') {
         // in the mountains, beyond the barriers: snow up high, bare rock where it's steep, alpine meadow elsewhere
@@ -585,7 +603,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
+  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: outerColor.clone().multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
@@ -678,6 +696,11 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const petals = circuit.layout.blossoms ? buildPetals(scene, circuit, trees.filter((t) => t.kind === 'blossom')) : undefined;
   // (a gopher, now and then scurrying across the track near the camera)
   const gopher = circuit.layout.gophers ? buildGopher(scene, circuit.grid, circuit.track) : undefined;
+  // (a yeti in the snow, now and then lying in wait up the road and giving chase)
+  const yeti = circuit.layout.yeti ? buildYeti(scene, circuit.grid, circuit.track, yetiAvoids(circuit)) : undefined;
+  // (the aerial tramway up to the summit, its two cabins going up and down)
+  const tram = tramwayOf(circuit);
+  const tramway = tram ? buildTramway(scene, circuit.grid, tram) : undefined;
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);
@@ -727,9 +750,12 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
     },
     gopher: gopher?.run,
+    yeti: yeti?.run,
     stepScenery: (dt, cars, focus) => {
       petals?.(dt, cars, focus);
       gopher?.step(dt, cars, focus);
+      yeti?.step(dt, focus);
+      tramway?.(dt);
     },
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);

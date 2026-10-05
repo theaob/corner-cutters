@@ -889,6 +889,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** set your tyres' wear (0 new … 1 gone) */
         wear: (w: number) => (race.entrants[you].tyres.wear = Math.max(0, Math.min(1, w))),
         /** the gopher (a circuit with one): what it's doing, where, and its crossings so far */
+        /** the yeti (a circuit with one): what it's doing and where, and its chases so far */
+        yeti: () => world.yeti && { pose: world.yeti.pose && { ...world.yeti.pose }, chases: world.yeti.chases },
         gopher: () => world.gopher && { phase: world.gopher.crossing?.phase, pose: world.gopher.pose(), crossings: world.gopher.crossings, bolts: world.gopher.bolts },
         /** the champagne ceremony: s it's been on (undefined: it isn't) */
         ceremony: () => podium?.time,
