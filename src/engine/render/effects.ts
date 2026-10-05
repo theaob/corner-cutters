@@ -203,6 +203,13 @@ export class Particles {
     this.spawn(x, z, base + 4, Math.random() < 0.5 ? 0xe0cca4 : 0xc8a878, 1.0, 10, 6, false);
   }
 
+  /** Mud flung up off a wet dirt track: dark clods, low, falling back quickly. */
+  mud(x: number, z: number, base = 0): void {
+    const p = this.spawn(x, z, base + 3, Math.random() < 0.5 ? 0x4a3020 : 0x5e3d28, 0.55, 6, 30, false);
+    p.fall = 90;
+    p.grow = 2;
+  }
+
   smoke(x: number, z: number, dark: boolean, base = 0): void {
     this.spawn(x, z, base + 10, dark ? 0x2a2830 : 0x8a8894, 1.4, 6, 14, false);
   }
