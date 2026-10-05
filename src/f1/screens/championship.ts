@@ -19,6 +19,9 @@ import { roundForecast } from '../forecast';
 import { TEAMS, type Seat, type Team } from '../teams';
 import { logoSvg } from '../logos';
 import { reportOpen } from '../report';
+import { YOUTUBE } from '../../engine/host';
+import { createShareButton } from '../race/shareButton';
+import { seasonCard, type ShareCard } from '../shareCard';
 
 /** What next: the next round, a new season (with the team, qualifying and length picked for it), or back to the menu. */
 export type ChampionshipAction = 'race' | 'back' | { new: { team: Team; seat: Seat; qualifying: boolean; laps: number } };
@@ -30,6 +33,20 @@ export interface SeasonChoices {
   qualifying: boolean;
   /** each round's laps */
   laps: number;
+}
+
+/** Your season as a card to share: your place, points, wins and podiums; the title or the podium once it's over. */
+export function seasonShareCard(season: Season, now = new Date()): ShareCard {
+  const table = standings(season);
+  const mine = table.findIndex((r) => r.driver === season.you);
+  const team = teamOf(season.drivers[season.you]);
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return seasonCard({
+    mode: `${difficultyById(season.difficulty)?.name ?? ''} · ${seasonLength(season.laps).name}`,
+    place: mine + 1, field: season.drivers.length, points: table[mine].points, wins: table[mine].wins,
+    podiums: season.places.filter((r) => r[season.you] >= 0 && r[season.you] < 3).length,
+    round: season.round, rounds: season.rounds.length, over: seasonOver(season), team: { name: team.name, body: team.body, trim: team.trim }, date,
+  });
 }
 
 const nameOf = (id: string) => layoutById(id)?.name.toUpperCase() ?? id.toUpperCase();
@@ -123,6 +140,15 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     // a circuit just unlocked: said once
     if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE, TIME ATTACK AND TIME TRIAL`, 'var(--accent-b)'));
     screen.append(standingsTable(season));
+    // SHARE: the season so far (or its result) as a card, once a round's been raced (not on YouTube: no sharing there)
+    if (season.round > 0 && !YOUTUBE) {
+      const share = createShareButton(() => seasonShareCard(season), () => undefined).el;
+      // (as the screen's other buttons, so they line up; in gold, as SHARE is everywhere)
+      share.removeAttribute('style');
+      share.className = 'menu-button';
+      share.style.color = 'var(--gold)';
+      screen.append(share);
+    }
   } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('PICK YOUR TEAM, CAR, QUALIFYING AND LENGTH (DIFFICULTY IN SETTINGS)'), line('EACH ROUND HAS ITS OWN WEATHER: RAIN MAY COME OR GO, BOX FOR THE RIGHT TYRES'));
   // a new season's team and qualifying: shown when one can be started (mid-season, once NEW SEASON is pressed)
   const teamRow = optionRow('TEAM', TEAMS, picked.team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }), () => carChoice.refresh());

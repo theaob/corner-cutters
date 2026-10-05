@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { attackCard, cardFile, raceCard, shareText, splitDistance } from '../src/f1/shareCard';
+import { attackCard, cardFile, raceCard, seasonCard, shareText, splitDistance } from '../src/f1/shareCard';
+import { seasonShareCard } from '../src/f1/screens/championship';
+import { newSeason, recordRound } from '../src/f1/championship';
+import { TEAMS } from '../src/f1/teams';
 
 const team = { name: 'Milk Energy', body: '#1e2b5c', trim: '#f2c14e' };
 
@@ -36,5 +39,36 @@ describe('the result card to share', () => {
     expect(c.medal).toBe('gold');
     // (the text says it in words)
     expect(shareText(c)).toMatch(/^I reached 2 laps \+ 3 sectors at Oasis/);
+  });
+});
+
+describe("a Championship's card", () => {
+  const team = { name: 'Milk Energy', body: '#1b2a5a', trim: '#f2c14e' };
+  const card = (o: Partial<Parameters<typeof seasonCard>[0]>) =>
+    seasonCard({ mode: 'NORMAL · SPRINT', place: 3, field: 10, points: 40, wins: 1, podiums: 2, round: 4, rounds: 10, over: false, team, date: '2026-10-05', ...o });
+
+  it('mid-season: your place after the rounds raced, your points, wins and podiums', () => {
+    const c = card({});
+    expect(c).toMatchObject({ circuit: 'CHAMPIONSHIP', headline: 'P3', sub: 'AFTER ROUND 4 OF 10', medal: undefined });
+    expect(c.stats).toEqual([['POINTS', '40'], ['WINS', '1'], ['PODIUMS', '2']]);
+    expect(shareText(c)).toMatch(/^I am P3 in the championship after round 4 of 10 in Corner Cutters/);
+  });
+
+  it('over: the title between gold cups, the podium in its colour', () => {
+    const won = card({ over: true, place: 1, round: 10 });
+    expect(won).toMatchObject({ sub: 'CHAMPION', medal: 'gold' });
+    expect(shareText(won)).toMatch(/^I won the championship 🏆 in Corner Cutters/);
+    expect(card({ over: true, place: 2, round: 10 })).toMatchObject({ sub: 'P2 OF 10 IN THE STANDINGS', medal: 'silver' });
+    const fifth = card({ over: true, place: 5, round: 10 });
+    expect(fifth.medal).toBeUndefined();
+    expect(shareText(fifth)).toMatch(/^I finished the championship P5 in Corner Cutters/);
+  });
+
+  it("is made from your season: a win in the only round raced, P1 on 25 points", () => {
+    const s = newSeason({ seed: 3, team: TEAMS[0], difficulty: 'normal', qualifying: false, rounds: ['crescent-park', 'silver-heath'], total: 10 });
+    recordRound(s, [s.you, ...s.drivers.map((_, k) => k).filter((k) => k !== s.you)]);
+    const c = seasonShareCard(s, new Date(2026, 9, 5));
+    expect(c).toMatchObject({ headline: 'P1', sub: 'AFTER ROUND 1 OF 2', date: '2026-10-05' });
+    expect(c.stats).toEqual([['POINTS', '25'], ['WINS', '1'], ['PODIUMS', '1']]);
   });
 });

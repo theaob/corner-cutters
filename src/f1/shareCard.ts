@@ -26,6 +26,8 @@ export interface ShareCard {
   stats: [string, string][];
   /** the day (YYYY-MM-DD) */
   date: string;
+  /** a Championship's card (its text says so): the season over, or after how many of its rounds */
+  season?: { over: boolean; round: number; rounds: number };
 }
 
 const PLACE_COLOR = ['#f2c14e', '#c9ccd6', '#c8803a'];
@@ -62,8 +64,31 @@ export function attackCard(a: {
   };
 }
 
+/**
+ * A Championship's card: your place in the standings (`place`, of `field`) with your points, wins and podiums; the
+ * season over (the title, or the podium, between cups in its colour) or after `round` of its `rounds`.
+ */
+export function seasonCard(s: {
+  mode: string; place: number; field: number; points: number; wins: number; podiums: number; round: number; rounds: number; over: boolean;
+  team: ShareCard['team']; date: string;
+}): ShareCard {
+  const medal: Medal | undefined = s.over ? (['gold', 'silver', 'bronze'] as const)[s.place - 1] : undefined;
+  return {
+    circuit: 'CHAMPIONSHIP', mode: s.mode, team: s.team, date: s.date, medal, season: { over: s.over, round: s.round, rounds: s.rounds },
+    headline: `P${s.place}`, color: PLACE_COLOR[s.place - 1] ?? '#f4f4f8',
+    sub: s.over ? (s.place === 1 ? 'CHAMPION' : `P${s.place} OF ${s.field} IN THE STANDINGS`) : `AFTER ROUND ${s.round} OF ${s.rounds}`,
+    stats: [['POINTS', String(s.points)], ['WINS', String(s.wins)], ['PODIUMS', String(s.podiums)]],
+  };
+}
+
 /** The text that goes with the card. */
 export function shareText(c: ShareCard): string {
+  if (c.season) {
+    const how = c.season.over
+      ? c.sub === 'CHAMPION' ? 'won the championship 🏆' : `finished the championship ${c.headline}`
+      : `am ${c.headline} in the championship after round ${c.season.round} of ${c.season.rounds}`;
+    return `I ${how} in Corner Cutters 🏁 Can you beat it? https://${SHARE_URL}`;
+  }
   const how = c.headline === 'DNF' ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${c.headline.toLowerCase()}`;
   return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters 🏁 ${c.sub === 'WINNER' ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
 }
