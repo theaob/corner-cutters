@@ -3,6 +3,7 @@
 // working out why controls don't respond on a device we can't debug directly.
 
 import type { Button, Controls } from './controls';
+import { onHidden } from './host';
 
 const BUTTONS: Button[] = ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'];
 
@@ -34,7 +35,7 @@ export function showInputLog(host: HTMLElement, controls: Controls): void {
   window.addEventListener('click', (e) => log(`click ${where(e)}`), true);
   window.addEventListener('blur', () => log('window blur'));
   window.addEventListener('focus', () => log('window focus'));
-  document.addEventListener('visibilitychange', () => log(`visibility ${document.visibilityState}`));
+  onHidden((hidden) => log(hidden ? 'hidden' : 'shown'));
   log(`start: ${innerWidth}x${innerHeight} dpr ${devicePixelRatio} ${window === window.top ? 'top' : 'in a frame'}`);
   const tick = () => {
     const held = BUTTONS.filter((b) => controls.isDown(b));

@@ -73,7 +73,13 @@ export async function curtainDown(race?: { layout: CircuitLayout; line: string }
   await frame();
 }
 
+let lifted: () => void = () => {};
+const firstUp = new Promise<void>((resolve) => (lifted = resolve));
+/** Resolves once the curtain's first lifted (the game's first screen is up, and can be played). */
+export const curtainFirstUp = (): Promise<void> => firstUp;
+
 /** Lift the curtain (the next screen is up). */
 export function curtainUp(): void {
   ensure().classList.remove('down');
+  lifted();
 }

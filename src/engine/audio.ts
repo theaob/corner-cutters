@@ -8,6 +8,7 @@
 // device; without Web Audio (tests, old browsers) everything here does nothing.
 
 import { save, saved } from './save';
+import { gameHidden, hostSound, onHidden, onHostSound } from './host';
 
 /** The volume steps offered in the settings. */
 export const VOLUMES = [0, 0.35, 0.7, 1] as const;
@@ -65,11 +66,12 @@ function audio(): AudioContext | undefined {
     limiter.release.value = 0.15;
     master.connect(limiter).connect(ctx.destination);
     output = limiter;
-    // the page hidden (another tab, the app in the background): silent, on every screen, until it's back
-    globalThis.document?.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') void ctx?.suspend().catch(() => {});
-      else if (!gamePaused) void ctx?.resume().catch(() => {});
-    });
+    // the game out of sight (another tab, the app in the background, YouTube's paused it), or the host's sound off
+    // (YouTube's own switch): silent, on every screen, until it's back
+    const settle = () => (gameHidden() || !hostSound() ? void ctx?.suspend().catch(() => {}) : !gamePaused && void ctx?.resume().catch(() => {}));
+    onHidden(settle);
+    onHostSound(settle);
+    settle();
     // two seconds of white noise, looped by the noise voices
     noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
@@ -82,7 +84,7 @@ function audio(): AudioContext | undefined {
 export function unlockAudio(target: Window = window): void {
   const resume = () => {
     const c = audio();
-    if (c && c.state !== 'running' && !gamePaused) void c.resume().catch(() => {});
+    if (c && c.state !== 'running' && !gamePaused && hostSound() && !gameHidden()) void c.resume().catch(() => {});
   };
   target.addEventListener('pointerdown', resume, { capture: true });
   target.addEventListener('keydown', resume, { capture: true });
@@ -92,7 +94,7 @@ export function unlockAudio(target: Window = window): void {
 export function setAudioPaused(paused: boolean): void {
   gamePaused = paused;
   if (!ctx) return;
-  if (paused) void ctx.suspend().catch(() => {});
+  if (paused || !hostSound() || gameHidden()) void ctx.suspend().catch(() => {});
   else void ctx.resume().catch(() => {});
 }
 

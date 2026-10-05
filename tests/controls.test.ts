@@ -138,6 +138,8 @@ describe('guardInput', () => {
   it('lets go when the page is hidden or loses focus', () => {
     const win = fakeWindow();
     const c = holding();
+    // (the page's visibility comes through the host, engine/host.ts, which watches the document)
+    vi.stubGlobal('document', win.document);
     guardInput(c, () => {}, win as unknown as Window);
     win.dispatchEvent(new Event('blur'));
     expect(c.isDown('start')).toBe(false);
@@ -145,6 +147,7 @@ describe('guardInput', () => {
     win.document.visibilityState = 'hidden';
     win.document.dispatchEvent(new Event('visibilitychange'));
     expect(c.isDown('a')).toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it('reloads a page brought back from the back/forward cache, and takes focus', () => {

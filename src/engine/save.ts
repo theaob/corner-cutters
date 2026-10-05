@@ -16,6 +16,7 @@
 // (private mode, blocked) it all works in memory until the page closes.
 
 import { storeKey } from './storage';
+import { hostStore } from './host';
 
 /** The save's data: sections of named values. */
 export type SaveData = Record<string, Record<string, unknown>>;
@@ -26,7 +27,7 @@ export interface SaveDoc {
   data: SaveData;
 }
 
-/** The device's storage, as far as the save uses it (localStorage, or a stand-in for tests). */
+/** The device's storage, as far as the save uses it (the host's: host.ts; or a stand-in for tests). */
 export interface SaveStore {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -57,13 +58,8 @@ let readOnly = false;
 const KEY = () => storeKey('save');
 const BAD_KEY = () => storeKey('save.bad');
 
-function deviceStore(): SaveStore | undefined {
-  try {
-    return globalThis.localStorage ?? undefined;
-  } catch {
-    return undefined; // blocked
-  }
-}
+/** The device's storage (or, in the YouTube build, the player's YouTube save: host.ts). */
+const deviceStore = (): SaveStore | undefined => hostStore();
 
 /** Use `f` as this game's save format, reading and writing `s` (the device's storage unless given). Forgets the save read so far. */
 export function useSave(f: SaveFormat, s: SaveStore | undefined = deviceStore()): void {

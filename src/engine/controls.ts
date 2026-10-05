@@ -5,6 +5,8 @@
 // remember which source was used last, so a game can drive the car the way
 // that device suits.
 
+import { onHidden } from './host';
+
 export type Button = 'up' | 'down' | 'left' | 'right' | 'a' | 'b' | 'start' | 'select';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -227,9 +229,8 @@ export function guardInput(controls: Controls, onRelease: () => void, target: Wi
   };
   target.addEventListener('pagehide', release);
   target.addEventListener('blur', release);
-  target.document.addEventListener('visibilitychange', () => {
-    if (target.document.visibilityState === 'hidden') release();
-  });
+  // (the game out of sight: host.ts, the page's visibility or YouTube's pause)
+  onHidden((hidden) => hidden && release());
   target.addEventListener('pageshow', (e) => {
     if (e.persisted) target.location.reload();
   });

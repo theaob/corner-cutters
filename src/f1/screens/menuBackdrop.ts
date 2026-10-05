@@ -23,6 +23,7 @@ import { lineCornerSpeed, lineDecel } from '../racing';
 import { TEAMS } from '../teams';
 import { DRY } from '../weather';
 import { keepStill } from './backdropStill';
+import { gameHidden } from '../../engine/host';
 
 export const BACKDROP = {
   /** cars lapping */
@@ -115,7 +116,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    if (document.hidden || now - lastDraw < 1000 / BACKDROP.fps - 2) return;
+    if (gameHidden() || now - lastDraw < 1000 / BACKDROP.fps - 2) return;
     const frameDt = Math.min(0.1, (now - lastDraw) / 1000);
     lastDraw = now;
     fit();

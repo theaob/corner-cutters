@@ -17,7 +17,7 @@ import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, setColourSafe, setLargeText } from './access';
 
-/** The page's layout, as the page (src/main.ts) switches it: the one now, whether this device can switch, and a switch. */
+/** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
 export interface LayoutSwitch {
   now(): LayoutMode;
   can(): boolean;

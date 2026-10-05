@@ -5,6 +5,7 @@
 // goes back to the designer.
 
 import type { CircuitLayout } from './layouts';
+import { hostStore } from '../engine/host';
 
 /** The id a designer draft races under, and the browser key the designer leaves it at. */
 export const DESIGNER_DRAFT_ID = 'designer-draft';
@@ -27,7 +28,7 @@ export function parseDraft(raw: string | null): CircuitLayout | undefined {
 /** The draft the designer left to drive, if any. */
 export function designerDraft(): CircuitLayout | undefined {
   try {
-    return parseDraft(localStorage.getItem(DESIGNER_DRIVE_KEY));
+    return parseDraft(hostStore()?.getItem(DESIGNER_DRIVE_KEY) ?? null);
   } catch {
     return undefined;
   }

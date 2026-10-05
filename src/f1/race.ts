@@ -88,6 +88,7 @@ import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
 import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
+import { YOUTUBE, onHidden } from '../engine/host';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
@@ -915,7 +916,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (key === resultsShown) return;
     resultsShown = key;
     shareButton.reset();
-    renderResults(results, title, rows, notes, championship ? 'NEXT: on to the standings' : undefined, (performance.now() - resultsUpAt) / 1000, shareButton.el);
+    // (no SHARE on YouTube: its card links out of it)
+    renderResults(results, title, rows, notes, championship ? 'NEXT: on to the standings' : undefined, (performance.now() - resultsUpAt) / 1000, YOUTUBE ? undefined : shareButton.el);
   };
 
   /** Your result as a card to share (race/shareButton.ts, shareCard.ts): a race's, or a Time Attack's. */
@@ -997,8 +999,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseButton('RESUME', () => setPaused(false)),
     pauseButton('RESTART', () => restart()),
     pauseButton('SETTINGS', () => openPauseSettings(true)),
-    // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened
-    pauseButton('REPORT', () => void openReport({ circuit: layout.id, mode: statsMode() }, [pauseScreen])),
+    // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened (not on
+    // YouTube: it goes to the game's own backend)
+    ...(YOUTUBE ? [] : [pauseButton('REPORT', () => void openReport({ circuit: layout.id, mode: statsMode() }, [pauseScreen]))]),
     pauseButton('EXIT', () => askExit(true)),
   ];
   const exitLine = document.createElement('div');
@@ -1041,14 +1044,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else onQuit();
     return true;
   });
-  // leaving the app or the tab pauses the race; so do Esc and P on a keyboard
-  const onHidden = () => {
-    if (document.hidden && !done) setPaused(true);
-  };
+  // leaving the app or the tab (or YouTube pausing the game: host.ts) pauses the race; so do Esc and P on a keyboard
+  const offHidden = onHidden((hidden) => {
+    if (hidden && !done) setPaused(true);
+  });
   const onKey = (e: KeyboardEvent) => {
     if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat && !(e.target instanceof HTMLInputElement) && !reportOpen() && !done) setPaused(!paused);
   };
-  document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('keydown', onKey);
 
   /** A Championship round's result to the season: the drivers in finishing order, and the ones who didn't finish. */
@@ -1361,7 +1363,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     } else banner.style.whiteSpace = '';
     // (SHARE under a Time Attack's result)
     // (under the banner as it stands, however many lines it takes)
-    shareButton.floatAt(attack?.result ? `${banner.offsetTop + banner.offsetHeight + 12}px` : undefined);
+    shareButton.floatAt(attack?.result && !YOUTUBE ? `${banner.offsetTop + banner.offsetHeight + 12}px` : undefined);
     if (paused || quali?.over || attack?.result) {
       // (a screenshot waiting for a frame, the report's: the still picture drawn again for it)
       if (frameWanted()) {
@@ -1991,7 +1993,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (closed) return;
     closed = true;
     noteDriven();
-    document.removeEventListener('visibilitychange', onHidden);
+    offHidden();
     window.removeEventListener('keydown', onKey);
     setAudioPaused(false);
     sounds.dispose();

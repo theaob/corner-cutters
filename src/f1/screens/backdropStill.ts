@@ -6,6 +6,8 @@
 // the one shipped with the game. A device asking for reduced motion (or without
 // WebGL) never gets the live race, so it keeps the still.
 
+import { YOUTUBE, hostStore } from '../../engine/host';
+
 /** where the device's own still is kept */
 export const STILL_KEY = 'cc:menu-still';
 /** the still shipped with the game (Crescent Park), for a device that hasn't had a live backdrop yet */
@@ -16,7 +18,7 @@ export const STILL_QUALITY = 0.7;
 /** The device's still, or the shipped one. */
 export function stillSource(): string {
   try {
-    const kept = localStorage.getItem(STILL_KEY);
+    const kept = hostStore()?.getItem(STILL_KEY);
     if (kept?.startsWith('data:image/')) return kept;
   } catch {
     // (no storage: the shipped one)
@@ -28,7 +30,9 @@ export function stillSource(): string {
 export function keepStill(canvas: HTMLCanvasElement): void {
   try {
     const image = canvas.toDataURL('image/jpeg', STILL_QUALITY);
-    if (image.startsWith('data:image/jpeg')) localStorage.setItem(STILL_KEY, image);
+    // (not in the YouTube build's save: it's a cache, and the save goes to YouTube)
+    if (YOUTUBE) return;
+    if (image.startsWith('data:image/jpeg')) hostStore()?.setItem(STILL_KEY, image);
   } catch {
     // (no storage, or full: the one before stays)
   }

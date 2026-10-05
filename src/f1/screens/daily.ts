@@ -83,9 +83,10 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   const board = document.createElement('div');
   Object.assign(board.style, { width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' });
   const say = (text: string) => board.replaceChildren(line(text));
-  screen.append(board);
-  if (!online()) say("THE ONLINE BOARD ISN'T SET UP IN THIS BUILD");
-  else {
+  // (a build without the online board, as YouTube's: your best today is the board, and no initials asked for)
+  const boards = online();
+  if (boards) screen.append(board);
+  if (boards) {
     say('LOADING THE BOARD…');
     const player = playerId();
     void (async () => {
@@ -123,7 +124,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   });
   const nameNow = () => field.value;
   const options = naming$;
-  let naming = !initials();
+  let naming = boards && !initials();
   /** Lay the screen out (the letters while naming, else the name and CHANGE); set below */
   let layOut = () => {};
   const nameButton = menuButton('', () => {
@@ -132,7 +133,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     field.focus();
     field.select();
   });
-  screen.append(options);
+  if (boards) screen.append(options);
 
   return new Promise((resolve) => {
     let done = false;
@@ -162,10 +163,10 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     const show = () => places.forEach((p, i) => p.el.classList.toggle('focused', i === focus));
     layOut = () => {
       options.style.display = naming ? '' : 'none';
-      nameButton.style.display = naming ? 'none' : '';
+      nameButton.style.display = naming || !boards ? 'none' : '';
       nameButton.textContent = `ON THE BOARD AS ${initials() ?? nameNow()} · CHANGE`;
       places = [
-        ...(naming ? [{ el: options as HTMLElement, pick: () => field.focus() }] : [{ el: nameButton as HTMLElement, pick: () => nameButton.click() }]),
+        ...(naming ? [{ el: options as HTMLElement, pick: () => field.focus() }] : boards ? [{ el: nameButton as HTMLElement, pick: () => nameButton.click() }] : []),
         { el: playButton, pick: () => finish('play') },
         { el: backButton, pick: () => finish('back') },
       ];
