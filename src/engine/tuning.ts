@@ -1,7 +1,8 @@
 // Live tuning panel (the TUNE button): sliders over the game screen that edit a
-// plain object the game reads every frame. Values persist per panel in localStorage, and "Copy" puts them on the clipboard as JSON for the spec.
+// plain object the game reads every frame. Values persist per panel in the host's storage (host.ts), and "Copy" puts them on the clipboard as JSON for the spec.
 
 import { storeKey } from './storage';
+import { hostStore } from './host';
 
 export interface Param {
   label: string;
@@ -45,7 +46,7 @@ export function restore<S extends ParamSpec>(spec: S, saved: string | null): Val
 
 function storageGet(key: string): string | null {
   try {
-    return localStorage.getItem(key);
+    return hostStore()?.getItem(key) ?? null;
   } catch {
     return null;
   }
@@ -53,7 +54,7 @@ function storageGet(key: string): string | null {
 
 function storageSet(key: string, value: string): void {
   try {
-    localStorage.setItem(key, value);
+    hostStore()?.setItem(key, value);
   } catch {
     // storage unavailable (private mode etc.): tuning just won't persist
   }

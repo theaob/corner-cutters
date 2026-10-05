@@ -34,6 +34,7 @@ import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
 import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
 import { openReport, reportOpen } from './report';
+import { YOUTUBE, gameHidden } from '../engine/host';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -56,7 +57,7 @@ function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement
     // (it isn't on the page until the card is put together: wait a moment for it, and stop once it's gone)
     if (!c.isConnected && (last || ++waited > 60)) return;
     requestAnimationFrame(frame);
-    if (!c.isConnected || document.hidden || now - last < 1000 / 30) return;
+    if (!c.isConnected || gameHidden() || now - last < 1000 / 30) return;
     last = now;
     drawModel(ctx, m, view, c.width, c.height, yawAt(now));
   };
@@ -586,7 +587,9 @@ export function chooseCircuit(
   const modesParts: HTMLElement[] = [...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
-  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, reportButton, versionLine()];
+  // (REPORT under DONE, but not on YouTube: a report goes to the game's own backend)
+  const reports = !YOUTUBE;
+  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, ...(reports ? [reportButton] : []), versionLine()];
   const show = () => {
     hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
     for (const el of cabinetParts) el.style.display = view === 'trophies' ? '' : 'none';
@@ -676,14 +679,14 @@ export function chooseCircuit(
         // (nothing)
       } else if (view === 'settings') {
         // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back; on REPORT, A makes one
-        const places = settingsRows.length + 2;
+        const places = settingsRows.length + (reports ? 2 : 1);
         if (move) {
           focus = (focus + move + places) % places;
           show();
         }
         const row = settingsRows[focus];
         if (row && (left || right)) row.step(right ? 1 : -1);
-        if ((a || start) && focus === settingsRows.length + 1) void openReport({}, [], () => menuPick());
+        if ((a || start) && reports && focus === settingsRows.length + 1) void openReport({}, [], () => menuPick());
         else if (a || start) closeSettings();
       } else if (view === 'trophies') {
         // the cabinet: left/right switches its tab; A, START or B goes back

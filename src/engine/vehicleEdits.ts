@@ -4,6 +4,7 @@
 
 import { CAR_CLASS_IDS, STAT_KEYS, setStatOverrides, type CarClassId, type StatOverrides, type VehicleStats } from './driving';
 import { storeKey } from './storage';
+import { hostStore } from './host';
 
 /** Team colours the grid is painted in; the first is the player's. */
 export const DEFAULT_COLORS: Record<CarClassId, string[]> = {
@@ -67,7 +68,7 @@ export function vehicleColors(id: CarClassId, edits: VehicleEdits): string[] {
 export function loadVehicleEdits(): VehicleEdits {
   let json: string | null = null;
   try {
-    json = localStorage.getItem(KEY());
+    json = hostStore()?.getItem(KEY()) ?? null;
   } catch {
     // storage unavailable: no edits
   }
@@ -80,7 +81,7 @@ export function loadVehicleEdits(): VehicleEdits {
 export function saveVehicleEdits(edits: VehicleEdits): void {
   setStatOverrides(statOverrides(edits));
   try {
-    localStorage.setItem(KEY(), JSON.stringify(edits));
+    hostStore()?.setItem(KEY(), JSON.stringify(edits));
   } catch {
     // storage unavailable: edits last until the page closes
   }

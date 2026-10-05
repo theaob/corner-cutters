@@ -193,12 +193,21 @@ then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`
 
 Locally (with the Android SDK and JDK 21): `npm run android:play` builds the Google Play AAB (`android/app/build/outputs/bundle/release/app-release.aab`); `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`. `npm run android:art` redraws the launcher icons and splash screens (`tools/android-art.py`, needs Pillow).
 
+## YouTube Playables
+
+`npm run youtube:build` builds the version for YouTube Playables into `dist-youtube/`, checks it against Playables' rules and zips it as `corner-cutters-youtube.zip`, ready to upload in the Playables developer portal (once YouTube has accepted the game: the Playables interest form). `.github/workflows/youtube.yml` does the same on every push to main and keeps the zip as the run's artifact (Actions → youtube → the run → Artifacts).
+
+- **The SDK:** the build (`VITE_STORE=youtube`) loads YouTube's Playables SDK (`https://www.youtube.com/game_api/v1`) ahead of the game's own script (`vite.config.ts`). Everything the game asks of where it runs goes through `src/engine/host.ts`: on YouTube, the player's save is loaded from their YouTube account before the game starts (`src/main.ts` waits for it, then loads `src/app.ts`) and sent back a moment after each change (at once when YouTube pauses the game); the game pauses when YouTube says so (a race goes to its pause screen) and is silent while YouTube's sound is off; it tells YouTube when its first frame is drawn and when it can be played (its first screen is up). There's no title splash (YouTube shows its own loading screen).
+- **Nothing outside YouTube:** built without the backend, so no play stats, crash reports, REPORT, online boards or Daily Challenge board (the Daily Challenge is played as ever, your best kept, no initials asked for); no SHARE (its card links out); Capacitor (the Android app's bridge) swapped for a stand-in (`src/engine/notNative.ts`), as its browser code reaches for cookies and the page's visibility.
+- **The checks** (`tools/youtube-bundle.py`): the initial bundle (all but the music, which streams in after) under 30 MiB (15 recommended), the whole under 250 MiB, no file over 30 MiB; the SDK's script first; no browser storage, Page Visibility API or code made from strings; no outside addresses but the SDK's. It says what's text only (XML namespaces, a paper three.js's shaders cite, and three.js's Timer's page-visibility hook, which only `Timer.connect` wires up and nothing calls). Today: 0.99 MiB before the game's ready, 8.5 MiB in all, a 7.8 MiB zip.
+
 ## Layout
 
 ```
 index.html        The handheld column: game screen (#screen) + control deck (#deck)
 src/
-  main.ts         Routes in the page: the circuit menu, or the race on ?circuit=<id>, without page loads
+  main.ts         The entry: the host made ready (engine/host.ts: the YouTube build's save loaded), then app.ts
+  app.ts          Routes in the page: the circuit menu, or the race on ?circuit=<id>, without page loads
   engine/         Controls, deck, layout, storage, TUNE panel, view types, driving physics (driving.ts),
                   ground and collision (sim.ts), vehicle edits, render/ (HD-2D pipeline, quality, effects,
                   car models, daylight, sprites, textures)

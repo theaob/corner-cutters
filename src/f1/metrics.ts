@@ -7,6 +7,7 @@
 import { Capacitor } from '@capacitor/core';
 import { insert, online } from '../engine/backend';
 import { playerId, statsOn } from './profile';
+import { gameHidden, onHidden } from '../engine/host';
 
 export type EventKind = 'launch' | 'race_start' | 'race_finish' | 'drive' | 'share' | 'daily_submit' | 'session' | 'error';
 
@@ -84,7 +85,7 @@ export function track(kind: EventKind, about: { circuit?: string; mode?: string;
       noteTime();
       flush(true);
     };
-    document.addEventListener('visibilitychange', () => (document.hidden ? away() : (shownAt = performance.now())));
+    onHidden((hidden) => (hidden ? away() : (shownAt = performance.now())));
     window.addEventListener('pagehide', away);
   }
 }
@@ -95,7 +96,7 @@ let shownAt: number | undefined;
 
 /** Start timing the time in the app (from the launch, while the page is showing). */
 export function startClock(): void {
-  shownAt = typeof document !== 'undefined' && document.hidden ? undefined : performance.now();
+  shownAt = gameHidden() ? undefined : performance.now();
 }
 
 /** The time in the app since it was last shown, as a 'session' event of this launch (a second at least). */
