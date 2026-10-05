@@ -203,6 +203,23 @@ then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`
 
 Locally (with the Android SDK and JDK 21): `npm run android:play` builds the Google Play AAB (`android/app/build/outputs/bundle/release/app-release.aab`); `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`. `npm run android:art` redraws the launcher icons and splash screens (`tools/android-art.py`, needs Pillow).
 
+## iOS
+
+The same web build, wrapped by Capacitor into an iOS app (`ios/`, `capacitor.config.ts`): full screen with no status bar, portrait (either way up on an iPad), the screen kept on (`AppDelegate.swift`), played offline, the page laid out under the notch and home bar itself. The Swift packages (Capacitor and its plugins) come through Swift Package Manager, from `node_modules/`, so there's no CocoaPods. Everything is open, as in the APK: the store is only in the Google Play build. iOS has no back button, so the in-game EXIT and BACK do that job; vibration goes through the Haptics plugin (a tap of the Taptic Engine: iOS doesn't take a duration).
+
+**On a Mac** (with Xcode from the App Store, opened once to install its components, and Node 22):
+
+```sh
+npm ci
+npm run ios:open        # builds the web game, copies it into ios/ and opens the project in Xcode
+```
+
+In Xcode, pick the **App** target → **Signing & Capabilities**, tick *Automatically manage signing* and pick your **Team** (sign in under Xcode → Settings → Accounts; a free Apple ID will do for your own phone, its builds lasting 7 days; a paid Apple Developer account for a year, TestFlight and the App Store). The bundle id is `io.github.theaob.cornercutters`; if Xcode says it's taken (a free account), change it there. Then pick a simulator or your iPhone (plugged in, Developer Mode on under Settings → Privacy & Security, the Mac trusted) and press ▶. On the phone, the first time, trust the developer under Settings → General → VPN & Device Management.
+
+After a change to the game, `npm run ios:sync` (or `ios:open` again) copies the new build in; `npm run ios:run` builds and runs it on a simulator or phone without opening Xcode. The version shown in the App Store is `MARKETING_VERSION` in the Xcode project (General → Identity), and each upload to App Store Connect needs a higher **Build**. To ship: Product → Archive, then Distribute App → App Store Connect (TestFlight first). `npm run android:art` draws the iOS icon and splash too.
+
+`.github/workflows/ios.yml` builds the app for the simulator, unsigned, whenever `ios/`, the Capacitor config or the packages change (and by hand): a check that the project still compiles. It makes nothing to install; that's done from Xcode.
+
 ## YouTube Playables
 
 `npm run youtube:build` builds the version for YouTube Playables into `dist-youtube/`, checks it against Playables' rules and zips it as `corner-cutters-youtube.zip`, ready to upload in the Playables developer portal (once YouTube has accepted the game: the Playables interest form). `.github/workflows/youtube.yml` does the same on every push to main and keeps the zip as the run's artifact (Actions → youtube → the run → Artifacts).
