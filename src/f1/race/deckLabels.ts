@@ -41,7 +41,9 @@ export function deckLabels(s: DeckState): Record<DeckButton, string> {
   else if (!s.done) a = s.paused ? '' : 'PAUSE';
   else if (!s.resultsUp) a = 'SKIP';
   const driving = !s.paused && !s.done && !s.watching && !s.qualifyingOver && !s.attackOver;
-  // (while racing the small button pauses, in EXIT's place: you leave from the pause screen)
+  // (while racing the small button pauses, in EXIT's place: you leave from the pause screen, by its own EXIT, asked
+  // once more; so paused, the deck has neither EXIT nor RESTART, the pause screen has both, and the top's left as
+  // it's right)
   const racing = a === 'PAUSE';
-  return { a: racing ? '' : a, b: driving ? 'DRIFT' : '', start: s.roundOver || s.qualifyingOver || s.attackOver ? '' : 'RESTART', select: racing ? 'PAUSE' : 'EXIT' };
+  return { a: racing ? '' : a, b: driving ? 'DRIFT' : '', start: s.paused || s.roundOver || s.qualifyingOver || s.attackOver ? '' : 'RESTART', select: racing ? 'PAUSE' : s.paused ? '' : 'EXIT' };
 }

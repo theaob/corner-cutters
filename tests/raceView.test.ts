@@ -19,8 +19,8 @@ describe('the deck labels', () => {
   it('racing: SELECT pauses (no A on the touch deck), B drifts, START restarts', () => {
     expect(deckLabels(deck())).toEqual({ a: '', b: 'DRIFT', start: 'RESTART', select: 'PAUSE' });
   });
-  it('paused: nothing on A (the pause screen resumes), SELECT exits; the settings: DONE alone', () => {
-    expect(deckLabels(deck({ paused: true }))).toEqual({ a: '', b: '', start: 'RESTART', select: 'EXIT' });
+  it("paused: nothing on A (the pause screen resumes), no RESTART or EXIT (the pause screen's own; EXIT asked first); the settings: DONE alone", () => {
+    expect(deckLabels(deck({ paused: true }))).toEqual({ a: '', b: '', start: '', select: '' });
     expect(deckLabels(deck({ settings: true }))).toEqual({ a: 'DONE', b: '', start: '', select: '' });
   });
   it('skips the grid pan, a replay, qualifying and the wait after the flag; NEXT, RACE and AGAIN once they are over', () => {
