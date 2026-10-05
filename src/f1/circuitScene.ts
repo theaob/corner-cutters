@@ -10,7 +10,8 @@ import { canvas } from '../engine/render/sprites';
 import { pixelTexture } from '../engine/render/textures';
 import { addDaylight, type Daylight } from '../engine/render/daylight';
 import { groundAt } from '../engine/sim';
-import type { Pt } from './racing';
+import { sectorStarts, type Pt } from './racing';
+import { PETALS, PetalField, type PetalCar } from './petals';
 import { GARAGE_ACROSS, PIT } from './pits';
 import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
@@ -18,7 +19,7 @@ import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
 import { standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
-import { buildForest } from './forest3d';
+import { buildForest, type Tree } from './forest3d';
 import { buildCamels } from './camels';
 import { buildLakes } from './lakes';
 import { BRIDGE, liftAt } from './bridge';
@@ -32,6 +33,8 @@ export interface CircuitScene extends Daylight {
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery's people (a street circuit's swimmers and tennis players), `t` seconds on. */
   animate(t: number): void;
+  /** The cherry blossom's petals (a circuit with them: layout.blossoms) `dt` s on: falling near `focus` (the camera's), kicked up by `cars`. */
+  stepPetals(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void;
   /** Darken the ground (and the grass beyond) by `tint`, as the track wets or dries (weather.ts's look). */
   setGroundTint(tint: number): void;
 }
@@ -42,6 +45,47 @@ function rng(seed: number): () => number {
     return seed / 4294967296;
   };
 }
+
+/** A petal's pinks (paler than the blossom on the trees: a petal's thin), and its size (px) */
+const PETAL_PINKS = [0xfbd3de, 0xf7c6d4, 0xffe4ec, 0xf4b6c8, 0xfadbe4];
+const PETAL_SIZE = { w: 5, h: 3.4 };
+
+/** The petals of `trees` (cherry trees in blossom) in `scene`: one instanced mesh, redrawn each step. Gives back the step. */
+function buildPetals(scene: THREE.Scene, circuit: Circuit, trees: Tree[]): (dt: number, cars: PetalCar[], focus: { x: number; y: number }) => void {
+  const field = new PetalField(circuit.grid, circuit.track, trees);
+  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(PETAL_SIZE.w, PETAL_SIZE.h), new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide }), PETALS.max);
+  mesh.frustumCulled = false;
+  mesh.receiveShadow = true;
+  const colors = PETAL_PINKS.map((c) => new THREE.Color(c));
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const at = new THREE.Vector3();
+  const one = new THREE.Vector3(1, 1, 1);
+  const draw = () => {
+    field.petals.forEach((p, i) => {
+      // (lying flat on the ground, turned its own way; in the air, tumbling)
+      if (p.resting) e.set(-Math.PI / 2, 0, p.spin);
+      else e.set(p.spin, p.spin * 0.7, p.spin * 0.3);
+      m.compose(at.set(p.x, p.z + 0.4, p.y), q.setFromEuler(e), one);
+      mesh.setMatrixAt(i, m);
+      mesh.setColorAt(i, colors[p.shade % colors.length]);
+    });
+    mesh.count = field.petals.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  };
+  draw();
+  scene.add(mesh);
+  return (dt, cars, focus) => {
+    field.step(dt, cars, focus);
+    draw();
+  };
+}
+
+/** The sector lines' colour, and px wide (along the track) */
+const SECTOR_LINE = '#f4f4f8';
+const SECTOR_WIDTH = 3;
 
 /** px across each square of the chequered start/finish line (as near as fits the track's width evenly) */
 const START_SQUARE = 6;
@@ -468,6 +512,17 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     x.lineTo(front.x + grx * 9 - gfx * 6, front.y + gry * 9 - gfy * 6);
     x.stroke();
   }
+  // a white line across the track where each sector after the first starts (the start/finish line is the first's:
+  // chequered, below), edge to edge, square to the track
+  for (const k of sectorStarts(track)) {
+    const p = pts[k];
+    x.save();
+    x.translate(p.x, p.y);
+    x.rotate(p.dir);
+    x.fillStyle = SECTOR_LINE;
+    x.fillRect(-HALF_WIDTH, -SECTOR_WIDTH / 2, HALF_WIDTH * 2, SECTOR_WIDTH);
+    x.restore();
+  }
   // the chequered start/finish line across the track at sample 0: squares in the track's own frame (turned with
   // it, so as even on a straight at an angle as on one up the map), edge to edge, two rows centred on the line (over the pole's grid box, should they touch)
   const s0 = pts[0];
@@ -615,7 +670,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const deck = createPodiumDeck(circuit);
   if (deck) scene.add(deck);
   // (at a circuit in a forest: the trees)
-  buildForest(scene, circuit);
+  const trees = buildForest(scene, circuit);
+  // (the cherry trees in blossom: their petals, falling, drifting and kicked up by the cars)
+  const petals = circuit.layout.blossoms ? buildPetals(scene, circuit, trees.filter((t) => t.kind === 'blossom')) : undefined;
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);
@@ -664,6 +721,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       // the flags flap in the wind
       for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
     },
+    stepPetals: (dt, cars, focus) => petals?.(dt, cars, focus),
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);
       (outer.material as THREE.MeshLambertMaterial).color.copy(outerColor).multiply(new THREE.Color(t));
