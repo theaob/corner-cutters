@@ -741,7 +741,8 @@ function drive_(mode: string) {
     return status("can't drive it: the browser won't keep it (a private window?)", true);
   }
   const failing = check(layoutFrom(draft), circuit).filter((c) => !c.ok).map((c) => c.label);
-  window.open(`./index.html?circuit=${DESIGNER_DRAFT_ID}&mode=${mode}`, 'corner-cutters-drive');
+  // (the game beside it: index.html served, play.html built: vite.designer.config.ts)
+  window.open(`./${import.meta.env.VITE_GAME_PAGE ?? 'index.html'}?circuit=${DESIGNER_DRAFT_ID}&mode=${mode}`, 'corner-cutters-drive');
   status(failing.length ? `driving it as it is (failing: ${failing.join(', ')})` : 'driving it in the game (a tab of its own)', failing.length > 0);
 }
 

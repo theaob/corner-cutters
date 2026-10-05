@@ -437,7 +437,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     : layout.id === DESIGNER_DRAFT_ID
       ? () => {
           // (a draft from the track designer: back to it)
-          window.location.href = './designer.html';
+          // (designer.html served, index.html as built beside the game: vite.designer.config.ts)
+          window.location.href = `./${import.meta.env.VITE_DESIGNER_PAGE ?? 'designer.html'}`;
         }
     : mode === 'tutorial'
       ? () => {
