@@ -50,7 +50,7 @@ import { HALF_WIDTH, TILE, buildCircuit } from './circuit';
 import { vibrate } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
 import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
-import { RaceSounds, crowdNear, menuPick } from './sounds';
+import { RaceSounds, crowdNear, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { menuButton } from './circuitSelect';
 import { settingsRows, versionLine } from './settingsRows';
@@ -412,6 +412,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     if (!on) openPauseSettings(false);
+    askExit(false);
     if (!on) {
       last = performance.now();
       settle = 2;
@@ -986,19 +987,49 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseFocus = 0;
     showPauseFocus();
   };
-  pauseScreen.append(
-    pauseTitle,
+  // the pause screen's buttons, and in their place once EXIT is pressed, the question: leave? (STAY first)
+  const pauseMain = [
     pauseButton('RESUME', () => setPaused(false)),
     pauseButton('RESTART', () => restart()),
     pauseButton('SETTINGS', () => openPauseSettings(true)),
     // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened
     pauseButton('REPORT', () => void openReport({ circuit: layout.id, mode: statsMode() }, [pauseScreen])),
-  );
+    pauseButton('EXIT', () => askExit(true)),
+  ];
+  const exitLine = document.createElement('div');
+  style(exitLine, { color: '#9d9ab8', font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace', textAlign: 'center', margin: '-4px 16px 6px', textWrap: 'balance' });
+  const stayButton = pauseButton('STAY', () => askExit(false));
+  const leaveButton = pauseButton('EXIT', () => onQuit());
+  style(leaveButton, { borderColor: '#d8323c', color: '#ff6b6b' });
+  const exitParts = [exitLine, stayButton, leaveButton];
+  /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 EXIT) */
+  let asking = false;
+  let exitFocus = 0;
+  const showExitFocus = () => {
+    stayButton.style.boxShadow = exitFocus === 0 ? '0 0 0 2px #5fe0d0' : '';
+    leaveButton.style.boxShadow = exitFocus === 1 ? '0 0 0 2px #ff6b6b' : '';
+  };
+  /** What leaving loses, said under the question. */
+  const exitCost = () => championship ? "THE ROUND WON'T COUNT" : options.daily ? 'THIS RUN WON\'T COUNT' : session === 'race' || session === 'qualifying' ? "THIS RACE WON'T COUNT" : 'BACK TO THE CIRCUITS';
+  const askExit = (on: boolean) => {
+    if (on === asking) return;
+    if (on) menuPick();
+    asking = on;
+    pauseTitle.textContent = !on ? 'PAUSED' : session === 'race' || session === 'qualifying' ? 'LEAVE THE RACE?' : 'LEAVE THE SESSION?';
+    exitLine.textContent = exitCost();
+    for (const el of pauseMain) el.style.display = on ? 'none' : '';
+    for (const el of exitParts) el.style.display = on ? '' : 'none';
+    exitFocus = 0;
+    showExitFocus();
+  };
+  pauseScreen.append(pauseTitle, ...pauseMain, ...exitParts);
+  for (const el of exitParts) el.style.display = 'none';
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
   const offBack = onBack(() => {
     if (replay && !paused) endReplay();
     else if (pauseSettingsOn) openPauseSettings(false);
+    else if (asking) askExit(false);
     else if (paused) setPaused(false);
     else if (!done) setPaused(true);
     else if (championship && results.style.display === 'block') finishRound();
@@ -1252,6 +1283,25 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       requestAnimationFrame(tick);
       return;
     }
+    if (asking) {
+      // leave? left/right (or up/down) moves between STAY and EXIT, A or START picks, B stays, SELECT again leaves
+      const [up, down, left, right, a, b, start, select] = (['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'] as const).map(pressed);
+      if (up || down || left || right) {
+        exitFocus = 1 - exitFocus;
+        menuTick();
+        showExitFocus();
+      }
+      if (b) askExit(false);
+      else if (select || ((a || start) && exitFocus === 1)) quitting = true;
+      else if (a || start) askExit(false);
+      if (quitting && !controls.isDown('select') && !controls.isDown('a') && !controls.isDown('start')) {
+        quitting = false;
+        onQuit();
+        return;
+      }
+      requestAnimationFrame(tick);
+      return;
+    }
     const startPressed = pressed('start');
     // (SELECT pauses while racing, as its label says; otherwise it exits)
     const selectPauses = deckLabels().select === 'PAUSE';
@@ -1282,6 +1332,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // events go to a page that's gone)
     if (pressed('select')) {
       if (selectPauses) setPaused(true);
+      // (paused: asked first, as the pause screen's EXIT asks)
+      else if (paused && !done) askExit(true);
       else quitting = true;
     }
     if (quitting && !controls.isDown('select')) {
