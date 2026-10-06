@@ -237,7 +237,8 @@ describe('Ardennes', () => {
   };
 
   it('is the longest lap of all', () => {
-    for (const c of circuits) if (c !== ardennes) expect(ardennes.track.length).toBeGreaterThan(c.track.length * 1.2);
+    // (by a margin: Neon Strip, drawn big for its tight corners, is the next longest)
+    for (const c of circuits) if (c !== ardennes) expect(ardennes.track.length).toBeGreaterThan(c.track.length * 1.05);
   });
 
   it('goes up and down the most, and climbs the steepest (out of the bottom of the valley)', () => {
