@@ -185,6 +185,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const sessionWeather = (): WeatherId => conditionOf(forecast.start);
   /** how the circuit looks now (wetness and rain), last put on the scene, so it's only redone as it changes */
   let shownLook = { wetness: -1, rain: -1 };
+  /** the times the gopher's been hit, last frame (a boing for each new one) */
+  let gopherHits = 0;
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
   // (a bridge: the marks of cars up on its deck on a layer of their own at the deck's height, over the road beneath)
   const deckSkids = track.levels ? new SkidLayer((x, y) => groundAt(track.levels!.upper, x, y).h) : undefined;
@@ -921,7 +923,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** the gopher (a circuit with one): what it's doing, where, and its crossings so far */
         /** the yeti (a circuit with one): what it's doing and where, and its chases so far */
         yeti: () => world.yeti && { pose: world.yeti.pose && { ...world.yeti.pose }, chases: world.yeti.chases },
-        gopher: () => world.gopher && { phase: world.gopher.crossing?.phase, pose: world.gopher.pose(), crossings: world.gopher.crossings, bolts: world.gopher.bolts },
+        gopher: () => world.gopher && { phase: world.gopher.crossing?.phase, pose: world.gopher.pose(), crossings: world.gopher.crossings, bolts: world.gopher.bolts, hits: world.gopher.hits },
         /** the champagne ceremony: s it's been on (undefined: it isn't) */
         ceremony: () => podium?.time,
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
@@ -2075,7 +2077,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     particles.update(dt);
     // the cherry blossom's petals (where there's blossom): falling round your car, kicked up as the cars drive over them
     // (still while paused, or as the replay plays)
-    if (!paused && !replay) world.stepScenery(dt, race.entrants.map((e) => e.car), race.entrants[you].car);
+    if (!paused && !replay) {
+      world.stepScenery(dt, race.entrants.map((e) => e.car), race.entrants[you].car);
+      // (the gopher hit, near enough to see: boing)
+      if (world.gopher && world.gopher.hits > gopherHits) sounds.boing();
+      gopherHits = world.gopher?.hits ?? 0;
+    }
     // (in the replay, thrown again as they flew then)
     if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);
     else debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);

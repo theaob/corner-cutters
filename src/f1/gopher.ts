@@ -1,9 +1,14 @@
 // A gopher at Twin Lakes (layout.gophers): now and then one pops up out of its
-// hole just past the edge of the track, up the road from the camera, looks about, and
-// scurries across to its hole on the other side, where it ducks back in. It
-// only sets off with no car coming; caught on the track by one, it bolts for
-// the nearer hole, three times as fast. Scenery only: no car ever touches it.
-// Engine-free (GopherRun) and unit-tested; gopherModel/buildGopher draw it.
+// hole just past the edge of the track, up the road from the camera, looks
+// about, and scurries across to its hole on the other side, where it ducks back
+// in. It only sets off with no car near; caught on the track by one, it freezes
+// a moment (a gopher in the headlights), then bolts for the nearer hole, three
+// times as fast. A car that hits it sends it flying, tumbling head over heels,
+// the way the car was going: it lands on its feet, sits dazed a while, stars
+// round its head, then shakes it off and scurries off the track to the nearer
+// hole (or digs a new one beside the track, flung far from both). No harm done
+// to it or the car: scenery, never in the car's way. Engine-free (GopherRun)
+// and unit-tested; gopherModel/buildGopher draw it.
 
 import * as THREE from 'three';
 import { groundAt, type Grid } from '../engine/sim';
@@ -16,8 +21,8 @@ export const GOPHER = {
   /** s between one crossing and the next (at least, and up to this much more) */
   wait: 12,
   waitMore: 16,
-  /** px along the lap ahead of the camera's focus a crossing may be: just out of sight, coming into it */
-  ahead: { from: 340, to: 640 },
+  /** px along the lap ahead of the camera's focus a crossing may be: out of sight, far enough on that it's out on the track by the time a car gets there */
+  ahead: { from: 520, to: 820 },
   /** px out past the track's edge each hole is */
   holeOut: 22,
   /** px/s it scurries; × that when a car catches it on the track */
@@ -26,9 +31,24 @@ export const GOPHER = {
   /** s it takes to pop up out of the hole and look about, and to duck back in */
   peek: 1.1,
   duck: 0.4,
-  /** px: no car this near the crossing for it to set off; one this near while it's crossing sends it bolting */
+  /** px: no car this near the crossing for it to set off; one this near while it's crossing freezes it, then sends it bolting */
   clear: 200,
   danger: 130,
+  /** s it freezes, caught on the track by a car, before it bolts */
+  freeze: 0.5,
+  /** px from a car's middle that the car hits it (half a car's width, and half its own length, at its size), and the least px/s that does */
+  hit: 18,
+  hitSpeed: 40,
+  /** flung: a share of the car's speed it flies at, px/s up off the bonnet (and a share of the car's speed more), px/s² it falls, radians/s it tumbles */
+  fling: 0.6,
+  lift: 110,
+  liftMore: 0.15,
+  gravity: 420,
+  tumble: 13,
+  /** s it sits dazed where it lands */
+  dazed: 1.4,
+  /** px: flung no farther than this from one of its holes, it runs back to it; farther, it digs a new one beside the track */
+  home: 160,
   /** × its size (and its holes'): life size is lost among the cars from the camera's height */
   size: 1.8,
 };
@@ -41,15 +61,20 @@ export interface GopherCar {
   vy: number;
 }
 
-/** Where it is, which way it faces (radians, as the track's), how far up out of the ground (0 in its hole, 1 out), and its stride. */
+/** Where it is (and how high in the air, px), which way it faces (radians, as the track's), how far up out of the ground (0 in its hole, 1 out), its stride, how far it's tumbled head over heels (radians), and whether it's dazed. */
 export interface GopherPose {
   x: number;
   y: number;
+  z: number;
   heading: number;
   up: number;
   step: number;
   running: boolean;
+  tumble: number;
+  dazed: boolean;
 }
+
+type Phase = 'peek' | 'run' | 'freeze' | 'bolt' | 'flung' | 'dazed' | 'duck';
 
 function rng(seed: number): () => number {
   return () => {
@@ -60,11 +85,24 @@ function rng(seed: number): () => number {
 
 /** The gopher's crossings of the track. */
 export class GopherRun {
-  /** the crossing under way: its holes, how far across (0…1), and what it's doing */
-  crossing?: { from: { x: number; y: number }; to: { x: number; y: number }; done: number; phase: 'peek' | 'run' | 'bolt' | 'duck'; t: number; back: boolean };
-  /** crossings made, and those it bolted from */
+  /**
+   * the crossing under way: where it's going from and to, how far (0…1), and what it's doing; its holes (the two it
+   * crossed between, and one it dug, flung far from them); in the air: where, and how fast
+   */
+  crossing?: {
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+    done: number;
+    phase: Phase;
+    t: number;
+    back: boolean;
+    holes: { x: number; y: number }[];
+    air?: { x: number; y: number; z: number; vx: number; vy: number; vz: number; tumble: number; heading: number };
+  };
+  /** crossings made, those it bolted from, and the times a car hit it */
   crossings = 0;
   bolts = 0;
+  hits = 0;
   private wait: number;
   private readonly r: () => number;
   private stride = 0;
@@ -85,21 +123,41 @@ export class GopherRun {
       return;
     }
     c.t += dt;
-    const at = this.where();
-    const danger = cars.some((k) => Math.hypot(k.x - at.x, k.y - at.y) < GOPHER.danger);
-    if (c.phase === 'peek') {
-      // (a car coming as it looks about: back down its hole)
-      if (danger) this.end();
-      else if (c.t >= GOPHER.peek) Object.assign(c, { phase: 'run', t: 0 });
+    if (c.phase === 'flung') {
+      this.fly(dt);
       return;
     }
-    const length = Math.hypot(c.to.x - c.from.x, c.to.y - c.from.y);
+    const at = this.where();
+    // hit: a car going by over it (not as it ducks into its hole)
+    const hitBy = c.phase !== 'duck' && cars.find((k) => Math.hypot(k.x - at.x, k.y - at.y) < GOPHER.hit && Math.hypot(k.vx, k.vy) > GOPHER.hitSpeed);
+    if (hitBy) {
+      this.flung(at, hitBy);
+      return;
+    }
+    if (c.phase === 'peek') {
+      if (c.t >= GOPHER.peek) Object.assign(c, { phase: 'run', t: 0 });
+      return;
+    }
+    if (c.phase === 'dazed') {
+      // (shaking it off: away to the hole, as fast as it can)
+      if (c.t >= GOPHER.dazed) Object.assign(c, { phase: 'bolt', t: 0 });
+      return;
+    }
+    const danger = cars.some((k) => Math.hypot(k.x - at.x, k.y - at.y) < GOPHER.danger);
     if (c.phase === 'run' && danger) {
-      // caught on the track: for the nearer hole, as fast as it can
-      Object.assign(c, { phase: 'bolt', back: c.done < 0.5 });
-      this.bolts++;
+      // caught on the track: frozen to the spot a moment, then for the nearer hole, as fast as it can
+      Object.assign(c, { phase: 'freeze', t: 0, back: c.done < 0.5 });
+      return;
+    }
+    if (c.phase === 'freeze') {
+      if (c.t >= GOPHER.freeze) {
+        Object.assign(c, { phase: 'bolt', t: 0 });
+        this.bolts++;
+      }
+      return;
     }
     if (c.phase === 'run' || c.phase === 'bolt') {
+      const length = Math.max(1, Math.hypot(c.to.x - c.from.x, c.to.y - c.from.y));
       const speed = GOPHER.speed * (c.phase === 'bolt' ? GOPHER.bolt : 1);
       this.stride += speed * dt;
       c.done += ((c.back ? -1 : 1) * speed * dt) / length;
@@ -110,6 +168,44 @@ export class GopherRun {
       return;
     }
     if (c.t >= GOPHER.duck) this.end();
+  }
+
+  /** Hit by `car` at `at`: up off its bonnet, the way it was going, tumbling. */
+  private flung(at: { x: number; y: number }, car: GopherCar): void {
+    const c = this.crossing!;
+    const speed = Math.hypot(car.vx, car.vy);
+    // (a little off to one side or the other, as it glances off)
+    const aside = (this.r() - 0.5) * 0.5;
+    const dir = Math.atan2(car.vy, car.vx) + aside;
+    const v = speed * GOPHER.fling;
+    c.air = { x: at.x, y: at.y, z: 0, vx: Math.cos(dir) * v, vy: Math.sin(dir) * v, vz: GOPHER.lift + speed * GOPHER.liftMore, tumble: 0, heading: dir };
+    Object.assign(c, { phase: 'flung', t: 0 });
+    this.hits++;
+  }
+
+  /** Through the air, `dt` s on; down: dazed where it lands, then off the track to a hole. */
+  private fly(dt: number): void {
+    const c = this.crossing!;
+    const a = c.air!;
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+    a.vz -= GOPHER.gravity * dt;
+    a.z += a.vz * dt;
+    a.tumble += GOPHER.tumble * dt;
+    if (a.z > 0) return;
+    // landed (on its feet): for the nearer of its holes if it's near, or a new one, off the track beside where it is
+    const land = { x: a.x, y: a.y };
+    const near = [...c.holes].sort((p, q) => Math.hypot(p.x - land.x, p.y - land.y) - Math.hypot(q.x - land.x, q.y - land.y))[0];
+    let to = near;
+    if (Math.hypot(near.x - land.x, near.y - land.y) > GOPHER.home) {
+      const k = nearestSample(this.track, land.x, land.y);
+      const p = this.track.samples[k];
+      const side = Math.sign(lateralOffset(this.track, k, land.x, land.y)) || 1;
+      const out = HALF_WIDTH + GOPHER.holeOut;
+      to = { x: p.x + Math.cos(p.dir) * out * side, y: p.y + Math.sin(p.dir) * out * side };
+      c.holes.push(to);
+    }
+    Object.assign(c, { from: land, to, done: 0, back: false, phase: 'dazed', t: 0, air: undefined });
   }
 
   /** Off across the track up the road from `focus`: at a spot with no car near, if there's one. */
@@ -140,16 +236,17 @@ export class GopherRun {
       this.wait = 1.5;
       return;
     }
-    this.crossing = { from, to, done: 0, phase: 'peek', t: 0, back: false };
+    this.crossing = { from, to, done: 0, phase: 'peek', t: 0, back: false, holes: [from, to] };
   }
 
   private end(): void {
-    if (this.crossing && this.crossing.phase === 'duck' && (this.crossing.done >= 1 || this.crossing.done <= 0)) this.crossings++;
+    const c = this.crossing;
+    if (c && c.phase === 'duck' && (c.done >= 1 || c.done <= 0)) this.crossings++;
     this.crossing = undefined;
     this.wait = GOPHER.wait + this.r() * GOPHER.waitMore;
   }
 
-  /** Where it is on its way across. */
+  /** Where it is on its way. */
   private where(): { x: number; y: number } {
     const c = this.crossing!;
     return { x: c.from.x + (c.to.x - c.from.x) * c.done, y: c.from.y + (c.to.y - c.from.y) * c.done };
@@ -159,10 +256,11 @@ export class GopherRun {
   pose(): GopherPose | undefined {
     const c = this.crossing;
     if (!c) return undefined;
+    if (c.air) return { x: c.air.x, y: c.air.y, z: c.air.z, heading: c.air.heading, up: 1, step: 0, running: false, tumble: c.air.tumble, dazed: false };
     const at = this.where();
     const dir = Math.atan2(c.to.y - c.from.y, c.to.x - c.from.x) + (c.back ? Math.PI : 0);
     const up = c.phase === 'peek' ? Math.min(1, c.t / (GOPHER.peek * 0.4)) : c.phase === 'duck' ? Math.max(0, 1 - c.t / GOPHER.duck) : 1;
-    return { ...at, heading: dir, up, step: this.stride / 5, running: c.phase === 'run' || c.phase === 'bolt' };
+    return { ...at, z: 0, heading: dir, up, step: this.stride / 5, running: c.phase === 'run' || c.phase === 'bolt', tumble: 0, dazed: c.phase === 'dazed' };
   }
 }
 
@@ -221,34 +319,56 @@ export function buildGopher(scene: THREE.Scene, grid: Grid, track: Track): { run
     scene.add(g);
     return g;
   };
-  const holes = [hole(), hole()];
+  // (its two holes, and one it digs flung far from them)
+  const holes = [hole(), hole(), hole()];
   group.scale.setScalar(GOPHER.size);
   group.visible = false;
   scene.add(group);
+  // dazed: stars going round over its head
+  const starMat = new THREE.MeshBasicMaterial({ color: 0xffe14a, toneMapped: false });
+  const stars = Array.from({ length: 3 }, () => {
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), starMat);
+    star.visible = false;
+    group.add(star);
+    return star;
+  });
   let shown: GopherRun['crossing'];
+  let shownHoles = 0;
+  let time = 0;
   const step = (dt: number, cars: GopherCar[], focus: { x: number; y: number }) => {
     run.step(dt, cars, focus);
+    time += dt;
     const c = run.crossing;
     // (the holes stay while it's out, gone once it's in and off elsewhere)
-    if (c !== shown) {
+    if (c !== shown || (c && c.holes.length !== shownHoles)) {
       shown = c;
+      shownHoles = c?.holes.length ?? 0;
       holes.forEach((h, k) => {
-        h.visible = !!c;
-        if (!c) return;
-        const at = k === 0 ? c.from : c.to;
-        h.position.set(at.x, groundAt(grid, at.x, at.y).h, at.y);
+        const at = c?.holes[k];
+        h.visible = !!at;
+        if (at) h.position.set(at.x, groundAt(grid, at.x, at.y).h, at.y);
       });
     }
     const pose = run.pose();
     group.visible = !!pose && pose.up > 0;
     if (!pose) return;
     const ground = groundAt(grid, pose.x, pose.y).h;
-    // (popping up out of the hole: rising from under the ground; running: bobbing with its stride)
+    // (popping up out of the hole: rising from under the ground; running: bobbing with its stride; flung: up in the air)
     const bob = pose.running ? Math.abs(Math.sin(pose.step * Math.PI)) * 0.8 : 0;
-    group.position.set(pose.x, ground + (-(1 - pose.up) * 6 + bob) * GOPHER.size, pose.y);
+    group.position.set(pose.x, ground + pose.z + (-(1 - pose.up) * 6 + bob) * GOPHER.size, pose.y);
     group.rotation.y = -pose.heading;
-    body.rotation.z = pose.running ? 0 : 0.35 * pose.up;
+    // (tumbling head over heels in the air; sitting up dazed, swaying; sat up on its haunches looking about)
+    body.rotation.z = pose.tumble ? -pose.tumble : pose.dazed ? 0.35 : pose.running ? 0 : 0.35 * pose.up;
+    body.rotation.x = pose.dazed ? Math.sin(time * 5) * 0.2 : 0;
+    body.position.y = pose.tumble ? 2.5 : 0;
     feet.forEach((f, k) => (f.position.x = (k < 2 ? 2 : -2) + (pose.running ? Math.sin(pose.step * Math.PI * 2 + (k % 2) * Math.PI) * 0.8 : 0)));
+    stars.forEach((star, k) => {
+      star.visible = pose.dazed;
+      if (!pose.dazed) return;
+      const a = time * 4 + (k * Math.PI * 2) / stars.length;
+      star.position.set(2.5 + Math.cos(a) * 3.2, 8, Math.sin(a) * 3.2);
+      star.rotation.y = time * 6;
+    });
   };
   return { run, step };
 }
