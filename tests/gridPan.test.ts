@@ -20,6 +20,13 @@ describe('the grid pan', () => {
     const mid = panAt(slots, t3 + GRID_PAN.perCar / 2);
     expect(mid.y).toBeCloseTo((slots[3].y + slots[4].y) / 2);
   });
+  it('stops at the last car of a smaller grid, over the whole of its length', () => {
+    for (const cars of [1, 4, 6, 9]) {
+      const some = slots.slice(0, cars);
+      for (let t = 0; t <= panLength(cars) + 0.5; t += 0.02) expect(panAt(some, t).car).toBeLessThan(cars);
+      expect(panAt(some, panLength(cars)).car).toBe(cars - 1);
+    }
+  });
   it('takes a few seconds for a full grid', () => {
     expect(panLength(10)).toBeGreaterThan(5);
     expect(panLength(10)).toBeLessThan(8);

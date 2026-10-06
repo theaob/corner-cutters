@@ -54,6 +54,12 @@ export async function sendLaps(player: string, name: string, version?: string): 
     if (ok) sent++;
     else left[keyOf(l.circuit, l.weather)] = l;
   }
+  // a lap queued while these were going (a quicker one, say) stays to send, as does any that didn't go
+  for (const l of pendingLaps()) {
+    const key = keyOf(l.circuit, l.weather);
+    const went = laps.find((s) => keyOf(s.circuit, s.weather) === key);
+    if (!went || (!left[key] && l.time < went.time)) left[key] = l;
+  }
   if (laps.length) save('boards', 'pending', Object.keys(left).length ? left : undefined);
   return sent;
 }

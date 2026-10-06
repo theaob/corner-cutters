@@ -13,6 +13,7 @@
 
 import * as THREE from 'three';
 import { groundAt } from '../engine/sim';
+import { disposeDeep } from '../engine/render/dispose';
 import { HALF_WIDTH, type Circuit } from './circuit';
 import { GARAGE_ACROSS, PIT } from './pits';
 
@@ -352,6 +353,8 @@ export function createCeremony(title = ''): Ceremony {
       drivers.forEach((d, k) => {
         const who = list[k];
         d.figure.visible = !!who;
+        // (the car there from the last ceremony: freed, not just taken out)
+        for (const c of bays[k].children) disposeDeep(c);
         bays[k].clear();
         if (!who) return;
         d.body.color.set(who.body);

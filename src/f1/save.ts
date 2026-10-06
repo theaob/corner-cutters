@@ -12,6 +12,8 @@
 //             achievements: those unlocked, and raced: the circuits you've raced on (achievements.ts)
 //   boards    pending: your Time Trial lap records not yet on the online boards (boards.ts)
 //   race      kept: the race in progress (a Quick Race or a Championship round), to come back to (raceSave.ts)
+//   daily     best: your best run on each day's challenge; pending: a run not yet on its board; streak and last: your streak of days (daily.ts)
+//   profile   the player's id and initials for the online boards (profile.ts)
 //   circuits  each circuit's hash when last played: records and ghosts on one changed since are forgotten (circuitHash.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //
