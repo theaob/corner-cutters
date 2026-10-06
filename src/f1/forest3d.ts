@@ -338,7 +338,7 @@ function mountainOf(circuit: Circuit): Tree[] {
 }
 
 /** A park's trees: lining its woods, and in groves over the lawns round the circuit. */
-function parkOf(circuit: Circuit, [from, to]: [number, number]): Tree[] {
+function parkOf(circuit: Circuit, avenue?: [number, number]): Tree[] {
   const W = circuit.width * T;
   const H = circuit.height * T;
   const grow = growth(circuit, PARK.clear);
@@ -353,10 +353,11 @@ function parkOf(circuit: Circuit, [from, to]: [number, number]): Tree[] {
     const palette = cedar ? SPRUCE : PARKLAND;
     out.push({ x, y, h, kind: cedar ? 'spruce' : 'broadleaf', color: palette[Math.floor(r() * palette.length)] });
   };
-  // the woods: lining both sides of the lap
+  // the woods: lining both sides of the lap (a park with them)
   const { samples, spacing } = circuit.track;
   const reach = HALF_WIDTH + RUNOFF + PARK.clear;
   const step = Math.max(1, Math.round(PARK.avenueEvery / spacing));
+  const [from, to] = avenue ?? [0, -1];
   for (let i = Math.round(from / spacing); i <= Math.round(to / spacing); i += step) {
     const p = samples[i % samples.length];
     for (const side of [-1, 1]) {
