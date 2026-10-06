@@ -5,6 +5,13 @@
 import type { PitSpec } from './pits';
 import type { Pt } from './racing';
 
+/** A banked bend: px along the lap (from, to), and how steeply the track tilts up toward the outside (rise per px across, at its steepest). */
+export interface Banking {
+  from: number;
+  to: number;
+  grade: number;
+}
+
 export interface CircuitLayout {
   id: string;
   name: string;
@@ -22,8 +29,8 @@ export interface CircuitLayout {
   tyreWear?: number;
   /** a street circuit: walls `runoff` px off the track's edge (pavement between), the town all round, the sea (a polygon, in `points` units), and any tunnel (px along the lap, from and to) */
   street?: StreetSpec;
-  /** a banked bend: px along the lap (from, to), and how steeply the track tilts up toward the outside (rise per px across, at its steepest) */
-  banking?: { from: number; to: number; grade: number };
+  /** a banked bend (or several): px along the lap (from, to), and how steeply the track tilts up toward the outside (rise per px across, at its steepest) */
+  banking?: Banking | Banking[];
   /** in a forest: trees packed all round beyond the barriers, on a dark forest floor */
   forest?: boolean;
   /** in a park: groves of trees here and there over the grass, and lining the lap from `avenue[0]` to `avenue[1]` px round it (its woods; none: no woods) */
@@ -42,6 +49,8 @@ export interface CircuitLayout {
   jumps?: { at: number; rise: number }[];
   /** the cherry trees in blossom: groves of them round the circuit and lining the lap, their petals drifting onto the track (petals.ts) */
   blossoms?: boolean;
+  /** the coast (coast.ts): its shore (in `points` units, along the edge of the sea, which is one of the layout's lakes), the dunes beyond the barriers, beach huts, kites and gulls along it, and a windmill on a dune */
+  coast?: { shore: [number, number][]; windmill: [number, number] };
   /** an airport next door: airliners now and then flying over, coming in to land or taking off, the way its runway runs (radians, as Math.atan2 of their run on the map: planes.ts) */
   airport?: { runway: number };
   /** a gopher now and then popping up out of its hole by the track near the camera and scurrying across (gopher.ts) */
@@ -799,6 +808,99 @@ export const SUZUKA: CircuitLayout = {
 };
 
 /**
+ * Dune Coast. Clockwise over the sand dunes by the sea, traced from the
+ * circuit in the dunes on the North Sea coast (outline data from
+ * github.com/bacinger/f1-circuits, MIT): up the main straight to the
+ * hairpin at the end of it, down the back of the dunes and round the first of
+ * its two banked bends (a steep left, banked up like a bowl), over the crest
+ * and through the fast sweeps out to the far end and back, the chicane, the
+ * long run down the back, and the second banked bend, a long right onto the
+ * main straight, flat out. Hilly: up and down over the dunes. Its corners
+ * rounded a little, and drawn bigger than the others so its hairpins suit the
+ * arcade handling: a lap of about 10,800 px, about 32 s.
+ */
+export const DUNE_COAST: CircuitLayout = {
+  id: 'dune-coast',
+  name: 'Dune Coast',
+  about: 'clockwise · over the dunes, two banked bends',
+  points: ([
+    [116, 374], [127, 348], [137, 322], [148, 296], [159, 271], [170, 245],
+    [181, 219], [192, 193], [203, 168], [214, 142], [224, 116], [235, 90],
+    [246, 64], [257, 38], [271, 14], [294, 0], [321, 5], [339, 26],
+    [337, 53], [327, 80], [317, 106], [307, 132], [298, 158], [288, 185],
+    [283, 212], [282, 240], [280, 268], [270, 294], [249, 312], [224, 324],
+    [198, 336], [175, 350], [171, 376], [188, 397], [216, 399], [243, 392],
+    [270, 384], [297, 376], [324, 370], [352, 367], [380, 365], [408, 367],
+    [435, 371], [463, 376], [490, 380], [518, 385], [546, 386], [573, 381],
+    [600, 372], [625, 359], [649, 345], [674, 332], [700, 321], [727, 316],
+    [755, 313], [783, 311], [811, 312], [839, 314], [866, 316], [894, 321],
+    [920, 332], [941, 349], [958, 372], [968, 398], [969, 425], [963, 453],
+    [950, 477], [934, 500], [919, 524], [903, 547], [888, 570], [875, 595],
+    [863, 620], [851, 645], [830, 663], [802, 667], [774, 666], [747, 661],
+    [720, 651], [695, 640], [672, 624], [653, 603], [648, 577], [662, 553],
+    [688, 543], [715, 536], [743, 530], [770, 523], [796, 512], [821, 500],
+    [837, 479], [839, 451], [820, 431], [795, 420], [767, 417], [739, 416],
+    [711, 414], [683, 412], [655, 411], [627, 413], [599, 416], [572, 420],
+    [544, 426], [518, 434], [491, 442], [464, 450], [437, 458], [411, 467],
+    [385, 478], [360, 490], [334, 502], [308, 508], [284, 495], [261, 480],
+    [234, 484], [220, 506], [221, 534], [226, 562], [231, 589], [235, 617],
+    [240, 645], [245, 672], [249, 700], [254, 727], [257, 755], [251, 782],
+    [233, 803], [207, 813], [179, 814], [151, 816], [123, 816], [96, 811],
+    [70, 800], [46, 785], [26, 766], [12, 742], [3, 715], [0, 687],
+    [3, 660], [9, 632], [19, 606], [30, 581], [41, 555], [52, 529],
+    [62, 503], [73, 477], [84, 451], [95, 425], [105, 400],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2.6,
+  // (a share of the lap): the main straight, up to the hairpin; down into the first banked bend, the climb over
+  // the crest of the dunes beyond it, down through the sweeps, up again to the chicane, and down to the last bend
+  elevation: [
+    [0, 10],
+    [0.1, 14],
+    [0.21, 6],
+    [0.3, 26],
+    [0.42, 18],
+    [0.55, 12],
+    [0.68, 20],
+    [0.8, 8],
+    [0.92, 6],
+    [1, 10],
+  ],
+  // on the outside of the main straight (its inside, the first banked bend's hairpin, comes too near)
+  pit: { from: -520, to: 720, side: -1 },
+  // the North Sea, beyond the dunes west of the main straight (in as near as the pits let it, past the hairpin)
+  lakes: [
+    ([
+      [-243, 983], [-223, 936], [-204, 890], [-185, 844], [-165, 798], [-146, 752],
+      [-127, 706], [-107, 660], [-88, 614], [-68, 568], [-49, 522], [-30, 475],
+      [-10, 429], [9, 383], [28, 337], [48, 291], [67, 245], [87, 199],
+      [106, 153], [125, 107], [160, 67], [194, 27], [214, -19], [233, -65],
+      [253, -111], [272, -157], [291, -203], [311, -249], [330, -295], [349, -341],
+      [369, -388], [388, -434], [408, -480], [427, -526], [446, -572], [466, -618],
+      [485, -664], [504, -710], [524, -756], [543, -802], [563, -848], [-1465, -1700],
+      [-2271, 131],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  ],
+  // the coast along it: dunes, beach huts, kites and gulls; a windmill on a dune in the infield
+  coast: {
+    shore: [
+      [-243, 983], [-223, 936], [-204, 890], [-185, 844], [-165, 798], [-146, 752],
+      [-127, 706], [-107, 660], [-88, 614], [-68, 568], [-49, 522], [-30, 475],
+      [-10, 429], [9, 383], [28, 337], [48, 291], [67, 245], [87, 199],
+      [106, 153], [125, 107], [160, 67], [194, 27], [214, -19], [233, -65],
+      [253, -111], [272, -157], [291, -203], [311, -249], [330, -295], [349, -341],
+      [369, -388], [388, -434], [408, -480], [427, -526], [446, -572], [466, -618],
+      [485, -664], [504, -710], [524, -756], [543, -802], [563, -848],
+    ],
+    windmill: [164, 600],
+  },
+  // the two banked bends: the steep left after the hairpin, and the long right onto the main straight
+  banking: [
+    { from: 2160, to: 2520, grade: 0.32 },
+    { from: 9300, to: 10150, grade: 0.32 },
+  ],
+};
+
+/**
  * Glacier Pass. Clockwise over a mountain pass, a circuit of our own: from the
  * valley floor down the main straight to Turn 1, up the switchbacks (three
  * hairpins stacked up the mountainside, the climb steady all the way), along
@@ -954,7 +1056,7 @@ export const DUST_BOWL: CircuitLayout = {
   free: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, GLACIER_PASS, DUST_BOWL];
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, DUNE_COAST, GLACIER_PASS, DUST_BOWL];
 
 /** The Championship's circuits, a round on each, in order (the free circuits aren't among them). */
 export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.free);

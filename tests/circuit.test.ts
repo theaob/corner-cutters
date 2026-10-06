@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, DUST_BOWL, GLACIER_PASS, SUZUKA, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, DUST_BOWL, GLACIER_PASS, SUZUKA, DUNE_COAST, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -29,6 +29,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: BAKU, length: [10400, 11400], lap: [30, 38], flatGap: 1.5, braking: 1.2 },
   // the figure of eight: the esses, the hairpin and the chicane want a lift
   { layout: SUZUKA, length: [9800, 10600], lap: [28, 35], flatGap: 1.5, braking: 1.2 },
+  // the dunes: the hairpin, the banked hairpin and the chicane want a stop; the long banked bend onto the straight is flat out
+  { layout: DUNE_COAST, length: [10500, 11500], lap: [29, 37], flatGap: 2.5, braking: 1.2 },
   // the mountain: the switchbacks' hairpins want a stop each, the jumps are flat out
   { layout: GLACIER_PASS, length: [9800, 10800], lap: [28, 36], flatGap: 2, braking: 1.5 },
   // the dirt: short and twisty, but flat out all the way round on tarmac's grip (on dirt's, the cars slide: tyres.test.ts)
@@ -149,7 +151,7 @@ describe('the banking at Royal Park', () => {
   const circuit = buildCircuit(ROYAL_PARK, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
   const { track, grid, bank } = circuit;
   const n = track.samples.length;
-  const { from, to, grade } = ROYAL_PARK.banking!;
+  const { from, to, grade } = [ROYAL_PARK.banking!].flat()[0];
   const across = (i: number, a: number) => {
     const p = track.samples[i];
     return groundAt(grid, p.x + Math.cos(p.dir) * a, p.y + Math.sin(p.dir) * a).h;

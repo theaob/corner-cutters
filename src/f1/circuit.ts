@@ -218,20 +218,22 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   // a banked bend: how steeply the ground tilts across the track at each sample (easing in and out over
   // BANK_EASE px at its ends), up toward the outside of the bend
   const bank = new Float32Array(n);
-  if (layout.banking) {
-    const { from, to, grade } = layout.banking;
+  // (one banked bend, or several: each tilted up toward its own outside)
+  for (const { from, to, grade } of [layout.banking ?? []].flat()) {
     const span = (((to - from) % track.length) + track.length) % track.length;
     let turn = 0;
+    const these: number[] = [];
     track.samples.forEach((p, i) => {
       const along = (((p.s - from) % track.length) + track.length) % track.length;
       if (along > span) return;
       const ease = Math.min(1, along / BANK_EASE, (span - along) / BANK_EASE);
       bank[i] = grade * ease * ease * (3 - 2 * ease);
+      these.push(i);
       turn += p.curve;
     });
     // (a right-hander's outside is on the left)
     const outside = turn > 0 ? -1 : 1;
-    for (let i = 0; i < n; i++) bank[i] *= outside;
+    for (const i of these) bank[i] *= outside;
   }
   const kerbs = kerbed(track);
   const cells: CircuitCell[] = [];
