@@ -81,31 +81,34 @@ function along(line: Pt[], every: number): { p: Pt; i: number }[] {
 }
 
 /** Whether (x, y) is clear of the track and its run-off, the garages and the grandstands, by `clear` px. */
-function clearOf(circuit: Circuit, x: number, y: number, clear: number): boolean {
+function clearOf(circuit: Circuit, stands: ReturnType<typeof standsOf>, x: number, y: number, clear: number): boolean {
   if (circuit.track.samples.some((p) => Math.hypot(p.x - x, p.y - y) < HALF_WIDTH + RUNOFF + clear)) return false;
   if (circuit.pit.points.some((p) => Math.hypot(p.x - x, p.y - y) < GARAGE_ACROSS + 20 + clear)) return false;
-  return !standsOf(circuit).some((s) => Math.hypot(s.x - x, s.y - y) < s.len / 2 + STAND.depth + clear);
+  return !stands.some((s) => Math.hypot(s.x - x, s.y - y) < s.len / 2 + STAND.depth + clear);
 }
 
 /** The beach huts: a row along the top of the beach, facing the sea, wherever they're clear. */
 export function hutsOf(circuit: Circuit): Hut[] {
   const coast = coastOf(circuit);
   if (!coast) return [];
+  // (the stands once: worked out for every hut tried, they took seconds)
+  const stands = standsOf(circuit);
   return along(coast.shore, COAST.hutEvery)
     .map(({ p, i }, k) => {
       const out = coast.seaward[i];
       return { x: p.x - out.x * COAST.hutBack, y: p.y - out.y * COAST.hutBack, facing: Math.atan2(out.y, out.x), color: HUT_COLORS[(k * 5) % HUT_COLORS.length] };
     })
-    .filter((h) => clearOf(circuit, h.x, h.y, COAST.hutClear) && circuit.track.samples.some((p) => Math.hypot(p.x - h.x, p.y - h.y) < COAST.hutReach));
+    .filter((h) => clearOf(circuit, stands, h.x, h.y, COAST.hutClear) && circuit.track.samples.some((p) => Math.hypot(p.x - h.x, p.y - h.y) < COAST.hutReach));
 }
 
 /** Where the kites' flyers stand on the beach: spread along it where the huts are (the beach in sight of the track). */
 export function kitesOf(circuit: Circuit): { x: number; y: number; out: Pt }[] {
   const coast = coastOf(circuit);
   if (!coast) return [];
+  const stands = standsOf(circuit);
   const spots = along(coast.shore, COAST.hutEvery * 3)
     .map(({ p, i }) => ({ x: p.x - coast.seaward[i].x * 8, y: p.y - coast.seaward[i].y * 8, out: coast.seaward[i] }))
-    .filter((s) => clearOf(circuit, s.x, s.y, COAST.hutClear));
+    .filter((s) => clearOf(circuit, stands, s.x, s.y, COAST.hutClear));
   // (as near the track as they come, a few of them)
   const near = (s: Pt) => Math.min(...circuit.track.samples.map((p) => Math.hypot(p.x - s.x, p.y - s.y)));
   return spots.sort((a, b) => near(a) - near(b)).slice(0, COAST.kites);

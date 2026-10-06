@@ -2106,9 +2106,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     particles.update(dt);
     // the cherry blossom's petals (where there's blossom): falling round your car, kicked up as the cars drive over them
-    // (still while paused, or as the replay plays)
-    if (!paused && !replay) {
-      world.stepScenery(dt, race.entrants.map((e) => e.car), race.entrants[you].car);
+    // (still while paused; as the replay plays it goes on round the camera, with no car about to kick it or be hit,
+    // so a plane in the air and the finale's fireworks don't hang there)
+    if (!paused) {
+      world.stepScenery(dt, replay ? [] : race.entrants.map((e) => e.car), replay ? { x: focus.x, y: focus.z } : race.entrants[you].car);
       // (the gopher hit, near enough to see: boing)
       if (world.gopher && world.gopher.hits > gopherHits) sounds.boing();
       gopherHits = world.gopher?.hits ?? 0;

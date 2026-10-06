@@ -363,7 +363,7 @@ function parkOf(circuit: Circuit, avenue?: [number, number]): Tree[] {
   const { samples, spacing } = circuit.track;
   const reach = HALF_WIDTH + RUNOFF + PARK.clear;
   const step = Math.max(1, Math.round(PARK.avenueEvery / spacing));
-  const [from, to] = avenue ?? [0, -1];
+  const [from, to] = avenue ?? [0, -spacing];
   for (let i = Math.round(from / spacing); i <= Math.round(to / spacing); i += step) {
     const p = samples[i % samples.length];
     for (const side of [-1, 1]) {
