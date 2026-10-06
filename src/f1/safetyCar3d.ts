@@ -2,6 +2,7 @@
 // amber light bar that flashes while it leads the field.
 
 import * as THREE from 'three';
+import { mergedByMaterial } from '../engine/render/merge';
 
 export interface SafetyCarMesh {
   group: THREE.Group;
@@ -18,17 +19,15 @@ export function createSafetyCarMesh(w = 14, l = 28): SafetyCarMesh {
   const glass = lambert('#2e3b5c');
   const screen = lambert('#6d86b8');
   const dark = lambert('#111111');
-  // BoxGeometry faces: +x, −x, +y, −y, +z (back), −z (front)
-  const box = (bw: number, h: number, bl: number, y: number, z: number, faces: THREE.Material[]) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(bw, h, bl), faces);
-    m.position.set(0, y, z);
-    m.castShadow = m.receiveShadow = true;
-    group.add(m);
-    return m;
-  };
-  box(w, 5, l, 4.5, 0, [silver, silver, silver, dark, silver, silver]); // body
-  box(4, 0.4, l + 0.2, 7.1, 0, [stripe, stripe, stripe, dark, stripe, stripe]); // stripe over the top
-  box(w - 3, 3.5, l * 0.42, 8.7, 2, [glass, glass, silver, dark, screen, screen]); // cabin
+  // BoxGeometry faces: +x, −x, +y, −y, +z (back), −z (front); the boxes one mesh, a draw call a material
+  const box = (bw: number, h: number, bl: number, y: number, z: number, faces: THREE.Material[]) => ({ geometry: new THREE.BoxGeometry(bw, h, bl).translate(0, y, z), faces });
+  const body = mergedByMaterial([
+    box(w, 5, l, 4.5, 0, [silver, silver, silver, dark, silver, silver]), // body
+    box(4, 0.4, l + 0.2, 7.1, 0, [stripe, stripe, stripe, dark, stripe, stripe]), // stripe over the top
+    box(w - 3, 3.5, l * 0.42, 8.7, 2, [glass, glass, silver, dark, screen, screen]), // cabin
+  ]);
+  body.castShadow = body.receiveShadow = true;
+  group.add(body);
   // the light bar: two amber lamps that take turns
   const lamps = [-2.5, 2.5].map((x) => {
     const mat = new THREE.MeshBasicMaterial({ color: 0xffb020, toneMapped: false });

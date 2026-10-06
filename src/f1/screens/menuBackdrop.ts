@@ -39,6 +39,8 @@ export const BACKDROP = {
   /** share of the screen's resolution it's drawn at, and the most frames a second */
   res: 0.75,
   fps: 30,
+  /** the page's frames this slow (a second) or slower: drawn without the glow and blur */
+  slowFps: 20,
   /** frames drawn before it's kept as the still the next menu opens on (3 s in) */
   keepAt: 90,
 };
@@ -110,12 +112,18 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   let lastDraw = 0;
   /** frames drawn so far */
   let drawn = 0;
+  /** how long the page's frames have been taking (s, smoothed), and whether that's too slow for the glow and blur */
+  let frameTime = 1 / 60;
+  let lite = false;
   let stopped = false;
   const frame = (now: number) => {
     if (stopped) return;
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
+    // (a phone that can't keep up, once it's warmed up: the picture without the glow and blur, as a race steps down)
+    frameTime += (dt - frameTime) * 0.05;
+    if (drawn > BACKDROP.keepAt && frameTime > 1 / BACKDROP.slowFps) lite = true;
     if (gameHidden() || now - lastDraw < 1000 / BACKDROP.fps - 2) return;
     const frameDt = Math.min(0.1, (now - lastDraw) / 1000);
     lastDraw = now;
@@ -157,7 +165,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     world.animate(now / 1000);
     // (the cherry blossom's petals, where there's blossom: kicked up by the cars as they race)
     world.stepScenery(frameDt, race.entrants.map((e) => e.car), c);
-    post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: true, blurOn: true });
+    post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: !lite, blurOn: !lite });
     // (faded in once a few frames are drawn: the first can take a while, compiling the shaders)
     if (++drawn === 3) {
       canvas.classList.add('on');

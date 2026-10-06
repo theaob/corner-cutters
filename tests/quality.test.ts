@@ -27,7 +27,7 @@ describe('the quality governor', () => {
 
   it('steps down as far as it needs to', () => {
     const g = new QualityGovernor();
-    run(g, 20, (level) => [40, 30, 16.7][level]);
+    run(g, 30, (level) => [40, 30, 25, 16.7][level]);
     expect(g.level).toBe(QUALITY_LEVELS.length - 1);
   });
 

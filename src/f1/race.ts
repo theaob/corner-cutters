@@ -200,6 +200,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // ---------------------------------------------------------------- renderer
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1);
+  renderer.info.autoReset = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.shadowMap.enabled = true;
@@ -851,6 +852,32 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     Object.assign(window, {
       __cc: {
         circuit: () => layout.id,
+        /** what the picture costs: the quality level, and the last frame's draw calls and triangles */
+        /** hold the picture at a quality level (0 high … 2 low), for measuring each */
+        quality: (level: number) => {
+          governor.level = level;
+          governor.locked = true;
+        },
+        /** what the scene's made of: meshes drawn (and those casting shadows), instanced or not, by geometry */
+        census: () => {
+          const by = new Map<string, { n: number; shadow: number; tris: number }>();
+          let meshes = 0, casters = 0;
+          world.scene.traverseVisible((o) => {
+            const m = o as THREE.Mesh;
+            if (!m.isMesh) return;
+            meshes++;
+            if (m.castShadow) casters++;
+            const g = m.geometry;
+            const key = `${(m as THREE.InstancedMesh).isInstancedMesh ? 'inst ' : ''}${g.type}${g.index ? '' : ' (no index)'}`;
+            const e = by.get(key) ?? { n: 0, shadow: 0, tris: 0 };
+            e.n++;
+            if (m.castShadow) e.shadow++;
+            e.tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+            by.set(key, e);
+          });
+          return { meshes, casters, by: [...by].sort((a, b) => b[1].n - a[1].n).slice(0, 20) };
+        },
+        perf: () => ({ level: QUALITY_LEVELS[governor.level].name, locked: governor.locked, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
         phase: () => (done ? 'done' : race.phase),
         clock: () => race.clock,
         paused: () => paused,
@@ -2110,7 +2137,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the ceremony: its own camera, from third across to the three of them (the plates under them)
     const onSet = ceremony.group.visible && !!podium;
     if (onSet) focus.copy(ceremonyView.aim(podium!.time, camera));
-    ceremonyView.placePlates(onSet && !paused, host.clientWidth, host.clientHeight);
+    // (the screen's size read only while the plates show: a read each frame makes the page lay itself out again each frame)
+    const plates = onSet && !paused;
+    ceremonyView.placePlates(plates, plates ? host.clientWidth : 0, plates ? host.clientHeight : 0);
     world.followSun(focus);
     world.animate(performance.now() / 1000);
     // the weather's look, eased as the track wets and dries and the rain comes and goes (redone only as it changes)
@@ -2128,6 +2157,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const q = QUALITY_LEVELS[governor.level];
     applySize();
     world.setShadowMapSize(q.shadowMap);
+    // (the frame's draw calls counted across all the passes, not just the last: for __cc.perf)
+    renderer.info.reset();
     post.render(dt, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !onSet });
 
     // (a race picked up: paused once its first few frames are drawn, the HUD as the race has it)

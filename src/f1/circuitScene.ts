@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { canvas } from '../engine/render/sprites';
 import { pixelTexture } from '../engine/render/textures';
 import { addDaylight, type Daylight } from '../engine/render/daylight';
+import { mergedByMaterial } from '../engine/render/merge';
 import { groundAt } from '../engine/sim';
 import { sectorStarts, type Pt } from './racing';
 import { PETALS, PetalField, type PetalCar } from './petals';
@@ -643,7 +644,8 @@ function grandstand(len: number, roofColor = 0x3d7fc4): THREE.Mesh {
   const grey = new THREE.MeshLambertMaterial({ color: 0x8e929c });
   const roof = new THREE.MeshLambertMaterial({ color: roofColor });
   // a stepped stand is suggested by a tall box with the crowd painted on the face toward the track (−x)
-  const m = new THREE.Mesh(new THREE.BoxGeometry(18, 22, len), [grey, crowd, roof, grey, grey, grey]);
+  // (its grey faces one draw call, not four)
+  const m = mergedByMaterial([{ geometry: new THREE.BoxGeometry(18, 22, len), faces: [grey, crowd, roof, grey, grey, grey] }]);
   m.castShadow = m.receiveShadow = true;
   return m;
 }
@@ -719,13 +721,18 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const roof = new THREE.MeshLambertMaterial({ color: 0xf4f4f8 });
   // (turned to the track's direction, a box's +x face looks to the right of the way of the race)
   const faces = pit.side < 0 ? [door, grey, roof, grey, grey, grey] : [grey, door, roof, grey, grey, grey];
-  for (const { x: gx, y: gy, dir } of garageSpots(circuit)) {
-    const garage = new THREE.Mesh(new THREE.BoxGeometry(GARAGE.deep, GARAGE.high, PIT.boxSpacing - 2), faces);
-    garage.position.set(gx, groundAt(grid, gx, gy).h + GARAGE.high / 2, gy);
-    garage.rotation.y = -dir;
-    garage.castShadow = garage.receiveShadow = true;
-    scene.add(garage);
-  }
+  // (all of them one mesh, a draw call a material: not six for each garage, and six again for its shadow)
+  const placed = new THREE.Object3D();
+  const garages = mergedByMaterial(
+    garageSpots(circuit).map(({ x: gx, y: gy, dir }) => {
+      placed.position.set(gx, groundAt(grid, gx, gy).h + GARAGE.high / 2, gy);
+      placed.rotation.y = -dir;
+      placed.updateMatrix();
+      return { geometry: new THREE.BoxGeometry(GARAGE.deep, GARAGE.high, PIT.boxSpacing - 2).applyMatrix4(placed.matrix), faces };
+    }),
+  );
+  garages.castShadow = garages.receiveShadow = true;
+  scene.add(garages);
   // (a word across the roofs, a few letters on each, read left to right from the camera)
   if (circuit.layout.pitRoof) for (const r of roofLetters(circuit, circuit.layout.pitRoof)) scene.add(r);
 

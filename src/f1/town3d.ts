@@ -996,6 +996,12 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
   // the old town: houses and towers, a mesh of walls per facade style and of each kind of top
   const blocks = townBlocks(circuit, sea, fromTrack, keep, r, [...marks, ...castleFootprints(castle)]);
   const tops: Record<'tiles' | 'flat' | 'stone', THREE.BufferGeometry[]> = { tiles: [], flat: [], stone: [] };
+  // a merlon: a block of stone without the face it stands on (thousands of them along the battlements)
+  const merlon = new THREE.BoxGeometry(3, 4, 3);
+  const under = merlon.groups[3];
+  const faces = Array.from(merlon.index!.array).filter((_, i) => i < under.start || i >= under.start + under.count);
+  merlon.setIndex(faces);
+  merlon.clearGroups();
   FACADES.forEach((style, k) => {
     const list = blocks.filter((b) => b.style === k);
     if (!list.length) return;
@@ -1018,10 +1024,10 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
         if (b.top === 'battlements') {
           // merlons along the edges, a gap between each
           for (let a = -b.w / 2 + 2; a <= b.w / 2 - 2; a += 6) {
-            for (const z of [-b.d / 2 + 1.5, b.d / 2 - 1.5]) tops.stone.push(new THREE.BoxGeometry(3, 4, 3).translate(b.x + a, roofAt + 2, b.y + z));
+            for (const z of [-b.d / 2 + 1.5, b.d / 2 - 1.5]) tops.stone.push(merlon.clone().translate(b.x + a, roofAt + 2, b.y + z));
           }
           for (let a = -b.d / 2 + 8; a <= b.d / 2 - 8; a += 6) {
-            for (const x of [-b.w / 2 + 1.5, b.w / 2 - 1.5]) tops.stone.push(new THREE.BoxGeometry(3, 4, 3).translate(b.x + x, roofAt + 2, b.y + a));
+            for (const x of [-b.w / 2 + 1.5, b.w / 2 - 1.5]) tops.stone.push(merlon.clone().translate(b.x + x, roofAt + 2, b.y + a));
           }
         }
       }
@@ -1035,7 +1041,9 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
   for (const [kind, parts] of Object.entries(tops) as [keyof typeof tops, THREE.BufferGeometry[]][]) {
     if (!parts.length) continue;
     const mesh = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshLambertMaterial({ color: topColor[kind] }));
-    mesh.castShadow = mesh.receiveShadow = true;
+    // (the merlons' shadows, a few px on the roofs, not worth drawing their thousands of blocks again for)
+    mesh.castShadow = kind !== 'stone';
+    mesh.receiveShadow = true;
     scene.add(mesh);
   }
 

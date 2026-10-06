@@ -356,7 +356,8 @@ Google Play:
       Auto Backup so a new phone keeps records
 
 Everywhere:
-- [ ] Performance pass on a low-end Android phone; quality governor thresholds re-checked
+- [x] Performance pass, profiled in a throttled browser: each car's boxes (and the garages, stands, safety car) one mesh a material (`engine/render/merge.ts`), so a race is ~300–370 draw calls on every circuit, not ~1,500; no shadows from Baku's merlons or the forests' trunks; no page layout forced each frame by the screen effects; a fourth quality level, MINIMUM, without shadows; the menu's backdrop without glow and blur when slow. `?debug` has `__cc.perf()`, `__cc.census()` and `__cc.quality(level)` for measuring
+- [ ] The same checked on a real low-end Android phone; quality governor thresholds re-checked there
 - [x] Accessibility: COLOURS (COLOUR-SAFE splits, in words too), TEXT (LARGE), the left-handed deck (STICK: LEFT), less motion for a device asking for it (`f1/access.ts`)
 - [x] Crash reporting: errors nothing caught to the play stats, the dashboard's ERRORS (`f1/crashes.ts`)
 - [x] Daily Challenge: one seeded Time Attack a day, a global board by initials, a streak (`f1/daily.ts`); the day's leader as a ghost to chase
