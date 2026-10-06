@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { carClass, type CarClassId } from '../driving';
+import { mergedByMaterial } from './merge';
 
 const lambert = (extra: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial(extra);
 
@@ -191,13 +192,14 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     return m;
   };
   const dark = lambert({ color: 0x111111 });
-  // BoxGeometry faces: +x, −x, +y, −y, +z (back), −z (front)
-  const box = (w: number, h: number, l: number, y: number, z: number, faces: THREE.Material[], on: THREE.Object3D = car) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), faces);
-    m.position.set(0, y, z);
-    m.castShadow = m.receiveShadow = true;
-    on.add(m);
-    return m;
+  // BoxGeometry faces: +x, −x, +y, −y, +z (back), −z (front). The boxes are gathered by the part they're on, and
+  // each part's made one mesh at the end, its faces grouped by material: a draw call a material, not one a face
+  // (a box of six materials is six draw calls, and six again for its shadow; a car of them, too many for a phone)
+  const boxes = new Map<THREE.Object3D, { geometry: THREE.BufferGeometry; faces: THREE.Material[] }[]>();
+  const box = (w: number, h: number, l: number, y: number, z: number, faces: THREE.Material[], on: THREE.Object3D = car, x = 0) => {
+    const list = boxes.get(on) ?? [];
+    list.push({ geometry: new THREE.BoxGeometry(w, h, l).translate(x, y, z), faces });
+    boxes.set(on, list);
   };
   /** a part of its own (one a crash can tear off), its origin at `z` along the car */
   const part = (z: number, x = 0, y = 0) => {
@@ -224,10 +226,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   const tubTop = look.pattern && look.pattern !== 'plain' ? painted(canvasTexture(paintPattern(8, 48, look.pattern, look.body, second))) : body;
   box(5, 3.5, L - 6, 3.5, 1, [body, body, tubTop, dark, body, body]); // tub
   box(3, 2.5, 8, 3, 0, [body, body, trim, dark, body, body], nose); // nose
-  for (const x of [-4, 4]) {
-    const pod = box(3, 3, 9, 3, 3, [pods, pods, pods, dark, pods, pods]);
-    pod.position.x = x;
-  }
+  for (const x of [-4, 4]) box(3, 3, 9, 3, 3, [pods, pods, pods, dark, pods, pods], car, x);
   box(3.5, 1.5, 5, 5.8, 0, [carbon, carbon, carbon, dark, carbon, carbon]); // cockpit
   // the engine cover, spanning the sidepods behind the cockpit: the biggest surface seen from above,
   // carrying the team's pattern
@@ -248,9 +247,11 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   car.add(helmet);
   box(W, 0.8, 3, 1.4, -(L / 2 - 1.5) - noseZ, [trim, trim, trim, dark, trim, trim], nose); // front wing
   box(W - 3, 0.8, 2.5, 8.5, L / 2 - 1.5, [trim, trim, body, dark, trim, trim]); // rear wing
-  for (const x of [-(W - 3) / 2, (W - 3) / 2]) {
-    const plate = box(0.6, 5, 3, 6.5, L / 2 - 1.5, [carbon, carbon, carbon, carbon, carbon, carbon]);
-    plate.position.x = x;
+  for (const x of [-(W - 3) / 2, (W - 3) / 2]) box(0.6, 5, 3, 6.5, L / 2 - 1.5, [carbon, carbon, carbon, carbon, carbon, carbon], car, x);
+  for (const [on, list] of boxes) {
+    const m = mergedByMaterial(list);
+    m.castShadow = m.receiveShadow = true;
+    on.add(m);
   }
 
   // wheels: [z, radius, tyre width, half-track] per axle

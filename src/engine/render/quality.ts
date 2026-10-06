@@ -12,6 +12,7 @@ export interface QualityLevel {
   res: number;
   bloom: boolean;
   blur: boolean;
+  /** the sun's shadow map (px square); 0: no shadows at all */
   shadowMap: number;
 }
 
@@ -19,6 +20,8 @@ export const QUALITY_LEVELS: QualityLevel[] = [
   { name: 'high', res: 2, bloom: true, blur: true, shadowMap: 2048 },
   { name: 'medium', res: 2, bloom: false, blur: true, shadowMap: 1024 },
   { name: 'low', res: 1, bloom: false, blur: false, shadowMap: 1024 },
+  // (a phone too slow even for that: no shadows, the scene drawn once a frame instead of twice)
+  { name: 'minimum', res: 1, bloom: false, blur: false, shadowMap: 0 },
 ];
 
 export interface GovernorParams {
