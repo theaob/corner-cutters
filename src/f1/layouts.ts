@@ -26,8 +26,8 @@ export interface CircuitLayout {
   banking?: { from: number; to: number; grade: number };
   /** in a forest: trees packed all round beyond the barriers, on a dark forest floor */
   forest?: boolean;
-  /** in a park: groves of trees here and there over the grass, and lining the lap from `avenue[0]` to `avenue[1]` px round it (its woods) */
-  park?: { avenue: [number, number] };
+  /** in a park: groves of trees here and there over the grass, and lining the lap from `avenue[0]` to `avenue[1]` px round it (its woods; none: no woods) */
+  park?: { avenue?: [number, number] };
   /** in the desert: sand all round, beyond the barriers and on the run-off */
   desert?: boolean;
   /** lakes beyond the barriers: polygons (in `points` units), their water flat in the hollows of the ground */
@@ -42,6 +42,8 @@ export interface CircuitLayout {
   jumps?: { at: number; rise: number }[];
   /** the cherry trees in blossom: groves of them round the circuit and lining the lap, their petals drifting onto the track (petals.ts) */
   blossoms?: boolean;
+  /** an airport next door: airliners now and then flying over, coming in to land or taking off, the way its runway runs (radians, as Math.atan2 of their run on the map: planes.ts) */
+  airport?: { runway: number };
   /** a gopher now and then popping up out of its hole by the track near the camera and scurrying across (gopher.ts) */
   gophers?: boolean;
   /** under snow (a winter's circuit in the mountains): snow over the run-off and beyond, the spruces laden with it */
@@ -152,6 +154,11 @@ export const CRESCENT_PARK: CircuitLayout = {
   pit: { from: -690, to: 370, side: -1 },
   // (a 30 s lap: no harder on tyres than a race of five laps of 24 s was)
   tyreWear: 0.7,
+  // groves of trees over the hills round it
+  park: {},
+  // the airport next door: airliners coming in to land and taking off over the circuit, the runway's way (radians):
+  // up the picture, a little to the right (the long way of a phone held upright: in sight longest)
+  airport: { runway: -1.35 },
 };
 
 /**

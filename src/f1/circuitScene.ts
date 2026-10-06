@@ -17,6 +17,7 @@ import { buildGopher, type GopherRun } from './gopher';
 import { buildYeti, yetiAvoids, type YetiRun } from './yeti';
 import { buildTramway, tramwayOf } from './tramway';
 import { buildMonsterTrucks } from './monsterTrucks';
+import { buildPlanes, type PlaneRun } from './planes';
 import { buildCowStatue, statueOf } from './cowStatue';
 import { buildCrowds } from './crowd3d';
 import { GARAGE_ACROSS, PIT } from './pits';
@@ -40,8 +41,10 @@ export interface CircuitScene extends Daylight {
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery's people (a street circuit's swimmers and tennis players), `t` seconds on. */
   animate(t: number): void;
-  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway); the monster trucks (layout.monsterTrucks); the crowds cheering (layout.crowds). */
-  stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number }): void;
+  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway); the monster trucks (layout.monsterTrucks); the crowds cheering (layout.crowds); the planes flying over (layout.airport). */
+  stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number; vx?: number; vy?: number }): void;
+  /** the planes flying over (a circuit with an airport next door: layout.airport) */
+  planes?: PlaneRun;
   /** the gopher's crossings (a circuit with one: layout.gophers) */
   gopher?: GopherRun;
   /** the yeti's chases (a circuit with one: layout.yeti) */
@@ -776,6 +779,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (a bronze cow charging through a steel arch, by the track)
   const statue = statueOf(circuit.layout);
   if (statue) buildCowStatue(scene, circuit.grid, statue);
+  // (airliners flying over, from the airport next door)
+  const planes = circuit.layout.airport ? buildPlanes(scene, circuit.layout.airport.runway) : undefined;
   // (monster trucks jumping in the infield)
   const mt = circuit.layout.monsterTrucks;
   const trucks = mt ? buildMonsterTrucks(scene, circuit.grid, { x: mt.at[0], y: mt.at[1], angle: mt.angle }) : undefined;
@@ -830,6 +835,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
     },
     gopher: gopher?.run,
+    planes: planes?.run,
     yeti: yeti?.run,
     stepScenery: (dt, cars, focus) => {
       petals?.(dt, cars, focus);
@@ -838,6 +844,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       tramway?.(dt);
       trucks?.(dt);
       crowds?.(dt, cars);
+      planes?.step(dt, focus);
     },
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);

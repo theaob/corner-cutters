@@ -924,6 +924,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** the yeti (a circuit with one): what it's doing and where, and its chases so far */
         yeti: () => world.yeti && { pose: world.yeti.pose && { ...world.yeti.pose }, chases: world.yeti.chases },
         gopher: () => world.gopher && { phase: world.gopher.crossing?.phase, pose: world.gopher.pose(), crossings: world.gopher.crossings, bolts: world.gopher.bolts, hits: world.gopher.hits },
+        /** the planes over the circuit (one with an airport next door): those in the sky, and those flown over so far */
+        planes: () => world.planes && { flights: world.planes.flights.map((f) => ({ kind: f.kind, x: f.x, y: f.y, z: f.z })), flown: world.planes.flown },
         /** the champagne ceremony: s it's been on (undefined: it isn't) */
         ceremony: () => podium?.time,
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
@@ -2082,6 +2084,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (the gopher hit, near enough to see: boing)
       if (world.gopher && world.gopher.hits > gopherHits) sounds.boing();
       gopherHits = world.gopher?.hits ?? 0;
+      // (a plane flying over: its roar as near as it is to your car, up there)
+      if (world.planes) {
+        const car = race.entrants[you].car;
+        const d = Math.min(Infinity, ...world.planes.flights.map((f) => Math.hypot(f.x - car.x, f.y - car.y, f.z)));
+        sounds.setJet(Math.max(0, Math.min(1, 1 - (d - 220) / 700)));
+      }
     }
     // (in the replay, thrown again as they flew then)
     if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);

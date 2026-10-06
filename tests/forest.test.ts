@@ -129,7 +129,7 @@ describe('the trees at Royal Park', () => {
   });
 
   it('line the woods, both sides, just past the barriers', () => {
-    const [from, to] = ROYAL_PARK.park!.avenue.map((d) => Math.round(d / circuit.track.spacing));
+    const [from, to] = ROYAL_PARK.park!.avenue!.map((d) => Math.round(d / circuit.track.spacing));
     const lining = trees.filter((t) => fromTrack(t, from, to + 1) < reach + PARK.clear + PARK.avenueOut[1] + 40);
     expect(lining.length).toBeGreaterThan(40);
     // (on each side: left of the lap and right of it)
