@@ -7,7 +7,8 @@
 # a push to the default branch (or a run by hand on it) uploads to itch.io.
 #
 # It also builds the Google Play version (the Championship an in-app purchase) as an AAB, kept as a download
-# on the run for uploading to the Play Console.
+# on the run for uploading to the Play Console, and, with the PLAY_SERVICE_ACCOUNT_JSON secret set, uploaded to
+# Play's internal testing track as a draft (store/README.md has the steps).
 #
 # Signing: with the four ANDROID_* secrets set (see the README), the APK and the
 # AAB are signed with your release key, so each build installs as an update over
@@ -34,6 +35,9 @@ jobs:
       BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
       ITCH_TARGET: ${{ vars.ITCH_TARGET || secrets.ITCH_TARGET }}
       KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      # a Play Developer API service account's JSON key (store/README.md): with it, each Play build from the default
+      # branch goes to Play's internal testing track as a draft release
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
       PUBLISH: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
       # the Daily Challenge's online board and the play stats (Supabase, supabase/README.md): the project's URL and its
       # public (anon) key, as repository variables or secrets; left out, the game plays offline (no board, no stats)
@@ -108,6 +112,20 @@ jobs:
           path: play/*.aab
           if-no-files-found: error
           retention-days: 7
+
+      # to Google Play's internal testing track, as a draft (promoting it, and every track past internal, stays by hand
+      # in the Play Console); only with the service account's key and the release key (Play takes no debug-signed build),
+      # and not fatal: a run whose version code Play has seen, or a Console not set up yet, keeps the itch.io upload
+      - name: Upload to Google Play (internal testing, draft)
+        if: env.PUBLISH == 'true' && env.PLAY_SERVICE_ACCOUNT_JSON != '' && env.KEYSTORE_BASE64 != ''
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: io.github.theaob.cornercutters
+          releaseFiles: play/*.aab
+          track: internal
+          status: draft
 
       - name: Push to itch.io (android channel)
         if: env.PUBLISH == 'true' && env.BUTLER_API_KEY != '' && env.ITCH_TARGET != ''
