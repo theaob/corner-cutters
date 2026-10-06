@@ -17,6 +17,7 @@ import { buildGopher, type GopherRun } from './gopher';
 import { buildYeti, yetiAvoids, type YetiRun } from './yeti';
 import { buildTramway, tramwayOf } from './tramway';
 import { buildMonsterTrucks } from './monsterTrucks';
+import { buildBullStatue, statueOf } from './bullStatue';
 import { buildCrowds } from './crowd3d';
 import { GARAGE_ACROSS, PIT } from './pits';
 import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
@@ -772,6 +773,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (the aerial tramway up to the summit, its two cabins going up and down)
   const tram = tramwayOf(circuit);
   const tramway = tram ? buildTramway(scene, circuit.grid, tram) : undefined;
+  // (a bronze bull charging through a steel arch, by the track)
+  const statue = statueOf(circuit.layout);
+  if (statue) buildBullStatue(scene, circuit.grid, statue);
   // (monster trucks jumping in the infield)
   const mt = circuit.layout.monsterTrucks;
   const trucks = mt ? buildMonsterTrucks(scene, circuit.grid, { x: mt.at[0], y: mt.at[1], angle: mt.angle }) : undefined;
