@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { carClass } from '../src/engine/driving';
 import { HALF_WIDTH, RUNOFF, buildCircuit } from '../src/f1/circuit';
-import { STATUE, statueOf } from '../src/f1/bullStatue';
+import { STATUE, statueOf } from '../src/f1/cowStatue';
 import { treesOf } from '../src/f1/forest3d';
 import { ALPINE_RING, LAYOUTS } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
@@ -12,7 +12,7 @@ const f1 = carClass('f1');
 const c = buildCircuit(ALPINE_RING, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
 const statue = statueOf(ALPINE_RING)!;
 
-describe('the bronze bull', () => {
+describe('the bronze cow', () => {
   it('stands at the Alpine Ring, and only there', () => {
     expect(statue).toBeDefined();
     for (const l of LAYOUTS) if (l !== ALPINE_RING) expect(statueOf(l)).toBeUndefined();

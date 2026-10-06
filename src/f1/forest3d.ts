@@ -26,7 +26,7 @@
 // never so tall they hide the track).
 
 import * as THREE from 'three';
-import { STATUE, statueOf } from './bullStatue';
+import { STATUE, statueOf } from './cowStatue';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { groundAt } from '../engine/sim';
 import { HALF_WIDTH, RUNOFF, TILE as T, type Circuit } from './circuit';

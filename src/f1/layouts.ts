@@ -50,7 +50,7 @@ export interface CircuitLayout {
   yeti?: boolean;
   /** an aerial tramway (tramway.ts): its two stations (px, as the circuit's laid out): on the valley floor, and up the mountain */
   tramway?: { from: [number, number]; to: [number, number] };
-  /** a bronze bull charging through a steel arch by the track (bullStatue.ts): where it stands (px, as the circuit's laid out) and the way it charges (radians) */
+  /** a bronze cow charging through a steel arch by the track (cowStatue.ts): where it stands (px, as the circuit's laid out) and the way it charges (radians) */
   statue?: { at: [number, number]; heading: number };
   /** the crowd on its feet in the grandstands, on steps in front of each, cheering the cars by (crowd3d.ts) */
   crowds?: boolean;
@@ -472,7 +472,7 @@ export const ALPINE_RING: CircuitLayout = {
   // on the outside of the main straight, from the last bend to past the line
   pit: { from: -600, to: 480, side: -1 },
   forest: true,
-  // (a bronze bull charging through a steel arch, on a rise beside the long straight, the way the cars run)
+  // (a bronze cow charging through a steel arch, on a rise beside the long straight, the way the cars run)
   statue: { at: [2200, 770], heading: 0.35 },
 };
 

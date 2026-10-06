@@ -1,11 +1,12 @@
-// A bronze bull charging through a steel arch, on a grassy rise by the track
-// (layout.statue: the Alpine Ring's, beside its long straight). The bull's
-// faceted, its weathered bronze cut through with a lattice of holes, its horns
-// gold; it leaps through the arch the way the cars run, head down, front legs
-// up off the ground. The forest keeps clear of it (STATUE.clearing), and it stands
-// behind the track from the camera, so it hides none of it. Scenery only:
-// engine-free (where it stands and what it keeps clear of, unit-tested);
-// buildBullStatue draws it.
+// A bronze cow charging through a steel arch, on a grassy rise by the track
+// (layout.statue: the Alpine Ring's, beside its long straight). The cow's
+// faceted, its weathered bronze cut through with a lattice of holes, its bell
+// and its short horns gold; it leaps through the arch the way the cars run,
+// head down, front legs up off the ground. Big: taller than the trees round
+// it. The forest keeps clear of it (STATUE.clearing), and it stands behind the
+// track from the camera, so it hides none of it. Scenery only: engine-free
+// (where it stands and what it keeps clear of, unit-tested); buildCowStatue
+// draws it.
 
 import * as THREE from 'three';
 import { groundAt, type Grid } from '../engine/sim';
@@ -13,26 +14,26 @@ import { pixelTexture } from '../engine/render/textures';
 import { canvas } from '../engine/render/sprites';
 
 export const STATUE = {
+  /** how big the arch and the cow are, over the sizes they're modelled at below */
+  scale: 1.5,
   /** px from its middle that the rise reaches, and the forest keeps clear of */
-  clearing: 80,
+  clearing: 100,
   /** the grassy rise it stands on: px across (radius) and px high */
-  mound: 64,
+  mound: 84,
   rise: 6,
-  /** the arch: px to the middle of its band, the band's px across and deep; its middle's px above the rise */
+  /** the arch, as modelled: px to the middle of its band, the band's px across and deep; its middle's px above the rise */
   arch: 44,
   band: 6,
   depth: 4,
   centre: 26,
-  /** the bull: px nose to tail */
-  length: 68,
-  /** px tall at most, horns and all (for what it may hide behind it) */
-  height: 72,
+  /** px tall at most, the arch's top (for what it may hide behind it) */
+  height: 6 + 1.5 * (26 + 44 + 3),
 };
 
 export interface Statue {
   x: number;
   y: number;
-  /** the way the bull charges (radians, as Math.atan2 of its run on the map) */
+  /** the way the cow charges (radians, as Math.atan2 of its run on the map) */
   heading: number;
 }
 
@@ -87,12 +88,12 @@ function tiledBox(w: number, h: number, d: number, tile: number): THREE.BoxGeome
   return g;
 }
 
-/** The bull, facing +x, its feet at y 0: leaping, rear legs planted, front legs up, head down. */
-function bull(): THREE.Group {
+/** The cow, facing +x, its feet at y 0: leaping, rear legs planted, front legs up, head down. */
+function cow(): THREE.Group {
   const g = new THREE.Group();
   const bronze = new THREE.MeshLambertMaterial({ color: BRONZE, map: latticeTexture(), alphaTest: 0.5, side: THREE.DoubleSide });
   const gold = new THREE.MeshPhongMaterial({ color: GOLD, specular: 0xfff0c0, shininess: 80, emissive: 0x3a2800 });
-  /** a part: a box of bronze `w` long, `h` high, `d` wide, its middle at (x, y), pitched `pitch` (nose up +) */
+  /** a part: a box of bronze `w` long, `h` high, `d` wide, its middle at (x, y, z), pitched `pitch` (nose up +) */
   const part = (w: number, h: number, d: number, x: number, y: number, pitch = 0, z = 0) => {
     const m = new THREE.Mesh(tiledBox(w, h, d, 14), bronze);
     m.position.set(x, y, z);
@@ -101,40 +102,54 @@ function bull(): THREE.Group {
     g.add(m);
     return m;
   };
-  // the body: the haunches, the barrel rising to the great hump of the shoulders (the front up off the ground)
-  part(20, 18, 16, -18, 30, 0.25);
-  part(26, 22, 19, -2, 37, 0.3);
-  part(16, 26, 21, 13, 44, 0.15);
-  // the neck and the head, down low, charging; the muzzle
-  part(12, 16, 15, 23, 38, -0.6);
-  part(13, 11, 11, 29, 28, -0.9);
-  part(6, 6, 8, 31, 21, -1.2);
-  // the horns: from the sides of its head, out and forward, curving up to the points (gold)
+  /** a piece of gold */
+  const shine = (geometry: THREE.BufferGeometry, x: number, y: number, z: number) => {
+    const m = new THREE.Mesh(geometry, gold);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    g.add(m);
+    return m;
+  };
+  // the body: a long, deep barrel (no hump: a cow's back runs level), square hips behind, the chest before it
+  part(18, 20, 18, -19, 31, 0.15);
+  part(30, 22, 20, -2, 34, 0.2);
+  part(14, 20, 18, 14, 39, 0.2);
+  // the udder under the belly, behind; its teats
+  part(9, 5, 9, -12, 21, 0.2);
+  for (const [tx, tz] of [[-14, -2], [-14, 2], [-10, -2], [-10, 2]]) part(1.4, 3, 1.4, tx, 17.5, 0.2, tz);
+  // the neck, and the head down low: long-faced, the broad muzzle at its end; ears out to the sides
+  part(11, 13, 12, 23, 39, -0.45);
+  part(15, 9, 9, 30, 31, -1.0);
+  part(6, 6, 10, 33, 24, -1.0);
   for (const side of [-1, 1]) {
-    const horn = new THREE.Mesh(new THREE.ConeGeometry(1.6, 15, 6).translate(0, 7.5, 0), gold);
-    horn.position.set(29, 33, side * 5.5);
-    horn.rotation.set(side * 1.1, 0, -0.75);
-    horn.castShadow = true;
-    g.add(horn);
+    const ear = part(5, 2, 4, 26, 37, -0.3, side * 7);
+    ear.rotation.x = side * 0.5;
+    // (the horns: short, out and up from the top of the head, gold)
+    const horn = shine(new THREE.ConeGeometry(1.2, 6, 6).translate(0, 3, 0), 27, 37, side * 4);
+    horn.rotation.set(side * 0.9, 0, -0.3);
   }
+  // the bell on its collar, under its neck (gold)
+  part(3, 2, 13, 22, 32, -0.45);
+  shine(new THREE.CylinderGeometry(1.6, 2.8, 5, 8), 22.5, 28, 0);
   // the rear legs, planted, pushing off: thigh, then shin down to the hoof, slanted back
   for (const side of [-1, 1]) {
-    part(8, 16, 6, -22, 20, -0.35, side * 5);
-    part(5, 16, 5, -27, 8, 0.25, side * 5.5);
-    part(6, 3, 6, -29, 1.5, 0, side * 5.5);
+    part(8, 16, 6, -22, 21, -0.35, side * 5.5);
+    part(4.5, 16, 4.5, -27, 8, 0.25, side * 6);
+    part(5, 3, 5, -29, 1.5, 0, side * 6);
   }
   // the front legs, up off the ground: forearms reaching forward, shins folded back under
   for (const side of [-1, 1]) {
-    part(6, 15, 5, 18, 28, 1.0 + side * 0.15, side * 5.5);
-    part(5, 13, 4.5, 19 + side * 2, 17, -0.6, side * 5.5);
+    part(5.5, 15, 5, 17, 27, 1.0 + side * 0.15, side * 6);
+    part(4.5, 13, 4.5, 18 + side * 2, 16, -0.6, side * 6);
   }
-  // the tail, flicked up behind
-  part(2, 14, 2, -30, 36, 0.9);
+  // the tail, swinging out behind, its tuft at the end
+  part(1.6, 16, 1.6, -31, 32, 0.6);
+  part(3, 5, 3, -36, 25, 0.6);
   return g;
 }
 
-/** The statue in `scene` (on `grid`'s ground): the rise, the arch, and the bull charging through it. */
-export function buildBullStatue(scene: THREE.Scene, grid: Grid, statue: Statue): THREE.Group {
+/** The statue in `scene` (on `grid`'s ground): the rise, the arch, and the cow charging through it. */
+export function buildCowStatue(scene: THREE.Scene, grid: Grid, statue: Statue): THREE.Group {
   const group = new THREE.Group();
   const foot = groundAt(grid, statue.x, statue.y).h;
   group.position.set(statue.x, foot, statue.y);
@@ -146,23 +161,28 @@ export function buildBullStatue(scene: THREE.Scene, grid: Grid, statue: Statue):
   );
   mound.receiveShadow = true;
   group.add(mound);
+  // the arch and the cow, at the statue's size, on top of the rise
+  const sculpture = new THREE.Group();
+  sculpture.position.y = STATUE.rise;
+  sculpture.scale.setScalar(STATUE.scale);
+  group.add(sculpture);
   // the arch: a band of steel, a loop standing up out of the rise (the part under it not there), square across
-  const { arch, band, depth, centre, rise } = STATUE;
+  const { arch, band, depth, centre } = STATUE;
   const under = Math.asin(Math.min(1, centre / arch));
   const loop = new THREE.Mesh(
     new THREE.TorusGeometry(arch, band / 2, 4, 40, Math.PI + 2 * under).rotateZ(-under).scale(1, 1, depth / band),
     new THREE.MeshPhongMaterial({ color: STEEL, specular: 0xffffff, shininess: 60, flatShading: true }),
   );
-  // (facing the camera more than across the bull's way, as in the photos: the bull through it at a slant, and the
+  // (facing the camera more than across the cow's way, as in the photos: the cow through it at a slant, and the
   // loop seen open, not edge on)
   loop.rotation.y = 0.9;
-  loop.position.y = rise + centre;
+  loop.position.y = centre;
   loop.castShadow = loop.receiveShadow = true;
-  group.add(loop);
-  // the bull: its shoulders through the arch, its haunches behind it
-  const b = bull();
-  b.position.set(-4, rise - 1, 0);
-  group.add(b);
+  sculpture.add(loop);
+  // the cow: its shoulders through the arch, its haunches behind it
+  const c = cow();
+  c.position.set(-4, -1, 0);
+  sculpture.add(c);
   scene.add(group);
   return group;
 }
