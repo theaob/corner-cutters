@@ -92,6 +92,26 @@ describe('the shop (Google Play)', () => {
     expect(bought()).toBe(true);
   });
 
+  it("says why when Google Play can't be reached, and when the Championship isn't on sale there", async () => {
+    type Play = { store: { initialize: () => Promise<unknown[]>; get: () => unknown } };
+    const play = () => (globalThis as { CdvPurchase?: Play }).CdvPurchase!;
+    fakePlay();
+    play().store.initialize = async () => [{ code: 6777001, message: 'Init failed - BILLING_UNAVAILABLE' }];
+    const shop = openShop();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shop.state().error).toBe('GOOGLE PLAY ISN’T AVAILABLE HERE (INIT FAILED - BILLING_UNAVAILABLE)');
+
+    resetShop();
+    fakePlay();
+    // (Google Play reached, but no product with the Championship's id)
+    play().store.get = () => undefined;
+    const empty = openShop();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(empty.state().error).toBe('THE CHAMPIONSHIP ISN’T ON SALE ON GOOGLE PLAY YET');
+  });
+
   it("finds nothing to restore when it wasn't bought", async () => {
     fakePlay();
     const shop = openShop();

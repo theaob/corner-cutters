@@ -76,6 +76,12 @@ function waitForStore(ms = 10000): Promise<Cdv | undefined> {
 
 let shop: Shop | undefined;
 
+/** Why Google Play can't be reached, with Google's own reason under it (so a player's report says which it is). */
+export const unavailable = (why: unknown): string => {
+  const reason = String(why ?? '').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 120);
+  return reason ? `GOOGLE PLAY ISN’T AVAILABLE HERE (${reason})` : 'GOOGLE PLAY ISN’T AVAILABLE HERE';
+};
+
 /** The shop (set up once): Google Play's store, with the Championship registered and its purchase listened for. */
 export function openShop(): Shop {
   if (shop) return shop;
@@ -92,7 +98,7 @@ export function openShop(): Shop {
   };
   const ready = waitForStore().then(async (C) => {
     if (!C) {
-      st.error = 'GOOGLE PLAY ISN’T AVAILABLE HERE';
+      st.error = unavailable('NO STORE IN THIS BUILD');
       changed();
       return undefined;
     }
@@ -118,9 +124,11 @@ export function openShop(): Shop {
       waiting = undefined;
       changed();
     });
-    const errors = await store.initialize([Platform.GOOGLE_PLAY]);
-    if (errors?.length) st.error = 'GOOGLE PLAY ISN’T AVAILABLE HERE';
+    const errors: Cdv[] | undefined = await store.initialize([Platform.GOOGLE_PLAY]);
+    if (errors?.length) st.error = unavailable(errors.map((e) => e?.message ?? e?.code).join(' · '));
     if (store.owned(CHAMPIONSHIP_PRODUCT)) owned();
+    // (Google Play reached, but no Championship there to sell: the product's not made, or not active, in the Play Console)
+    else if (!st.error && !st.price) st.error = 'THE CHAMPIONSHIP ISN’T ON SALE ON GOOGLE PLAY YET';
     changed();
     return store;
   });
