@@ -49,6 +49,8 @@ export interface CircuitLayout {
   jumps?: { at: number; rise: number }[];
   /** the cherry trees in blossom: groves of them round the circuit and lining the lap, their petals drifting onto the track (petals.ts) */
   blossoms?: boolean;
+  /** a volcano (volcano.ts): its cone's middle, the lava river from its foot (crossing the track where the cars fly over it), and the lava lake it runs into, in \`points\` units; black volcanic rock beyond the barriers, palms */
+  volcano?: { cone: [number, number]; river: [number, number][]; lake: [number, number] };
   /** the coast (coast.ts): its shore (in `points` units, along the edge of the sea, which is one of the layout's lakes), the dunes beyond the barriers, beach huts, kites and gulls along it, and a windmill on a dune */
   coast?: { shore: [number, number][]; windmill: [number, number] };
   /** an airport next door: airliners now and then flying over, coming in to land or taking off, the way its runway runs (radians, as Math.atan2 of their run on the map: planes.ts) */
@@ -824,31 +826,31 @@ export const DUNE_COAST: CircuitLayout = {
   name: 'Dune Coast',
   about: 'clockwise · over the dunes, two banked bends',
   points: ([
-    [116, 374], [127, 348], [137, 322], [148, 296], [159, 271], [170, 245],
-    [181, 219], [192, 193], [203, 168], [214, 142], [224, 116], [235, 90],
-    [246, 64], [257, 38], [271, 14], [294, 0], [321, 5], [339, 26],
-    [337, 53], [327, 80], [317, 106], [307, 132], [298, 158], [288, 185],
-    [283, 212], [282, 240], [280, 268], [270, 294], [249, 312], [224, 324],
-    [198, 336], [175, 350], [171, 376], [188, 397], [216, 399], [243, 392],
-    [270, 384], [297, 376], [324, 370], [352, 367], [380, 365], [408, 367],
-    [435, 371], [463, 376], [490, 380], [518, 385], [546, 386], [573, 381],
-    [600, 372], [625, 359], [649, 345], [674, 332], [700, 321], [727, 316],
-    [755, 313], [783, 311], [811, 312], [839, 314], [866, 316], [894, 321],
-    [920, 332], [941, 349], [958, 372], [968, 398], [969, 425], [963, 453],
-    [950, 477], [934, 500], [919, 524], [903, 547], [888, 570], [875, 595],
-    [863, 620], [851, 645], [830, 663], [802, 667], [774, 666], [747, 661],
-    [720, 651], [695, 640], [672, 624], [653, 603], [648, 577], [662, 553],
-    [688, 543], [715, 536], [743, 530], [770, 523], [796, 512], [821, 500],
-    [837, 479], [839, 451], [820, 431], [795, 420], [767, 417], [739, 416],
-    [711, 414], [683, 412], [655, 411], [627, 413], [599, 416], [572, 420],
-    [544, 426], [518, 434], [491, 442], [464, 450], [437, 458], [411, 467],
-    [385, 478], [360, 490], [334, 502], [308, 508], [284, 495], [261, 480],
-    [234, 484], [220, 506], [221, 534], [226, 562], [231, 589], [235, 617],
-    [240, 645], [245, 672], [249, 700], [254, 727], [257, 755], [251, 782],
-    [233, 803], [207, 813], [179, 814], [151, 816], [123, 816], [96, 811],
-    [70, 800], [46, 785], [26, 766], [12, 742], [3, 715], [0, 687],
-    [3, 660], [9, 632], [19, 606], [30, 581], [41, 555], [52, 529],
-    [62, 503], [73, 477], [84, 451], [95, 425], [105, 400],
+    [159, 271], [170, 245], [181, 219], [192, 193], [203, 168], [214, 142],
+    [224, 116], [235, 90], [246, 64], [257, 38], [271, 14], [294, 0],
+    [321, 5], [339, 26], [337, 53], [327, 80], [317, 106], [307, 132],
+    [298, 158], [288, 185], [283, 212], [283, 240], [283, 269], [277, 297],
+    [260, 317], [239, 330], [217, 344], [196, 359], [193, 385], [209, 406],
+    [235, 407], [258, 398], [281, 389], [304, 379], [327, 371], [353, 367],
+    [380, 365], [408, 367], [435, 371], [463, 376], [490, 380], [518, 385],
+    [546, 386], [573, 381], [600, 372], [625, 359], [649, 345], [674, 332],
+    [700, 321], [727, 316], [755, 313], [783, 311], [811, 312], [839, 314],
+    [866, 316], [894, 321], [920, 332], [941, 349], [958, 372], [968, 398],
+    [969, 425], [963, 453], [950, 477], [934, 500], [919, 524], [903, 547],
+    [888, 570], [875, 595], [863, 620], [851, 645], [830, 663], [802, 667],
+    [774, 666], [747, 661], [720, 651], [695, 640], [672, 624], [653, 603],
+    [648, 577], [662, 553], [688, 543], [715, 536], [743, 530], [770, 523],
+    [796, 512], [821, 500], [837, 479], [839, 451], [820, 432], [795, 423],
+    [767, 422], [739, 424], [710, 425], [682, 426], [654, 427], [626, 432],
+    [598, 437], [571, 442], [543, 448], [517, 456], [490, 463], [463, 469],
+    [436, 474], [410, 481], [384, 489], [360, 498], [334, 507], [308, 511],
+    [284, 496], [261, 480], [234, 484], [220, 506], [221, 534], [226, 562],
+    [231, 589], [235, 617], [240, 645], [245, 672], [249, 700], [254, 727],
+    [257, 755], [251, 782], [233, 803], [207, 813], [179, 814], [151, 816],
+    [123, 816], [96, 811], [70, 800], [46, 785], [26, 766], [12, 742],
+    [3, 715], [0, 687], [3, 660], [9, 632], [19, 606], [30, 581],
+    [41, 555], [52, 529], [62, 503], [73, 477], [84, 451], [95, 425],
+    [105, 400], [116, 374], [127, 348], [137, 322], [148, 296],
   ] as [number, number][]).map(([x, y]) => ({ x, y })),
   scale: 2.6,
   // (a share of the lap): the main straight, up to the hairpin; down into the first banked bend, the climb over
@@ -866,7 +868,7 @@ export const DUNE_COAST: CircuitLayout = {
     [1, 10],
   ],
   // on the outside of the main straight (its inside, the first banked bend's hairpin, comes too near)
-  pit: { from: -520, to: 720, side: -1 },
+  pit: { from: -810, to: 430, side: -1 },
   // the North Sea, beyond the dunes west of the main straight (in as near as the pits let it, past the hairpin)
   lakes: [
     ([
@@ -895,8 +897,8 @@ export const DUNE_COAST: CircuitLayout = {
   },
   // the two banked bends: the steep left after the hairpin, and the long right onto the main straight
   banking: [
-    { from: 2160, to: 2520, grade: 0.32 },
-    { from: 9300, to: 10150, grade: 0.32 },
+    { from: 1870, to: 2230, grade: 0.32 },
+    { from: 9010, to: 9860, grade: 0.32 },
   ],
 };
 
@@ -1056,7 +1058,71 @@ export const DUST_BOWL: CircuitLayout = {
   free: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, DUNE_COAST, GLACIER_PASS, DUST_BOWL];
+/**
+ * Volcano Isle. A circuit of our own, clockwise round an island under a
+ * smoking volcano: along the beach on the main straight, a right up off it,
+ * the climb through the switchback, along the foot of the volcano, a tight
+ * right at the top, and the Lava Run down the far side, flying over the lava
+ * river as it goes, an S-bend, and the last right onto the beach. A lap of about
+ * 8,100 px, about 25 s.
+ */
+export const VOLCANO_ISLE: CircuitLayout = {
+  id: 'volcano-isle',
+  name: 'Volcano Isle',
+  about: 'clockwise · round a smoking volcano, over the lava',
+  points: ([
+    [343, 894], [304, 894], [265, 894], [226, 894], [188, 894], [149, 894],
+    [110, 894], [71, 894], [35, 885], [10, 859], [0, 824], [0, 784],
+    [0, 744], [0, 704], [0, 664], [0, 624], [7, 582], [28, 546],
+    [60, 519], [99, 497], [138, 474], [177, 452], [216, 429], [244, 400],
+    [251, 359], [235, 322], [211, 293], [187, 265], [163, 236], [139, 207],
+    [124, 168], [139, 128], [175, 107], [216, 100], [256, 93], [297, 86],
+    [337, 79], [378, 72], [419, 64], [459, 57], [500, 50], [540, 43],
+    [581, 36], [622, 29], [662, 22], [703, 14], [744, 7], [784, 0],
+    [826, 11], [845, 51], [845, 92], [845, 134], [845, 176], [845, 218],
+    [845, 259], [845, 301], [845, 342], [845, 382], [845, 423], [845, 463],
+    [845, 504], [851, 542], [871, 575], [900, 600], [930, 629], [940, 670],
+    [930, 710], [910, 745], [890, 780], [870, 814], [850, 849], [816, 882],
+    [771, 894], [732, 894], [693, 894], [654, 894], [615, 894], [576, 894],
+    [538, 894], [499, 894], [460, 894], [421, 894], [382, 894],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2.4,
+  // (a share of the lap): along the beach, the climb off it through the switchback to the volcano's foot, along it
+  // (the highest), down the Lava Run, and down the S-bend to the beach
+  elevation: [
+    [0, 7],
+    [0.05, 6],
+    [0.17, 30],
+    [0.29, 52],
+    [0.47, 66],
+    [0.59, 60],
+    [0.71, 30],
+    [0.81, 10],
+    [0.87, 8],
+    [1, 7],
+  ],
+  // on the infield side of the main straight (the beach on its other side)
+  pit: { from: -960, to: 340, side: 1 },
+  // the Lava Run's jump, over the lava river
+  jumps: [{ at: 5593, rise: 24 }],
+  // the volcano, north of the circuit (behind it from the camera); its lava river round the outside of the far
+  // side and across the Lava Run just past the jump's lip, into the lava lake in the infield
+  volcano: {
+    cone: [480, -330],
+    river: [[650, -150], [760, -90], [900, -20], [960, 80], [960, 230], [935, 350], [900, 402], [845, 412], [780, 425], [700, 455], [620, 495], [560, 520]],
+    lake: [520, 540],
+  },
+  // the sea, beyond the beach south of the main straight
+  lakes: [
+    ([
+      [-700, 1015], [1700, 1015], [1700, 2600], [-700, 2600],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  ],
+  // (open to everyone from the start, not a round of the Championship)
+  free: true,
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, DUNE_COAST, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
 
 /** The Championship's circuits, a round on each, in order (the free circuits aren't among them). */
 export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.free);

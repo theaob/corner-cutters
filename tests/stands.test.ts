@@ -17,7 +17,8 @@ describe.each(LAYOUTS)('the grandstands at $name', (layout) => {
   it(layout.street ? 'line the main straight (the town is round the bends)' : 'line the main straight and the outside of the bends', () => {
     expect(stands.filter((s) => s.at === 'start')).toHaveLength(3);
     if (layout.street) expect(stands.filter((s) => s.at === 'bend')).toHaveLength(0);
-    else expect(stands.filter((s) => s.at === 'bend').length).toBeGreaterThanOrEqual(5);
+    // (at Volcano Isle, four: the lava river runs round the outside of its top hairpin)
+    else expect(stands.filter((s) => s.at === 'bend').length).toBeGreaterThanOrEqual(layout.volcano ? 4 : 5);
   });
   it('stand clear of the track and its run-off, every one of them, the main straight\'s too (another stretch can pass behind it)', () => {
     for (const s of stands) {

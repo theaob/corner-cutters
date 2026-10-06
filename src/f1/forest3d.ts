@@ -27,6 +27,8 @@
 
 import * as THREE from 'three';
 import { STATUE, statueOf } from './cowStatue';
+import { inLake, lakesOf } from './lakes';
+import { nearLava, volcanoOf } from './volcano';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { groundAt } from '../engine/sim';
 import { HALF_WIDTH, RUNOFF, TILE as T, type Circuit } from './circuit';
@@ -179,6 +181,8 @@ function growth(circuit: Circuit, clear: number) {
   }
   const stands = standsOf(circuit);
   const statue = statueOf(circuit.layout);
+  const volcano = volcanoOf(circuit);
+  const lakes = lakesOf(circuit);
   return (x: number, y: number, want: number, crown: number): number => {
     let near = Infinity;
     for (let k = Math.floor((x - reach - clear) / COL); k <= Math.floor((x + reach + clear) / COL); k++) {
@@ -187,6 +191,8 @@ function growth(circuit: Circuit, clear: number) {
     if (near < reach + clear) return 0;
     if (pit.points.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 60)) return 0;
     if (stands.some((s) => Math.hypot(s.x - x, s.y - y) < s.len / 2 + STAND.depth + 20)) return 0;
+    // (nor on the lava, the volcano, or in the sea or a lake)
+    if (nearLava(volcano, x, y, 14) || inLake(lakes, x, y, 14)) return 0;
     // (nor in the statue's clearing, a tree's crown's width round it)
     if (statue && Math.hypot(statue.x - x, statue.y - y) < STATUE.clearing + 12) return 0;
     const foot = groundAt(grid, x, y).h;
@@ -212,7 +218,7 @@ function growth(circuit: Circuit, clear: number) {
 
 /** The forest's trees (none for a circuit that isn't in one); in the desert, its palms. */
 export function treesOf(circuit: Circuit): Tree[] {
-  if (circuit.layout.desert) return palmsOf(circuit);
+  if (circuit.layout.desert || circuit.layout.volcano) return palmsOf(circuit);
   if (circuit.layout.park) return parkOf(circuit, circuit.layout.park.avenue);
   if (circuit.layout.mountain) return mountainOf(circuit);
   if (circuit.layout.blossoms) return blossomsOf(circuit);
