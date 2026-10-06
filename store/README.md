@@ -51,6 +51,7 @@ or the itch.io page.
 | --- | --- | --- |
 | App icon | `icon-512.png` | 512 × 512, no transparency (Play rounds the corners) |
 | Feature graphic | `feature-graphic-1024x500.png` | 1024 × 500 |
+| The Championship's product image (if the Console asks for one) | `championship-512.png` | 512 × 512 |
 | Phone screenshots (2 to 8) | `screenshots/01…07` | 1080 × 1920 (9:16) |
 
 The screenshots are from the game itself (Crescent Park, Neon Strip, Glacier Pass, the figure-of-eight, Dune Coast,
