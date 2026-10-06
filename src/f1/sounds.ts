@@ -225,6 +225,12 @@ export class RaceSounds {
     thump(strength);
   }
 
+  /** The gopher hit, sent flying: a soft bump and a cartoon boing. */
+  boing(): void {
+    thump(0.15);
+    [330, 494, 659].forEach((f, i) => beep(f, 0.09, 0.12, 'triangle', i * 0.05));
+  }
+
   /** One of the five start lights coming on. */
   light(): void {
     beep(520, 0.18, 0.2);
