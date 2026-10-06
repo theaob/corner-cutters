@@ -344,7 +344,7 @@ export function pitStep(pit: PitLane, stop: PitStop, car: Car, others: Car[], dt
     if (Math.abs(theirs) > LANE_REACH || Math.abs(theirs - mine) > 26) continue;
     // keep a gap: no faster than it can slow to their speed over the room left; too close, a little slower than
     // them (stopped, if they are: a queue at a box), not a stop dead behind a car that's moving
-    want = Math.min(want, along < 34 ? speedOf(o) * 0.7 : Math.sqrt(speedOf(o) ** 2 + 2 * PIT.decel * (along - 34)));
+    want = Math.min(want, along < 34 ? (speedOf(o) < 1 ? 0 : speedOf(o) * 0.7) : Math.sqrt(speedOf(o) ** 2 + 2 * PIT.decel * (along - 34)));
   }
   const dx = tx - car.x;
   const dy = ty - car.y;
