@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { canvas } from '../engine/render/sprites';
 import { pixelTexture } from '../engine/render/textures';
-import { addDaylight, type Daylight } from '../engine/render/daylight';
+import { addDaylight, type Daylight, type SkyState } from '../engine/render/daylight';
 import { mergedByMaterial } from '../engine/render/merge';
 import { groundAt } from '../engine/sim';
 import { sectorStarts, type Pt } from './racing';
@@ -20,6 +20,8 @@ import { buildMonsterTrucks } from './monsterTrucks';
 import { buildPlanes, type PlaneRun } from './planes';
 import { buildCoast } from './coast';
 import { buildVolcano } from './volcano';
+import { buildNeonCity } from './neonCity';
+import { buildStreetLights, nightSky } from './night';
 import { buildCowStatue, statueOf } from './cowStatue';
 import { buildCrowds } from './crowd3d';
 import { GARAGE_ACROSS, PIT } from './pits';
@@ -45,6 +47,8 @@ export interface CircuitScene extends Daylight {
   animate(t: number): void;
   /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway); the monster trucks (layout.monsterTrucks); the crowds cheering (layout.crowds); the planes flying over (layout.airport). */
   stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number; vx?: number; vy?: number }): void;
+  /** raced at night (layout.night): the glow turned up */
+  night: boolean;
   /** the planes flying over (a circuit with an airport next door: layout.airport) */
   planes?: PlaneRun;
   /** the gopher's crossings (a circuit with one: layout.gophers) */
@@ -685,7 +689,10 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#8fb8e8');
   const light = addDaylight(scene);
-  light.setSky(weather.sky);
+  // (at night, every weather's sky made its night)
+  const night = !!circuit.layout.night;
+  const skyFor = (sky: SkyState) => (night ? nightSky(sky) : sky);
+  light.setSky(skyFor(weather.sky));
   const { width: W, height: H, grid, track } = circuit;
 
   const geo = new THREE.PlaneGeometry(W * T, H * T, W, H).rotateX(-Math.PI / 2);
@@ -787,7 +794,11 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       flags.push({ flag, phase: k * 1.7 + along * 5 });
     }
   });
-  const town = street ? buildTown(scene, circuit) : undefined;
+  // (a street circuit's town; at night in the city of lights, its neon-lit towers and landmarks instead)
+  const neonCity = circuit.layout.neon ? buildNeonCity(scene, circuit) : undefined;
+  const town = street && !circuit.layout.neon ? buildTown(scene, circuit) : undefined;
+  // (at night, the street lamps along the track)
+  if (night) buildStreetLights(scene, circuit.grid, circuit);
   // (at a circuit whose podium hangs over the main straight: its deck)
   const deck = createPodiumDeck(circuit);
   if (deck) scene.add(deck);
@@ -857,6 +868,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   return {
     scene,
     ...light,
+    setSky: (sky) => light.setSky(skyFor(sky)),
+    night,
     minimap,
     animate: (t) => {
       town?.animate(t);
@@ -877,6 +890,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       planes?.step(dt, focus);
       coastline?.(dt);
       volcano?.(dt);
+      neonCity?.(dt);
     },
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);

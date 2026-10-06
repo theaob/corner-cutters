@@ -58,7 +58,7 @@ function circuitOn(day: string, poolOn: (day: string) => CircuitLayout[], depth 
  * A circuit added since the Daily Challenge began joins its rotation from this day (UTC), not the day it's released:
  * the rotation is by the circuits' count, so a day's challenge changing under the players already on it is avoided.
  */
-export const DAILY_FROM: Record<string, string> = { 'glacier-pass': '2026-10-06', 'dust-bowl': '2026-10-07', 'dune-coast': '2026-10-08', 'volcano-isle': '2026-10-09' };
+export const DAILY_FROM: Record<string, string> = { 'glacier-pass': '2026-10-06', 'dust-bowl': '2026-10-07', 'dune-coast': '2026-10-08', 'volcano-isle': '2026-10-09', vegas: '2026-10-10' };
 
 /** The circuits in the Daily Challenge's rotation on `day`. */
 export const dailyLayouts = (day: string): CircuitLayout[] => LAYOUTS.filter((l) => !DAILY_FROM[l.id] || day >= DAILY_FROM[l.id]);

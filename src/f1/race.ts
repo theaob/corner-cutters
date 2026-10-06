@@ -39,6 +39,8 @@ import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { distance, newAttack, shortDistance, stepAttack, type Attack } from './timeAttack';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
+import { NIGHT } from './night';
+import { buildFireworks } from './fireworks3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
@@ -185,6 +187,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const sessionWeather = (): WeatherId => conditionOf(forecast.start);
   /** how the circuit looks now (wetness and rain), last put on the scene, so it's only redone as it changes */
   let shownLook = { wetness: -1, rain: -1 };
+  /** the fireworks at the end of the Championship: from the winner's flag in its last round */
+  const fireworks = buildFireworks(world.scene, () => sounds.firework());
+  const finale = !!championship && championship.season.round === championship.season.rounds.length - 1;
   /** the times the gopher's been hit, last frame (a boing for each new one) */
   let gopherHits = 0;
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
@@ -926,6 +931,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         gopher: () => world.gopher && { phase: world.gopher.crossing?.phase, pose: world.gopher.pose(), crossings: world.gopher.crossings, bolts: world.gopher.bolts, hits: world.gopher.hits },
         /** the planes over the circuit (one with an airport next door): those in the sky, and those flown over so far */
         planes: () => world.planes && { flights: world.planes.flights.map((f) => ({ kind: f.kind, x: f.x, y: f.y, z: f.z })), flown: world.planes.flown },
+        /** the fireworks (the end of the Championship's): set them off now, for trying them out; whether they're on and how many have burst */
+        fireworks: (go = true) => {
+          if (go) fireworks.show.start();
+          return { on: fireworks.show.on, bursts: fireworks.show.bursts, finale };
+        },
         /** the champagne ceremony: s it's been on (undefined: it isn't) */
         ceremony: () => podium?.time,
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
@@ -1536,7 +1546,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (a screenshot waiting for a frame, the report's: the still picture drawn again for it)
       if (frameWanted()) {
         const q = QUALITY_LEVELS[governor.level];
-        post.render(0, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !(ceremony.group.visible && !!podium) });
+        post.render(0, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !(ceremony.group.visible && !!podium) });
       }
       requestAnimationFrame(tick);
       return;
@@ -1922,6 +1932,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the chequered flag: out at the line from the winner's finish, and big over the picture for a few seconds at yours
     const flagOut = race.entrants.some((e) => e.progress.finished !== undefined);
     chequered.group.visible = flagOut;
+    // (the Championship's last race won: fireworks)
+    if (flagOut && finale && session === 'race') fireworks.show.start();
     if (flagOut) chequered.update(performance.now() / 1000);
     const yourFlag = p.finished !== undefined && clock < p.finished + 3.5 && !podium && !replay && results.style.display !== 'block';
     flagOverlay.el.style.display = yourFlag ? 'block' : 'none';
@@ -2084,6 +2096,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (the gopher hit, near enough to see: boing)
       if (world.gopher && world.gopher.hits > gopherHits) sounds.boing();
       gopherHits = world.gopher?.hits ?? 0;
+      // (the fireworks, over where the camera is)
+      fireworks.step(dt, { x: focus.x, y: focus.z }, focus.y);
       // (a plane flying over: its roar as near as it is to your car, up there)
       if (world.planes) {
         const car = race.entrants[you].car;
@@ -2174,7 +2188,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     world.setShadowMapSize(q.shadowMap);
     // (the frame's draw calls counted across all the passes, not just the last: for __cc.perf)
     renderer.info.reset();
-    post.render(dt, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !onSet });
+    post.render(dt, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !onSet });
 
     // (a race picked up: paused once its first few frames are drawn, the HUD as the race has it)
     if (pauseOnStart && --pauseOnStart === 0) setPaused(true);
