@@ -39,6 +39,7 @@ import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { distance, newAttack, shortDistance, stepAttack, type Attack } from './timeAttack';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
+import { NIGHT } from './night';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
@@ -1536,7 +1537,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (a screenshot waiting for a frame, the report's: the still picture drawn again for it)
       if (frameWanted()) {
         const q = QUALITY_LEVELS[governor.level];
-        post.render(0, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !(ceremony.group.visible && !!podium) });
+        post.render(0, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !(ceremony.group.visible && !!podium) });
       }
       requestAnimationFrame(tick);
       return;
@@ -2174,7 +2175,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     world.setShadowMapSize(q.shadowMap);
     // (the frame's draw calls counted across all the passes, not just the last: for __cc.perf)
     renderer.info.reset();
-    post.render(dt, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !onSet });
+    post.render(dt, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur && !onSet });
 
     // (a race picked up: paused once its first few frames are drawn, the HUD as the race has it)
     if (pauseOnStart && --pauseOnStart === 0) setPaused(true);

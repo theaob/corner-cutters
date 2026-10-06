@@ -49,6 +49,10 @@ export interface CircuitLayout {
   jumps?: { at: number; rise: number }[];
   /** the cherry trees in blossom: groves of them round the circuit and lining the lap, their petals drifting onto the track (petals.ts) */
   blossoms?: boolean;
+  /** raced at night (night.ts): a dark sky, moonlight, street lamps along the track throwing pools of light on it */
+  night?: boolean;
+  /** the city of lights round a street circuit at night (neonCity.ts): neon-lit towers, and where its landmarks stand (in \`points\` units): a giant sphere of lights, an observation wheel, a pyramid with a beam of light from its tip */
+  neon?: { sphere: [number, number]; wheel: [number, number]; pyramid: [number, number] };
   /** a volcano (volcano.ts): its cone's middle, the lava river from its foot (crossing the track where the cars fly over it), and the lava lake it runs into, in \`points\` units; black volcanic rock beyond the barriers, palms */
   volcano?: { cone: [number, number]; river: [number, number][]; lake: [number, number] };
   /** the coast (coast.ts): its shore (in `points` units, along the edge of the sea, which is one of the layout's lakes), the dunes beyond the barriers, beach huts, kites and gulls along it, and a windmill on a dune */
@@ -903,6 +907,84 @@ export const DUNE_COAST: CircuitLayout = {
 };
 
 /**
+ * Neon Strip (id 'vegas'). A street circuit at night, anticlockwise through
+ * the city of lights in the desert, traced from the one there (outline data
+ * from github.com/bacinger/f1-circuits, MIT), its corners rounded a little: off
+ * the line up the diagonal, the loop round to the long run north, the
+ * twisting section past the sphere, west along the boulevard, round the top,
+ * and down the Strip itself, the longest straight of all, flat out under the
+ * neon, onto the main straight. Drawn bigger than the others (scale 2) so its
+ * tight corners suit the arcade handling: a lap of about 12,300 px, about 35 s.
+ */
+export const VEGAS: CircuitLayout = {
+  id: 'vegas',
+  name: 'Neon Strip',
+  about: 'anticlockwise · at night, down the Strip under the neon',
+  points: ([
+    [599, 1937], [627, 1937], [655, 1937], [683, 1937], [711, 1937], [739, 1936],
+    [767, 1934], [795, 1930], [822, 1925], [850, 1920], [878, 1915], [903, 1905],
+    [925, 1887], [945, 1867], [963, 1846], [982, 1825], [1001, 1804], [1020, 1784],
+    [1039, 1763], [1057, 1742], [1076, 1721], [1094, 1700], [1112, 1678], [1131, 1657],
+    [1148, 1635], [1148, 1609], [1127, 1591], [1100, 1583], [1072, 1584], [1047, 1596],
+    [1024, 1612], [1002, 1629], [979, 1646], [953, 1657], [925, 1659], [899, 1650],
+    [874, 1637], [854, 1619], [840, 1594], [827, 1569], [824, 1542], [824, 1514],
+    [823, 1485], [823, 1457], [823, 1429], [823, 1401], [822, 1373], [822, 1345],
+    [822, 1317], [822, 1289], [821, 1261], [821, 1233], [821, 1205], [821, 1177],
+    [821, 1149], [821, 1121], [820, 1093], [820, 1065], [820, 1037], [820, 1009],
+    [820, 981], [819, 953], [819, 924], [819, 896], [819, 868], [818, 840],
+    [818, 812], [818, 784], [818, 756], [818, 728], [825, 702], [852, 693],
+    [880, 693], [908, 693], [936, 694], [964, 694], [992, 695], [1020, 695],
+    [1048, 695], [1076, 693], [1100, 679], [1121, 661], [1139, 639], [1152, 614],
+    [1165, 589], [1171, 562], [1174, 534], [1159, 514], [1133, 502], [1122, 478],
+    [1129, 451], [1141, 426], [1153, 400], [1157, 373], [1137, 355], [1109, 350],
+    [1081, 348], [1053, 347], [1025, 347], [997, 346], [969, 345], [941, 344],
+    [913, 344], [885, 343], [857, 343], [829, 342], [801, 339], [773, 335],
+    [745, 331], [718, 326], [691, 316], [669, 300], [649, 280], [634, 257],
+    [622, 231], [610, 206], [599, 180], [587, 155], [576, 129], [564, 104],
+    [548, 80], [528, 61], [505, 45], [480, 32], [454, 22], [427, 15],
+    [399, 9], [372, 3], [344, 0], [325, 19], [312, 44], [299, 69],
+    [286, 94], [273, 119], [260, 144], [247, 169], [234, 193], [221, 218],
+    [208, 243], [195, 268], [182, 293], [169, 318], [156, 343], [144, 368],
+    [131, 392], [117, 417], [106, 443], [97, 469], [89, 496], [82, 523],
+    [74, 550], [67, 577], [59, 604], [51, 631], [44, 658], [38, 686],
+    [35, 714], [32, 742], [29, 769], [27, 797], [24, 825], [21, 853],
+    [18, 881], [16, 909], [16, 937], [16, 965], [16, 993], [17, 1021],
+    [17, 1049], [17, 1077], [17, 1105], [18, 1134], [18, 1162], [18, 1190],
+    [17, 1218], [16, 1246], [15, 1274], [15, 1302], [14, 1330], [13, 1358],
+    [12, 1386], [12, 1414], [11, 1442], [10, 1470], [9, 1498], [8, 1526],
+    [7, 1554], [7, 1582], [6, 1610], [5, 1638], [4, 1666], [4, 1694],
+    [3, 1722], [2, 1750], [1, 1778], [1, 1806], [0, 1835], [4, 1862],
+    [26, 1878], [52, 1890], [74, 1907], [96, 1924], [122, 1934], [150, 1937],
+    [178, 1937], [206, 1937], [234, 1937], [262, 1937], [290, 1937], [318, 1937],
+    [346, 1937], [374, 1937], [402, 1937], [430, 1937], [459, 1937], [487, 1937],
+    [515, 1937], [543, 1937], [571, 1937],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2.0,
+  // (a share of the lap): nearly flat, as the city in the desert is: a rise up onto the boulevard, and down off it to the Strip
+  elevation: [
+    [0, 8],
+    [0.08, 8],
+    [0.38, 10],
+    [0.43, 30],
+    [0.53, 32],
+    [0.62, 14],
+    [0.86, 6],
+    [1, 8],
+  ],
+  // on the inside of the main straight, before the line
+  pit: { from: -860, to: 380, side: -1 },
+  // (a long lap of streets: easy on tyres)
+  tyreWear: 0.5,
+  street: {
+    runoff: 28,
+    sea: [],
+  },
+  // at night, in the city of lights
+  night: true,
+  neon: { sphere: [1000, 520], wheel: [100, 1300], pyramid: [-150, 1870] },
+};
+
+/**
  * Glacier Pass. Clockwise over a mountain pass, a circuit of our own: from the
  * valley floor down the main straight to Turn 1, up the switchbacks (three
  * hairpins stacked up the mountainside, the climb steady all the way), along
@@ -1123,7 +1205,7 @@ export const VOLCANO_ISLE: CircuitLayout = {
   free: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, DUNE_COAST, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, DUNE_COAST, VEGAS, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
 
 /** The Championship's circuits, a round on each, in order (the free circuits aren't among them). */
 export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.free);
