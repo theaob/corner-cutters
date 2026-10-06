@@ -18,6 +18,8 @@ import { buildYeti, yetiAvoids, type YetiRun } from './yeti';
 import { buildTramway, tramwayOf } from './tramway';
 import { buildMonsterTrucks } from './monsterTrucks';
 import { buildPlanes, type PlaneRun } from './planes';
+import { buildCoast } from './coast';
+import { buildVolcano } from './volcano';
 import { buildCowStatue, statueOf } from './cowStatue';
 import { buildCrowds } from './crowd3d';
 import { GARAGE_ACROSS, PIT } from './pits';
@@ -29,7 +31,7 @@ import { standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
 import { buildForest, type Tree } from './forest3d';
 import { buildCamels } from './camels';
-import { buildLakes } from './lakes';
+import { buildLakes, inLake, lakesOf } from './lakes';
 import { BRIDGE, liftAt } from './bridge';
 
 /** The flags on the grandstands: the teams' colours and white. */
@@ -107,6 +109,10 @@ const START_SQUARE = 6;
 /** A forest's floor, past the barriers */
 const FOREST_FLOOR = '#2f5a2c';
 
+/** The volcanic island's colours: black rock (lighter in patches), its specks, and ferns in its cracks */
+const VOLCANIC = { rock: '#2e2a2a', rockLight: '#3a3434', speck: ['#4a4242', '#5a2e24'], fern: ['#3f6a34', '#4f7a3c'] };
+/** The dunes' colours (on the coast): sand, lighter in patches, its specks, and the marram grass growing in tufts on it */
+const DUNES = { sand: '#dcc796', sandLight: '#e6d5a8', speck: '#c8b080', grass: ['#8aa05e', '#a4b676'] };
 /** The desert's colours: the sand (its run-off, beyond the barriers, and the specks in it), and the gravel traps, redder so they stand out from it */
 const DESERT = { runoff: '#e4c896', runoffStripe: '#dcbf8a', sand: '#d8b47c', speck: '#c49e66', ripple: '#e8d0a2', gravel: '#c08a5e', gravelDot: ['#ad7a50', '#d29e72'] };
 
@@ -283,6 +289,9 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const street = !!circuit.layout.street;
   const forest = !!circuit.layout.forest;
   const desert = !!circuit.layout.desert;
+  const coast = !!circuit.layout.coast;
+  const volcanic = !!circuit.layout.volcano;
+  const seaLakes = volcanic ? lakesOf(circuit) : [];
   const mountain = !!circuit.layout.mountain;
   const snowy = !!circuit.layout.snow;
   const dirt = !!circuit.layout.dirt;
@@ -363,6 +372,23 @@ function paint(circuit: Circuit): HTMLCanvasElement {
         for (let k = 0; k < 3; k++) {
           x.fillStyle = snow ? (steep > ROCK_STEEP && r() < 0.6 ? MOUNTAIN.rockDot[0] : MOUNTAIN.snowDot) : rock ? MOUNTAIN.rockDot[r() < 0.5 ? 0 : 1] : MOUNTAIN.meadowDot[r() < 0.7 ? 0 : 1];
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), rock ? 2 : 1, rock ? 1 : 2);
+        }
+      } else if (volcanic && cell === 'wall') {
+        // on the volcano's island, beyond the barriers: black volcanic rock, ferns in its cracks; sand by the sea
+        const beach = inLake(seaLakes, px + T / 2, py + T / 2, 120);
+        x.fillStyle = beach ? DUNES.sand : (i * 5 + j * 3) % 9 < 1 ? VOLCANIC.rockLight : VOLCANIC.rock;
+        x.fillRect(px, py, T, T);
+        for (let k = 0; k < 4; k++) {
+          x.fillStyle = beach ? DUNES.speck : r() < 0.35 ? VOLCANIC.fern[r() < 0.5 ? 0 : 1] : VOLCANIC.speck[r() < 0.6 ? 0 : 1];
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 2, 1);
+        }
+      } else if (coast && cell === 'wall') {
+        // on the coast, beyond the barriers: the dunes, sand with tufts of marram grass
+        x.fillStyle = (i * 7 + j * 3) % 11 < 1 ? DUNES.sandLight : DUNES.sand;
+        x.fillRect(px, py, T, T);
+        for (let k = 0; k < 4; k++) {
+          x.fillStyle = r() < 0.6 ? DUNES.grass[r() < 0.5 ? 0 : 1] : DUNES.speck;
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, r() < 0.6 ? 3 : 1);
         }
       } else if (desert) {
         // in the desert, sand: smoothed and striped on the run-off, rippled beyond the barriers
@@ -491,12 +517,12 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     }
   }
   // the banking: seams in its concrete running along the track, so it reads as a slope, out to the walls
-  const banked = pts.map((_, i) => Math.abs(circuit.bank[i]) > 0.02);
-  if (banked.some(Boolean)) {
+  // (a sample's banking rises toward its sign's side: each banked bend toward its own outside)
+  for (const outside of [-1, 1]) {
+    const banked = pts.map((_, i) => Math.abs(circuit.bank[i]) > 0.02 && Math.sign(circuit.bank[i]) === outside);
+    if (!banked.some(Boolean)) continue;
     x.strokeStyle = SEAM;
     x.lineWidth = 1;
-    // (a sample's banking rises toward its sign's side)
-    const outside = Math.sign(circuit.bank.find((b) => b !== 0)!);
     for (const side of [-1, 1]) {
       for (let off = HALF_WIDTH + 12; off < HALF_WIDTH + RUNOFF; off += side === outside ? 12 : 24) {
         const line = offset(side * off);
@@ -671,7 +697,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
+  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.coast ? DUNES.sand : circuit.layout.volcano ? VOLCANIC.rock : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: outerColor.clone().multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
@@ -779,6 +805,10 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (a bronze cow charging through a steel arch, by the track)
   const statue = statueOf(circuit.layout);
   if (statue) buildCowStatue(scene, circuit.grid, statue);
+  // (the volcano: smoking, its lava river and lake glowing)
+  const volcano = circuit.layout.volcano ? buildVolcano(scene, circuit.grid, circuit) : undefined;
+  // (the coast: the surf, beach huts, kites, gulls and a windmill)
+  const coastline = circuit.layout.coast ? buildCoast(scene, circuit.grid, circuit) : undefined;
   // (airliners flying over, from the airport next door)
   const planes = circuit.layout.airport ? buildPlanes(scene, circuit.layout.airport.runway) : undefined;
   // (monster trucks jumping in the infield)
@@ -845,6 +875,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       trucks?.(dt);
       crowds?.(dt, cars);
       planes?.step(dt, focus);
+      coastline?.(dt);
+      volcano?.(dt);
     },
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);

@@ -106,9 +106,9 @@ describe("a season's length", () => {
 });
 
 describe("the Championship's circuits", () => {
-  it('a round on every circuit but the free ones (Glacier Pass, Dust Bowl): those are open to everyone, and no round', async () => {
+  it('a round on every circuit but the free ones (Glacier Pass, Dust Bowl, Volcano Isle): those are open to everyone, and no round', async () => {
     const { CHAMPIONSHIP_LAYOUTS, FREE_LAYOUTS, LAYOUTS } = await import('../src/f1/layouts');
-    expect(FREE_LAYOUTS.map((l) => l.id)).toEqual(['glacier-pass', 'dust-bowl']);
+    expect(FREE_LAYOUTS.map((l) => l.id)).toEqual(['glacier-pass', 'dust-bowl', 'volcano-isle']);
     expect(CHAMPIONSHIP_LAYOUTS.map((l) => l.id)).not.toContain('glacier-pass');
     expect(CHAMPIONSHIP_LAYOUTS.map((l) => l.id)).not.toContain('dust-bowl');
     expect(CHAMPIONSHIP_LAYOUTS.length + FREE_LAYOUTS.length).toBe(LAYOUTS.length);

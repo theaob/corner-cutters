@@ -720,7 +720,8 @@ function sceneryPanel() {
 
   panel.append(heading('Banked bend'));
   panel.append(checkbox('banking', !!draft.extras.banking, (on) => edit(() => (draft.extras.banking = on ? { from: 1000, to: 2000, grade: 0.3 } : undefined))));
-  const bank = draft.extras.banking;
+  // (a layout with several banked bends: the first of them, here)
+  const bank = [draft.extras.banking ?? []].flat()[0];
   if (bank) {
     panel.append(
       field('from (px along the lap)', bank.from, (v) => edit(() => (bank.from = num(v, bank.from))), 'number'),

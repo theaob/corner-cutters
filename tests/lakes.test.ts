@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { carClass } from '../src/engine/driving';
 import { HALF_WIDTH, RUNOFF, buildCircuit } from '../src/f1/circuit';
 import { inLake, lakesOf } from '../src/f1/lakes';
-import { LAYOUTS, TWIN_LAKES } from '../src/f1/layouts';
+import { DUNE_COAST, LAYOUTS, TWIN_LAKES, VOLCANO_ISLE } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { standsOf } from '../src/f1/stands';
 
@@ -12,9 +12,9 @@ describe('the lakes at Twin Lakes', () => {
   const c = buildCircuit(TWIN_LAKES, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
   const lakes = lakesOf(c);
 
-  it('are its two, and only there', () => {
+  it('are its two (the only other water a circuit has: the sea at Dune Coast and round Volcano Isle)', () => {
     expect(lakes).toHaveLength(2);
-    expect(LAYOUTS.filter((l) => l.lakes?.length)).toEqual([TWIN_LAKES]);
+    expect(LAYOUTS.filter((l) => l.lakes?.length)).toEqual([TWIN_LAKES, DUNE_COAST, VOLCANO_ISLE]);
   });
 
   it('lie clear of the track, its run-off and barriers, and the pit lane (right behind the barriers, where you see them)', () => {
