@@ -5,5 +5,5 @@
   does nothing). The achievements' own ids are in src/f1/playAchievements.ts.
 -->
 <resources>
-    <string name="game_services_project_id" translatable="false"></string>
+    <string name="game_services_project_id" translatable="false">999926824923</string>
 </resources>
