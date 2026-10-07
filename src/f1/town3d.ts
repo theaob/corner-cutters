@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { bakeColours } from '../engine/render/merge';
 import { canvas } from '../engine/render/sprites';
 import { pixelTexture } from '../engine/render/textures';
 import { groundAt } from '../engine/sim';
@@ -993,56 +994,77 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
   const castle = castleOf(circuit);
   buildCastle(scene, circuit, castle);
 
-  // the old town: houses and towers, a mesh of walls per facade style and of each kind of top
+  // the old town: houses and towers, in tiles of the map (so the tiles out of the picture, and out of the shadows',
+  // aren't drawn): a mesh of walls per facade style and of each kind of top a tile; the merlons along the battlements
+  // (thousands of them, most of the town's triangles) in smaller tiles of their own
   const blocks = townBlocks(circuit, sea, fromTrack, keep, r, [...marks, ...castleFootprints(castle)]);
-  const tops: Record<'tiles' | 'flat' | 'stone', THREE.BufferGeometry[]> = { tiles: [], flat: [], stone: [] };
-  // a merlon: a block of stone without the face it stands on (thousands of them along the battlements)
+  const tileOf = (x: number, y: number, size: number) => `${Math.floor(x / size)},${Math.floor(y / size)}`;
+  const merlons = new Map<string, THREE.BufferGeometry[]>();
+  // a merlon: a block of stone without the face it stands on
   const merlon = new THREE.BoxGeometry(3, 4, 3);
   const under = merlon.groups[3];
   const faces = Array.from(merlon.index!.array).filter((_, i) => i < under.start || i >= under.start + under.count);
   merlon.setIndex(faces);
   merlon.clearGroups();
-  FACADES.forEach((style, k) => {
-    const list = blocks.filter((b) => b.style === k);
-    if (!list.length) return;
-    const walls = list.map((b) => {
-      const g = new THREE.BoxGeometry(b.w, b.h, b.d);
-      // (the texture tiles a bay and a storey at a time, by the building's size)
-      const uv = g.attributes.uv;
-      for (let f = 0; f < 6; f++) {
-        const acrossFace = f < 2 ? b.d : b.w;
-        const up = f === 2 || f === 3 ? b.d : b.h;
-        for (let v = f * 4; v < f * 4 + 4; v++) uv.setXY(v, uv.getX(v) * (acrossFace / BAY), uv.getY(v) * (up / STOREY));
-      }
-      const ground = groundAt(grid, b.x, b.y).h;
-      g.translate(b.x, ground + b.h / 2, b.y);
-      const roofAt = ground + b.h;
-      if (b.top === 'tiles') tops.tiles.push(new THREE.BoxGeometry(b.w + 3, 2, b.d + 3).translate(b.x, roofAt + 1, b.y));
-      else if (b.top === 'spire') tops.tiles.push(new THREE.ConeGeometry(b.w * 0.75, b.w * 0.6, 4).rotateY(Math.PI / 4).translate(b.x, roofAt + b.w * 0.3, b.y));
-      else {
-        tops.flat.push(new THREE.BoxGeometry(b.w, 1, b.d).translate(b.x, roofAt + 0.5, b.y));
-        if (b.top === 'battlements') {
-          // merlons along the edges, a gap between each
-          for (let a = -b.w / 2 + 2; a <= b.w / 2 - 2; a += 6) {
-            for (const z of [-b.d / 2 + 1.5, b.d / 2 - 1.5]) tops.stone.push(merlon.clone().translate(b.x + a, roofAt + 2, b.y + z));
-          }
-          for (let a = -b.d / 2 + 8; a <= b.d / 2 - 8; a += 6) {
-            for (const x of [-b.w / 2 + 1.5, b.w / 2 - 1.5]) tops.stone.push(merlon.clone().translate(b.x + x, roofAt + 2, b.y + a));
+  const addMerlon = (x: number, y: number, z: number) => {
+    const key = tileOf(x, z, TOWN_TILE.merlons);
+    (merlons.get(key) ?? merlons.set(key, []).get(key)!).push(merlon.clone().translate(x, y, z));
+  };
+  const facades = FACADES.map((style) => new THREE.MeshLambertMaterial({ map: facadeTexture(style) }));
+  const topMaterials = { tiles: new THREE.MeshLambertMaterial({ color: 0xb5583c }), flat: new THREE.MeshLambertMaterial({ color: 0x9a9aa2 }) };
+  const tiled = new Map<string, Block[]>();
+  for (const b of blocks) {
+    const key = tileOf(b.x, b.y, TOWN_TILE.blocks);
+    (tiled.get(key) ?? tiled.set(key, []).get(key)!).push(b);
+  }
+  for (const tile of tiled.values()) {
+    const tops: Record<'tiles' | 'flat', THREE.BufferGeometry[]> = { tiles: [], flat: [] };
+    FACADES.forEach((_, k) => {
+      const list = tile.filter((b) => b.style === k);
+      if (!list.length) return;
+      const walls = list.map((b) => {
+        const g = new THREE.BoxGeometry(b.w, b.h, b.d);
+        // (the texture tiles a bay and a storey at a time, by the building's size)
+        const uv = g.attributes.uv;
+        for (let f = 0; f < 6; f++) {
+          const acrossFace = f < 2 ? b.d : b.w;
+          const up = f === 2 || f === 3 ? b.d : b.h;
+          for (let v = f * 4; v < f * 4 + 4; v++) uv.setXY(v, uv.getX(v) * (acrossFace / BAY), uv.getY(v) * (up / STOREY));
+        }
+        const ground = groundAt(grid, b.x, b.y).h;
+        g.translate(b.x, ground + b.h / 2, b.y);
+        const roofAt = ground + b.h;
+        if (b.top === 'tiles') tops.tiles.push(new THREE.BoxGeometry(b.w + 3, 2, b.d + 3).translate(b.x, roofAt + 1, b.y));
+        else if (b.top === 'spire') tops.tiles.push(new THREE.ConeGeometry(b.w * 0.75, b.w * 0.6, 4).rotateY(Math.PI / 4).translate(b.x, roofAt + b.w * 0.3, b.y));
+        else {
+          tops.flat.push(new THREE.BoxGeometry(b.w, 1, b.d).translate(b.x, roofAt + 0.5, b.y));
+          if (b.top === 'battlements') {
+            // merlons along the edges, a gap between each
+            for (let a = -b.w / 2 + 2; a <= b.w / 2 - 2; a += 6) {
+              for (const z of [-b.d / 2 + 1.5, b.d / 2 - 1.5]) addMerlon(b.x + a, roofAt + 2, b.y + z);
+            }
+            for (let a = -b.d / 2 + 8; a <= b.d / 2 - 8; a += 6) {
+              for (const x of [-b.w / 2 + 1.5, b.w / 2 - 1.5]) addMerlon(b.x + x, roofAt + 2, b.y + a);
+            }
           }
         }
-      }
-      return g;
+        return g;
+      });
+      const mesh = new THREE.Mesh(mergeGeometries(walls), facades[k]);
+      mesh.castShadow = mesh.receiveShadow = true;
+      scene.add(mesh);
     });
-    const mesh = new THREE.Mesh(mergeGeometries(walls), new THREE.MeshLambertMaterial({ map: facadeTexture(style) }));
-    mesh.castShadow = mesh.receiveShadow = true;
-    scene.add(mesh);
-  });
-  const topColor = { tiles: 0xb5583c, flat: 0x9a9aa2, stone: 0xcfc4ae };
-  for (const [kind, parts] of Object.entries(tops) as [keyof typeof tops, THREE.BufferGeometry[]][]) {
-    if (!parts.length) continue;
-    const mesh = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshLambertMaterial({ color: topColor[kind] }));
-    // (the merlons' shadows, a few px on the roofs, not worth drawing their thousands of blocks again for)
-    mesh.castShadow = kind !== 'stone';
+    for (const [kind, parts] of Object.entries(tops) as [keyof typeof tops, THREE.BufferGeometry[]][]) {
+      if (!parts.length) continue;
+      const mesh = new THREE.Mesh(mergeGeometries(parts), topMaterials[kind]);
+      mesh.castShadow = mesh.receiveShadow = true;
+      scene.add(mesh);
+    }
+  }
+  const stone = new THREE.MeshLambertMaterial({ color: 0xcfc4ae });
+  for (const parts of merlons.values()) {
+    const mesh = new THREE.Mesh(mergeGeometries(parts), stone);
+    // (their shadows, a few px on the roofs, not worth drawing their thousands of blocks again for)
     mesh.receiveShadow = true;
     scene.add(mesh);
   }
@@ -1070,6 +1092,8 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
       : l.kind === 'flames' ? flameTowers(shape)
       : l.kind === 'crescent' ? { group: crescentTower(shape) }
       : tennis(shape);
+    // (one that doesn't move, its plain parts baked into one mesh: a draw call, not one a part)
+    if (!('animate' in made)) bakeColours(made.group);
     made.group.position.set(l.x, high, l.y);
     if (l.turned) made.group.rotation.y = Math.PI / 2;
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(shape.w + 4, high - low + 2, shape.d + 4), new THREE.MeshLambertMaterial({ color: 0xcfc4ae }));
@@ -1102,11 +1126,15 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
     // (built running up the screen from the quay, then turned the way it runs out)
     pier.position.set(p.x, h, p.y);
     pier.rotation.y = -Math.atan2(p.dx, -p.dy);
+    // (its boards and posts one mesh)
+    bakeColours(pier);
     scene.add(pier);
   }
   const floating: { group: THREE.Group; base: number; phase: number; cruise?: Cruise }[] = [];
   const launch = (x: number, y: number, heading: number, length: number, kind: 'motor' | 'sail', cruise?: Cruise) => {
     const group = boat(length, kind, r, !!cruise);
+    // (its hull, deck, cabin, mast and the rest one mesh: it bobs as one; its wake, see-through, apart)
+    bakeColours(group);
     const base = groundAt(grid, x, y).h;
     group.position.set(x, base, y);
     group.rotation.y = -heading;
@@ -1158,6 +1186,9 @@ export function buildTown(scene: THREE.Scene, circuit: Circuit): { animate(t: nu
     },
   };
 }
+
+/** px across a tile of the town: its blocks' walls and tops, and (smaller) its merlons, a mesh a tile, so the ones out of the picture aren't drawn. */
+const TOWN_TILE = { blocks: 1200, merlons: 600 };
 
 /** Boats' colours: their hulls, now and then a dark one, and their trim. */
 const HULLS = [0xf4f4f8, 0xf4f4f8, 0xf4f4f8, 0x1f2a44, 0xe8e2d4];

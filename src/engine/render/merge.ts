@@ -23,3 +23,46 @@ export function mergedByMaterial(boxes: { geometry: THREE.BufferGeometry; faces:
   return new THREE.Mesh(merged, materials);
 }
 
+
+/**
+ * Bake `group`'s plain parts into one mesh: each mesh under it with a single opaque, untextured Lambert material
+ * (its colour put on its vertices) becomes part of one geometry, drawn with `material`, in one draw call (and one
+ * more for its shadow) where they were a draw call each. Parts with a texture, a see-through or another kind of
+ * material, or more than one, are left as they are. The baked mesh takes the group's place for its parts: added
+ * to the group, the parts removed (so a group that moves, a boat bobbing, still moves them all). Gives back how
+ * many parts were baked.
+ */
+export function bakeColours(group: THREE.Object3D, material: THREE.Material = BAKED): number {
+  group.updateMatrixWorld(true);
+  const toGroup = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const parts: THREE.Mesh[] = [];
+  group.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || (m as THREE.InstancedMesh).isInstancedMesh || Array.isArray(m.material)) return;
+    const mat = m.material as THREE.MeshLambertMaterial;
+    if (!mat.isMeshLambertMaterial || mat.map || mat.transparent || mat.vertexColors) return;
+    parts.push(m);
+  });
+  if (parts.length < 2) return 0;
+  const pieces = parts.map((m) => {
+    const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(new THREE.Matrix4().multiplyMatrices(toGroup, m.matrixWorld));
+    const c = (m.material as THREE.MeshLambertMaterial).color;
+    const n = g.getAttribute('position').count;
+    const colours = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) colours.set([c.r, c.g, c.b], k * 3);
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', g.getAttribute('position'));
+    out.setAttribute('normal', g.getAttribute('normal'));
+    out.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+    return out;
+  });
+  const baked = new THREE.Mesh(mergeGeometries(pieces), material);
+  baked.castShadow = parts.some((m) => m.castShadow);
+  baked.receiveShadow = parts.some((m) => m.receiveShadow);
+  for (const m of parts) m.removeFromParent();
+  group.add(baked);
+  return parts.length;
+}
+
+/** The material baked parts are drawn with: Lambert, coloured by its vertices (the parts' own colours). */
+const BAKED = new THREE.MeshLambertMaterial({ vertexColors: true });
