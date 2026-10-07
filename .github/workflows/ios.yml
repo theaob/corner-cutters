@@ -1,0 +1,39 @@
+# Builds the iOS app (the web build in a Capacitor WebView) for the simulator, unsigned: a check that the
+# Xcode project and its Swift packages still compile. No .ipa comes out of it; signing and installing on an
+# iPhone is done on a Mac with Xcode (see the README's iOS).
+#
+# macOS runners cost more than Linux ones, so it runs only when something the iOS build depends on
+# changes (and by hand: Actions → ios → Run workflow).
+name: ios
+
+on:
+  push:
+    paths: ['ios/**', 'capacitor.config.ts', 'package.json', 'package-lock.json', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', 'capacitor.config.ts', 'package.json', 'package-lock.json', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the web game and copy it into the iOS project
+        run: npm run ios:sync
+      - name: Build for the simulator
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO -quiet build

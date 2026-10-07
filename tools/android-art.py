@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Draws the Android app's launcher icons and splash screens: a pixel-art F1 car,
+"""Draws the Android and iOS apps' launcher icons and splash screens: a pixel-art F1 car,
 top-down, on asphalt between red-and-white kerbs, in the game's colours.
 
     python3 tools/android-art.py        (needs Pillow: pip install pillow)
 
-Writes into android/app/src/main/res/ (commit the results).
+Writes into android/app/src/main/res/ and ios/App/App/Assets.xcassets/ (commit the results).
 """
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-RES = Path(__file__).resolve().parent.parent / 'android/app/src/main/res'
+ROOT = Path(__file__).resolve().parent.parent
+RES = ROOT / 'android/app/src/main/res'
+ASSETS = ROOT / 'ios/App/App/Assets.xcassets'
 
 DECK = (14, 13, 22)  # the page background, #0e0d16
 ASPHALT = (58, 58, 72)
@@ -127,3 +129,12 @@ for name, (w, h) in SPLASH.items():
         centred(Image.new('RGBA', size, DECK + (255,)), car(scale)).convert('RGB').save(RES / f'drawable-{orient}-{name}' / 'splash.png')
 centred(Image.new('RGBA', (480, 320), DECK + (255,)), car(4)).convert('RGB').save(RES / 'drawable' / 'splash.png')
 print('android art written to', RES)
+
+# iOS: one 1024 px icon, square and opaque (iOS rounds the corners itself), and the splash, the car on the page
+# background in a 2732 px square (the launch screen crops it to fit), at 1x, 2x and 3x
+size = 1024
+centred(track((size, size), round(size / 24)), car(round(size * 0.66 / len(CAR)))).convert('RGB').save(
+    ASSETS / 'AppIcon.appiconset' / 'AppIcon-512@2x.png')
+for name, scale in (('splash-2732x2732-2.png', 8), ('splash-2732x2732-1.png', 16), ('splash-2732x2732.png', 24)):
+    centred(Image.new('RGBA', (2732, 2732), DECK + (255,)), car(scale)).convert('RGB').save(ASSETS / 'Splash.imageset' / name)
+print('ios art written to', ASSETS)
