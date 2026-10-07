@@ -81,7 +81,7 @@ cost applies to every car alike; TUNE keeps an AI pace adjustment for developmen
 | Level | AI pace (front of grid) | AI spread down the grid | Crash damage | Slowing when damaged |
 |---|---|---|---|---|
 | Easy | 0.86 | 8% | half of normal | 15% at worst |
-| Normal | 0.94 | 5% | normal | 30% at worst |
+| Normal | 0.93 | 5% | normal | 30% at worst |
 | Hard | 1.00 | 2% | 1.75× normal | 40% at worst |
 
 Still to come with the AI work in M2: mistakes (frequent on Easy, rare on Hard) and defending
