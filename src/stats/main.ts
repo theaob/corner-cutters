@@ -448,9 +448,51 @@ function reportCard(r: Report): HTMLElement {
     path.textContent = `Storage: reports/${r.image}`;
     body.append(path);
   }
+  body.append(clearButton('DELETE', `Delete report #${r.id}? This can't be undone.`, async () => {
+    const done = await rpc<Cleared>('reports_delete', { p_code: reportsCode, p_id: r.id });
+    if (!done?.ok) return false;
+    card.remove();
+    shown -= 1;
+    total -= 1;
+    showReportsCount();
+    return true;
+  }));
   card.append(body);
   return card;
 }
+
+/** What a CLEAR or a DELETE gives back. */
+interface Cleared {
+  ok: boolean;
+  why?: string;
+  cleared?: number;
+}
+
+/**
+ * A button that clears something for good: asked first (`question`), held while `act` runs, and an alert if it
+ * fails (`act` gives back whether it went).
+ */
+function clearButton(label: string, question: string, act: () => Promise<boolean>, className = 'danger card-clear'): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = className;
+  b.textContent = label;
+  b.addEventListener('click', async () => {
+    if (!confirm(question)) return;
+    b.disabled = true;
+    const went = await act().catch(() => false);
+    b.disabled = false;
+    if (!went) alert('That could not be cleared. Check that supabase/schema.sql has been run again since clearing was added.');
+  });
+  return b;
+}
+
+/** the reports there are, all told (as the last page said, less those deleted since) */
+let total = 0;
+const showReportsCount = () => {
+  $('reports-count').textContent = `${fmt(total)} REPORT${total === 1 ? '' : 'S'} · ${fmt(shown)} SHOWN`;
+  if (!total) $('reports-list').innerHTML = '<p class="empty">No reports yet.</p>';
+};
 
 /** Open the reports with `code` (`more`: the next page after the ones shown). */
 async function openReports(code: string, more = false) {
@@ -489,8 +531,8 @@ async function openReports(code: string, more = false) {
   list.append(...reports.map(reportCard));
   shown += reports.length;
   oldest = reports.length ? reports[reports.length - 1].id : oldest;
-  const total = page.total ?? shown;
-  $('reports-count').textContent = `${fmt(total)} REPORT${total === 1 ? '' : 'S'} · ${fmt(shown)} SHOWN`;
+  total = page.total ?? shown;
+  showReportsCount();
   $('reports-more').hidden = shown >= total || !reports.length;
 }
 
@@ -545,8 +587,27 @@ function errorCard(e: ErrorGroup): HTMLElement {
     fold.append(sum, pre);
     card.append(fold);
   }
+  card.append(clearButton('CLEAR', `Clear this error (seen ${fmt(e.count)} time${e.count === 1 ? '' : 's'})? This can't be undone.`, async () => {
+    const done = await rpc<Cleared>('errors_clear', { p_code: reportsCode, p_message: e.message, p_where: e.where, p_all: false });
+    if (!done?.ok) return false;
+    card.remove();
+    showErrorsCount(-1);
+    return true;
+  }));
   return card;
 }
+
+/** how many errors are listed (`change`: one cleared) */
+let errorsShown = 0;
+const showErrorsCount = (change = 0) => {
+  errorsShown += change;
+  $('errors-count').textContent = `${fmt(errorsShown)} ERROR${errorsShown === 1 ? '' : 'S'} · LAST 30 DAYS`;
+  $('errors-head').hidden = !errorsShown;
+  if (!errorsShown) {
+    $('errors-note').hidden = false;
+    $('errors-note').textContent = 'No errors in the last 30 days.';
+  }
+};
 
 /** Show the errors with the reports' `code` (`undefined`: locked again). */
 async function openErrors(code: string | undefined) {
@@ -554,6 +615,7 @@ async function openErrors(code: string | undefined) {
   const list = $('errors-list');
   list.replaceChildren();
   if (!code) {
+    $('errors-head').hidden = true;
     note.hidden = false;
     note.textContent = 'Errors are private: open the reports above with your code to see them.';
     return;
@@ -564,6 +626,9 @@ async function openErrors(code: string | undefined) {
   else if (!page.ok) note.textContent = "That code doesn't open the errors.";
   else if (!page.errors?.length) note.textContent = 'No errors in the last 30 days.';
   else list.append(...page.errors.map(errorCard));
+  errorsShown = 0;
+  showErrorsCount(page?.ok ? page.errors?.length ?? 0 : 0);
+  if (!page?.ok) $('errors-head').hidden = true;
 }
 
 $('reports-lock').addEventListener('submit', (e) => {
@@ -571,6 +636,25 @@ $('reports-lock').addEventListener('submit', (e) => {
   const code = ($('reports-code') as HTMLInputElement).value.trim();
   if (code) void openReports(code);
 });
+{
+  const all = clearButton('CLEAR ALL', 'Clear every error, at any age? This can\'t be undone.', async () => {
+    const done = await rpc<Cleared>('errors_clear', { p_code: reportsCode, p_message: null, p_where: null, p_all: true });
+    if (!done?.ok) return false;
+    void openErrors(reportsCode);
+    void load();
+    return true;
+  }, 'danger');
+  all.id = 'errors-clear';
+  $('errors-clear').replaceWith(all);
+  const reportsAll = clearButton('DELETE ALL', 'Delete every report? This can\'t be undone.', async () => {
+    const done = await rpc<Cleared>('reports_delete', { p_code: reportsCode, p_id: null });
+    if (!done?.ok) return false;
+    void openReports(reportsCode);
+    return true;
+  }, 'danger');
+  reportsAll.id = 'reports-clear';
+  $('reports-clear').replaceWith(reportsAll);
+}
 $('reports-more').addEventListener('click', () => void openReports(reportsCode, true));
 $('reports-lockup').addEventListener('click', () => {
   keepCode(undefined);

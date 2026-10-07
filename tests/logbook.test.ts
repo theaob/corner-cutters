@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LOGBOOK, clearNotes, fromUserAgent, lines, note, recent, withCrumbs } from '../src/engine/logbook';
+import { LOGBOOK, clearNotes, fromUserAgent, lines, note, recent, sightChanged, watchFreezes, withCrumbs } from '../src/engine/logbook';
 import { CRASH_DATA_MAX, crashData } from '../src/f1/crashes';
 
 describe('the logbook', () => {
@@ -48,5 +48,38 @@ describe("an error's details", () => {
     const kept = data.crumbs as string[];
     expect(kept.length).toBeGreaterThan(5);
     expect(kept.at(-1)).toBe('59.0 press a after something happened');
+  });
+});
+
+describe('watching for freezes', () => {
+  // (frames by hand: a stand-in requestAnimationFrame that keeps the next frame to run when told)
+  const frames = () => {
+    let next: ((now: number) => void) | undefined;
+    globalThis.requestAnimationFrame = ((cb: (now: number) => void) => ((next = cb), 0)) as typeof requestAnimationFrame;
+    return (now: number) => next?.(now);
+  };
+
+  it('a long gap with the page in sight is a freeze', () => {
+    const at = frames();
+    const seen: number[] = [];
+    watchFreezes((s) => seen.push(s), () => false);
+    at(100_000);
+    at(100_016);
+    at(104_016);
+    expect(seen).toEqual([4]);
+  });
+
+  it("the time the app was away isn't a freeze (no frames run while it's out of sight to see it go)", () => {
+    const at = frames();
+    const seen: number[] = [];
+    watchFreezes((s) => seen.push(s), () => false);
+    at(200_000);
+    // (put away and back again between two frames: no frame saw it hidden)
+    sightChanged();
+    at(206_000);
+    at(206_016);
+    // (and the next long gap, in sight, counts again)
+    at(210_016);
+    expect(seen).toEqual([4]);
   });
 });

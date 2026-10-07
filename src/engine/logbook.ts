@@ -133,6 +133,14 @@ export function expectBusy(seconds: number): void {
   busyUntil = Math.max(busyUntil, (typeof performance !== 'undefined' ? performance.now() : 0) + seconds * 1000);
 }
 
+/** the page went out of sight since the last frame (no frames come while it's away: the gap on its return is no freeze) */
+let lostSight = false;
+
+/** The page going out of sight or coming back (told by the host: no frame runs while it's away to see it). */
+export function sightChanged(): void {
+  lostSight = true;
+}
+
 /**
  * Watch for freezes: a frame more than FREEZE s after the last, the page in sight all the while (a page put away
  * isn't drawn, and that's no freeze), told to `onFreeze` with its length (s). `ignored()`: the page out of sight, or a
@@ -143,7 +151,7 @@ export function watchFreezes(onFreeze: (seconds: number) => void, ignored: () =>
   let last: number | undefined;
   let away = false;
   const frame = (now: number) => {
-    if (ignored() || now < busyUntil) away = true;
+    if (ignored() || now < busyUntil || lostSight) away = true;
     else {
       if (last !== undefined && !away && (now - last) / 1000 > FREEZE) {
         note(`freeze ${((now - last) / 1000).toFixed(1)} s`);
@@ -152,6 +160,7 @@ export function watchFreezes(onFreeze: (seconds: number) => void, ignored: () =>
       away = false;
     }
     last = now;
+    lostSight = false;
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
