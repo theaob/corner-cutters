@@ -168,6 +168,10 @@ create table if not exists public.reports (
 -- (run again on a project made before: the columns added since) the screenshot as it's shown on the dashboard's
 -- reports, smaller (960 px at most, a JPEG as a data URL): the bucket's own copy can't be read with the public key
 alter table public.reports add column if not exists picture text check (char_length(picture) <= 1500000);
+-- what led up to the report (the game's logbook, engine/logbook.ts): the device (model, Android and WebView versions,
+-- graphics chip, memory, screen, quality level) and the last notes (screens opened, the race's phases, buttons
+-- pressed, the app hidden and shown, warnings, errors, freezes)
+alter table public.reports add column if not exists log jsonb check (pg_column_size(log) <= 20000);
 create index if not exists reports_at on public.reports (at);
 alter table public.reports enable row level security;
 drop policy if exists "the game adds reports" on public.reports;
@@ -212,7 +216,7 @@ begin
     'ok', true,
     'total', (select count(*) from reports),
     'reports', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'at', at, 'platform', platform, 'version', version, 'circuit', circuit,
-      'mode', mode, 'screen', screen, 'text', text, 'image', image, 'picture', picture) order by id desc), '[]')
+      'mode', mode, 'screen', screen, 'text', text, 'image', image, 'picture', picture, 'log', log) order by id desc), '[]')
       from (select * from reports where p_before is null or id < p_before order by id desc limit n) r)
   );
 end;

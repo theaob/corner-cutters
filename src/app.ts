@@ -19,13 +19,14 @@ import { CHAMPIONSHIP_LAYOUTS, FREE_LAYOUTS, LAYOUTS, layoutById, type CircuitLa
 import { DESIGNER_DRAFT_ID, designerDraft } from './f1/designerDraft';
 import { dropKeptRace, keptLap, keptRace, type KeptRace } from './f1/raceSave';
 import { RACE_LAPS, lapsFrom, seasonLength } from './f1/laps';
-import { curtainDown, curtainFirstUp, curtainUp } from './f1/screens/curtain';
-import { YOUTUBE, firstFrameReady, gameReady } from './engine/host';
+import { curtainDown, curtainFirstUp, curtainIsDown, curtainUp } from './f1/screens/curtain';
+import { YOUTUBE, firstFrameReady, gameHidden, gameReady, onHidden } from './engine/host';
+import { askModel, device, expectBusy, lines, note, noteConsole, watchFreezes } from './engine/logbook';
 import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
 import { useLayoutSwitch } from './f1/settingsRows';
 import { applyText } from './f1/access';
-import { watchCrashes } from './f1/crashes';
+import { reportProblem, watchCrashes } from './f1/crashes';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, TYRE_PICKS, type GameMode, type TyrePick } from './f1/circuitSelect';
 import type { DryCompound } from './f1/tyres';
@@ -90,7 +91,7 @@ startClock();
 // to leave
 void listenForBack(() => hintToast('PRESS BACK AGAIN TO EXIT'));
 // (with ?debug, a press of it by hand: __back())
-if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { __back: () => pressBack(performance.now() / 1000, () => hintToast('PRESS BACK AGAIN TO EXIT'), () => console.log('exit')) });
+if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { __log: () => ({ device: device(), notes: lines() }), __back: () => pressBack(performance.now() / 1000, () => hintToast('PRESS BACK AGAIN TO EXIT'), () => console.log('exit')) });
 bindDeck(deck, controls);
 setStickSide(deck, stickSide());
 guardInput(controls, () => releaseDeck(deck));
@@ -198,6 +199,9 @@ let tuning: ReturnType<typeof mountTuning<typeof F1_TUNING>> | undefined;
  */
 async function route(): Promise<void> {
   const id = ++routeId;
+  note(`screen ${window.location.search.replace(/^\?/, '') || 'menu'}`);
+  // (a screen opening takes a moment: no freeze reported for it)
+  expectBusy(5);
   // the curtain down over the screen going (going to a race, with its loading card), then the screen closed behind it
   const params0 = new URLSearchParams(window.location.search);
   const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
@@ -268,6 +272,16 @@ let menuName = 'menu';
 let racingOn: { circuit: string; mode: string } | undefined;
 // (an error nothing caught: to the play stats, with the screen it happened on; src/f1/crashes.ts)
 watchCrashes(() => (racingOn ? { name: 'race', ...racingOn } : { name: menuName }));
+// the logbook (engine/logbook.ts): what led up to an error or a REPORT, which carry it; the console's warnings and
+// errors in it, the app put away and brought back, the phone's model asked for; and freezes (a frame over 3 s late,
+// the app in sight all along) reported as errors, a few lengths apart
+noteConsole();
+askModel();
+// (the game starting up: its first screens built)
+expectBusy(5);
+onHidden((hidden) => note(hidden ? 'app hidden' : 'app shown'));
+// (not while the curtain's down: a race being built behind it takes a moment on a slow phone, and that's no freeze)
+watchFreezes((seconds) => reportProblem(`Freeze: ${seconds < 5 ? '2-5' : seconds < 10 ? '5-10' : 'over 10'} s without a frame`), () => gameHidden() || curtainIsDown());
 // REPORT on every menu screen (the race has its own, on the pause screen): a little button in the column's top
 // right corner, shown while a menu's up; the screen as it is, to draw on and say what's wrong (src/f1/report.ts)
 const menuReport = document.createElement('button');

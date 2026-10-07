@@ -5,6 +5,7 @@
 // from a browser extension's own code; nothing at all when STATS is off in the
 // settings (metrics.ts). Read on the dashboard's ERRORS, behind its code.
 
+import { device, lines, note, withCrumbs, type Device } from '../engine/logbook';
 import { track } from './metrics';
 
 /** the most sent a launch */
@@ -12,7 +13,7 @@ export const CRASHES_MAX = 10;
 /** characters kept of each part */
 const MESSAGE_MAX = 200;
 const WHERE_MAX = 120;
-const STACK_MAX = 800;
+const STACK_MAX = 600;
 
 export interface Crash {
   /** 'error' (thrown) or 'rejection' (a promise refused) */
@@ -49,17 +50,40 @@ export function crashOf(kind: Crash['kind'], reason: unknown, file = '', line = 
   return { kind, message, where, stack };
 }
 
+/** characters of JSON an error's details may take (the database's column holds 2,000 bytes, stored a little bigger than the text: room kept) */
+export const CRASH_DATA_MAX = 1600;
+
+/**
+ * An error's details as sent: the crash, the screen, the device (logbook.ts), and as many of the latest notes of
+ * what led up to it as fit in CRASH_DATA_MAX.
+ */
+export function crashData(crash: Crash, screen: string, dev: Device, crumbs: string[]): Record<string, unknown> {
+  // (the device without what it doesn't know)
+  const known = Object.fromEntries(Object.entries(dev).filter(([, v]) => v !== undefined && v !== ''));
+  return withCrumbs({ ...crash, screen, device: known }, crumbs, CRASH_DATA_MAX);
+}
+
+/** what sends a problem (set by watchCrashes) */
+let sendProblem: ((crash: Crash) => void) | undefined;
+
+/** Report a problem that throws nothing (a freeze, the graphics' context lost) as an error, with `message`. */
+export function reportProblem(message: string): void {
+  sendProblem?.({ kind: 'error', message: message.slice(0, MESSAGE_MAX), where: '', stack: '' });
+}
+
 /** Send crashes as they happen; `screen()`: where the player is (the menu, or the race's circuit and mode). */
 export function watchCrashes(screen: () => { name: string; circuit?: string; mode?: string }, target: Window = window): void {
   const sent = new Set<string>();
   const send = (crash: Crash | undefined) => {
     if (!crash) return;
+    note(`error ${crash.message}`);
     const key = `${crash.message}|${crash.where}`;
     if (sent.has(key) || sent.size >= CRASHES_MAX) return;
     sent.add(key);
     const at = screen();
-    track('error', { circuit: at.circuit, mode: at.mode, data: { ...crash, screen: at.name } });
+    track('error', { circuit: at.circuit, mode: at.mode, data: crashData(crash, at.name, device(), lines()) });
   };
+  sendProblem = send;
   target.addEventListener('error', (e) => send(crashOf('error', e.error ?? e.message, e.filename, e.lineno, e.colno)));
   target.addEventListener('unhandledrejection', (e) => send(crashOf('rejection', e.reason)));
 }

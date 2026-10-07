@@ -51,6 +51,19 @@ sent as an `error` event: its message, where it was thrown (file:line:col), its 
 browser extension; nothing with STATS off. They're sent in a batch of their own, so a project whose schema is older
 refuses only them, not the play stats with them: run `schema.sql` again to take them.
 
+Each carries the game's logbook too (`src/engine/logbook.ts`), as much as the event's 2,000 bytes hold: the device
+(`device`: the phone's model, Android and WebView versions, graphics chip, memory, cores, screen and the race's quality
+level) and the last notes of what led up to it (`crumbs`: screens opened, the race's session and phase, buttons
+pressed, the controls lap's steps, pausing, the app hidden and shown, the console's warnings and errors), each with the
+seconds since launch. Two problems that throw nothing are sent as errors the same way: **Freeze** (a frame more than
+2 s late with the game in sight, not while a screen's being built behind the curtain: `Freeze: 2-5 s without a frame`,
+`5-10`, `over 10`) and **WebGL context lost** (the phone took the graphics away from a race). Find them in the
+`events` table's `data`.
+
+A report carries the logbook as well, in the `reports` table's `log` column: the device and the last 60 notes, as they
+were when REPORT was pressed. A project made before the column was added takes the reports without it until
+`schema.sql` is run again.
+
 **On the dashboard**, ERRORS (under REPORTS) has how many there are, all time and today, and, opened with the reports
 code, the last 30 days' errors, the same one together: how often, for how many players, first and last seen, on which
 platforms, versions and screens, and the latest stack. (`errors_list` in `schema.sql`.)

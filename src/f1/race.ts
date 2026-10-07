@@ -56,6 +56,8 @@ import { newRumble, rumble } from './rumble';
 import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
 import { RaceSounds, crowdNear, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
+import { note, setGpu, setQuality } from '../engine/logbook';
+import { reportProblem } from './crashes';
 import { menuButton } from './circuitSelect';
 import { settingsRows, versionLine } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
@@ -213,6 +215,16 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // (for the logbook: the graphics chip; and the context lost, a phone's way of taking the graphics away, reported)
+  setGpu(renderer.getContext());
+  /** the race letting its context go itself, as it closes (no loss to report) */
+  let lettingGo = false;
+  renderer.domElement.addEventListener('webglcontextlost', () => {
+    if (lettingGo) return;
+    note('webgl context lost');
+    reportProblem('WebGL context lost (in a race)');
+  });
+  renderer.domElement.addEventListener('webglcontextrestored', () => note('webgl context restored'));
   Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block' });
   host.prepend(renderer.domElement);
   const camera = new THREE.PerspectiveCamera(LOOK.fov, fit.width / fit.height, 1, 4000);
@@ -430,6 +442,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (on) keepNow();
     if (on === paused) return;
     paused = on;
+    note(on ? 'paused' : 'resumed');
     setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     if (!on) openPauseSettings(false);
@@ -859,12 +872,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const leave = () => {
     if (leaving) return;
     leaving = true;
+    note('race left');
     onQuit();
   };
   const pressed = (b: Button) => {
     const n = controls.presses(b);
     const edge = n > (seen.get(b) ?? n);
     seen.set(b, n);
+    if (edge) note(`press ${b}`);
     return edge;
   };
 
@@ -1439,8 +1454,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let closed = false;
   /** a frame failing on purpose (a debug hook: the loop has to carry on past one) */
   let failNext = false;
+  /** the session and phase last noted (the logbook notes each change) */
+  let notedPhase = '';
   const frame = (now: number) => {
     if (closed) return;
+    {
+      const phase = `${session} ${done ? 'done' : race.phase}${replay ? ' replay' : ''}`;
+      if (phase !== notedPhase) note((notedPhase = phase));
+    }
     if (failNext) {
       failNext = false;
       throw new Error('debug: a frame failing');
@@ -1698,8 +1719,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       learn.bends += apexesPassed(race.corners.map((c) => c.apex), learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
       const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: device() !== 'touch', lapDone: p.lapTimes.length > 0 };
-      if (nextPrompt(learn.o, facts)) sounds.record();
-      if (me.car.wrecked) startTutorial();
+      if (nextPrompt(learn.o, facts)) {
+        sounds.record();
+        note(`lesson ${learn.o.step}`);
+      }
+      if (me.car.wrecked) {
+        note('wrecked: the controls lap again');
+        startTutorial();
+      }
     }
     // your car's vibration: crashes, landings, grass and gravel, kerbs
     {
@@ -2209,6 +2236,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
     if (settle > 0) settle--;
     else governor.sample(dt);
+    setQuality(QUALITY_LEVELS[governor.level].name);
     const q = QUALITY_LEVELS[governor.level];
     applySize();
     world.setShadowMapSize(q.shadowMap);
@@ -2272,7 +2300,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     step(() => disposeDeep(world.scene));
     step(() => post.dispose());
     step(() => renderer.dispose());
-    step(() => renderer.forceContextLoss());
+    step(() => {
+      lettingGo = true;
+      renderer.forceContextLoss();
+    });
     step(() => renderer.domElement.remove());
     if (failed !== undefined) throw failed;
   };
