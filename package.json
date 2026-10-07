@@ -17,7 +17,10 @@
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
     "android:play": "VITE_STORE=play npm run android:sync && cd android && ./gradlew bundleRelease",
-    "android:art": "python3 tools/android-art.py"
+    "android:art": "python3 tools/android-art.py",
+    "ios:sync": "npm run build && cap sync ios",
+    "ios:open": "npm run ios:sync && cap open ios",
+    "ios:run": "npm run ios:sync && cap run ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -25,6 +28,7 @@
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.4",
     "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.2",
     "@capacitor/share": "^8.0.3",
     "cordova-plugin-purchase": "^13.18.0",
     "html-to-image": "^1.11.13",
