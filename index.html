@@ -432,6 +432,22 @@
         }
       }
       /* a short line at the bottom (PRESS BACK AGAIN TO EXIT) */
+      /* a report's screenshot being taken (report.ts): said at once, left out of the picture */
+      .report-taking {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        z-index: 60;
+        transform: translate(-50%, -50%);
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: rgba(21, 20, 31, 0.92);
+        border: 1px solid var(--key-edge);
+        color: var(--text);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
+        white-space: nowrap;
+        pointer-events: none;
+      }
       .hint-toast {
         position: fixed;
         left: 50%;

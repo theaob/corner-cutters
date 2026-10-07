@@ -30,6 +30,9 @@ export const PENS = ['#d8323c', '#f2c14e', '#5fe0d0', '#f4f4f8'];
 /** The most a report says, in characters (the database's limit too). */
 export const REPORT_TEXT_MAX = 1000;
 
+/** the page's fonts, made ready for a screenshot (the first report's work, kept for the rest) */
+let fontEmbedCSS: string | undefined;
+
 /** px: the longest side of the picture sent */
 const LONGEST = 1280;
 
@@ -83,31 +86,48 @@ const randomId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto 
  * longest side.
  */
 async function screenshot(hide: HTMLElement[]): Promise<HTMLCanvasElement> {
+  // (straight away, before the work: a word that it's being taken, kept out of the picture; and a frame for it to show)
+  const note = document.createElement('div');
+  note.className = 'report-taking';
+  note.dataset.report = '';
+  note.textContent = 'TAKING A PICTURE…';
+  document.body.append(note);
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
   const was = hide.map((el) => el.style.visibility);
   hide.forEach((el) => (el.style.visibility = 'hidden'));
   const frame = await nextFrame();
-  // (the 3D picture as a still in its canvas's place, as the page is drawn: the canvas itself can't be read now)
+  const ratio = Math.min(window.devicePixelRatio || 1, LONGEST / Math.max(window.innerWidth, window.innerHeight));
+  // (the 3D picture as a still in its canvas's place, as the page is drawn: the canvas itself can't be read now; made
+  // the picture's size first, and a JPEG: a phone's full-size frame as a PNG is a long wait)
   let still: HTMLImageElement | undefined;
   let source: HTMLCanvasElement | undefined;
   if (frame) {
     source = frame.from;
-    still = document.createElement('img');
-    still.src = frame.copy.toDataURL('image/png');
-    still.style.cssText = source.style.cssText;
     const r = source.getBoundingClientRect();
+    const small = document.createElement('canvas');
+    small.width = Math.max(1, Math.round(r.width * ratio));
+    small.height = Math.max(1, Math.round(r.height * ratio));
+    small.getContext('2d')?.drawImage(frame.copy, 0, 0, small.width, small.height);
+    still = document.createElement('img');
+    still.src = small.toDataURL('image/jpeg', 0.92);
+    still.style.cssText = source.style.cssText;
     Object.assign(still.style, { width: `${r.width}px`, height: `${r.height}px` });
     await still.decode().catch(() => {});
     source.after(still);
     source.style.display = 'none';
   }
-  const ratio = Math.min(window.devicePixelRatio || 1, LONGEST / Math.max(window.innerWidth, window.innerHeight));
   let picture: HTMLCanvasElement | undefined;
   try {
-    const { toCanvas } = await import('html-to-image');
-    picture = await toCanvas(document.body, { pixelRatio: ratio, width: window.innerWidth, height: window.innerHeight, filter: (n) => !(n instanceof HTMLElement && n.dataset.report !== undefined) });
+    const { toCanvas, getFontEmbedCSS } = await import('html-to-image');
+    // (only what's on the screen: the menus keep every screen of theirs in the page, hidden, and copying each part's
+    // styles is most of the work; and the fonts made ready once, not each time)
+    const shown = (n: Node) => !(n instanceof HTMLElement && (n.dataset.report !== undefined || getComputedStyle(n).display === 'none'));
+    fontEmbedCSS ??= await getFontEmbedCSS(document.body).catch(() => '');
+    picture = await toCanvas(document.body, { pixelRatio: ratio, width: window.innerWidth, height: window.innerHeight, filter: shown, fontEmbedCSS });
   } catch {
     // (the page couldn't be drawn: the 3D picture alone)
   }
+  note.remove();
   if (still && source) {
     still.remove();
     source.style.display = '';
