@@ -959,6 +959,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         session: () => session,
         qualifying: () => quali?.over && { grid: quali.over.grid.map((k) => (k === quali!.weekend.youDriver ? 'YOU' : quali!.weekend.drivers[k].livery.drivers[quali!.weekend.drivers[k].seat])), you: quali.over.times[quali.weekend.youDriver] },
         skip: (seconds: number) => (race.clock += seconds),
+        /** make the next frame fail (the loop carries on past it) */
+        failFrame: () => (failNext = true),
         /** wreck the car in position `pos` (1 = the leader), for trying out the safety car */
         wreck: (pos: number) => applyDamage(race.entrants[raceOrder(race)[pos - 1]].car, 1000, HANDLING),
         /** the team radio's line up now, and the camera's shake (trauma) and the rush of speed */
@@ -1435,8 +1437,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let panZoom = 1;
   /** the view has been closed: the loop stops */
   let closed = false;
-  const tick = (now: number) => {
+  /** a frame failing on purpose (a debug hook: the loop has to carry on past one) */
+  let failNext = false;
+  const frame = (now: number) => {
     if (closed) return;
+    if (failNext) {
+      failNext = false;
+      throw new Error('debug: a frame failing');
+    }
     // (the first frame's timestamp can be a touch before mount time)
     const real = Math.max(0, (now - last) / 1000);
     const dt = Math.min(0.05, real);
@@ -2211,6 +2219,24 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (a race picked up: paused once its first few frames are drawn, the HUD as the race has it)
     if (pauseOnStart && --pauseOnStart === 0) setPaused(true);
     requestAnimationFrame(tick);
+  };
+  /** errors in the race's frames (reported, the first few) */
+  let failures = 0;
+  /**
+   * A frame of the race, carried on past one that fails: the next is asked for at the end of each, so an error
+   * partway through one would stop the loop for good (the picture frozen, every button deaf, only the thumbstick's
+   * knob still moving). The error's still reported (the crash reports: crashes.ts), the first few.
+   */
+  const tick = (now: number) => {
+    try {
+      frame(now);
+    } catch (e) {
+      if (!closed) requestAnimationFrame(tick);
+      if (failures++ < 3)
+        setTimeout(() => {
+          throw e;
+        });
+    }
   };
   requestAnimationFrame(tick);
 
