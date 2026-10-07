@@ -873,6 +873,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let leaving = false;
   const leave = (to: () => void = onQuit) => {
     if (leaving) return;
+    // (a Championship round you've finished counts however you leave it: recorded, and on to the standings)
+    if (championship && session === 'race' && done && !roundDone) {
+      leaving = true;
+      note('round left, recorded');
+      finishRound();
+      return;
+    }
     leaving = true;
     note('race left');
     to();
