@@ -34,8 +34,8 @@ import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
 import { sharedPlayAchievements } from './playAchievements';
 import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
-import { openReport, reportOpen } from './report';
-import { YOUTUBE, gameHidden } from '../engine/host';
+import { reportOpen } from './report';
+import { gameHidden } from '../engine/host';
 import { COMPOUNDS, type DryCompound } from './tyres';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
@@ -495,8 +495,6 @@ export function chooseCircuit(
   const trophiesButton = menuButton('TROPHIES', openCabinet);
   const cabinetDone = menuButton('DONE', closeCabinet);
   const doneButton = menuButton('DONE', closeSettings);
-  // a report: the menu as it is, to draw on and say what's wrong (report.ts)
-  const reportButton = menuButton('REPORT', () => void openReport({}, [], () => menuPick()));
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
   // dots under it for where it is in the list
@@ -668,9 +666,8 @@ export function chooseCircuit(
   const modesParts: HTMLElement[] = [...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
-  // (REPORT under DONE, but not on YouTube: a report goes to the game's own backend)
-  const reports = !YOUTUBE;
-  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, ...(reports ? [reportButton] : []), versionLine()];
+  // (a report is made from the REPORT in the column's top corner, as on every menu screen)
+  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, versionLine()];
   const show = () => {
     hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
     // (the settings on black, for reading: the race behind the menu hidden)
@@ -690,7 +687,6 @@ export function chooseCircuit(
     backButton.classList.toggle('focused', view === 'circuit' && focus === backAt());
     settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
     doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
-    reportButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length + 1);
     // (the settings: no A on the deck, their own DONE closes them; A still does on the keys and a gamepad)
     hud.setLabel('a', view === 'circuit' ? 'RACE' : view === 'modes' ? 'PICK' : view === 'settings' ? '' : 'DONE');
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
@@ -763,16 +759,15 @@ export function chooseCircuit(
       if (reportOpen()) {
         // (nothing)
       } else if (view === 'settings') {
-        // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back; on REPORT, A makes one
-        const places = settingsRows.length + (reports ? 2 : 1);
+        // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back
+        const places = settingsRows.length + 1;
         if (move) {
           focus = (focus + move + places) % places;
           show();
         }
         const row = settingsRows[focus];
         if (row && (left || right)) row.step(right ? 1 : -1);
-        if ((a || start) && reports && focus === settingsRows.length + 1) void openReport({}, [], () => menuPick());
-        else if (a || start) closeSettings();
+        if (a || start) closeSettings();
       } else if (view === 'trophies') {
         // the cabinet: left/right switches its tab; A, START or B goes back
         if (left || right) {

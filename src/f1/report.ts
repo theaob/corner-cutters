@@ -1,4 +1,4 @@
-// REPORT (the pause screen, the menu's settings): a screenshot of the game as
+// REPORT (the pause screen, the corner of every menu screen): a screenshot of the game as
 // it was, to draw on (to show where) and say what happened under, sent to the
 // game's backend: the picture to the 'reports' storage bucket, the words and
 // where it was to the 'reports' table (supabase/schema.sql). The screenshot is
