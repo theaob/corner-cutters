@@ -99,11 +99,11 @@ function ownTabButton(): HTMLButtonElement {
 /** What to play: a race weekend, a Championship season, a Time Attack (beat the clock), or a Time Trial (flying laps against your ghost). */
 export type GameMode = 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial';
 export const MODES: { id: GameMode; name: string; about: string }[] = [
-  { id: 'daily', name: 'DAILY CHALLENGE', about: 'one Time Attack a day, the same for everyone: get on the board' },
-  { id: 'race', name: 'QUICK RACE', about: 'a race against the field, your circuit, your laps' },
-  { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season: a round on every circuit, points and standings' },
-  { id: 'timeattack', name: 'TIME ATTACK', about: 'beat the clock: each sector you pass adds time' },
-  { id: 'timetrial', name: 'TIME TRIAL', about: 'flying laps against your ghost' },
+  { id: 'daily', name: 'DAILY CHALLENGE', about: 'a new Time Attack every day, the same for everyone: race the world' },
+  { id: 'race', name: 'QUICK RACE', about: 'one race against the field: your circuit, laps and weather' },
+  { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season across every circuit: score points, win the title' },
+  { id: 'timeattack', name: 'TIME ATTACK', about: 'race the clock: every sector you clear wins you more time' },
+  { id: 'timetrial', name: 'TIME TRIAL', about: 'an empty track: chase the ghost of your best lap' },
 ];
 
 /** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen); on dirt, no TYRES (off-road tyres, the only ones). */
@@ -652,7 +652,7 @@ export function chooseCircuit(
     const locked = m.id === 'championship' && !ownsChampionship();
     // (the Daily Challenge: today's circuit and weather)
     const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
-    about.textContent = locked ? 'unlock: a season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · get on the board` : m.about;
+    about.textContent = locked ? 'unlock: a full season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · race the world` : m.about;
     b.append(name, about);
     return b;
   });
@@ -661,7 +661,11 @@ export function chooseCircuit(
   /** the circuit screen's places for up/down: the circuit, the rows, the race button, BACK */
   const raceAt = () => 1 + rows.length;
   const backAt = () => raceAt() + 1;
-  const modesParts: HTMLElement[] = [...(resumeButton ? [resumeButton] : []), ...modeButtons, settingsButton, trophiesButton, ...(tab ? [tab] : [])];
+  // (SETTINGS and TROPHIES side by side in a row of their own, set apart under the modes: not modes themselves)
+  const utilityRow = document.createElement('div');
+  utilityRow.className = 'menu-utility';
+  utilityRow.append(settingsButton, trophiesButton);
+  const modesParts: HTMLElement[] = [...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   // (REPORT under DONE, but not on YouTube: a report goes to the game's own backend)
@@ -703,7 +707,7 @@ export function chooseCircuit(
   renderCard();
   renderRace();
   options.append(...rows.map((r) => r.el));
-  menu.append(...(resumeButton ? [resumeButton] : []), ...modeButtons, settingsButton, trophiesButton, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
+  menu.append(...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
@@ -782,6 +786,13 @@ export function chooseCircuit(
         if (move) {
           // (from none highlighted: down to the first, up to the last)
           focus = focus < 0 ? (move > 0 ? 0 : places - 1) : (focus + move + places) % places;
+          show();
+        }
+        // (left/right across the row SETTINGS and TROPHIES share)
+        const settingsAt = R + MODES.length;
+        if ((left || right) && (focus === settingsAt || focus === settingsAt + 1)) {
+          menuTick();
+          focus = right ? settingsAt + 1 : settingsAt;
           show();
         }
         if (focus < 0) {
