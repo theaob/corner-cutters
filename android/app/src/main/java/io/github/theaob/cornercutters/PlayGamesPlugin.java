@@ -2,6 +2,7 @@ package io.github.theaob.cornercutters;
 
 import android.app.Activity;
 import android.content.Intent;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -9,6 +10,8 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.google.android.gms.games.PlayGames;
 import com.google.android.gms.games.PlayGamesSdk;
+import com.google.android.gms.games.achievement.Achievement;
+import com.google.android.gms.games.achievement.AchievementBuffer;
 
 /**
  * Google Play Games achievements (src/engine/playGames.ts): only the Google Play build calls it, and only with the
@@ -75,11 +78,50 @@ public class PlayGamesPlugin extends Plugin {
             return;
         }
         try {
-            PlayGames.getAchievementsClient(activity).unlock(id);
+            // (immediate: its answer says whether it went; not signed in, or Play busy, it's kept in the game and sent
+            // again next start)
+            PlayGames.getAchievementsClient(activity).unlockImmediate(id).addOnCompleteListener((task) -> {
+                if (task.isSuccessful()) call.resolve();
+                else call.reject("Unlock failed" + (task.getException() != null ? ": " + task.getException().getMessage() : ""));
+            });
         } catch (Exception e) {
-            // (not signed in, or Play busy: it's kept in the game, and sent again next start)
+            call.reject("Unlock failed: " + e.getMessage());
         }
-        call.resolve();
+    }
+
+    /**
+     * The game's achievements as Play Games has them, each one's id and name (the game finds its own among them by
+     * name: src/f1/playAchievements.ts). Needs the player signed in.
+     */
+    @PluginMethod
+    public void list(PluginCall call) {
+        Activity activity = getActivity();
+        if (!started || activity == null) {
+            call.reject("Play Games isn't started");
+            return;
+        }
+        PlayGames.getAchievementsClient(activity).load(false).addOnCompleteListener((task) -> {
+            if (!task.isSuccessful() || task.getResult() == null || task.getResult().get() == null) {
+                Exception e = task.getException();
+                call.reject("No achievements listed" + (e != null ? ": " + e.getMessage() : ""));
+                return;
+            }
+            AchievementBuffer buffer = task.getResult().get();
+            JSArray list = new JSArray();
+            try {
+                for (Achievement a : buffer) {
+                    JSObject o = new JSObject();
+                    o.put("id", a.getAchievementId());
+                    o.put("name", a.getName());
+                    list.put(o);
+                }
+            } finally {
+                buffer.release();
+            }
+            JSObject ret = new JSObject();
+            ret.put("achievements", list);
+            call.resolve(ret);
+        });
     }
 
     /** Google's achievements screen, over the game. */

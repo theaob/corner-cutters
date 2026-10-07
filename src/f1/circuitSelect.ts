@@ -471,7 +471,10 @@ export function chooseCircuit(
     if (play?.available()) {
       const playButton = menuButton('GOOGLE PLAY GAMES ▸', () => {
         menuPick();
-        void play.show(unlockedAchievements());
+        // (said on the button when Google's screen won't open: not signed in, or Play Games not set up for this build)
+        void play.show(unlockedAchievements()).then((shown) => {
+          playButton.textContent = shown ? 'GOOGLE PLAY GAMES ▸' : "COULDN'T SIGN IN · TRY AGAIN ▸";
+        });
       });
       playButton.classList.add('cabinet-play');
       achievementsPanel.append(playButton);
