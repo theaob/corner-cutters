@@ -357,7 +357,7 @@ Google Play:
       ads declaration (**contains ads**)
 - [x] Google Play Games achievements in the Play build (`f1/playAchievements.ts`, `PlayGamesPlugin.java`): the 24
       unlocked there too, earlier ones sent on sign-in, Google's screen from the cabinet; icons, points and steps in
-      `store/achievements.md`. Waits on the Console's ids (`games-ids.xml`, `PLAY_ACHIEVEMENT_IDS`)
+      `store/achievements.md`. Project id set; waits on the achievements' ids (`PLAY_ACHIEVEMENT_IDS`)
 - [ ] Android extras: save data backed up with Android's
       Auto Backup so a new phone keeps records
 
