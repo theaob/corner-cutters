@@ -1193,7 +1193,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const stayButton = pauseButton('STAY', () => askExit(false));
   const leaveButton = pauseButton('EXIT', () => leave());
   style(leaveButton, { borderColor: '#d8323c', color: '#ff6b6b' });
-  const exitParts = [exitLine, stayButton, leaveButton];
+  // (side by side, STAY on the left, the pair as wide as the pause screen's buttons)
+  const exitRow = document.createElement('div');
+  style(exitRow, { width: '60%', gap: '10px' });
+  for (const b of [stayButton, leaveButton]) style(b, { width: 'auto', flex: '1 1 0' });
+  exitRow.append(stayButton, leaveButton);
+  const exitParts = [exitLine, exitRow];
+  const showExitParts = (on: boolean) => {
+    for (const el of exitParts) el.style.display = on ? (el === exitRow ? 'flex' : '') : 'none';
+  };
   /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 EXIT) */
   let asking = false;
   let exitFocus = 0;
@@ -1211,12 +1219,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseTitle.textContent = !on ? 'PAUSED' : session === 'race' || session === 'qualifying' ? 'LEAVE THE RACE?' : 'LEAVE THE SESSION?';
     exitLine.textContent = exitCost();
     for (const el of pauseMain) el.style.display = on ? 'none' : '';
-    for (const el of exitParts) el.style.display = on ? '' : 'none';
+    showExitParts(on);
     exitFocus = 0;
     showExitFocus();
   };
   pauseScreen.append(pauseTitle, ...pauseMain, ...exitParts);
-  for (const el of exitParts) el.style.display = 'none';
+  showExitParts(false);
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
   const offBack = onBack(() => {
