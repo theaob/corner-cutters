@@ -156,6 +156,8 @@ export interface RaceOptions {
   championship?: { season: Season; onDone(finish: number[], out: Set<number>): void };
   /** the Daily Challenge (a Time Attack): its day, for the board */
   daily?: { day: string };
+  /** where the pause screen's MAIN MENU goes (the race left; leaving otherwise, onQuit: the mode's own screen) */
+  toMenu?: () => void;
 }
 
 /**
@@ -869,11 +871,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let quitting = false;
   /** Leave the race (once: a second press while the curtain comes down does nothing). */
   let leaving = false;
-  const leave = () => {
+  const leave = (to: () => void = onQuit) => {
     if (leaving) return;
     leaving = true;
     note('race left');
-    onQuit();
+    to();
   };
   const pressed = (b: Button) => {
     const n = controls.presses(b);
@@ -1191,22 +1193,22 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const exitLine = document.createElement('div');
   style(exitLine, { color: '#9d9ab8', font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace', textAlign: 'center', margin: '-4px 16px 6px', textWrap: 'balance' });
   const stayButton = pauseButton('STAY', () => askExit(false));
-  const leaveButton = pauseButton('EXIT', () => leave());
+  const leaveButton = pauseButton('MAIN MENU', () => leave(options.toMenu));
   style(leaveButton, { borderColor: '#d8323c', color: '#ff6b6b' });
-  // (side by side, STAY on the left, the pair as wide as the pause screen's buttons)
+  // (side by side, STAY on the left, wide enough for MAIN MENU on one line in larger text)
   const exitRow = document.createElement('div');
-  style(exitRow, { width: '60%', gap: '10px' });
-  for (const b of [stayButton, leaveButton]) style(b, { width: 'auto', flex: '1 1 0' });
+  style(exitRow, { width: '84%', maxWidth: '420px', gap: '10px' });
+  for (const b of [stayButton, leaveButton]) style(b, { width: 'auto', flex: '1 1 0', whiteSpace: 'nowrap' });
   exitRow.append(stayButton, leaveButton);
   const exitParts = [exitLine, exitRow];
   const showExitParts = (on: boolean) => {
     for (const el of exitParts) el.style.display = on ? (el === exitRow ? 'flex' : '') : 'none';
   };
-  /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 EXIT) */
+  /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 MAIN MENU) */
   let asking = false;
   let exitFocus = 0;
   const showExitFocus = () => {
-    // (focused as every box in the menus is: a cyan edge, one pixel more round it; EXIT's red)
+    // (focused as every box in the menus is: a cyan edge, one pixel more round it; MAIN MENU's red)
     style(stayButton, { borderColor: exitFocus === 0 ? '#5fe0d0' : '#3a3858', boxShadow: exitFocus === 0 ? '0 0 0 1px #5fe0d0' : '' });
     leaveButton.style.boxShadow = exitFocus === 1 ? '0 0 0 1px #d8323c' : '';
   };
@@ -1504,7 +1506,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return;
     }
     if (asking) {
-      // leave? left/right (or up/down) moves between STAY and EXIT, A or START picks, B stays, SELECT again leaves
+      // leave? left/right (or up/down) moves between STAY and MAIN MENU, A or START picks, B stays, SELECT again leaves
       const [up, down, left, right, a, b, start, select] = (['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'] as const).map(pressed);
       if (up || down || left || right) {
         exitFocus = 1 - exitFocus;
@@ -1516,7 +1518,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (a || start) askExit(false);
       if (quitting && !controls.isDown('select') && !controls.isDown('a') && !controls.isDown('start')) {
         quitting = false;
-        leave();
+        leave(options.toMenu);
         return;
       }
       requestAnimationFrame(tick);
