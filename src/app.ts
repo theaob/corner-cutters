@@ -187,7 +187,10 @@ function keptToOffer(): KeptRace | undefined {
 let current: { close(): void } | undefined;
 /** Counts screen changes: a screen that finishes opening after a newer change is closed at once. */
 let routeId = 0;
-/** The TUNE button (laps, grid, AI pace, camera), in every build, mounted with the first race; values are kept on the device. */
+/**
+ * The TUNE panel (laps, grid, AI pace, camera): a developer's, only with ?debug, mounted with the first race; values
+ * are kept on the device. Without it a race runs on the defaults (whatever was tuned on the device before).
+ */
 let tuning: ReturnType<typeof mountTuning<typeof F1_TUNING>> | undefined;
 
 /**
@@ -484,7 +487,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     return route();
   }
   document.documentElement.classList.remove('menu');
-  tuning ??= mountTuning(screen, 'f1', F1_TUNING);
+  if (new URLSearchParams(location.search).has('debug')) tuning ??= mountTuning(screen, 'f1', F1_TUNING);
   let raceOn: typeof import('./f1/race').raceOn;
   try {
     ({ raceOn } = await import('./f1/race'));
