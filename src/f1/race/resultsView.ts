@@ -159,7 +159,7 @@ function summaryBoxes(boxes: SummaryBox[]): HTMLElement {
     const box = document.createElement('div');
     Object.assign(box.style, {
       flex: '1 1 0', minWidth: '0', maxWidth: '96px', boxSizing: 'border-box', padding: '5px 4px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)',
-      border: '1px solid rgba(157,154,184,0.25)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+      border: '1px solid #3a3858', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
     });
     const head = iconLine([b.icon, b.label], { color: '#9d9ab8', fontSize: '8px', gap: '3px', whiteSpace: 'nowrap' });
     const value = line(b.value, { fontSize: '13px', color: b.color ?? '#f4f2fa', whiteSpace: 'nowrap' });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MODES, rowsOf } from '../src/f1/circuitSelect';
+import { MODES, openFirst, rowsOf } from '../src/f1/circuitSelect';
 import { versionText } from '../src/f1/settingsRows';
 import { DUST_BOWL, GLACIER_PASS } from '../src/f1/layouts';
 
@@ -19,6 +19,16 @@ describe('the menu', () => {
     expect(rowsOf('daily')).toEqual([]);
     // (a Championship has its own screen: a season races every circuit)
     expect(rowsOf('championship')).toEqual([]);
+  });
+});
+
+describe('the circuit screen', () => {
+  it('has the open circuits first, then the locked ones, each in calendar order', () => {
+    const calendar = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id }));
+    expect(openFirst(calendar, new Set(['b', 'e'])).map((l) => l.id)).toEqual(['b', 'e', 'a', 'c', 'd']);
+    // (all open, or none: as the calendar)
+    expect(openFirst(calendar, new Set(['a', 'b', 'c', 'd', 'e'])).map((l) => l.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(openFirst(calendar, new Set()).map((l) => l.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 });
 

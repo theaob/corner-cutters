@@ -112,6 +112,12 @@ export const rowsOf = (mode: GameMode, layout?: CircuitLayout): ('team' | 'car' 
     ? ['team', 'car', 'weather', 'qualifying', 'laps', ...(layout?.dirt ? [] : ['tyres' as const])]
     : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
 
+/** The circuits with the open ones first (each lot in the order it came): the locked ones, reached in a Championship, after them. */
+export const openFirst = <T extends { id: string }>(layouts: readonly T[], open: ReadonlySet<string>): T[] => [
+  ...layouts.filter((l) => open.has(l.id)),
+  ...layouts.filter((l) => !open.has(l.id)),
+];
+
 /** The dry tyres you start a race on: the pit wall's strategy's (AUTO), or the SOFTs or the HARDs. */
 export type TyrePick = 'auto' | DryCompound;
 export const TYRE_PICKS: TyrePick[] = ['auto', 'slick', 'hard'];
@@ -303,6 +309,9 @@ export function chooseCircuit(
   kept?: { about: string },
 ): Promise<MenuChoice> {
   const { controls, hud } = services;
+  // (the trophy cabinet lists every circuit in the calendar's order; the circuit screen has the open ones first)
+  const calendar = layouts;
+  layouts = openFirst(layouts, open);
   const menu = document.createElement('div');
   menu.className = 'circuit-menu';
   const title = document.createElement('h1');
@@ -404,7 +413,7 @@ export function chooseCircuit(
       c.textContent = t;
       head.append(c);
     }
-    const all = layouts.flatMap((l) => [trophies.medals[l.id]?.trial, trophies.medals[l.id]?.attack]);
+    const all = calendar.flatMap((l) => [trophies.medals[l.id]?.trial, trophies.medals[l.id]?.attack]);
     const count = (m: Medal) => all.filter((x) => x === m).length;
     const tally = document.createElement('div');
     tally.className = 'tally';
@@ -430,7 +439,7 @@ export function chooseCircuit(
       return b;
     };
     cabinet.append(titles, tally, tabs, medalsPanel, achievementsPanel);
-    medalsPanel.append(head, ...layouts.map((l) => {
+    medalsPanel.append(head, ...calendar.map((l) => {
       const row = document.createElement('div');
       row.className = 'cabinet-row';
       const name = document.createElement('span');
@@ -444,7 +453,7 @@ export function chooseCircuit(
     medalsPanel.append(how);
     // the achievements: those unlocked in gold (any already earned by medals and titles from before achievements were
     // kept are filled in quietly), the rest dimmed with what they take
-    unlock(medalAchievements(trophies, layouts.map((l) => l.id)));
+    unlock(medalAchievements(trophies, calendar.map((l) => l.id)));
     const got = new Set(unlockedAchievements());
     const medalsTab = tabButton('MEDALS', 'medals');
     const achievementsTab = tabButton(`ACHIEVEMENTS ${got.size}/${ACHIEVEMENTS.length}`, 'achievements');
