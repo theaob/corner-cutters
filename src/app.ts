@@ -554,6 +554,8 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     };
   }
   if (resume) options = { ...options, resume };
+  // (the pause screen's MAIN MENU: to the main menu from any mode; a designer's draft goes back to the designer)
+  if (season || today) options = { ...options, toMenu: () => navigate(withCircuit(null)) };
   const view: StandaloneView = await raceOn(layout, quit, options)({ host: screen, services, tuning, fit });
   if (id !== routeId) {
     view.dispose();
