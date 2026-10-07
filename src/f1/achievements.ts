@@ -104,11 +104,20 @@ export function unlockedAchievements(): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!achievementById(x)) : [];
 }
 
+/** told the ids of the achievements each time some are unlocked (Google Play Games, in the Play build) */
+const unlockedListeners: ((ids: string[]) => void)[] = [];
+
+/** Be told the ids of achievements as they're unlocked. */
+export const onUnlocked = (f: (ids: string[]) => void): void => void unlockedListeners.push(f);
+
 /** Unlock `ids`: the ones that weren't already (saved), in the list's order. */
 export function unlock(ids: string[]): Achievement[] {
   const had = new Set(unlockedAchievements());
   const fresh = ACHIEVEMENTS.filter((a) => ids.includes(a.id) && !had.has(a.id));
-  if (fresh.length) save('trophies', 'achievements', [...had, ...fresh.map((a) => a.id)]);
+  if (fresh.length) {
+    save('trophies', 'achievements', [...had, ...fresh.map((a) => a.id)]);
+    for (const f of unlockedListeners) f(fresh.map((a) => a.id));
+  }
   return fresh;
 }
 
