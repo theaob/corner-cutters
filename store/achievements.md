@@ -53,22 +53,27 @@ Play allows no commas in a name or a description, so two read a little different
 | 24 | `globetrotter.png` | GLOBETROTTER | Race on every circuit. | 80 |
 | | | | **Total** | **1000** |
 
-## Then send the ids
+## The ids
 
-When all 24 are made: **Achievements → Get resources** (top right) gives an XML file with the project's id and every
-achievement's id. Paste it to Claude, or put them in yourself:
+The app finds each achievement on Play Games by its **name**: once the player's signed in, Play Games lists the
+game's achievements with their ids, and each one the game unlocks is matched to its own (letters and digits only,
+so "BOX, BOX" in the game is "BOX BOX" on Play). So keep the names as the import made them. Ids can still be pinned in
+`PLAY_ACHIEVEMENT_IDS` in `src/f1/playAchievements.ts` (from **Achievements → Get resources**), which win over the
+names; that's needed only if a name's changed on one side.
 
-- the project id into `android/app/src/main/res/values/games-ids.xml` (`game_services_project_id`), and
-- each achievement's id into `PLAY_ACHIEVEMENT_IDS` in `src/f1/playAchievements.ts`, by the game's id (the icon's
-  file name), e.g. `finish: 'CgkI…'`.
+The project id is in `android/app/src/main/res/values/games-ids.xml` (`game_services_project_id`); until it's
+there, the app doesn't start Play Games at all.
 
-Until the project id is there, the app doesn't start Play Games at all.
+**Not working?** Send a REPORT from the trophy cabinet: its log says whether Play Games signed in, how many
+achievements it listed, and which were sent.
 
 ## Testing, and going live
 
 - **Credentials**: Play Games Services → Configuration → Credentials → Add credential → Android, for
   `io.github.theaob.cornercutters`, with the **SHA-1** of both the app signing key (Test and release → App integrity →
   App signing) and the upload key (the same page shows it once a build's uploaded; or the android workflow's signing).
+  The app installed from Play is signed with the **app signing key**: without its SHA-1 here, signing in fails
+  quietly and no achievement goes. (Each SHA-1 is a credential of its own.)
 - **Testers**: Play Games Services → Testers: add your account (and your testers'). Until Play Games is published only
   they can sign in.
 - **Publish** (Play Games Services → Publishing): once everything's checked, with the app's production release.

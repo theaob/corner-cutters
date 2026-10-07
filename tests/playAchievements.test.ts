@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS } from '../src/f1/achievements';
-import { playAchievements, type PlayGamesBridge } from '../src/f1/playAchievements';
+import { matchName, playAchievements, type PlayGamesBridge } from '../src/f1/playAchievements';
 
 /** A stand-in for the app's bridge: Play Games there or not, signed in or not; what's been sent to it. */
 function fakeBridge(o: { available?: boolean; signedIn?: boolean; signsIn?: boolean } = {}) {
@@ -71,5 +71,55 @@ describe('achievements on Google Play Games', () => {
     const { PLAY_ACHIEVEMENT_IDS } = await import('../src/f1/playAchievements');
     const known = new Set(ACHIEVEMENTS.map((a) => a.id));
     for (const id of Object.keys(PLAY_ACHIEVEMENT_IDS)) expect(known.has(id)).toBe(true);
+  });
+});
+
+describe('finding the achievements on Play Games by name', () => {
+  it('sends those without an id here by their name as Play lists them (punctuation and case aside)', async () => {
+    const sent: string[] = [];
+    let listed = 0;
+    const bridge: PlayGamesBridge = {
+      start: async () => ({ available: true, signedIn: true }),
+      signIn: async () => ({ available: true, signedIn: true }),
+      unlock: async ({ id }) => void sent.push(id),
+      showAchievements: async () => {},
+      list: async () => {
+        listed++;
+        return { achievements: ACHIEVEMENTS.map((a) => ({ id: `play-${a.id}`, name: a.name.replace(/,/g, '').toLowerCase() })) };
+      },
+    };
+    const play = playAchievements(bridge, {});
+    await play.start(['box', 'finish']);
+    await play.report(['win']);
+    // ("BOX, BOX" in the game is "BOX BOX" on Play)
+    expect(sent).toEqual(['play-box', 'play-finish', 'play-win']);
+    // (listed once)
+    expect(listed).toBe(1);
+  });
+
+  it('every achievement in the game has a name that matches its own on Play Games, and no two the same', () => {
+    const names = ACHIEVEMENTS.map((a) => matchName(a.name));
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((n) => n.length > 0)).toBe(true);
+  });
+
+  it('asks again later when Play Games could not list them', async () => {
+    const sent: string[] = [];
+    let tries = 0;
+    const bridge: PlayGamesBridge = {
+      start: async () => ({ available: true, signedIn: true }),
+      signIn: async () => ({ available: true, signedIn: true }),
+      unlock: async ({ id }) => void sent.push(id),
+      showAchievements: async () => {},
+      list: async () => {
+        if (++tries === 1) throw new Error('offline');
+        return { achievements: [{ id: 'play-win', name: 'WINNER' }] };
+      },
+    };
+    const play = playAchievements(bridge, {}, { win: 'Winner' });
+    await play.start(['win']);
+    expect(sent).toEqual([]);
+    await play.report(['win']);
+    expect(sent).toEqual(['play-win']);
   });
 });

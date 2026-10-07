@@ -6,14 +6,23 @@
 // Engine-free but for the bridge it's given (src/engine/playGames.ts in the app).
 
 import type { PlayGamesBridge } from '../engine/playGames';
+import { note } from '../engine/logbook';
+import { ACHIEVEMENTS } from './achievements';
 
 export type { PlayGamesBridge };
 
 /**
- * Each achievement's id on Play Games (the Play Console makes them, "CgkI…", on creating each achievement there:
- * Play Games Services → Achievements; the export of its resources lists them). One left out isn't sent.
+ * Each achievement's id on Play Games, where it's known here (the Play Console makes them, "CgkI…": the export of its
+ * resources lists them). One left out is found by its name instead: Play Games lists the game's achievements, with
+ * their ids, once the player's signed in.
  */
 export const PLAY_ACHIEVEMENT_IDS: Readonly<Record<string, string>> = {};
+
+/** A name as matched with Play's: letters and digits only, in capitals (Play allows no commas: "BOX, BOX" is "BOX BOX" there). */
+export const matchName = (name: string): string => name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/** The game's achievements' names, by id. */
+const NAMES: Readonly<Record<string, string>> = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a.name]));
 
 
 export interface PlayAchievements {
@@ -28,16 +37,44 @@ export interface PlayAchievements {
   show(unlocked: string[]): Promise<boolean>;
 }
 
-/** Play Games' achievements through `bridge`, `ids` mapping the game's to Play's. */
-export function playAchievements(bridge: PlayGamesBridge, ids: Readonly<Record<string, string>> = PLAY_ACHIEVEMENT_IDS): PlayAchievements {
+/**
+ * Play Games' achievements through `bridge`, `ids` mapping the game's to Play's; those not in it found on Play by
+ * their `names`.
+ */
+export function playAchievements(
+  bridge: PlayGamesBridge,
+  ids: Readonly<Record<string, string>> = PLAY_ACHIEVEMENT_IDS,
+  names: Readonly<Record<string, string>> = NAMES,
+): PlayAchievements {
   let available = false;
   let signedIn = false;
+  /** Play's ids by matched name, as Play Games listed them (asked once signed in; again if it couldn't say) */
+  let byName: Map<string, string> | undefined;
+  const playId = async (id: string): Promise<string | undefined> => {
+    if (ids[id]) return ids[id];
+    if (!byName && bridge.list) {
+      try {
+        const { achievements } = await bridge.list();
+        byName = new Map(achievements.map((a) => [matchName(a.name), a.id]));
+        note(`play games: ${achievements.length} achievements listed`);
+      } catch (e) {
+        note(`play games: no list (${e instanceof Error ? e.message : String(e)})`);
+      }
+    }
+    return byName?.get(matchName(names[id] ?? ''));
+  };
   const send = async (list: string[]) => {
     if (!signedIn) return;
+    let sent = 0;
     for (const id of list) {
-      const play = ids[id];
-      if (play) await bridge.unlock({ id: play }).catch(() => {});
+      const play = await playId(id);
+      if (!play) {
+        note(`play games: no achievement for ${id}`);
+        continue;
+      }
+      await bridge.unlock({ id: play }).then(() => sent++, (e) => note(`play games: unlock ${id} failed (${e instanceof Error ? e.message : String(e)})`));
     }
+    if (list.length) note(`play games: ${sent} of ${list.length} sent`);
   };
   return {
     available: () => available,
@@ -46,6 +83,7 @@ export function playAchievements(bridge: PlayGamesBridge, ids: Readonly<Record<s
       const s = await bridge.start().catch(() => ({ available: false, signedIn: false }));
       available = s.available;
       signedIn = s.available && s.signedIn;
+      note(`play games: ${available ? (signedIn ? 'signed in' : 'not signed in') : 'not available'}`);
       await send(unlocked);
     },
     report: send,
@@ -54,10 +92,14 @@ export function playAchievements(bridge: PlayGamesBridge, ids: Readonly<Record<s
       if (!signedIn) {
         const s = await bridge.signIn().catch(() => ({ available, signedIn: false }));
         signedIn = s.signedIn;
+        note(`play games: sign-in ${signedIn ? 'done' : 'failed'}`);
         if (!signedIn) return false;
         await send(unlocked);
       }
-      return bridge.showAchievements().then(() => true, () => false);
+      return bridge.showAchievements().then(() => true, (e) => {
+        note(`play games: no achievements screen (${e instanceof Error ? e.message : String(e)})`);
+        return false;
+      });
     },
   };
 }

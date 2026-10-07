@@ -9,6 +9,8 @@ export interface PlayGamesBridge {
   signIn(): Promise<{ available: boolean; signedIn: boolean }>;
   unlock(o: { id: string }): Promise<void>;
   showAchievements(): Promise<void>;
+  /** the game's achievements as Play Games has them: each one's id and name (once signed in) */
+  list?(): Promise<{ achievements: { id: string; name: string }[] }>;
 }
 
 /** Whether this build has Google Play Games: the Google Play build, as the Android app. */
