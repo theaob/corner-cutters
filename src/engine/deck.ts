@@ -69,6 +69,8 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
     };
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      // (a press before it was let go, its lifting never reported: let go of that one first, so this one counts)
+      if (held !== undefined) release();
       held = e.pointerId;
       controls.press(source, button, true);
       el.classList.add('pressed');
