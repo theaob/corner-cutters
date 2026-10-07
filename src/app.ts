@@ -203,7 +203,12 @@ async function route(): Promise<void> {
   const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
   await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : undefined);
   if (id !== routeId) return;
-  current?.close();
+  // (the screen going failing to close never keeps the next from opening: the curtain would stay down, the page black)
+  try {
+    current?.close();
+  } catch (e) {
+    reportLater(e);
+  }
   current = undefined;
   racingOn = undefined;
   // (nothing held on one screen carries over to the next)
@@ -220,11 +225,29 @@ async function route(): Promise<void> {
     history.replaceState(null, '', withCircuit(LAYOUTS[0].id, 'tutorial'));
     return route();
   }
-  if (params.get('mode') === 'tutorial' && layout) await showRace(id, layout, 'tutorial');
-  else if (mode === 'championship' && !layout) await showSeason(id);
-  else if (mode === 'daily' && !layout) await showDailyScreen(id);
-  else if (!layout) await showMenu(id);
-  else await showRace(id, layout, mode);
+  try {
+    if (params.get('mode') === 'tutorial' && layout) await showRace(id, layout, 'tutorial');
+    else if (mode === 'championship' && !layout) await showSeason(id);
+    else if (mode === 'daily' && !layout) await showDailyScreen(id);
+    else if (!layout) await showMenu(id);
+    else await showRace(id, layout, mode);
+  } catch (e) {
+    // (a screen that failed to open: the curtain lifted all the same, on whatever got up, rather than black for good;
+    // a race that failed, back to the menu)
+    reportLater(e);
+    if (id !== routeId) return;
+    curtainUp();
+    // (the controls lap failing counts as seen: the menu, not the lap again)
+    if (params.get('mode') === 'tutorial') save('progress', 'onboarded', true);
+    if (layout) navigate(withCircuit(null));
+  }
+}
+
+/** An error caught to keep the game going, still reported (as nothing caught it: the crash reports, crashes.ts). */
+function reportLater(e: unknown): void {
+  setTimeout(() => {
+    throw e;
+  });
 }
 
 /** The line under a race's name on its loading card: the mode (a Championship's round) and the weather. */
