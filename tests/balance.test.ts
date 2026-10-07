@@ -71,8 +71,10 @@ describe.each(LAYOUTS)('the balance at $name: a flying lap', (layout) => {
   it('HARD: the quickest AI drives a very good lap (within 2%)', () => {
     expect(Math.abs(quickest('hard') / laps[1].time - 1)).toBeLessThan(0.02);
   });
-  it('NORMAL: the quickest AI drives a good lap (within 2%)', () => {
-    expect(Math.abs(quickest('normal') / laps[0.95].time - 1)).toBeLessThan(0.02);
+  it('NORMAL: the quickest AI drives a good lap, or a touch slower (from 1% quicker to 3% slower)', () => {
+    const ratio = quickest('normal') / laps[0.95].time;
+    expect(ratio).toBeGreaterThan(0.99);
+    expect(ratio).toBeLessThan(1.03);
   });
   it('EASY: even the quickest AI is slower than a steady player', () => {
     expect(quickest('easy')).toBeGreaterThan(laps[0.9].time);
