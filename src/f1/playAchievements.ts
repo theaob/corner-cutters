@@ -5,19 +5,16 @@
 // a player who never signs in loses nothing. Every other build has none of it.
 // Engine-free but for the bridge it's given (src/engine/playGames.ts in the app).
 
+import type { PlayGamesBridge } from '../engine/playGames';
+
+export type { PlayGamesBridge };
+
 /**
  * Each achievement's id on Play Games (the Play Console makes them, "CgkI…", on creating each achievement there:
  * Play Games Services → Achievements; the export of its resources lists them). One left out isn't sent.
  */
 export const PLAY_ACHIEVEMENT_IDS: Readonly<Record<string, string>> = {};
 
-/** What the app's bridge to Play Games does (the native plugin, PlayGamesPlugin.java). */
-export interface PlayGamesBridge {
-  start(): Promise<{ available: boolean; signedIn: boolean }>;
-  signIn(): Promise<{ available: boolean; signedIn: boolean }>;
-  unlock(o: { id: string }): Promise<void>;
-  showAchievements(): Promise<void>;
-}
 
 export interface PlayAchievements {
   /** Play Games is there (the Play build, set up in the Console) */
