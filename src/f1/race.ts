@@ -1181,8 +1181,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let asking = false;
   let exitFocus = 0;
   const showExitFocus = () => {
-    stayButton.style.boxShadow = exitFocus === 0 ? '0 0 0 2px #5fe0d0' : '';
-    leaveButton.style.boxShadow = exitFocus === 1 ? '0 0 0 2px #ff6b6b' : '';
+    // (focused as every box in the menus is: a cyan edge, one pixel more round it; EXIT's red)
+    style(stayButton, { borderColor: exitFocus === 0 ? '#5fe0d0' : '#3a3858', boxShadow: exitFocus === 0 ? '0 0 0 1px #5fe0d0' : '' });
+    leaveButton.style.boxShadow = exitFocus === 1 ? '0 0 0 1px #d8323c' : '';
   };
   /** What leaving loses, said under the question. */
   const exitCost = () => championship ? "THE ROUND WON'T COUNT" : options.daily ? 'THIS RUN WON\'T COUNT' : session === 'race' || session === 'qualifying' ? "THIS RACE WON'T COUNT" : 'BACK TO THE CIRCUITS';

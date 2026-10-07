@@ -318,18 +318,11 @@ async function showMenu(id: number): Promise<void> {
   const closed = new AbortController();
   // a race going on behind the menu (loaded once it's up), on the circuit last picked
   let stopBackdrop = () => {};
-  closed.signal.addEventListener('abort', () => stopBackdrop());
   current = { close: () => closed.abort() };
   const kept = keptToOffer();
   const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal, savedTyres(), kept && { about: `${kept.name} · ${keptLap(kept)}${kept.mode === 'championship' ? ` · round ${(kept.round ?? 0) + 1}` : ''}`.toLowerCase() });
   curtainUp();
-  const backdropOn = backdropCircuit();
-  // (a still of it up at once, so the menu never opens on black; the live race fades in over it)
-  const still = showStill(screen);
-  closed.signal.addEventListener('abort', () => still.remove());
-  void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
-    if (!closed.signal.aborted) stopBackdrop = startBackdrop(screen, backdropOn, still);
-  });
+  stopBackdrop = raceBehind(closed.signal);
   const picked = await picking;
   stopBackdrop();
   if (id !== routeId) return;
@@ -357,6 +350,24 @@ const backdropCircuit = (): CircuitLayout => {
   const last = layoutById(choice('circuit'));
   return last && openNow().has(last.id) ? last : LAYOUTS[0];
 };
+
+/**
+ * A race going on behind a menu screen (the menu, the Championship's, the Daily Challenge's): a still of it up at once, so the screen never
+ * opens on black, the live race (loaded then) fading in over it, on the circuit last picked; gone when `signal`
+ * aborts. Gives back a stop for the live race (once a race is picked: its view needs the GPU).
+ */
+function raceBehind(signal: AbortSignal): () => void {
+  const still = showStill(screen);
+  let stop = () => {};
+  signal.addEventListener('abort', () => {
+    stop();
+    still.remove();
+  });
+  void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
+    if (!signal.aborted) stop = startBackdrop(screen, backdropCircuit(), still);
+  });
+  return () => stop();
+}
 
 /** The screen fills the column (the menus: all touch, no deck). */
 function menuScreen(): void {
@@ -386,6 +397,8 @@ async function showSeason(id: number): Promise<void> {
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
+  // (the race behind it, as behind the menu)
+  raceBehind(closed.signal);
   // (the Google Play build, the Championship not bought yet: its shop first)
   if (!ownsChampionship()) {
     const { showShop } = await import('./f1/screens/shop');
@@ -426,6 +439,7 @@ async function showDailyScreen(id: number): Promise<void> {
   playMusic(THEME_MUSIC);
   const closed = new AbortController();
   current = { close: () => closed.abort() };
+  raceBehind(closed.signal);
   const today = challengeOn(dayOf());
   const showing = showDaily(screen, services, today, closed.signal);
   curtainUp();
