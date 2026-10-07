@@ -253,6 +253,43 @@ $$;
 revoke all on function public.errors_list(text) from public;
 grant execute on function public.errors_list(text) to anon;
 
+-- The dashboard's CLEAR: errors let go, one of them (its message and where, as errors_list groups them) or every one
+-- (p_all), at any age; only with the reports' code. Gives back how many went.
+create or replace function public.errors_clear(p_code text, p_message text default null, p_where text default null, p_all boolean default false) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  want text := (select hash from dashboard_codes where name = 'reports');
+  n int;
+begin
+  if want is null then return jsonb_build_object('ok', false, 'why', 'no code set'); end if;
+  if encode(sha256(convert_to(coalesce(p_code, ''), 'UTF8')), 'hex') <> want then return jsonb_build_object('ok', false, 'why', 'wrong code'); end if;
+  delete from events where kind = 'error'
+    and (coalesce(p_all, false) or (data->>'message' is not distinct from p_message and data->>'where' is not distinct from p_where));
+  get diagnostics n = row_count;
+  return jsonb_build_object('ok', true, 'cleared', n);
+end;
+$$;
+revoke all on function public.errors_clear(text, text, text, boolean) from public;
+grant execute on function public.errors_clear(text, text, text, boolean) to anon;
+
+-- The dashboard's DELETE: a report let go (p_id), or every one (p_id null); only with the reports' code. (A picture
+-- uploaded to Storage stays there: Supabase lets its files go only from Storage itself.)
+create or replace function public.reports_delete(p_code text, p_id bigint default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  want text := (select hash from dashboard_codes where name = 'reports');
+  n int;
+begin
+  if want is null then return jsonb_build_object('ok', false, 'why', 'no code set'); end if;
+  if encode(sha256(convert_to(coalesce(p_code, ''), 'UTF8')), 'hex') <> want then return jsonb_build_object('ok', false, 'why', 'wrong code'); end if;
+  delete from reports where p_id is null or id = p_id;
+  get diagnostics n = row_count;
+  return jsonb_build_object('ok', true, 'cleared', n);
+end;
+$$;
+revoke all on function public.reports_delete(text, bigint) from public;
+grant execute on function public.reports_delete(text, bigint) to anon;
+
 -- ---------------------------------------------------------------- the stats, for the dashboard
 -- The totals: players, launches, races, km driven, all time, today and over the last 7 days, and by circuit and mode;
 -- and each circuit's plays, km and minutes, by mode.
