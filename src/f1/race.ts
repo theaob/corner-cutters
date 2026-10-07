@@ -2216,25 +2216,38 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const dispose = () => {
     if (closed) return;
     closed = true;
+    // (each part let go even if one before it fails: a race half closed would keep the back button and its overlays,
+    // and the next screen would open under them; the first failure is thrown once the rest are done)
+    let failed: unknown;
+    const step = (f: () => void) => {
+      try {
+        f();
+      } catch (e) {
+        failed ??= e;
+      }
+    };
+    step(offBack);
+    step(offHidden);
+    step(() => window.removeEventListener('keydown', onKey));
     // (you've left the race: it's not kept to come back to)
-    dropOurs();
-    noteDriven();
-    offHidden();
-    window.removeEventListener('keydown', onKey);
-    setAudioPaused(false);
-    sounds.dispose();
-    // everything on the GPU: the scene's meshes, materials and textures, the post passes, the context itself
-    disposeDeep(world.scene);
-    post.dispose();
-    renderer.dispose();
-    renderer.forceContextLoss();
-    renderer.domElement.remove();
-    offBack();
-    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, tyrePick, ...plates]) el.remove();
-    deckEl?.classList.remove('results-up');
-    deckEl?.classList.remove('steer-deck');
-    document.documentElement.classList.remove('results-up', 'ceremony', 'paused', 'dirt');
+    step(dropOurs);
+    step(noteDriven);
+    step(() => setAudioPaused(false));
+    step(() => sounds.dispose());
+    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, tyrePick, ...plates]) step(() => el.remove());
+    step(() => {
+      deckEl?.classList.remove('results-up');
+      deckEl?.classList.remove('steer-deck');
+      document.documentElement.classList.remove('results-up', 'ceremony', 'paused', 'dirt');
+    });
     delete (window as { __cc?: unknown }).__cc;
+    // everything on the GPU: the scene's meshes, materials and textures, the post passes, the context itself
+    step(() => disposeDeep(world.scene));
+    step(() => post.dispose());
+    step(() => renderer.dispose());
+    step(() => renderer.forceContextLoss());
+    step(() => renderer.domElement.remove());
+    if (failed !== undefined) throw failed;
   };
   return { resize, dispose };
 };
