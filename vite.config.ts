@@ -23,6 +23,9 @@ export default defineConfig({
   // the build's version, for the play stats: the package's and the commit's (on CI)
   define: { __APP_VERSION__: JSON.stringify(`${version}+${(process.env.GITHUB_SHA ?? 'local').slice(0, 7)}`) },
   build: {
+    // older Android WebViews (Chrome before 94) can't parse three.js's class static blocks ("Unexpected token '{'"
+    // loading a race): those, and anything newer than Chrome 80 has, lowered
+    target: ['es2020', 'chrome80', 'safari14'],
     // three.js alone is ~560 kB minified; don't warn about it.
     chunkSizeWarningLimit: 2000,
   },

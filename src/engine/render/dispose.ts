@@ -9,7 +9,9 @@ export function disposeDeep(o: THREE.Object3D): void {
   o.traverse((c) => {
     const mesh = c as THREE.Mesh;
     mesh.geometry?.dispose();
-    for (const m of [mesh.material ?? []].flat() as THREE.Material[]) {
+    // (a material array can have holes: a group with no material, drawn as nothing)
+    for (const m of [mesh.material ?? []].flat() as (THREE.Material | undefined)[]) {
+      if (!m) continue;
       for (const v of Object.values(m)) if (v instanceof THREE.Texture) v.dispose();
       m.dispose();
     }
