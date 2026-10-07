@@ -8,6 +8,7 @@
 import { Capacitor } from '@capacitor/core';
 import { insert, online, upload } from '../engine/backend';
 import { onBack } from '../engine/backButton';
+import { device, lines, note, type Device } from '../engine/logbook';
 import { nextFrame } from '../engine/render/capture';
 import { playerId } from './profile';
 
@@ -45,12 +46,19 @@ export function reportPath(now: Date, id: string): string {
 }
 
 /** A report's row in the 'reports' table: who (the device's random id), on what, where, what they said, and the picture's path (if it went). */
-export function reportRow(r: { player: string; platform: 'web' | 'android'; version: string; about: ReportAbout; screen: string; text: string; image?: string; picture?: string }) {
+export function reportRow(r: { player: string; platform: 'web' | 'android'; version: string; about: ReportAbout; screen: string; text: string; image?: string; picture?: string; log?: ReportLog }) {
   return {
     player: r.player, platform: r.platform, version: r.version, circuit: r.about.circuit ?? null, mode: r.about.mode ?? null,
     screen: r.screen.slice(0, 20), text: r.text.trim().slice(0, REPORT_TEXT_MAX), image: r.image ?? null,
     picture: r.picture && r.picture.length <= PICTURE_MAX ? r.picture : null,
+    ...(r.log ? { log: r.log } : {}),
   };
+}
+
+/** What a report carries of the logbook (engine/logbook.ts): the device, and the notes of what led up to it. */
+export interface ReportLog {
+  device: Device;
+  notes: string[];
 }
 
 /** px: the longest side of the copy of the picture kept with the report, for the dashboard; and its most characters (the database's limit) */
@@ -182,6 +190,9 @@ const button = (text: string, onPick: () => void, cls = 'menu-button') => {
 export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = [], done?: () => void): Promise<void> {
   if (busy) return;
   busy = true;
+  // (the notes of what led up to it, as REPORT is pressed: not what's done in the report itself)
+  note('report opened');
+  const shotNotes = lines();
   const shot = await screenshot(hide);
   open = true;
   // (the picture sent: at most LONGEST px on its longest side)
@@ -303,10 +314,12 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     const row = reportRow({
       player: playerId(), platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(), about,
       screen: `${window.innerWidth}x${window.innerHeight}`, text: text.value, image: sentPicture === 'ok' ? path : undefined, picture: pictureOf(canvas),
+      log: { device: device(), notes: shotNotes },
     });
     let sent = await insert('reports', [row]);
-    // (refused: a project whose schema is older than the picture's column takes it without)
-    if (sent === 'refused' && row.picture) sent = await insert('reports', [{ ...row, picture: undefined }]);
+    // (refused: a project whose schema is older than the log's column, or the picture's, takes it without them)
+    if (sent === 'refused') sent = await insert('reports', [{ ...row, log: undefined }]);
+    if (sent === 'refused' && row.picture) sent = await insert('reports', [{ ...row, log: undefined, picture: undefined }]);
     if (sent === 'ok') {
       status.textContent = 'SENT · THANK YOU!';
       setTimeout(close, 1200);
