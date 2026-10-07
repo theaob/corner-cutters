@@ -94,8 +94,16 @@ programme. "Could the store listing unintentionally appeal to children?" No.
 | App activity → **Other user-generated content** | App functionality | leaderboard initials and runs (Daily ghosts); the screenshot and words of a REPORT the player sends |
 | Photos and videos → **Photos** | App functionality | the REPORT screenshot (of the game only), sent only when the player presses SEND |
 
+Google Play Games (achievements, in the Play build) is Google's own sign-in and profile; the game only reports
+unlocks to it. Check Google's current Data safety guidance for Play Games Services when filling the form (it lists
+what, if anything, its SDK needs declared).
+
 Not collected: name, email, location, contacts, financial info (Google Play handles purchases), advertising id,
 messages, health, files.
+
+## Achievements (Google Play Games)
+
+The 24 achievements, their icons and points, and the steps: `store/achievements.md`.
 
 ## In-app product
 
