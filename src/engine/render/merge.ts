@@ -13,7 +13,8 @@ export function mergedByMaterial(boxes: { geometry: THREE.BufferGeometry; faces:
       const face = new THREE.BufferGeometry();
       for (const name of ['position', 'normal', 'uv']) face.setAttribute(name, geometry.getAttribute(name));
       face.setIndex(Array.from(geometry.index!.array.slice(g.start, g.start + g.count)));
-      const material = faces[g.materialIndex ?? 0];
+      // (a cone's groups are 0 and 2, its top cap left out: a face past those given takes the first's material)
+      const material = faces[g.materialIndex ?? 0] ?? faces[0];
       byMaterial.set(material, [...(byMaterial.get(material) ?? []), face.toNonIndexed()]);
     }
     geometry.dispose();

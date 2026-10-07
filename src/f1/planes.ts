@@ -201,10 +201,11 @@ export function buildPlanes(scene: THREE.Scene, runway: number): { run: PlaneRun
     time += dt;
     for (const [f, m] of shown) {
       if (run.flights.includes(f)) continue;
+      // (let go first: a plane that failed to free mustn't fail every frame after)
+      shown.delete(f);
       scene.remove(m.group);
       // (freed: a backdrop plays planes for as long as the menu's up)
       disposeDeep(m.group);
-      shown.delete(f);
     }
     for (const f of run.flights) {
       let m = shown.get(f);
