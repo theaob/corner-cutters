@@ -9,6 +9,7 @@
 // tested); planeModel/buildPlanes draw it.
 
 import * as THREE from 'three';
+import { disposeDeep } from '../engine/render/dispose';
 import { mergedByMaterial } from '../engine/render/merge';
 import { HIDES } from './town3d';
 
@@ -201,6 +202,8 @@ export function buildPlanes(scene: THREE.Scene, runway: number): { run: PlaneRun
     for (const [f, m] of shown) {
       if (run.flights.includes(f)) continue;
       scene.remove(m.group);
+      // (freed: a backdrop plays planes for as long as the menu's up)
+      disposeDeep(m.group);
       shown.delete(f);
     }
     for (const f of run.flights) {

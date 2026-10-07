@@ -353,7 +353,7 @@ export function wrongTyres(race: Race, i: number): boolean {
 const PIT_CALL = 20;
 
 /** A lap's time on new tyres, to plan a stop by: the entrant's best so far, or a guess before it has one. */
-export const planLapTime = (race: Race, e: Entrant) => (e.progress.lapTimes.length ? Math.min(...e.progress.lapTimes) : race.track.length / 300);
+export const planLapTime = (race: Race, e: Entrant) => (e.progress.lapTimes.length ? Math.min(...e.progress.lapTimes) : (race.practice?.lapTime ?? race.track.length / 300));
 
 /** Whether an AI entrant heads into the pit lane now: it's at the entry, and new tyres and repairs are worth a stop now. */
 function aiPits(race: Race, e: Entrant): boolean {
@@ -597,7 +597,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
     }
     if (pit && e.pit) {
       // (it keeps behind the cars in the pits with it; the cars racing past the entry and exit roads, on the track, aren't in its lane)
-      const r = pitStep(pit, e.pit, e.car, race.entrants.filter((o) => o !== e && o.pit).map((o) => o.car), dt);
+      // (a wreck retired in the lane isn't: it's cleared, as on the track)
+      const r = pitStep(pit, e.pit, e.car, race.entrants.filter((o) => o !== e && o.pit && running(o) && !o.car.wrecked).map((o) => o.car), dt);
       if (e.pit.phase === 'garage') {
         // in the crew's hands: pushed, not driven (and through the garage's walls)
         if (e.pit.push!.done >= PIT.garagePush) e.inLap!.parked = true;
@@ -634,6 +635,14 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       if (!r.done) return stepCar(e.car, r.input, p, dt, gridFor(track, grid, e.progress.idx));
       e.pit = undefined;
       e.blend = BLEND_LINE;
+      if (race.sc || race.vsc) {
+        // (under the safety car it rejoins the queue where it is: behind everyone ahead of it now, and the cars
+        // behind it may not pass it)
+        const now = order(race);
+        const at = now.indexOf(i);
+        race.holdBehind[i] = new Set(now.slice(0, at));
+        for (const j of now.slice(at + 1)) if (!entrants[j].pit) race.holdBehind[j]?.add(i);
+      }
       out.push({ kind: 'pit-out', who: i });
     }
     let input: DriveInput;
@@ -680,7 +689,8 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   });
   // the tyres wear with the driving
   entrants.forEach((e, i) => {
-    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt * (track.tyreWear ?? 1), race.wetness);
+    // (the circuit's wear scales the wear alone: the distance driven is what it is, so the wear a lap is measured right)
+    if (running(e)) wearTyres(e.tyres, e.car, events[i], dt, race.wetness, track.tyreWear ?? 1);
   });
   // the slipstream: in a car's wake, a higher top speed for the next step (on top of the tyres'); racing only:
   // not in the pit lane, under the safety car, or after the flag

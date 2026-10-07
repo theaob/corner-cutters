@@ -171,7 +171,10 @@ function keptToOffer(): KeptRace | undefined {
   const k = keptRace();
   if (!k) return undefined;
   const season = k.mode === 'championship' ? loadSeason() : undefined;
-  const stale = !layoutById(k.circuit) || (k.mode === 'championship' && (!season || seasonOver(season) || season.round !== k.round || season.rounds[season.round] !== k.circuit));
+  const stale =
+    !layoutById(k.circuit) ||
+    (k.mode === 'championship' &&
+      (!season || seasonOver(season) || season.round !== k.round || season.rounds[season.round] !== k.circuit || k.seed !== roundSeed(season, season.round)));
   if (stale) {
     dropKeptRace();
     return undefined;
@@ -386,6 +389,8 @@ async function showSeason(id: number): Promise<void> {
     save('choices', 'seat', String(seat));
     save('choices', 'qualifying', qualifying ? 'on' : 'off');
     save('choices', 'season-laps', String(laps));
+    // (a round of the season before, kept mid-race, isn't this season's to come back to)
+    dropKeptRace();
     saveSeason(newSeason({ seed: newSeed(), team, seat, difficulty: savedDifficulty().id, qualifying, rounds: CHAMPIONSHIP_LAYOUTS.map((l) => l.id), total: 10, laps }));
     void route();
   } else navigate(withCircuit(null));
@@ -424,10 +429,22 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     return route();
   }
   document.documentElement.classList.remove('menu');
-  const fit = sizeScreen();
   tuning ??= mountTuning(screen, 'f1', F1_TUNING);
-  const { raceOn } = await import('./f1/race');
+  let raceOn: typeof import('./f1/race').raceOn;
+  try {
+    ({ raceOn } = await import('./f1/race'));
+  } catch {
+    // (the race's code couldn't be fetched: offline on a first race, or the build replaced under the page: back to
+    // the menu, the curtain up, rather than a loading card for good)
+    if (id !== routeId) return;
+    curtainUp();
+    hintToast("COULDN'T LOAD THE RACE");
+    navigate(withCircuit(null));
+    return;
+  }
   if (id !== routeId) return;
+  // (the screen measured now: a turn of the phone while the race's code loaded is in the measure)
+  const fit = sizeScreen();
   const toSeason = () => navigate(withCircuit(null, 'championship'));
   const quit = season
     ? toSeason

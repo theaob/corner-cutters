@@ -8,7 +8,7 @@ import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton } from '../circuitSelect';
-import { LAYOUTS } from '../layouts';
+import { CHAMPIONSHIP_LAYOUTS } from '../layouts';
 import { bought, type Shop } from '../purchase';
 import { menuPick, menuTick } from '../sounds';
 import { trophy } from './celebrate';
@@ -31,8 +31,8 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   screen.append(
     title,
     trophy(72),
-    line(`A SEASON OF ${LAYOUTS.length} ROUNDS: F1 POINTS, STANDINGS, A TITLE TO WIN`, 'var(--text)'),
-    line(`AND EVERY CIRCUIT (${LAYOUTS.length - 1} MORE), OPEN FOR QUICK RACE, TIME ATTACK AND TIME TRIAL AS THE SEASON REACHES THEM`),
+    line(`A SEASON OF ${CHAMPIONSHIP_LAYOUTS.length} ROUNDS: F1 POINTS, STANDINGS, A TITLE TO WIN`, 'var(--text)'),
+    line(`AND EVERY CIRCUIT (${CHAMPIONSHIP_LAYOUTS.length - 1} MORE), OPEN FOR QUICK RACE, TIME ATTACK AND TIME TRIAL AS THE SEASON REACHES THEM`),
     line('ONE PURCHASE, YOURS FOR GOOD'),
     status,
   );

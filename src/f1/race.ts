@@ -39,6 +39,7 @@ import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { distance, newAttack, shortDistance, stepAttack, type Attack } from './timeAttack';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
+import { disposeDeep } from '../engine/render/dispose';
 import { NIGHT } from './night';
 import { buildFireworks } from './fireworks3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
@@ -92,7 +93,7 @@ import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
-import { dropKeptRace, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
+import { RACE_SAVE_VERSION, dropKeptRace, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
 import { DESIGNER_DRAFT_ID } from './designerDraft';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
@@ -595,7 +596,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     radioQ = newRadio();
     radioPanel.style.display = 'none';
     playMusic(RACE_MUSIC);
-    for (const l of looks) world.scene.remove(l.mesh, ...(l.outline ? [l.outline.group] : []));
+    for (const l of looks) {
+      world.scene.remove(l.mesh, ...(l.outline ? [l.outline.group] : []));
+      disposeDeep(l.mesh);
+      if (l.outline) disposeDeep(l.outline.group);
+    }
     world.scene.remove(safetyCar.group);
     hud.setPositionChange(undefined);
     done = false;
@@ -621,7 +626,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** the replay has been shown (or skipped) this race */
   let replayed = false;
   /** the grid pan before the lights: seconds in, and how long it lasts (undefined: it's over, or skipped) */
-  let gridPan: { t: number; length: number } | undefined;
+  let gridPan: { t: number; length: number; slots: typeof circuit.slots } | undefined;
   /** the grid the race started from (drivers by slot; none: everyone in their own), for restarting it */
   let raceGrid: number[] | undefined;
   /** the race's entrants' drivers (entrant i is driver raceDrivers[i]) */
@@ -654,7 +659,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     hudState = { gaps: newGapTimer(slots.length), lastPos: 0, flashUntil: 0, lapsSeen: new Array(slots.length).fill(0), fastest: undefined };
     // the grid pan first (A skips it), then the lights
     // (unless GRID WALK is off in the settings: straight to the lights)
-    gridPan = gridWalkOn() ? { t: 0, length: panLength(slots.length) } : undefined;
+    // (along the slots the field fills: a smaller grid's pan stops at its last car)
+    gridPan = gridWalkOn() ? { t: 0, length: panLength(slots.length), slots: circuit.slots.slice(0, slots.length) } : undefined;
     // (every car and the safety car recorded, for the replay)
     recorder = newReplay(slots.length + 1);
     replay = undefined;
@@ -796,7 +802,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     keptHere = true;
     try {
       keepRace({
-        v: 1, at: Date.now(), circuit: layout.id, name: layout.name, mode: championship ? 'championship' : 'race', round: championship?.season.round,
+        v: RACE_SAVE_VERSION, at: Date.now(), circuit: layout.id, name: layout.name, mode: championship ? 'championship' : 'race', round: championship?.season.round,
         setup: { team: team.id, seat: yourSeat, difficulty: difficulty.id, weather: weather.id, laps: LAPS, startTyres: options.startTyres },
         seed, grid: raceGrid, lapsSaved: saved.laps, you, state: snapshotRace(race),
       });
@@ -848,6 +854,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
   let quitting = false;
+  /** Leave the race (once: a second press while the curtain comes down does nothing). */
+  let leaving = false;
+  const leave = () => {
+    if (leaving) return;
+    leaving = true;
+    onQuit();
+  };
   const pressed = (b: Button) => {
     const n = controls.presses(b);
     const edge = n > (seen.get(b) ?? n);
@@ -941,7 +954,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** the replay after your flag: whether it's on, the race time it's showing, its end and your finish */
         replay: () => replay && { ...replay },
         /** the grid pan before the lights: whether it's on, and the car it's on */
-        gridPan: () => gridPan && { t: gridPan.t, length: gridPan.length, car: panAt(circuit.slots, gridPan.t).car },
+        gridPan: () => gridPan && { t: gridPan.t, length: gridPan.length, car: panAt(gridPan.slots, gridPan.t).car },
         /** the session (qualifying or race), and once qualifying's over, the grid it set (names, pole first) and your time */
         session: () => session,
         qualifying: () => quali?.over && { grid: quali.over.grid.map((k) => (k === quali!.weekend.youDriver ? 'YOU' : quali!.weekend.drivers[k].livery.drivers[quali!.weekend.drivers[k].seat])), you: quali.over.times[quali.weekend.youDriver] },
@@ -1161,7 +1174,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const exitLine = document.createElement('div');
   style(exitLine, { color: '#9d9ab8', font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace', textAlign: 'center', margin: '-4px 16px 6px', textWrap: 'balance' });
   const stayButton = pauseButton('STAY', () => askExit(false));
-  const leaveButton = pauseButton('EXIT', () => onQuit());
+  const leaveButton = pauseButton('EXIT', () => leave());
   style(leaveButton, { borderColor: '#d8323c', color: '#ff6b6b' });
   const exitParts = [exitLine, stayButton, leaveButton];
   /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 EXIT) */
@@ -1195,7 +1208,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (paused) setPaused(false);
     else if (!done) setPaused(true);
     else if (championship && results.style.display === 'block') finishRound();
-    else onQuit();
+    else leave();
     return true;
   });
   // leaving the app or the tab (or YouTube pausing the game: host.ts) pauses the race; so do Esc and P on a keyboard
@@ -1234,7 +1247,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    * later without them, or offline), and your place there said once the record's announcement is over.
    */
   const boardLap = (time: number) => {
-    if (!isBoardWeather(recordKind)) return;
+    if (!isBoardWeather(recordKind) || layout.id === DESIGNER_DRAFT_ID) return;
     queueLap({ circuit: layout.id, weather: recordKind, time });
     const name = initials();
     if (!name) return;
@@ -1263,7 +1276,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else announce(`LAP ${fmt(g.time)} · ${signed(g.time - best.time)}`, splitColor('worse'), 3);
     if (!best || g.time < best.time) trial.best = g;
     // a medal here, better than the one you had: said over the rest
-    const medal = reference === undefined ? undefined : lapMedal(g.time, reference);
+    const medal = reference === undefined || layout.id === DESIGNER_DRAFT_ID ? undefined : lapMedal(g.time, reference);
     if (medal && awardMedal(layout.id, 'trial', medal)) {
       showMedal();
       stampMedal(host, medal, fmt(g.time));
@@ -1334,7 +1347,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const passed = attack.a.passed;
       const record = recordAttack(records, recordId, passed);
       if (record) saveRecords(records);
-      const medal = attackMedal(passed, attack.a.generous);
+      // (no medals on a designer draft: a home-made circuit's not one of the game's)
+      const medal = layout.id === DESIGNER_DRAFT_ID ? undefined : attackMedal(passed, attack.a.generous);
       attack.result = { passed, record, medal, newMedal: awardMedal(layout.id, 'attack', medal) };
       if (options.daily) dailyRun(options.daily.day, { score: passed, time: attack.a.lastAt }, packGhost(toGhost(attack.rec, attack.a.elapsed), GHOST_HZ));
       if (attack.result.newMedal && medal) {
@@ -1432,6 +1446,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the pause screen's settings: the deck moves through them (and nothing else)
     // (a report being made: the deck and keys are its, not the race's)
     if (reportOpen()) {
+      // (the presses meanwhile seen, so none fires here once it's closed)
+      for (const b of ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'] as const) pressed(b);
       requestAnimationFrame(tick);
       return;
     }
@@ -1462,7 +1478,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (a || start) askExit(false);
       if (quitting && !controls.isDown('select') && !controls.isDown('a') && !controls.isDown('start')) {
         quitting = false;
-        onQuit();
+        leave();
         return;
       }
       requestAnimationFrame(tick);
@@ -1482,7 +1498,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (startPressed && !(championship && done)) restart();
     else if (aPressed && session === 'qualifying') startRace();
     // the controls lap: A skips it, or once it's done goes on to the menu
-    else if (aPressed && session === 'tutorial') onQuit();
+    else if (aPressed && session === 'tutorial') leave();
     // the grid pan: A skips it, straight to the lights
     else if (aPressed && gridPan) endPan();
     // a replay: A skips it, back to the race (or, after your flag, on to the ceremony)
@@ -1504,7 +1520,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     if (quitting && !controls.isDown('select')) {
       quitting = false;
-      onQuit();
+      leave();
     }
     // paused (or qualifying's times up): nothing moves, and the last frame stays on the screen
     if (attack?.result) {
@@ -2016,7 +2032,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     teamCard.style.opacity = race.phase === 'lights' ? '1' : '0';
     if (gridPan) {
       // the grid pan: the car the camera's on, by grid place, name and team (you in gold)
-      const k = panAt(circuit.slots, gridPan.t).car;
+      const k = panAt(gridPan.slots, gridPan.t).car;
       banner.textContent = `P${k + 1} ${numbered(looks[k])} · ${looks[k].team.code}`;
       banner.style.color = k === you ? '#f2c14e' : '#f4f4f8';
     } else if (race.phase === 'lights') {
@@ -2090,9 +2106,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     particles.update(dt);
     // the cherry blossom's petals (where there's blossom): falling round your car, kicked up as the cars drive over them
-    // (still while paused, or as the replay plays)
-    if (!paused && !replay) {
-      world.stepScenery(dt, race.entrants.map((e) => e.car), race.entrants[you].car);
+    // (still while paused; as the replay plays it goes on round the camera, with no car about to kick it or be hit,
+    // so a plane in the air and the finale's fireworks don't hang there)
+    if (!paused) {
+      world.stepScenery(dt, replay ? [] : race.entrants.map((e) => e.car), replay ? { x: focus.x, y: focus.z } : race.entrants[you].car);
       // (the gopher hit, near enough to see: boing)
       if (world.gopher && world.gopher.hits > gopherHits) sounds.boing();
       gopherHits = world.gopher?.hits ?? 0;
@@ -2133,7 +2150,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       target.set(mineThen.x + Math.sin(mineThen.heading) * t.lead * 0.6, mineThen.z * 0.5, mineThen.y - Math.cos(mineThen.heading) * t.lead * 0.6);
     } else if (gridPan) {
       // the grid pan: along the grid from pole to the back
-      const at = panAt(circuit.slots, gridPan.t);
+      const at = panAt(gridPan.slots, gridPan.t);
       target.set(at.x, groundAt(grid, at.x, at.y).h * 0.5, at.y);
       focus.copy(target);
     } else if (podium) {
@@ -2207,14 +2224,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     setAudioPaused(false);
     sounds.dispose();
     // everything on the GPU: the scene's meshes, materials and textures, the post passes, the context itself
-    world.scene.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      mesh.geometry?.dispose();
-      for (const m of [mesh.material ?? []].flat() as THREE.Material[]) {
-        for (const v of Object.values(m)) if (v instanceof THREE.Texture) v.dispose();
-        m.dispose();
-      }
-    });
+    disposeDeep(world.scene);
     post.dispose();
     renderer.dispose();
     renderer.forceContextLoss();

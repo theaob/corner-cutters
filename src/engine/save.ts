@@ -167,6 +167,11 @@ export function save(section: string, name: string, value: unknown): void {
   const d = load();
   // another tab may have saved since: start from what's stored now, when it's this version's
   const fresh = readOnly ? undefined : readStored();
+  if (fresh && fresh.version > d.version) {
+    // (a newer build in another tab has moved the save on: from here on it's theirs, never written over)
+    readOnly = true;
+    return;
+  }
   if (fresh && fresh.version === d.version) d.data = fresh.data;
   const s = (d.data[section] ??= {});
   if (value === undefined) delete s[name];

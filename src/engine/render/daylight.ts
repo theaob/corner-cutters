@@ -59,8 +59,8 @@ export function addDaylight(scene: THREE.Scene): Daylight {
     setShadowMapSize: (size) => {
       // (0: no shadows; the materials made again for it, once)
       sun.castShadow = size > 0;
-      if (!size || sun.shadow.mapSize.x === size) return;
-      sun.shadow.mapSize.set(size, size);
+      if (size && sun.shadow.mapSize.x === size) return;
+      if (size) sun.shadow.mapSize.set(size, size);
       sun.shadow.map?.dispose();
       sun.shadow.map = null;
     },

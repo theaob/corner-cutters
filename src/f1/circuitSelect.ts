@@ -692,7 +692,7 @@ export function chooseCircuit(
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
   };
   // a tap on a row focuses it too
-  [teamRow, carChoice, raceWeatherRow, clockWeatherRow, qualifyingRow, lapsRow].forEach((r) => r.el.addEventListener('pointerdown', () => {
+  [teamRow, carChoice, raceWeatherRow, clockWeatherRow, qualifyingRow, lapsRow, tyresRow].forEach((r) => r.el.addEventListener('pointerdown', () => {
     focus = 1 + rows.indexOf(r);
     show();
   }));

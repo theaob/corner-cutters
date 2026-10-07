@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { bodyTilt, carClass, newCar, type Car } from '../../engine/driving';
 import { SIM_DT, lerp, lerpAngle } from '../../engine/fixedStep';
 import { HD2D_VIEW } from '../../engine/look';
+import { NIGHT } from '../night';
 import { Hd2dPipeline } from '../../engine/render/hd2d';
 import { createCarMesh } from '../../engine/render/vehicles3d';
 import { gridFor } from '../bridge';
@@ -165,7 +166,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     world.animate(now / 1000);
     // (the cherry blossom's petals, where there's blossom: kicked up by the cars as they race)
     world.stepScenery(frameDt, race.entrants.map((e) => e.car), c);
-    post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: !lite, blurOn: !lite });
+    post.render(dt, { bloom: world.night ? NIGHT.bloom : HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: !lite, blurOn: !lite });
     // (faded in once a few frames are drawn: the first can take a while, compiling the shaders)
     if (++drawn === 3) {
       canvas.classList.add('on');
