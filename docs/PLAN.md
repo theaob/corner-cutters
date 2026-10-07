@@ -327,19 +327,20 @@ The goal: a full first season.
 The goal: version 1.0 on Google Play and itch.io.
 
 Google Play:
-- [ ] Google Play developer account and app created in the Play Console
+- [x] Google Play developer account (verified)
+- [ ] App created in the Play Console (the steps, in order: `store/README.md`)
 - [x] Resume the Android workflow on push (done: it builds on every push and uploads the APK to itch.io)
 - [x] Build an **AAB** (Play's upload format) as well as the APK (the Play build, `VITE_STORE=play`: the Championship an in-app purchase)
 - [ ] Release **upload key** in the repo's secrets, and Play App Signing turned on (Google holds
       the app signing key). The sideloaded APK (signed with the release key from the secrets; the
       repo's old sideload key is retired) can't update to the Play version: say so on the itch.io page.
 - [ ] Target SDK level up to Play's current requirement; test on Android 8 up to the newest version
-- [ ] CI uploads the AAB to Play's **internal testing** track (Play Developer API with a service
-      account key in the repo's secrets); promoting to closed/open testing and production stays manual
+- [x] CI uploads the AAB to Play's **internal testing** track as a draft, once the `PLAY_SERVICE_ACCOUNT_JSON`
+      secret is set (`store/README.md`); promoting to closed/open testing and production stays manual
 - [ ] Closed test with enough testers for long enough to meet Play's rule for new personal
       developer accounts (check the current numbers) before production is allowed
-- [ ] Store listing: icon, feature graphic, phone screenshots, short and full description,
-      a trailer with the game's music
+- [x] Store listing pack in `store/`: icon, feature graphic, seven phone screenshots, short and full description
+- [ ] A trailer with the game's music
 - [ ] Content rating questionnaire; target audience declared as **13 and over**, so the app
       stays out of the Families programme (its stricter ad rules and certified ad networks);
       the listing and art must not look aimed at children
@@ -350,9 +351,14 @@ Google Play:
 - [x] The Championship as a one-time purchase in Play Billing (the Play build), restored on reinstall
       (product id `championship`, to create in the Play Console)
 - [ ] "Support the game" one-time purchase in Play Billing that removes ads; restores on reinstall
-- [ ] Privacy policy page covering AdMob (advertising ID, device and usage data) and the
-      purchase; Data safety form to match; ads declaration (**contains ads**)
-- [ ] Android extras: Play Games sign-in is **not** needed; save data backed up with Android's
+- [x] Privacy policy page (`site/privacy.html`, on the Pages site at `/privacy.html`) and the Data safety and
+      content rating answers (`store/README.md`), for the game as it is: no ads
+- [ ] With ads: the privacy policy covering AdMob (advertising ID, device and usage data), Data safety to match,
+      ads declaration (**contains ads**)
+- [x] Google Play Games achievements in the Play build (`f1/playAchievements.ts`, `PlayGamesPlugin.java`): the 24
+      unlocked there too, earlier ones sent on sign-in, Google's screen from the cabinet; icons, points and steps in
+      `store/achievements.md`. Project id set; waits on the achievements' ids (`PLAY_ACHIEVEMENT_IDS`)
+- [ ] Android extras: save data backed up with Android's
       Auto Backup so a new phone keeps records
 
 Everywhere:

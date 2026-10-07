@@ -1,5 +1,6 @@
-# GitHub Pages: the play-stats dashboard (stats.html, src/stats/) at the site's root, and the track designer
-# (designer.html, src/designer/, with the game beside it to drive a draft in) under designer/. Built on a push to the
+# GitHub Pages: the play-stats dashboard (stats.html, src/stats/) at the site's root, the track designer
+# (designer.html, src/designer/, with the game beside it to drive a draft in) under designer/, and the plain pages in
+# site/ (the privacy policy, privacy.html). Built on a push to the
 # default branch that changes either (the designer has the game in it, so most of the source), or by hand (Actions →
 # pages → Run workflow).
 #
@@ -19,6 +20,7 @@ on:
       - index.html
       - src/**
       - public/**
+      - site/**
       - vite.stats.config.ts
       - vite.designer.config.ts
       - package-lock.json
@@ -62,6 +64,8 @@ jobs:
           VITE_SUPABASE_URL: ''
           VITE_SUPABASE_ANON_KEY: ''
       - run: mv dist-designer dist-stats/designer
+      # the plain pages beside them (site/: the game's privacy policy, privacy.html, as the store listings link it)
+      - run: cp -r site/. dist-stats/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

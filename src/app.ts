@@ -32,7 +32,9 @@ import type { DryCompound } from './f1/tyres';
 import { showChampionship } from './f1/screens/championship';
 import { loadSeason, newSeason, recordRound, roundSeed, saveSeason, seasonOver, standings, teamOf } from './f1/championship';
 import { awardTitle } from './f1/medals';
-import { unlock } from './f1/achievements';
+import { onUnlocked, unlock, unlockedAchievements } from './f1/achievements';
+import { startPlayAchievements } from './f1/playAchievements';
+import { PlayGames, playGamesBuild } from './engine/playGames';
 import { achievementToast, hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
@@ -513,6 +515,11 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
 
 // (the Google Play build: the store up from the start, so a Championship bought on another install comes back)
 if (PAYWALL) openShop();
+// (and Google Play Games: achievements unlocked there too, those from before sent once signed in)
+if (playGamesBuild()) {
+  const play = startPlayAchievements(PlayGames, unlockedAchievements());
+  onUnlocked((ids) => void play.report(ids));
+}
 void opening();
 
 /**

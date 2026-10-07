@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corner Cutters: Privacy</title>
+<meta name="description" content="What the Corner Cutters game sends, why, and how to turn it off.">
+<style>
+  :root { --bg: #0e0d16; --fg: #ecebf3; --dim: #a7a5b8; --accent: #ff3fa8; --rule: #2a2838; }
+  @media (prefers-color-scheme: light) { :root { --bg: #fbfaff; --fg: #1b1a24; --dim: #5d5b6c; --accent: #c4166f; --rule: #dedbe8; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: 0.02em; }
+  h2 { font-size: 19px; margin: 32px 0 8px; padding-top: 16px; border-top: 1px solid var(--rule); }
+  p, li { color: var(--fg); }
+  .dim { color: var(--dim); }
+  a { color: var(--accent); }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Corner Cutters: privacy policy</h1>
+<p class="dim">Last updated 7 October 2026. Applies to the Corner Cutters game on Google Play, on itch.io (the web game and the Android download), and on YouTube Playables.</p>
+
+<p>Corner Cutters is an arcade racing game made by one independent developer. It has no accounts, no ads, and no tracking for advertising. It does not ask for your name, email, location, contacts, or any other personal information. What it does send is listed below, along with why and how to turn it off.</p>
+
+<h2>Anonymous play statistics</h2>
+<p>To see how many people play, which circuits and modes they choose, and what goes wrong on their devices, the game sends small anonymous events:</p>
+<ul>
+  <li>a random id made on your device when the game first runs (not linked to you, your Google account, or your device's hardware ids);</li>
+  <li>what happened: the game started, a race started or finished, a result was shared;</li>
+  <li>the circuit, mode, and kilometres driven, plus how long you played in a session;</li>
+  <li>the platform (web or Android) and the game's version;</li>
+  <li>error reports when the game hits a bug it didn't catch: the error message, where in the code it happened, and which screen was showing.</li>
+</ul>
+<p><strong>To turn it off:</strong> Settings → STATS → OFF. From then on, nothing is sent. The YouTube Playables version never sends any.</p>
+
+<h2>Leaderboards</h2>
+<p>When you finish a Daily Challenge or set a Time Trial lap, the game sends your run to the online boards: the three initials you choose, your time, the game's version, and the same random id (so the board can show you your own place). A Daily Challenge run also carries your car's path, so others can race your ghost. Everyone who plays can see the initials and times. Runs are posted only after you've entered initials, and STATS doesn't affect this. If you'd rather stay off the boards, don't enter initials. If you post, pick initials that don't identify you.</p>
+
+<h2>Reports you send</h2>
+<p>REPORT (on the pause screen, or in the corner of the menus) lets you send a screenshot of the game with your note. It's sent only when you press SEND, along with the platform, the game's version, and your screen size. Only the developer can see reports. Nothing else on your screen or device is included.</p>
+
+<h2>Purchases (Google Play)</h2>
+<p>In the Google Play version, the Championship is a one-time purchase. Google Play handles payment; the game never sees your payment details. It only learns whether you own the Championship, so it can unlock it and restore it on a new install. Google's handling is covered by <a href="https://policies.google.com/privacy">Google's privacy policy</a>.</p>
+
+<h2>Google Play Games (Google Play version)</h2>
+<p>If you're signed in to Google Play Games, the game tells Google Play Games when you unlock an achievement, so it shows on your Play Games profile. Signing in is Google's, and the game never sees your Google account details. What Play Games keeps and shows (your gamer profile, achievements, and who can see them) is set in the Play Games app and covered by <a href="https://policies.google.com/privacy">Google's privacy policy</a>. You can play without signing in, and your achievements are still kept in the game.</p>
+
+<h2>Saved on your device</h2>
+<p>Your progress, records, settings, and ghosts are kept on your device. On Android, they may be included in your phone's own Android backup to your Google account so that a new phone keeps them. That backup is under your control and isn't readable by the developer.</p>
+
+<h2>Where the data goes, and for how long</h2>
+<p>Statistics, boards, and reports are stored with <a href="https://supabase.com/privacy">Supabase</a>, the game's database host, and are sent encrypted (HTTPS). They are used only to run the boards and improve the game. They are never sold or shared for advertising. Statistics and reports are kept for as long as they're useful for that, and boards are kept for as long as the boards exist.</p>
+
+<h2>Children</h2>
+<p>The game is made for players aged 13 and over and doesn't knowingly collect personal information from anyone.</p>
+
+<h2>Your choices and questions</h2>
+<p>Because the data isn't tied to who you are, it usually can't be looked up by person. If you'd like a board entry or a report removed, or have any question about this policy, open an issue at <a href="https://github.com/theaob/corner-cutters/issues">github.com/theaob/corner-cutters/issues</a> and say which entry or report you mean (for example, the initials, circuit, and day).</p>
+
+<h2>Changes</h2>
+<p>If what the game sends changes, for example if ads are ever added, this page will be updated before that version is released, and the date at the top will change.</p>
+</main>
+</body>
+</html>

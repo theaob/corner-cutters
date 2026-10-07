@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Google Play Games Services project's id (Play Console: Play Games Services → Setup and management →
+  Configuration, "Project ID", or the export of achievement resources). Empty: no Play Games (PlayGamesPlugin
+  does nothing). The achievements' own ids are in src/f1/playAchievements.ts.
+-->
+<resources>
+    <string name="game_services_project_id" translatable="false">999926824923</string>
+</resources>

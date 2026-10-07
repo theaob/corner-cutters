@@ -32,6 +32,7 @@ import { worldBoard } from './screens/worldBoard';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
+import { sharedPlayAchievements } from './playAchievements';
 import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
 import { openReport, reportOpen } from './report';
 import { YOUTUBE, gameHidden } from '../engine/host';
@@ -456,6 +457,16 @@ export function chooseCircuit(
       achievementsTab.classList.toggle('selected', tab === 'achievements');
     };
     showTab('medals');
+    // (the Google Play build, with Play Games: Google's own achievements screen, signing in first if need be)
+    const play = sharedPlayAchievements();
+    if (play?.available()) {
+      const playButton = menuButton('GOOGLE PLAY GAMES ▸', () => {
+        menuPick();
+        void play.show(unlockedAchievements());
+      });
+      playButton.classList.add('cabinet-play');
+      achievementsPanel.append(playButton);
+    }
     achievementsPanel.append(...ACHIEVEMENTS.map((a, k) => {
       const row = document.createElement('div');
       row.className = `achievement${got.has(a.id) ? ' got' : ''}`;
