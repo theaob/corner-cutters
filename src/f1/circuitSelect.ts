@@ -33,6 +33,7 @@ import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
 import { sharedPlayAchievements } from './playAchievements';
+import { todayPanel } from './screens/todayPanel';
 import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
 import { reportOpen } from './report';
 import { gameHidden } from '../engine/host';
@@ -675,7 +676,9 @@ export function chooseCircuit(
   const utilityRow = document.createElement('div');
   utilityRow.className = 'menu-utility';
   utilityRow.append(settingsButton, trophiesButton);
-  const modesParts: HTMLElement[] = [...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, ...(tab ? [tab] : [])];
+  // TODAY over the modes: your streak, the day's missions, yesterday's Daily (screens/todayPanel.ts)
+  const today = todayPanel(closed);
+  const modesParts: HTMLElement[] = [today, ...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   // (a report is made from the REPORT in the column's top corner, as on every menu screen)
@@ -715,7 +718,7 @@ export function chooseCircuit(
   renderCard();
   renderRace();
   options.append(...rows.map((r) => r.el));
-  menu.append(...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
+  menu.append(today, ...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);

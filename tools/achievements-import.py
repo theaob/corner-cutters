@@ -22,10 +22,10 @@ OUT = ROOT / 'store/achievements-import.zip'
 
 # each achievement's points on Play Games: multiples of 5, 5 to 200 each, 1,000 at most in all
 POINTS = {
-    'finish': 10, 'podium': 20, 'win': 30, 'hard-win': 80, 'wet-win': 50, 'from-back': 60, 'charge': 30,
-    'hat-trick': 70, 'spotless': 40, 'purple': 25, 'endurance': 40, 'bald': 35, 'torch': 35, 'rocket': 15,
-    'too-keen': 10, 'torpedo': 30, 'box': 10, 'no-stop': 25, 'lapped': 30, 'scrapheap': 15, 'golden': 40,
-    'gold-standard': 120, 'champion': 100, 'globetrotter': 80,
+    'finish': 10, 'podium': 20, 'win': 30, 'hard-win': 70, 'wet-win': 40, 'from-back': 50, 'charge': 30,
+    'hat-trick': 60, 'spotless': 30, 'purple': 25, 'endurance': 30, 'bald': 30, 'torch': 30, 'rocket': 15,
+    'too-keen': 10, 'torpedo': 30, 'box': 10, 'no-stop': 25, 'lapped': 30, 'scrapheap': 15, 'golden': 30,
+    'gold-standard': 100, 'champion': 90, 'globetrotter': 70, 'regular': 30, 'devoted': 60, 'busy-day': 30,
 }
 
 # Play allows no commas in a name or a description: the game's words without them, where it has any

@@ -12,6 +12,10 @@ const config: CapacitorConfig = {
     captureInput: false,
     webContentsDebuggingEnabled: false,
   },
+  plugins: {
+    // the daily reminder (src/f1/reminder.ts): a chequered flag in the status bar, in the game's gold
+    LocalNotifications: { smallIcon: 'ic_stat_flag', iconColor: '#F2C14E' },
+  },
   ios: {
     // the page lays itself out under the notch and home bar (viewport-fit=cover, env(safe-area-inset-*))
     contentInset: 'never',

@@ -1,19 +1,25 @@
 # Google Play Games: the achievements
 
-The game's 24 achievements (`src/f1/achievements.ts`).
+The game's 27 achievements (`src/f1/achievements.ts`).
 
 ## Import them all at once
 
 **`store/achievements-import.zip`** has them all, ready for the Play Console: **Grow users → Play Games Services →
 Setup and management → Achievements → Import achievements → Upload**, then **Save as draft**. It holds
 `AchievementsMetadata.csv` (each one's name, description, not incremental, revealed, points, list order) and
-`AchievementsIconsMappings.csv` (each one's icon), in Google's format (no header rows), and the 24 icons (512 × 512).
+`AchievementsIconsMappings.csv` (each one's icon), in Google's format (no header rows), and the 27 icons (512 × 512).
 There's no `AchievementsLocalizations.csv`: it's optional, and the names and descriptions are the default language's.
 
 Rebuild it after changing an achievement, its points or its icon: `python3 tools/achievements-import.py`.
 
 Play allows no commas in a name or a description, so two read a little differently there than in the game: **BOX BOX**
 (BOX, BOX in the game) and HAT TRICK's **Take pole then win the race with its fastest lap.**
+
+**Imported the first 24 already?** Add the three new ones by hand (**Add achievement**: REGULAR, EVERY DAY and BUSY DAY,
+rows 25 to 27 below, with their icons), and first lower the points of the twelve below that changed to make room (the
+total stays 1,000): GIANT KILLER 70, RAIN MASTER 40, FROM THE BACK 50, HAT TRICK 60, SPOTLESS 30, ENDURANCE 30, BALD 30,
+TORCH 30, GOLDEN 30, GOLD STANDARD 100, CHAMPION 90, GLOBETROTTER 70. Points can change only until Play Games is
+published. The game finds each one by its name: no ids to copy.
 
 ## Or one at a time
 
@@ -30,16 +36,16 @@ Play allows no commas in a name or a description, so two read a little different
 | 1 | `finish.png` | CHEQUERED | Finish a race. | 10 |
 | 2 | `podium.png` | PODIUM | Finish a race in the top three. | 20 |
 | 3 | `win.png` | WINNER | Win a race. | 30 |
-| 4 | `hard-win.png` | GIANT KILLER | Win a race on HARD. | 80 |
-| 5 | `wet-win.png` | RAIN MASTER | Win a race in the wet. | 50 |
-| 6 | `from-back.png` | FROM THE BACK | Win from the back half of the grid. | 60 |
+| 4 | `hard-win.png` | GIANT KILLER | Win a race on HARD. | 70 |
+| 5 | `wet-win.png` | RAIN MASTER | Win a race in the wet. | 40 |
+| 6 | `from-back.png` | FROM THE BACK | Win from the back half of the grid. | 50 |
 | 7 | `charge.png` | CHARGE | Gain five places in a race. | 30 |
-| 8 | `hat-trick.png` | HAT TRICK | Take pole then win the race with its fastest lap. | 70 |
-| 9 | `spotless.png` | SPOTLESS | Finish a race with no damage and no track-limits warnings. | 40 |
+| 8 | `hat-trick.png` | HAT TRICK | Take pole then win the race with its fastest lap. | 60 |
+| 9 | `spotless.png` | SPOTLESS | Finish a race with no damage and no track-limits warnings. | 30 |
 | 10 | `purple.png` | PURPLE PATCH | Set a race's fastest lap. | 25 |
-| 11 | `endurance.png` | ENDURANCE | Finish a race of 15 laps or more. | 40 |
-| 12 | `bald.png` | BALD | Finish a race on tyres worn down to 0%. | 35 |
-| 13 | `torch.png` | TORCH | Finish a race with your car on fire. | 35 |
+| 11 | `endurance.png` | ENDURANCE | Finish a race of 15 laps or more. | 30 |
+| 12 | `bald.png` | BALD | Finish a race on tyres worn down to 0%. | 30 |
+| 13 | `torch.png` | TORCH | Finish a race with your car on fire. | 30 |
 | 14 | `rocket.png` | ROCKET START | Get a GREAT LAUNCH off the lights. | 15 |
 | 15 | `too-keen.png` | TOO KEEN | Jump the start. | 10 |
 | 16 | `torpedo.png` | TORPEDO | Hit three cars or more off the start at the Ardennes. | 30 |
@@ -47,10 +53,13 @@ Play allows no commas in a name or a description, so two read a little different
 | 18 | `no-stop.png` | CAN'T STOP WON'T STOP | Finish a race without a pit stop. | 25 |
 | 19 | `lapped.png` | LAPPED | Lap a car. | 30 |
 | 20 | `scrapheap.png` | SCRAPHEAP | Wreck your car. | 15 |
-| 21 | `golden.png` | GOLDEN | Win a gold medal. | 40 |
-| 22 | `gold-standard.png` | GOLD STANDARD | A Time Trial gold on every circuit. | 120 |
-| 23 | `champion.png` | CHAMPION | Win a Championship. | 100 |
-| 24 | `globetrotter.png` | GLOBETROTTER | Race on every circuit. | 80 |
+| 21 | `golden.png` | GOLDEN | Win a gold medal. | 30 |
+| 22 | `gold-standard.png` | GOLD STANDARD | A Time Trial gold on every circuit. | 100 |
+| 23 | `champion.png` | CHAMPION | Win a Championship. | 90 |
+| 24 | `globetrotter.png` | GLOBETROTTER | Race on every circuit. | 70 |
+| 25 | `regular.png` | REGULAR | Play seven days running. | 30 |
+| 26 | `devoted.png` | EVERY DAY | Play thirty days running. | 60 |
+| 27 | `busy-day.png` | BUSY DAY | Finish all three of a day's missions. | 30 |
 | | | | **Total** | **1000** |
 
 ## The ids

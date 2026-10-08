@@ -16,6 +16,10 @@ import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, setColourSafe, setLargeText } from './access';
+import { carStyle, setCarStyle, stylesFor, type CarStyle } from './carStyle';
+import { loadStreak, nextReward } from './streak';
+import { loadDaily } from './daily';
+import { REMINDER_HOURS, reminderSetting, remindersHere, setReminder, type ReminderSetting } from './reminder';
 
 /** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
 export interface LayoutSwitch {
@@ -63,8 +67,21 @@ export function settingsRows(): SettingsRow[] {
     : undefined;
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
+  // CAR STYLE: the looks a daily streak has earned your car (carStyle.ts), and what earns the next
+  const best = loadStreak(loadDaily()).best;
+  const next = nextReward(best);
+  const styleAbout = (st: CarStyle) =>
+    st.days === 0 ? (next ? `${next.days} days running earns the ${next.name.toLowerCase()}` : "your team's colours") : `earned with a ${st.days}-day streak`;
+  const styleRow = optionRow('CAR STYLE', stylesFor(best), carStyle(best), (st) => ({ name: st.name, about: styleAbout(st) }), setCarStyle);
+  // DAILY REMINDER (the app): a notification at that hour on a day not yet played (reminder.ts)
+  const reminderRow = remindersHere()
+    ? optionRow<ReminderSetting>('DAILY REMINDER', ['off', ...REMINDER_HOURS], reminderSetting() ?? 'off', (v) => ({
+      name: v === 'off' ? 'OFF' : `${String(v).padStart(2, '0')}:00`,
+      about: v === 'off' ? 'no notifications' : "on a day you haven't played: the Daily Challenge and your streak",
+    }), (v) => void setReminder(v))
+    : undefined;
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  return [styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), textRow, coloursRow, stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

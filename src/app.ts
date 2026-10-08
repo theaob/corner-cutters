@@ -35,6 +35,8 @@ import { loadSeason, newSeason, recordRound, roundSeed, saveSeason, seasonOver, 
 import { awardTitle } from './f1/medals';
 import { onUnlocked, unlock, unlockedAchievements } from './f1/achievements';
 import { startPlayAchievements } from './f1/playAchievements';
+import { onReminderTapped, planReminders, shouldAsk } from './f1/reminder';
+import { askReminder } from './f1/screens/reminderAsk';
 import { PlayGames, playGamesBuild } from './engine/playGames';
 import { achievementToast, hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
@@ -284,6 +286,8 @@ askModel();
 expectBusy(5);
 onHidden((hidden) => {
   note(hidden ? 'app hidden' : 'app shown');
+  // (the reminders planned afresh as the app's put away: played today, today's is dropped)
+  if (hidden) void planReminders();
   // (the gap the app was away for isn't a freeze: no frames run while it's out of sight)
   sightChanged();
 });
@@ -344,6 +348,8 @@ async function showMenu(id: number): Promise<void> {
   const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal, savedTyres(), kept && { about: `${kept.name} · ${keptLap(kept)}${kept.mode === 'championship' ? ` · round ${(kept.round ?? 0) + 1}` : ''}`.toLowerCase() });
   curtainUp();
   stopBackdrop = raceBehind(closed.signal);
+  // (the app, after a first day's play: a daily reminder offered, once)
+  if (shouldAsk()) askReminder(screen, closed.signal);
   const picked = await picking;
   stopBackdrop();
   if (id !== routeId) return;
@@ -580,6 +586,9 @@ if (playGamesBuild()) {
   const play = startPlayAchievements(PlayGames, unlockedAchievements());
   onUnlocked((ids) => void play.report(ids));
 }
+// (the app's daily reminders: planned on start, and a tap on one opens the Daily Challenge)
+void planReminders();
+onReminderTapped(() => navigate(withCircuit(null, 'daily')));
 void opening();
 
 /**
