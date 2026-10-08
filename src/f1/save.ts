@@ -1,8 +1,9 @@
 // Corner Cutters' save format (engine/save.ts keeps it): its version, and how
 // an older save is brought up to date. Sections:
 //   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right': right unless set), layout ('handheld'/'desktop'),
-//             largeText and colourSafe (on/off: off unless set; access.ts)
-//   choices   the menu's last mode ('race'/'timetrial'), circuit, team, difficulty and weather (by id), qualifying ('on'/'off'), and a Quick Race's laps ('5')
+//             largeText and colourSafe (on/off: off unless set; access.ts), reminder ('off' or the hour: reminder.ts)
+//   choices   the menu's last mode ('race'/'timetrial'), circuit, team, difficulty and weather (by id), qualifying ('on'/'off'), a Quick Race's laps ('5'),
+//             and carStyle: your car's look, a streak's reward (carStyle.ts)
 //   ghosts    your best Time Trial lap on each circuit (and weather), to race as a ghost (timeTrial.ts)
 //   championship  season: the Championship season in progress (or just over) (championship.ts)
 //   progress  unlocked: the circuits a Championship has unlocked (unlocks.ts); onboarded: the controls lap done or skipped;
@@ -14,6 +15,8 @@
 //   race      kept: the race in progress (a Quick Race or a Championship round), to come back to (raceSave.ts)
 //   daily     best: your best run on each day's challenge; pending: a run not yet on its board; streak and last: your streak of days (daily.ts)
 //   profile   the player's id and initials for the online boards (profile.ts)
+//   streak    now: your streak of days played, its best, the last missed day forgiven (streak.ts)
+//   missions  today: the day's missions and how far along each is (missions.ts)
 //   circuits  each circuit's hash when last played: records and ghosts on one changed since are forgotten (circuitHash.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //

@@ -434,6 +434,57 @@ Ee...GGGGGG...eE
 .....BBBBBB.....
 ................
 ................""",
+    'regular': """
+..R..........R..
+.RRRRRRRRRRRRRR.
+.RRRRRRRRRRRRRR.
+.WWWWWWWWWWWWWW.
+.WWWWWWWWWWWWWW.
+.WWWWKKKKKKWWWW.
+.WWWWWWWWWKKWWW.
+.WWWWWWWWKKWWWW.
+.WWWWWWWKKWWWWW.
+.WWWWWWKKWWWWWW.
+.WWWWWKKWWWWWWW.
+.WWWWWKKWWWWWWW.
+.WWWWWWWWWWWWWW.
+.SSSSSSSSSSSSSS.
+................
+................""",
+    'devoted': """
+.......R........
+......RR........
+......RRR.......
+.....RRRR...R...
+....RROORR..RR..
+....RROOORR.RR..
+...RROOOOORRRR..
+...RROOYOOORRR..
+..RROOYYYOOORR..
+..RROOYYYYOORR..
+..RROOYYYYYOORR.
+..RROOYYWYYOORR.
+...RROOYWWYOORR.
+...RRROOYYOORR..
+....RRROOOORR...
+......RRRRRR....""",
+    'busy-day': """
+.....SSSSSS.....
+..TTTSKKKKSTTT..
+..TWWWWWWWWWWT..
+..TWWWWWEWWWWT..
+..TWEWWEWWSSWT..
+..TWWEEWWWWWWT..
+..TWWWWWWWWWWT..
+..TWWWWWEWWWWT..
+..TWEWWEWWSSWT..
+..TWWEEWWWWWWT..
+..TWWWWWWWWWWT..
+..TWWWWWEWWWWT..
+..TWEWWEWWSSWT..
+..TWWEEWWWWWWT..
+..TTTTTTTTTTTT..
+................""",
 }
 # the podium's step numbers are drawn in, not part of the palette
 DIGITS = {'1': 'K', '2': 'K', '3': 'K'}

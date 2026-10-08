@@ -12,7 +12,8 @@ import { online } from '../../engine/backend';
 import { menuButton } from '../circuitSelect';
 import { menuPick, menuTick } from '../sounds';
 import { distance } from '../timeAttack';
-import { fetchBoard, loadDaily, sendPending, streakOn, untilNext, type Board, type Challenge } from '../daily';
+import { fetchBoard, loadDaily, sendPending, untilNext, type Board, type Challenge } from '../daily';
+import { loadStreak, localDay, streakNow } from '../streak';
 import { INITIALS, initials, playerId, setInitials } from '../profile';
 import { reportOpen } from '../report';
 import { sendLaps } from '../boards';
@@ -69,7 +70,8 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   };
   const log = loadDaily();
   const best = log.best[c.day];
-  const streak = streakOn(log, c.day);
+  // (your streak of days played, any mode: streak.ts)
+  const streak = streakNow(loadStreak(log), localDay());
   const when = line(`${c.day} · THE NEXT ONE IN ${hm(untilNext())}`);
   screen.append(
     title,

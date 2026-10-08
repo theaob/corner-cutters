@@ -918,6 +918,118 @@
         box-shadow: 0 0 0 2px var(--accent-b);
         color: #1b1b26;
       }
+      /* TODAY over the modes (src/f1/screens/todayPanel.ts): the streak, the day's missions, yesterday's Daily */
+      .circuit-menu .today-panel {
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 10px 14px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: rgba(21, 20, 31, 0.86);
+        font: calc(10px * var(--ts, 1)) var(--pixel);
+        color: var(--text);
+      }
+      .circuit-menu .today-panel span {
+        font-size: inherit;
+        color: inherit;
+      }
+      .circuit-menu .today-streak,
+      .circuit-menu .today-head,
+      .circuit-menu .today-mission {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .circuit-menu .today-streak {
+        justify-content: space-between;
+        padding-bottom: 6px;
+        margin-bottom: 1px;
+        border-bottom: 1px solid var(--key-edge);
+      }
+      .circuit-menu .today-panel .today-days {
+        color: var(--gold);
+        font-size: calc(12px * var(--ts, 1));
+      }
+      .circuit-menu .today-panel .today-next,
+      .circuit-menu .today-panel .today-of,
+      .circuit-menu .today-yesterday {
+        color: var(--muted);
+      }
+      .circuit-menu .today-head {
+        justify-content: space-between;
+        color: var(--muted);
+      }
+      .circuit-menu .today-panel .today-count {
+        color: var(--accent-b);
+      }
+      .circuit-menu .today-panel .today-mark {
+        width: 1em;
+        color: var(--muted);
+      }
+      .circuit-menu .today-panel .today-text {
+        flex: 1;
+      }
+      .circuit-menu .today-mission.done .today-mark,
+      .circuit-menu .today-mission.done .today-of {
+        color: var(--accent-b);
+      }
+      .circuit-menu .today-mission.done .today-text {
+        color: var(--muted);
+      }
+      .circuit-menu .today-yesterday {
+        padding-top: 6px;
+        border-top: 1px solid var(--key-edge);
+      }
+      /* the daily reminder, asked once over the menu (src/f1/screens/reminderAsk.ts) */
+      .reminder-ask {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 24px;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 16px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--deck);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        color: var(--text);
+        font-family: var(--pixel);
+        text-align: center;
+      }
+      .reminder-ask strong {
+        font-size: calc(15px * var(--ts, 1));
+        font-weight: 400;
+        color: var(--gold);
+      }
+      .reminder-ask p {
+        margin: 0;
+        font-size: calc(11px * var(--ts, 1));
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      .reminder-ask-row {
+        display: flex;
+        gap: 10px;
+      }
+      .reminder-ask-row button {
+        flex: 1 1 0;
+        padding: 10px 6px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font: calc(12px * var(--ts, 1)) var(--pixel);
+        cursor: pointer;
+      }
+      .reminder-ask-row .reminder-yes {
+        border-color: var(--accent-b);
+        color: var(--accent-b);
+      }
       /* the modes: a big button each, its name over a line about it */
       .circuit-menu .menu-button.mode-button {
         flex-direction: column;

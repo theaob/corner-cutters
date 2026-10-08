@@ -4,7 +4,8 @@
 // flag from how the race went (raceAchievements); some as they happen (a
 // launch, a jump start, cars hit off the start, a stop, lapping a car, a
 // wreck); and the medals'
-// and the Championship's as those are won. Engine-free but for the save.
+// and the Championship's as those are won; the streak's and the missions' as those are (today.ts). Engine-free but
+// for the save.
 
 import { save, saved } from '../engine/save';
 import type { Trophies } from './medals';
@@ -41,6 +42,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'gold-standard', name: 'GOLD STANDARD', about: 'A Time Trial gold on every circuit' },
   { id: 'champion', name: 'CHAMPION', about: 'Win a Championship' },
   { id: 'globetrotter', name: 'GLOBETROTTER', about: 'Race on every circuit' },
+  { id: 'regular', name: 'REGULAR', about: 'Play seven days running' },
+  { id: 'devoted', name: 'EVERY DAY', about: 'Play thirty days running' },
+  { id: 'busy-day', name: 'BUSY DAY', about: "Finish all three of a day's missions" },
 ];
 
 export const achievementById = (id: string): Achievement | undefined => ACHIEVEMENTS.find((a) => a.id === id);

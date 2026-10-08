@@ -69,6 +69,11 @@ import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import { overtakeOf, towerGap, towerRows } from './tower';
 import { achievementToast, stampMedal } from './screens/celebrate';
 import { TORPEDO, medalAchievements, raceAchievements, raced, torpedo, unlock } from './achievements';
+import { played } from './today';
+import type { PlayEvent } from './missions';
+import { sayDayNews } from './screens/dayNews';
+import { carStyle, styled } from './carStyle';
+import { loadStreak } from './streak';
 import { LAYOUTS } from './layouts';
 import { type Medal, MEDALS, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
@@ -439,6 +444,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const achieve = (ids: string[]) => {
     for (const a of unlock(ids)) achievementToast(a);
   };
+  /** Something done towards the day (missions.ts): its missions and the streak brought on, and said (not on a designer's draft or the controls lap). */
+  const play = (e: PlayEvent) => {
+    if (layout.id === DESIGNER_DRAFT_ID || session === 'tutorial') return;
+    try {
+      sayDayNews(played(e), achieve);
+    } catch (err) {
+      // (the day's count never in the way of the race)
+      setTimeout(() => {
+        throw err;
+      });
+    }
+  };
   const setPaused = (on: boolean) => {
     // (paused: the race kept on the device, to come back to if the app's closed now)
     if (on) keepNow();
@@ -548,7 +565,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** A car on the track in its team's livery (teammates: the team's second car has the bright green T-camera). */
   const addLook = (livery: Team, seat: number, mine: boolean): Look => {
     const number = numberOf(livery.drivers[seat]);
-    const look = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? ('gold' as const) : undefined, number };
+    const plain = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? ('gold' as const) : undefined, number };
+    // (yours in the look you picked, a streak's reward: carStyle.ts)
+    const look = mine ? styled(plain, carStyle(loadStreak(loadDaily()).best)) : plain;
     // (on dirt, on off-road tyres)
     const mesh = createCarMesh('f1', look, !!circuit.layout.dirt);
     world.scene.add(mesh);
@@ -1301,6 +1320,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const trialLapDone = (g: Ghost) => {
     if (!trial) return;
     const { record, best } = trial;
+    play({ kind: 'lap' });
+    play({ kind: 'trial-lap', record: !!record && g.time < record.time });
     if (!record || g.time < record.time) {
       trial.record = g;
       saveGhost(recordId, g);
@@ -1386,6 +1407,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const medal = layout.id === DESIGNER_DRAFT_ID ? undefined : attackMedal(passed, attack.a.generous);
       attack.result = { passed, record, medal, newMedal: awardMedal(layout.id, 'attack', medal) };
       if (options.daily) dailyRun(options.daily.day, { score: passed, time: attack.a.lastAt }, packGhost(toGhost(attack.rec, attack.a.elapsed), GHOST_HZ));
+      play({ kind: 'attack', passed, daily: !!options.daily });
       if (attack.result.newMedal && medal) {
         sounds.record();
         stampMedal(host, medal, distance(passed));
@@ -1648,6 +1670,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         car.vx += Math.sin(car.heading) * kick;
         car.vy -= Math.cos(car.heading) * kick;
         if (verdict === 'great') achieve(['rocket']);
+        play({ kind: 'launch', great: verdict === 'great' });
         announce(`${verdict === 'great' ? 'GREAT' : 'GOOD'} LAUNCH · ${launch.reaction!.toFixed(2)} S`, verdict === 'great' ? '#b36bff' : '#5fe0d0', 2);
       }
     }
@@ -1786,7 +1809,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     for (const e of step.race) {
       // achievements as they happen: a stop, lapping a car, a wreck (in a race)
       if (session === 'race') {
-        if (e.kind === 'pit-stop' && e.who === you) achieve(['box']);
+        if (e.kind === 'pit-stop' && e.who === you) {
+          achieve(['box']);
+          play({ kind: 'pit' });
+        }
         // (the cars you hit off the start: TORPEDO at the Ardennes, three or more)
         if (e.kind === 'contact' && (e.a === you || e.b === you) && race.phase === 'racing' && race.clock <= TORPEDO.window) {
           startHits.add(e.a === you ? e.b : e.a);
@@ -1888,6 +1914,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (race laps only: qualifying keeps its own record, set as its good lap ends)
     if (session === 'race' && (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race))) {
       for (const lap of mine.lapTimes.slice(saved.laps)) {
+        play({ kind: 'lap' });
         const had = rec()?.bestLap !== undefined;
         if (recordLap(records, recordId, lap)) {
           saved.newLap = true;
@@ -1911,6 +1938,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
           }),
           ...(raced(layout.id, LAYOUTS.map((l) => l.id)) ? ['globetrotter'] : []),
         ]);
+        play({
+          kind: 'race', place: raceOrder(race).indexOf(you) + 1, grid: you + 1, field: race.entrants.length, fastest: hudState.fastest?.who === you,
+          clean: !tookDamage && me.limits.strikes === 0, weather: race.weather, circuit: layout.id, difficulty: difficulty.id,
+        });
       }
       saveRecords(records);
     }
