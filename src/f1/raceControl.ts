@@ -458,6 +458,9 @@ export function skipToParked(race: Race): number[] {
 /** Still on the track: not retired (a wreck counts until it's cleared). */
 export const running = (e: Entrant) => !e.progress.retired;
 
+/** Whether the result is final: every car still running has taken the flag, so time penalties can no longer reorder the finish. */
+export const settled = (race: Race) => race.entrants.every((e) => e.progress.retired || e.progress.finished !== undefined);
+
 /** Whether a car's damage this step makes a big crash: it was wrecked, or lost a big share of its health at once. */
 export function isBigCrash(car: Car, healthBefore: number, wreckedNow: boolean): boolean {
   return wreckedNow || healthBefore - car.health >= SAFETY_CAR.bigHit * car.cls.health;

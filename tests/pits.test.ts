@@ -5,7 +5,7 @@ import { LAYOUTS, SILVER_HEATH, type CircuitLayout } from '../src/f1/layouts';
 import { GARAGE_ACROSS, PIT, PIT_LANE_MIN, PIT_STRAIGHT_MIN, entersPit, inLimitZone, stopTime, wantsPit } from '../src/f1/pits';
 import { freshTyres } from '../src/f1/tyres';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel, nearestSample } from '../src/f1/racing';
-import { newRace, order, running, skipToParked, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
+import { newRace, order, running, settled, skipToParked, stepRace, type Race, type RaceEvent } from '../src/f1/raceControl';
 
 const f1 = carClass('f1');
 const dt = 1 / 60;
@@ -257,4 +257,25 @@ describe.each(LAYOUTS)('skipping to the ceremony at $name', (layout) => {
     });
     for (const e of race.entrants) expect(e.pit?.phase).toBe('garage');
   }, 30_000);
+});
+
+describe('the result being final', () => {
+  it('is only settled once every running car has taken the flag, so a penalty cannot move you off the podium after it counts', () => {
+    const race = raceOn(LAYOUTS[0], 3);
+    while (race.phase !== 'racing' || race.clock < 20) stepRace(race, dt);
+    expect(settled(race)).toBe(false);
+    // you take the flag third, with a 5 s penalty still to put you behind a car that has not finished yet
+    const [a, b, c, d] = order(race);
+    race.entrants[a].progress.finished = 100;
+    race.entrants[b].progress.finished = 101;
+    race.entrants[c].progress.finished = 102;
+    race.entrants[c].progress.penalty = 5;
+    expect(order(race).indexOf(c)).toBe(2);
+    expect(settled(race)).toBe(false);
+    race.entrants[d].progress.finished = 104;
+    for (const e of race.entrants) if (e.progress.finished === undefined) e.progress.retired = true;
+    expect(settled(race)).toBe(true);
+    // the penalty drops you to fourth: off the podium
+    expect(order(race).indexOf(c)).toBe(3);
+  });
 });
