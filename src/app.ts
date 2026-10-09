@@ -21,7 +21,7 @@ import { dropKeptRace, keptLap, keptRace, type KeptRace } from './f1/raceSave';
 import { RACE_LAPS, lapsFrom, seasonLength } from './f1/laps';
 import { curtainDown, curtainFirstUp, curtainIsDown, curtainUp } from './f1/screens/curtain';
 import { YOUTUBE, firstFrameReady, gameHidden, gameReady, onHidden } from './engine/host';
-import { askModel, device, expectBusy, lines, note, noteConsole, sightChanged, watchFreezes } from './engine/logbook';
+import { askModel, device, expectBusy, lines, note, noteConsole, sightChanged, watchFrames, watchFreezes, watchLongTasks } from './engine/logbook';
 import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
 import { useLayoutSwitch } from './f1/settingsRows';
@@ -293,6 +293,15 @@ onHidden((hidden) => {
 });
 // (not while the curtain's down: a race being built behind it takes a moment on a slow phone, and that's no freeze)
 watchFreezes((seconds) => reportProblem(`Freeze: ${seconds < 5 ? '3-5' : seconds < 10 ? '5-10' : 'over 10'} s without a frame`), () => gameHidden() || curtainIsDown());
+// slow stretches too, short of a freeze: a rate under 40 fps held for 5 s, or hitches (frames over 100 ms), reported with
+// the stretch's numbers, the long tasks in it, the heap, and the screen and picture quality (the logbook's notes and the
+// device come along); long tasks (200 ms or more of script) in the logbook
+watchLongTasks();
+watchFrames((stats, extra) => {
+  const where = racingOn ? 'race' : 'menu';
+  const what = stats.fps < 40 ? `${stats.fps < 15 ? 'under 15' : stats.fps < 25 ? '15-25' : stats.fps < 30 ? '25-30' : '30-40'} fps` : `hitches up to ${stats.worst < 200 ? '100-200' : stats.worst < 500 ? '200-500' : 'over 500'} ms`;
+  reportProblem(`Slow ${where}: ${what}`, { perf: { ...stats, ...extra } });
+}, () => gameHidden() || curtainIsDown());
 // REPORT on every menu screen (the race has its own, on the pause screen): a little button in the column's top
 // right corner, shown while a menu's up; the screen as it is, to draw on and say what's wrong (src/f1/report.ts)
 const menuReport = document.createElement('button');

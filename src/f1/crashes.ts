@@ -57,31 +57,31 @@ export const CRASH_DATA_MAX = 1600;
  * An error's details as sent: the crash, the screen, the device (logbook.ts), and as many of the latest notes of
  * what led up to it as fit in CRASH_DATA_MAX.
  */
-export function crashData(crash: Crash, screen: string, dev: Device, crumbs: string[]): Record<string, unknown> {
+export function crashData(crash: Crash, screen: string, dev: Device, crumbs: string[], extra: Record<string, unknown> = {}): Record<string, unknown> {
   // (the device without what it doesn't know)
   const known = Object.fromEntries(Object.entries(dev).filter(([, v]) => v !== undefined && v !== ''));
-  return withCrumbs({ ...crash, screen, device: known }, crumbs, CRASH_DATA_MAX);
+  return withCrumbs({ ...crash, screen, ...extra, device: known }, crumbs, CRASH_DATA_MAX);
 }
 
 /** what sends a problem (set by watchCrashes) */
-let sendProblem: ((crash: Crash) => void) | undefined;
+let sendProblem: ((crash: Crash, extra?: Record<string, unknown>) => void) | undefined;
 
 /** Report a problem that throws nothing (a freeze, the graphics' context lost) as an error, with `message`. */
-export function reportProblem(message: string): void {
-  sendProblem?.({ kind: 'error', message: message.slice(0, MESSAGE_MAX), where: '', stack: '' });
+export function reportProblem(message: string, extra?: Record<string, unknown>): void {
+  sendProblem?.({ kind: 'error', message: message.slice(0, MESSAGE_MAX), where: '', stack: '' }, extra);
 }
 
 /** Send crashes as they happen; `screen()`: where the player is (the menu, or the race's circuit and mode). */
 export function watchCrashes(screen: () => { name: string; circuit?: string; mode?: string }, target: Window = window): void {
   const sent = new Set<string>();
-  const send = (crash: Crash | undefined) => {
+  const send = (crash: Crash | undefined, extra?: Record<string, unknown>) => {
     if (!crash) return;
     note(`error ${crash.message}`);
     const key = `${crash.message}|${crash.where}`;
     if (sent.has(key) || sent.size >= CRASHES_MAX) return;
     sent.add(key);
     const at = screen();
-    track('error', { circuit: at.circuit, mode: at.mode, data: crashData(crash, at.name, device(), lines()) });
+    track('error', { circuit: at.circuit, mode: at.mode, data: crashData(crash, at.name, device(), lines(), extra) });
   };
   sendProblem = send;
   target.addEventListener('error', (e) => send(crashOf('error', e.error ?? e.message, e.filename, e.lineno, e.colno)));

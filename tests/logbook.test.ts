@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LOGBOOK, clearNotes, fromUserAgent, lines, note, recent, sightChanged, watchFreezes, withCrumbs } from '../src/engine/logbook';
+import { LOGBOOK, SLOW, clearNotes, frameStats, fromUserAgent, isSlow, lines, note, recent, sightChanged, watchFrames, watchFreezes, withCrumbs } from '../src/engine/logbook';
 import { CRASH_DATA_MAX, crashData } from '../src/f1/crashes';
 
 describe('the logbook', () => {
@@ -81,5 +81,62 @@ describe('watching for freezes', () => {
     // (and the next long gap, in sight, counts again)
     at(210_016);
     expect(seen).toEqual([4]);
+  });
+});
+
+describe('judging the frames', () => {
+  const steady = (ms: number, n = 300) => Array.from({ length: n }, () => ms);
+
+  it('needs enough frames to judge', () => {
+    expect(frameStats(steady(16, 5))).toBeUndefined();
+  });
+
+  it('60 fps is fine; 25 fps and hitches are slow', () => {
+    const ok = frameStats(steady(16.7))!;
+    expect(ok.fps).toBeCloseTo(60, 0);
+    expect(isSlow(ok)).toBe(false);
+    const slow = frameStats(steady(40))!;
+    expect(slow.fps).toBe(25);
+    expect(slow.janks).toBe(0);
+    expect(isSlow(slow)).toBe(true);
+    const hitchy = frameStats([...steady(16.7), 150, 150, 150])!;
+    expect(hitchy.hitches).toBe(3);
+    expect(isSlow(hitchy)).toBe(true);
+    expect(isSlow(frameStats([...steady(16.7), 150])!)).toBe(false);
+    expect(isSlow(frameStats([...steady(16.7), SLOW.worstMs])!)).toBe(true);
+  });
+});
+
+describe('watching the frames', () => {
+  const frames = () => {
+    let next: ((now: number) => void) | undefined;
+    globalThis.requestAnimationFrame = ((cb: (now: number) => void) => ((next = cb), 0)) as typeof requestAnimationFrame;
+    return (now: number) => next?.(now);
+  };
+  const run = (at: (n: number) => void, from: number, ms: number, seconds: number) => {
+    let t = from;
+    for (; t < from + seconds * 1000; t += ms) at(t);
+    return t;
+  };
+
+  it('reports a slow stretch once its window is judged, not a steady one', () => {
+    const at = frames();
+    const seen: number[] = [];
+    watchFrames((s) => seen.push(s.fps), () => false);
+    const t = run(at, 400_000, 16.7, 12);
+    expect(seen).toEqual([]);
+    run(at, t, 50, 12);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]).toBeLessThan(40);
+  });
+
+  it("leaves out a stretch the app was away for", () => {
+    const at = frames();
+    const seen: number[] = [];
+    watchFrames((s) => seen.push(s.fps), () => false);
+    let t = run(at, 800_000, 50, 3);
+    sightChanged();
+    t = run(at, t, 50, 3);
+    expect(seen).toEqual([]);
   });
 });
