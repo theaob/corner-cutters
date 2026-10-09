@@ -8,7 +8,7 @@
 import { Capacitor } from '@capacitor/core';
 import { insert, online, upload } from '../engine/backend';
 import { onBack } from '../engine/backButton';
-import { device, lines, note, type Device } from '../engine/logbook';
+import { device, latestFrames, lines, note, type Device, type FrameStats } from '../engine/logbook';
 import { nextFrame } from '../engine/render/capture';
 import { playerId } from './profile';
 
@@ -59,6 +59,8 @@ export function reportRow(r: { player: string; platform: 'web' | 'android'; vers
 export interface ReportLog {
   device: Device;
   notes: string[];
+  /** how the frames were going just before (the latest 5 s judged) */
+  frames?: FrameStats;
 }
 
 /** px: the longest side of the copy of the picture kept with the report, for the dashboard; and its most characters (the database's limit) */
@@ -314,7 +316,7 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     const row = reportRow({
       player: playerId(), platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(), about,
       screen: `${window.innerWidth}x${window.innerHeight}`, text: text.value, image: sentPicture === 'ok' ? path : undefined, picture: pictureOf(canvas),
-      log: { device: device(), notes: shotNotes },
+      log: { device: device(), notes: shotNotes, frames: latestFrames() },
     });
     let sent = await insert('reports', [row]);
     // (refused: a project whose schema is older than the log's column, or the picture's, takes it without them)

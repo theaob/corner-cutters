@@ -88,7 +88,7 @@ programme. "Could the store listing unintentionally appeal to children?" No.
 | Data type | Why (purpose) | Notes |
 | --- | --- | --- |
 | App activity → **App interactions** | Analytics | races started/finished, circuit, mode, km, time played; STATS → OFF stops it |
-| App info and performance → **Crash logs** | Analytics, App functionality | errors, freezes and lost graphics: message, stack, screen, and a short log of the game's own events before it |
+| App info and performance → **Crash logs** | Analytics, App functionality | errors, freezes, slow stretches (frame rate and stutter numbers) and lost graphics: message, stack, screen, and a short log of the game's own events before it |
 | App info and performance → **Diagnostics** | Analytics | platform, version; with an error or a REPORT the device's model, Android and WebView versions, graphics chip, memory and screen |
 | Device or other IDs → **Device or other IDs** | Analytics, App functionality | a random id made by the game (not the advertising id, not hardware ids) |
 | App activity → **Other user-generated content** | App functionality | leaderboard initials and runs (Daily ghosts); the screenshot and words of a REPORT the player sends |

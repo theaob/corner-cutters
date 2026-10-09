@@ -135,10 +135,13 @@ export function expectBusy(seconds: number): void {
 
 /** the page went out of sight since the last frame (no frames come while it's away: the gap on its return is no freeze) */
 let lostSight = false;
+/** counts the page's goings and comings (watchFrames has its own look at them) */
+let sightEpoch = 0;
 
 /** The page going out of sight or coming back (told by the host: no frame runs while it's away to see it). */
 export function sightChanged(): void {
   lostSight = true;
+  sightEpoch++;
 }
 
 /**
@@ -161,6 +164,109 @@ export function watchFreezes(onFreeze: (seconds: number) => void, ignored: () =>
     }
     last = now;
     lostSight = false;
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+// ---------------------------------------------------------------- slow frames
+
+/** What a stretch of frames was like. */
+export interface FrameStats {
+  /** frames per second over the stretch, the worst frame (ms), and the 95th percentile frame (ms) */
+  fps: number;
+  worst: number;
+  p95: number;
+  /** frames over 50 ms (a visible stutter) and over 100 ms (a hitch) */
+  janks: number;
+  hitches: number;
+  /** the stretch's length (s) */
+  seconds: number;
+}
+
+/** s of frames judged together, and the frames needed in them to judge at all */
+export const FRAME_WINDOW = { seconds: 5, min: 20 };
+/** what makes a stretch worth reporting: a sustained low rate, or hitches (a frame this late, still short of a freeze) */
+export const SLOW = { fps: 40, hitchMs: 100, hitches: 3, worstMs: 500 };
+
+/** The stats of `deltas` (ms between frames), or nothing when there are too few to judge. */
+export function frameStats(deltas: number[]): FrameStats | undefined {
+  if (deltas.length < FRAME_WINDOW.min) return undefined;
+  const sorted = [...deltas].sort((a, b) => a - b);
+  const total = deltas.reduce((a, b) => a + b, 0);
+  return {
+    fps: Math.round((deltas.length / total) * 10000) / 10,
+    worst: Math.round(sorted[sorted.length - 1]),
+    p95: Math.round(sorted[Math.floor(sorted.length * 0.95)]),
+    janks: deltas.filter((d) => d > 50).length,
+    hitches: deltas.filter((d) => d > SLOW.hitchMs).length,
+    seconds: Math.round(total / 100) / 10,
+  };
+}
+
+/** Whether a stretch is slow enough to report. */
+export const isSlow = (s: FrameStats): boolean => s.fps < SLOW.fps || s.hitches >= SLOW.hitches || s.worst >= SLOW.worstMs;
+
+/** the latest stretch judged (any of them, slow or not), for a report or an error to carry */
+let lastStats: FrameStats | undefined;
+export const latestFrames = (): FrameStats | undefined => lastStats;
+
+/** The JS heap in use (MB), where the browser tells (Chrome and Android's WebView do). */
+export function heapMb(): number | undefined {
+  const used = (typeof performance !== 'undefined' ? (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize : undefined);
+  return used ? Math.round(used / 1048576) : undefined;
+}
+
+/** Long tasks (the page's script busy for 200 ms or more) seen since the last stretch was judged. */
+let longTasks = 0;
+export function watchLongTasks(): void {
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.duration < 200) continue;
+        longTasks++;
+        note(`long task ${Math.round(e.duration)} ms`);
+      }
+    }).observe({ entryTypes: ['longtask'] });
+  } catch {
+    // (a browser without them: left out)
+  }
+}
+
+/**
+ * Watch the frames' pace: every FRAME_WINDOW.seconds of frames in sight is judged (rate, worst, 95th percentile,
+ * stutters), noted in the logbook when slow, and told to `onSlow` with the long tasks seen in it and the heap. A
+ * stretch with the page away, a screen being built, or a freeze (watchFreezes has it) is left out.
+ */
+export function watchFrames(onSlow: (stats: FrameStats, extra: { longTasks: number; heap?: number }) => void, ignored: () => boolean): void {
+  let last: number | undefined;
+  let deltas: number[] = [];
+  let began = 0;
+  let epoch = sightEpoch;
+  const frame = (now: number) => {
+    const moved = epoch !== sightEpoch;
+    epoch = sightEpoch;
+    if (ignored() || now < busyUntil || moved || last === undefined || (now - last) / 1000 > FREEZE) {
+      deltas = [];
+      longTasks = 0;
+      began = now;
+    } else {
+      deltas.push(now - last);
+      if ((now - began) / 1000 >= FRAME_WINDOW.seconds) {
+        const stats = frameStats(deltas);
+        if (stats) {
+          lastStats = stats;
+          if (isSlow(stats)) {
+            note(`slow ${stats.fps} fps, worst ${stats.worst} ms`);
+            onSlow(stats, { longTasks, heap: heapMb() });
+          }
+        }
+        deltas = [];
+        longTasks = 0;
+        began = now;
+      }
+    }
+    last = now;
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
