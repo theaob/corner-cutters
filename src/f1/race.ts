@@ -110,6 +110,8 @@ const LOOK = HD2D_VIEW;
 const PODIUM_HOLD = CEREMONY.len;
 /** How much closer the camera comes for the ceremony. */
 const CEREMONY_ZOOM = 2.6;
+/** s of count (3, 2, 1) after RESUME before the race goes on */
+const RESUME_COUNT = 3;
 
 /** The T-camera colour marking a team's second car. */
 const TCAM_GREEN = '#39ff14';
@@ -423,6 +425,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /** the race is stopped: nothing moves and the clock doesn't run */
   let paused = false;
+  /** s left of the countdown after RESUME (RESUME_COUNT at first): the race is still stopped until it's out */
+  let resumeLeft = 0;
   /** frames to leave out of the quality governor after a pause (the first frame back measures the pause) */
   let settle = 0;
   let last = performance.now();
@@ -462,7 +466,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (on === paused) return;
     paused = on;
     note(on ? 'paused' : 'resumed');
-    setAudioPaused(on);
+    // (back from a pause: three seconds of count first, the race and its sounds held)
+    resumeLeft = !on && !replay && !done ? RESUME_COUNT : 0;
+    if (on || !resumeLeft) setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     if (!on) openPauseSettings(false);
     askExit(false);
@@ -1510,7 +1516,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const dt = Math.min(0.05, real);
     last = now;
     // (the time on the circuit as it passes, slow frames and all; a gap of more than a second is the tab put away)
-    if (!paused && real < 1) drivenSecs += real;
+    if (!paused && !resumeLeft && real < 1) drivenSecs += real;
+    if (resumeLeft > 0) {
+      resumeLeft = Math.max(0, resumeLeft - Math.min(real, 0.1));
+      if (!resumeLeft) {
+        setAudioPaused(false);
+        last = now;
+        settle = 2;
+      }
+    }
     showDeckLabels();
     // the pause screen's settings: the deck moves through them (and nothing else)
     // (a report being made: the deck and keys are its, not the race's)
@@ -1627,7 +1641,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const mine = race.entrants[you].plan;
       if (mine && race.laps >= 3) announceNext(`STRATEGY: ${planText(mine.plan)}${mine.stopAt !== undefined ? ` · BOX LAP ${mine.stopAt}` : ''}`, '#5fe0d0', 4);
     }
-    if (paused || quali?.over || attack?.result) {
+    if (paused || resumeLeft > 0 || quali?.over || attack?.result) {
+      // (the count back into the race: 3, 2, 1, over the still picture)
+      if (!paused && resumeLeft > 0) {
+        banner.style.whiteSpace = '';
+        showBanner(String(Math.ceil(resumeLeft)));
+        banner.style.color = '#f2c14e';
+      }
       // (a screenshot waiting for a frame, the report's: the still picture drawn again for it)
       if (frameWanted()) {
         const q = QUALITY_LEVELS[governor.level];
