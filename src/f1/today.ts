@@ -28,8 +28,10 @@ const PLAYED: PlayEvent['kind'][] = ['race', 'trial-lap', 'attack'];
 /** `e` done now (`day`: today by this device's clock): the day's missions and streak brought up to date and saved. */
 export function played(e: PlayEvent, day: string = localDay()): TodayNews {
   const progress = loadProgress(day);
+  const before = JSON.stringify(progress.progress);
   const { done, all } = count(progress, e);
-  if (done.length) saveProgress(progress);
+  // (every step kept, not just the one that finishes a mission: DRIVE 10 LAPS is ten saves)
+  if (done.length || JSON.stringify(progress.progress) !== before) saveProgress(progress);
   const news: TodayNews = { missions: done, allMissions: all, doneToday: missionsOn(day).filter((m) => isDone(progress, m)).length, achievements: all ? ['busy-day'] : [] };
   if (PLAYED.includes(e.kind)) {
     const s = loadStreak(loadDaily());

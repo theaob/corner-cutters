@@ -147,6 +147,19 @@ describe('playing today', () => {
     expect(played({ kind: 'launch', great: true }, D).streak).toBeUndefined();
   });
 
+  it('progress towards a mission is kept between events, not only when one is finished', () => {
+    // (a day that has DRIVE 10 LAPS)
+    let day = D;
+    while (!missionsOn(day).some((m) => m.id === 'laps')) day = addDays(day, 1);
+    const laps = MISSIONS.find((m) => m.id === 'laps')!;
+    for (let k = 1; k <= 9; k++) {
+      expect(played({ kind: 'lap' }, day).missions).toEqual([]);
+      expect(progressOf(loadProgress(day), laps)).toBe(k);
+    }
+    expect(played({ kind: 'lap' }, day).missions.map((m) => m.id)).toEqual(['laps']);
+    expect(isDone(loadProgress(day), laps)).toBe(true);
+  });
+
   it('the streak achievements at 7 and 30 days, BUSY DAY for all three missions', () => {
     let news = played(raceAt(), D);
     for (let k = 1; k < 7; k++) news = played(raceAt(), addDays(D, k));
