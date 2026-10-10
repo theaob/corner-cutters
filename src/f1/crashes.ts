@@ -63,6 +63,14 @@ export function crashData(crash: Crash, screen: string, dev: Device, crumbs: str
   return withCrumbs({ ...crash, screen, ...extra, device: known }, crumbs, CRASH_DATA_MAX);
 }
 
+/** where the player is on the track, as a short line (set by the race while it runs; see setRaceSpot) */
+let raceSpot: (() => string | undefined) | undefined;
+
+/** The race says where the player is on the track (lap, sector, place) for a problem reported mid-race; undefined: no race. */
+export function setRaceSpot(spot: (() => string | undefined) | undefined): void {
+  raceSpot = spot;
+}
+
 /** what sends a problem (set by watchCrashes) */
 let sendProblem: ((crash: Crash, extra?: Record<string, unknown>) => void) | undefined;
 
@@ -81,6 +89,17 @@ export function watchCrashes(screen: () => { name: string; circuit?: string; mod
     if (sent.has(key) || sent.size >= CRASHES_MAX) return;
     sent.add(key);
     const at = screen();
+    // a problem that throws nothing (a freeze, a slow stretch) has no file and line: it says the circuit and mode, and the
+    // stack's place says the lap, sector and place on the track
+    if (!crash.where && !crash.stack && at.circuit) {
+      let spot: string | undefined;
+      try {
+        spot = raceSpot?.();
+      } catch {
+        // (the race mid-change: no spot)
+      }
+      crash = { ...crash, where: `${at.circuit} · ${at.mode ?? 'race'}`.slice(0, WHERE_MAX), stack: (spot ?? '').slice(0, STACK_MAX) };
+    }
     track('error', { circuit: at.circuit, mode: at.mode, data: crashData(crash, at.name, device(), lines(), extra) });
   };
   sendProblem = send;
