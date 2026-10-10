@@ -1,5 +1,5 @@
-// The Championship's shop (the Google Play build, until it's bought): what it
-// brings (a season, ten rounds, every circuit), its price from Google Play,
+// The Championship's shop (the Google Play and App Store builds, until it's bought): what it
+// brings (a season, ten rounds, every circuit), its price from the store,
 // BUY, RESTORE PURCHASE and BACK. Touch, or keys: up/down moves, A or START
 // picks, SELECT (or the phone's back button) goes back.
 
@@ -9,7 +9,7 @@ import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton } from '../circuitSelect';
 import { CHAMPIONSHIP_LAYOUTS } from '../layouts';
-import { bought, type Shop } from '../purchase';
+import { STORE_NAME, bought, type Shop } from '../purchase';
 import { menuPick, menuTick } from '../sounds';
 import { trophy } from './celebrate';
 import { reportOpen } from '../report';
@@ -44,7 +44,7 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   let busy = false;
   const render = () => {
     const st = shop.state();
-    buyButton.textContent = busy ? 'WITH GOOGLE PLAY…' : st.price ? `UNLOCK · ${st.price}` : st.error ? 'UNLOCK' : 'CONNECTING TO GOOGLE PLAY…';
+    buyButton.textContent = busy ? `WITH ${STORE_NAME}…` : st.price ? `UNLOCK · ${st.price}` : st.error ? 'UNLOCK' : `CONNECTING TO ${STORE_NAME}…`;
     buyButton.disabled = busy || !st.ready;
     status.textContent = st.error ?? '';
   };
@@ -92,7 +92,7 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
     if (ok) finish('owned');
     else {
       render();
-      status.textContent = shop.state().error ?? 'NO PURCHASE FOUND ON THIS GOOGLE ACCOUNT';
+      status.textContent = shop.state().error ?? `NO PURCHASE FOUND ON THIS ${STORE_NAME === 'GOOGLE PLAY' ? 'GOOGLE' : 'APPLE'} ACCOUNT`;
     }
   }
 
