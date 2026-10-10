@@ -30,7 +30,7 @@ import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay,
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { driveStyle, pointsOn } from './driveStyle';
 import { GHOST_HZ, ghostPose, ghostTimeAt, loadGhost, markSplit, newRecorder, recordFrame, saveGhost, toGhost, type Ghost, type LapRecorder } from './timeTrial';
-import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, stopCalled, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, running, skipToParked, stepRace, type Race } from './raceControl';
+import { LIGHTS, SAFETY_CAR, VSC, callVsc, newRace, stopCalled, tyreCall, wrongTyres, type RaceEvent, order as raceOrder, running, settled, skipToParked, stepRace, type Race } from './raceControl';
 import { createSafetyCarMesh } from './safetyCar3d';
 import { createChequeredFlag } from './flag3d';
 import { CEREMONY } from './podium3d';
@@ -421,7 +421,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const recordId = recordKind === 'dry' ? layout.id : `${layout.id}:${recordKind}`;
   const rec = () => records.circuits[recordId];
   /** your laps saved so far this race, whether your finish is saved, and the records this race (or qualifying) set */
-  let saved = { laps: 0, race: false, newLap: false, newRace: false, newQualifying: false };
+  let saved = { laps: 0, race: false, raceTime: false, newLap: false, newRace: false, newQualifying: false };
 
   /** the race is stopped: nothing moves and the clock doesn't run */
   let paused = false;
@@ -645,7 +645,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     hud.setPositionChange(undefined);
     done = false;
     podium = undefined;
-    saved = { laps: 0, race: false, newLap: false, newRace: false, newQualifying: false };
+    saved = { laps: 0, race: false, raceTime: false, newLap: false, newRace: false, newQualifying: false };
     notice = { text: '', color: '', until: 0 };
     nextNotice = undefined;
     skids.clear();
@@ -1932,7 +1932,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // your records: a new lap as soon as it's done (a record announced if it beats one), the race at your flag
     const mine = race.entrants[you].progress;
     // (race laps only: qualifying keeps its own record, set as its good lap ends)
-    if (session === 'race' && (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && !saved.race))) {
+    if (session === 'race' && (mine.lapTimes.length > saved.laps || (mine.finished !== undefined && (!saved.race || !saved.raceTime)))) {
       for (const lap of mine.lapTimes.slice(saved.laps)) {
         play({ kind: 'lap' });
         const had = rec()?.bestLap !== undefined;
@@ -1945,9 +1945,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         }
       }
       saved.laps = mine.lapTimes.length;
-      if (mine.finished !== undefined && !saved.race) {
-        saved.race = true;
+      if (mine.finished !== undefined && !saved.raceTime) {
+        saved.raceTime = true;
         saved.newRace = recordRace(records, recordId, race.laps, mine.finished + mine.penalty);
+      }
+      // the place counts once the others have finished too: their time penalties can still change it
+      if (mine.finished !== undefined && !saved.race && settled(race)) {
+        saved.race = true;
         // achievements for how the race went (and GLOBETROTTER once every circuit's been raced)
         const me = race.entrants[you];
         achieve([
