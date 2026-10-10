@@ -86,16 +86,21 @@ revoke all on function public.daily_ghost(date) from public;
 grant execute on function public.daily_ghost(date) to anon;
 
 -- A day's board: the top `p_top`, and the player's own place and run (if they have one), and how many have run it.
+-- Each set of initials is on it once, with its best run (the same person on two devices, or after a reinstall, has
+-- two player ids); `you` is whoever's initials those are, so your own place is the one you see.
 create or replace function public.daily_board(p_day date, p_player uuid, p_top int default 100) returns jsonb
 language sql stable security definer set search_path = public as $$
-  with ranked as (
-    select player, name, score, time, rank() over (order by score desc, time asc) as place from daily_times where day = p_day
+  with best as (
+    select distinct on (name) name, score, time, bool_or(player = p_player) over (partition by name) as mine
+    from daily_times where day = p_day order by name, score desc, time asc
+  ), ranked as (
+    select name, score, time, mine, rank() over (order by score desc, time asc) as place from best
   )
   select jsonb_build_object(
     'entries', (select count(*) from ranked),
-    'top', (select coalesce(jsonb_agg(jsonb_build_object('place', place, 'name', name, 'score', score, 'time', time, 'you', player = p_player) order by place, time), '[]')
+    'top', (select coalesce(jsonb_agg(jsonb_build_object('place', place, 'name', name, 'score', score, 'time', time, 'you', mine) order by place, time), '[]')
             from (select * from ranked order by place, time limit least(greatest(p_top, 1), 100)) t),
-    'you', (select jsonb_build_object('place', place, 'name', name, 'score', score, 'time', time) from ranked where player = p_player)
+    'you', (select jsonb_build_object('place', place, 'name', name, 'score', score, 'time', time) from ranked where mine)
   );
 $$;
 revoke all on function public.daily_board(date, uuid, int) from public;
