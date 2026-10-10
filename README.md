@@ -209,7 +209,7 @@ Locally (with the Android SDK and JDK 21): `npm run android:play` builds the Goo
 
 ## iOS
 
-The same web build, wrapped by Capacitor into an iOS app (`ios/`, `capacitor.config.ts`): full screen with no status bar, portrait (either way up on an iPad), the screen kept on (`AppDelegate.swift`), played offline, the page laid out under the notch and home bar itself. The Swift packages (Capacitor and its plugins) come through Swift Package Manager, from `node_modules/`, so there's no CocoaPods. Everything is open, as in the APK: the store is only in the Google Play build. iOS has no back button, so the in-game EXIT and BACK do that job; vibration goes through the Haptics plugin (a tap of the Taptic Engine: iOS doesn't take a duration).
+The same web build, wrapped by Capacitor into an iOS app (`ios/`, `capacitor.config.ts`): full screen with no status bar, portrait (either way up on an iPad), the screen kept on (`AppDelegate.swift`), played offline, the page laid out under the notch and home bar itself. The Swift packages (Capacitor and its plugins) come through Swift Package Manager, from `node_modules/`, so there's no CocoaPods. Everything is open, as in the APK, unless the app is built for the App Store (`npm run ios:appstore`: `VITE_STORE=appstore`, the Championship a one-time purchase as in the Google Play build; the listing, the in-app purchase and the screenshots are in `store/appstore/`). iOS has no back button, so the in-game EXIT and BACK do that job; vibration goes through the Haptics plugin (a tap of the Taptic Engine: iOS doesn't take a duration).
 
 **On a Mac** (with Xcode from the App Store, opened once to install its components, and Node 22):
 

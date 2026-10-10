@@ -30,8 +30,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build the web game and copy it into the iOS project
-        run: npm run ios:sync
+      - name: Build the web game (the App Store build) and copy it into the iOS project
+        run: npm run ios:appstore
       - name: Build for the simulator
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
