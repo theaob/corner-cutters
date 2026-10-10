@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { save, useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
 import { REWARDS, addDays, daysBetween, earned, loadStreak, localDay, nextReward, playedOn, saveStreak, streakDue, streakNow, type Streak } from '../src/f1/streak';
@@ -215,5 +215,36 @@ describe('the daily reminder', () => {
     expect(third.title).not.toContain('streak');
     const t = reminderText('2026-10-09', 0);
     expect(t.body).toContain(challengeOn('2026-10-09').layout.name);
+  });
+});
+
+describe('planning the daily reminders', () => {
+  it('schedules over the week’s ids and cancels only what is no longer due', async () => {
+    vi.resetModules();
+    const calls: string[] = [];
+    vi.doMock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true } }));
+    vi.doMock('@capacitor/local-notifications', () => ({
+      LocalNotifications: {
+        checkPermissions: async () => ({ display: 'granted' }),
+        requestPermissions: async () => ({ display: 'granted' }),
+        schedule: async ({ notifications }: { notifications: unknown[] }) => void calls.push(`schedule ${notifications.length}`),
+        cancel: async ({ notifications }: { notifications: unknown[] }) => void calls.push(`cancel ${notifications.length}`),
+        addListener: async () => ({ remove: async () => {} }),
+      },
+    }));
+    const fresh = await import('../src/engine/save');
+    const items = new Map<string, string>();
+    fresh.useSave((await import('../src/f1/save')).CC_SAVE, { getItem: (k) => items.get(k) ?? null, setItem: (k, v) => void items.set(k, v), removeItem: (k) => void items.delete(k) });
+    const { planReminders, setReminder, PLAN_DAYS } = await import('../src/f1/reminder');
+    await setReminder(18);
+    expect(calls).toEqual([`schedule ${PLAN_DAYS}`]);
+    calls.length = 0;
+    await setReminder('off');
+    expect(calls).toEqual([`cancel ${PLAN_DAYS}`]);
+    calls.length = 0;
+    await planReminders();
+    expect(calls).toEqual([`cancel ${PLAN_DAYS}`]);
+    vi.doUnmock('@capacitor/core');
+    vi.doUnmock('@capacitor/local-notifications');
   });
 });

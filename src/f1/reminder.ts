@@ -66,14 +66,24 @@ async function allowed(ask: boolean): Promise<boolean> {
 /** The week's reminders planned afresh, as the setting has them (cancelled when it's off). */
 export async function planReminders(): Promise<void> {
   if (!remindersHere()) return;
+  const ids = Array.from({ length: PLAN_DAYS }, (_, k) => FIRST_ID + k);
   try {
-    await LocalNotifications.cancel({ notifications: Array.from({ length: PLAN_DAYS }, (_, k) => ({ id: FIRST_ID + k })) });
     const setting = reminderSetting();
-    if (typeof setting !== 'number' || !(await allowed(false))) return;
-    const notifications = plan(new Date(), setting).map((n) => ({ id: n.id, title: n.title, body: n.body, schedule: { at: n.at, allowWhileIdle: true }, isExactNotification: false, extra: { open: 'daily' } }));
-    if (notifications.length) await LocalNotifications.schedule({ notifications });
-  } catch {
-    // (no reminders this time: the game goes on)
+    const on = typeof setting === 'number' && (await allowed(false));
+    const due = on ? plan(new Date(), setting) : [];
+    // (scheduled first, over the same ids, and only what's no longer due cancelled after: this runs as the app's put
+    // away, and a webview stopped between a cancel and a schedule would leave the week with no reminders at all)
+    if (due.length) {
+      await LocalNotifications.schedule({
+        notifications: due.map((n) => ({ id: n.id, title: n.title, body: n.body, schedule: { at: n.at, allowWhileIdle: true }, isExactNotification: false, extra: { open: 'daily' } })),
+      });
+    }
+    const kept = new Set(due.map((n) => n.id));
+    const rest = ids.filter((id) => !kept.has(id));
+    if (rest.length) await LocalNotifications.cancel({ notifications: rest.map((id) => ({ id })) });
+  } catch (e) {
+    // (no reminders this time: the game goes on, with the reason in the logbook)
+    console.warn('daily reminders not planned:', e);
   }
 }
 
