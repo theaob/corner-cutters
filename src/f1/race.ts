@@ -57,7 +57,7 @@ import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } fr
 import { RaceSounds, crowdNear, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { note, setGpu, setQuality } from '../engine/logbook';
-import { reportProblem } from './crashes';
+import { reportProblem, setRaceSpot } from './crashes';
 import { menuButton } from './circuitSelect';
 import { settingsRows, versionLine } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
@@ -2338,11 +2338,20 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         });
     }
   };
+  // where you are on the track, for a freeze or slow stretch reported mid-race (crashes.ts)
+  setRaceSpot(() => {
+    const me = race.entrants[you];
+    const place = raceOrder(race).indexOf(you) + 1;
+    const lap = Math.min(me.progress.lap + 1, race.laps);
+    const around = Math.round((me.progress.idx / race.track.samples.length) * 100);
+    return [`${session}${race.phase === 'lights' ? ' (lights)' : ''}`, `lap ${lap}/${race.laps}`, `sector ${Math.min(me.progress.sector + 1, SECTORS)}`, `${around}% round the lap`, place ? `P${place} of ${race.entrants.length}` : '', `${Math.round(speedOf(me.car))} px/s`].filter(Boolean).join(' · ');
+  });
   requestAnimationFrame(tick);
 
   const dispose = () => {
     if (closed) return;
     closed = true;
+    setRaceSpot(undefined);
     // (each part let go even if one before it fails: a race half closed would keep the back button and its overlays,
     // and the next screen would open under them; the first failure is thrown once the rest are done)
     let failed: unknown;
