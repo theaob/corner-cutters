@@ -7,9 +7,8 @@ import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { standsOf } from '../src/f1/stands';
 
 describe('the crowd in the grandstands', () => {
-  it('is on its feet at Dust Bowl, and only there', () => {
-    expect(DUST_BOWL.crowds).toBe(true);
-    for (const l of LAYOUTS) if (l !== DUST_BOWL) expect(l.crowds).toBeFalsy();
+  it('is on its feet in every circuit\'s stands, not only Dust Bowl\'s', () => {
+    for (const l of LAYOUTS) expect('crowds' in l).toBe(false);
   });
 
   it('gets excited quickly as the cars come by, the nearer the more, and settles slowly once they have gone', () => {

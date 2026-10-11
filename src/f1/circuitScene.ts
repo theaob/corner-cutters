@@ -45,7 +45,7 @@ export interface CircuitScene extends Daylight {
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery's people (a street circuit's swimmers and tennis players), `t` seconds on. */
   animate(t: number): void;
-  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway); the monster trucks (layout.monsterTrucks); the crowds cheering (layout.crowds); the planes flying over (layout.airport). */
+  /** The scenery that moves with the race, `dt` s on near `focus` (the camera's), with `cars` about: the cherry blossom's petals (layout.blossoms), falling and kicked up; the gopher (layout.gophers), scurrying across; the yeti (layout.yeti), giving chase; the tramway's cabins (layout.tramway); the monster trucks (layout.monsterTrucks); the crowds cheering (every circuit's grandstands); the planes flying over (layout.airport). */
   stepScenery(dt: number, cars: PetalCar[], focus: { x: number; y: number; vx?: number; vy?: number }): void;
   /** raced at night (layout.night): the glow turned up */
   night: boolean;
@@ -825,8 +825,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // (monster trucks jumping in the infield)
   const mt = circuit.layout.monsterTrucks;
   const trucks = mt ? buildMonsterTrucks(scene, circuit.grid, { x: mt.at[0], y: mt.at[1], angle: mt.angle }) : undefined;
-  // (the crowd in the grandstands on its feet, cheering the cars by)
-  const crowds = circuit.layout.crowds ? buildCrowds(scene, circuit.grid, standsOf(circuit)) : undefined;
+  // (the crowd in every circuit's grandstands on its feet, cheering the cars by)
+  const crowds = buildCrowds(scene, circuit.grid, standsOf(circuit));
 
   const minimap = (mw: number, mh: number) => {
     const [mc, mx] = canvas(mw, mh);

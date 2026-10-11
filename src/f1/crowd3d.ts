@@ -1,4 +1,4 @@
-// The crowd in the grandstands, on its feet (layout.crowds: Dust Bowl): rows of
+// The crowd in the grandstands, on its feet (every circuit's, first the Dust Bowl's): rows of
 // spectators on terraced steps in front of each stand, facing the track. Each
 // stand's crowd gets excited as the cars come by (more, the nearer they are),
 // quickly, and settles slowly once they've gone: excited, they hop and throw

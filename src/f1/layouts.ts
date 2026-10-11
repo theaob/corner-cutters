@@ -69,8 +69,6 @@ export interface CircuitLayout {
   tramway?: { from: [number, number]; to: [number, number] };
   /** a bronze cow charging through a steel arch by the track (cowStatue.ts): where it stands (px, as the circuit's laid out) and the way it charges (radians) */
   statue?: { at: [number, number]; heading: number };
-  /** the crowd on its feet in the grandstands, on steps in front of each, cheering the cars by (crowd3d.ts) */
-  crowds?: boolean;
   /** monster trucks jumping a pile of wrecks in the infield (monsterTrucks.ts): their arena's middle (px, as the circuit's laid out) and the way its lanes run (radians) */
   monsterTrucks?: { at: [number, number]; angle: number };
   /** on dirt: the track's surface loose earth, every car on off-road tyres (tyres.ts), sliding through the bends */
@@ -1134,8 +1132,6 @@ export const DUST_BOWL: CircuitLayout = {
   dirt: true,
   // (and monster trucks in the infield, jumping a pile of wrecks alongside the back straight)
   monsterTrucks: { at: [1040, 1100], angle: 0 },
-  // (and the crowd in the grandstands on its feet, cheering the cars by)
-  crowds: true,
   // (open to everyone from the start, not a round of the Championship)
   free: true,
 };
