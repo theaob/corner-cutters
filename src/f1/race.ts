@@ -2346,6 +2346,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const around = Math.round((me.progress.idx / race.track.samples.length) * 100);
     return [`${session}${race.phase === 'lights' ? ' (lights)' : ''}`, `lap ${lap}/${race.laps}`, `sector ${Math.min(me.progress.sector + 1, SECTORS)}`, `${around}% round the lap`, place ? `P${place} of ${race.entrants.length}` : '', `${Math.round(speedOf(me.car))} px/s`].filter(Boolean).join(' · ');
   });
+  // one frame drawn now, behind the loading card: the first draw of a scene compiles its shaders and sends its meshes and
+  // textures to the graphics chip, seconds on a slow phone, which fell after the curtain lifted (a freeze reported on
+  // the first frames of a race, the car still on the grid)
+  try {
+    const q = QUALITY_LEVELS[governor.level];
+    post.render(0, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur });
+  } catch {
+    // (a frame that fails here fails in the loop too, which reports it)
+  }
   requestAnimationFrame(tick);
 
   const dispose = () => {

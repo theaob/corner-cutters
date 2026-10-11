@@ -58,11 +58,13 @@ describe('crash reporting', () => {
     watchCrashes(() => at, p.target);
     setRaceSpot(() => 'race · lap 2/5 · sector 3 · P4 of 20');
     reportProblem('Slow race: under 15 fps');
-    expect(sent[0].about).toMatchObject({ circuit: 'monza', data: { where: 'monza · race', stack: 'race · lap 2/5 · sector 3 · P4 of 20' } });
+    expect(sent[0].about).toMatchObject({ circuit: 'monza', data: { where: 'monza · race', stack: expect.stringMatching(/^race · lap 2\/5 · sector 3 · P4 of 20\n/) } });
     // (from a menu: no circuit, nothing to say)
     at = { name: 'menu' };
     reportProblem('Slow menu: under 15 fps');
-    expect(sent[1].about).toMatchObject({ data: { where: '', stack: '' } });
+    expect(sent[1].about).toMatchObject({ data: { where: 'menu' } });
+    // (the logbook's last notes under the spot)
+    expect((sent[0].about.data as { stack: string }).stack).toContain('error Slow race: under 15 fps');
     setRaceSpot(undefined);
   });
 

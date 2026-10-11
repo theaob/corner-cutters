@@ -5,7 +5,7 @@
 // from a browser extension's own code; nothing at all when STATS is off in the
 // settings (metrics.ts). Read on the dashboard's ERRORS, behind its code.
 
-import { device, lines, note, withCrumbs, type Device } from '../engine/logbook';
+import { device, lines, note, recent, withCrumbs, type Device } from '../engine/logbook';
 import { track } from './metrics';
 
 /** the most sent a launch */
@@ -14,6 +14,8 @@ export const CRASHES_MAX = 10;
 const MESSAGE_MAX = 200;
 const WHERE_MAX = 120;
 const STACK_MAX = 600;
+/** notes of the logbook that go with a problem's stack */
+const TRAIL = 6;
 
 export interface Crash {
   /** 'error' (thrown) or 'rejection' (a promise refused) */
@@ -89,16 +91,18 @@ export function watchCrashes(screen: () => { name: string; circuit?: string; mod
     if (sent.has(key) || sent.size >= CRASHES_MAX) return;
     sent.add(key);
     const at = screen();
-    // a problem that throws nothing (a freeze, a slow stretch) has no file and line: it says the circuit and mode, and the
-    // stack's place says the lap, sector and place on the track
-    if (!crash.where && !crash.stack && at.circuit) {
+    // a problem that throws nothing (a freeze, a slow stretch) has no file and line: it says the circuit and mode as its
+    // where, and, as its stack, the lap, sector and place on the track and the last few notes of the logbook (the app
+    // hidden or shown, a pause, a lesson: what the dashboard can't otherwise show of what led up to it)
+    if (!crash.where && !crash.stack) {
       let spot: string | undefined;
       try {
         spot = raceSpot?.();
       } catch {
         // (the race mid-change: no spot)
       }
-      crash = { ...crash, where: `${at.circuit} · ${at.mode ?? 'race'}`.slice(0, WHERE_MAX), stack: (spot ?? '').slice(0, STACK_MAX) };
+      const trail = lines(recent(TRAIL)).join('\n');
+      crash = { ...crash, where: at.circuit ? `${at.circuit} · ${at.mode ?? 'race'}`.slice(0, WHERE_MAX) : at.name, stack: [spot, trail].filter(Boolean).join('\n').slice(-STACK_MAX) };
     }
     track('error', { circuit: at.circuit, mode: at.mode, data: crashData(crash, at.name, device(), lines(), extra) });
   };
