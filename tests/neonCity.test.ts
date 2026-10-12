@@ -24,7 +24,7 @@ describe('the night at Neon Strip', () => {
       const n = nightSky(w.sky);
       expect(n.moon).toBe(true);
       expect(n.keyIntensity).toBeLessThan(w.sky.keyIntensity);
-      expect(n.background).toBe(0x0b0a24);
+      expect(n.background).toBe(0x15133a);
     }
     const wet = WEATHERS.find((w) => w.id === 'wet')!;
     expect(nightSky(wet.sky).keyIntensity).toBeLessThan(nightSky(DRY.sky).keyIntensity);
@@ -37,6 +37,22 @@ describe('the night at Neon Strip', () => {
       const d = fromTrack(l);
       expect(d).toBeGreaterThan(HALF_WIDTH);
       expect(d).toBeLessThan(reach + NIGHT.lampOut + 2);
+    }
+  });
+
+  it('keeps each lamp\'s post, arm and pool of light off every other stretch of road', () => {
+    const { samples } = c.track;
+    for (const l of lampsOf(c)) {
+      const own = samples.reduce((b, q, j) => (Math.hypot(q.x - l.x, q.y - l.y) < Math.hypot(samples[b].x - l.x, samples[b].y - l.y) ? j : b), 0);
+      for (const f of [0, 0.55, 1]) {
+        const px = l.x + Math.cos(l.dir) * l.reach * f;
+        const py = l.y + Math.sin(l.dir) * l.reach * f;
+        samples.forEach((q, j) => {
+          const gap = Math.abs(j - own);
+          if (Math.min(gap, samples.length - gap) < Math.ceil(300 / c.track.spacing)) return;
+          expect(Math.hypot(q.x - px, q.y - py)).toBeGreaterThan(HALF_WIDTH + 10);
+        });
+      }
     }
   });
 });
