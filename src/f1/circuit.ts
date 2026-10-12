@@ -4,7 +4,7 @@
 import { buildLevels } from './bridge';
 import type { Grid } from '../engine/sim';
 import type { CircuitLayout } from './layouts';
-import { PIT, between, buildPitLane, type PitLane } from './pits';
+import { GARAGE_ACROSS, PIT, between, buildPitLane, type PitLane } from './pits';
 import { buildTrack, type Track } from './racing';
 
 export const TILE = 16;
@@ -122,6 +122,8 @@ export function laneOut(off: number): number {
   return HALF_WIDTH - off + (PIT.offset + LANE_OUT - HALF_WIDTH) * t;
 }
 /** px from the centreline where the pit wall starts, beyond the track edge */
+/** px past the garages' middle that the levelled pit area reaches, the px it takes to ease back to the surrounding ground, and the px from the track's edge it takes to ease in */
+const PIT_PAD = { back: 24, fade: 60, edge: PIT.offset - LANE_IN - HALF_WIDTH };
 export const PIT_WALL = PIT.offset - LANE_IN - 18;
 
 export interface Circuit {
@@ -333,6 +335,37 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         wsum += w;
       }
       heights.push(wsum ? sum / wsum : 0);
+    }
+  }
+  // the pit area levelled: across the lane and the garages behind it, the ground at the height of the road beside it
+  // (not sloping away from it, which left the garages standing out of the ground or above it), easing back to the
+  // surrounding ground beyond them
+  const padReach = GARAGE_ACROSS + PIT_PAD.back;
+  for (let cy = 0; cy <= H; cy++) {
+    for (let cx = 0; cx <= W; cx++) {
+      const x = cx * TILE;
+      const y = cy * TILE;
+      let best = -1;
+      let bestD = Infinity;
+      // (the lane's own stretch of the lap: another stretch passing nearby isn't what it's level with, and where it is
+      // on or beside that other road, the ground is left to it)
+      let other = Infinity;
+      for (const i of near(x, y, padReach + PIT.offset + PIT_PAD.fade)) {
+        const p = track.samples[i];
+        const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+        if (!between(i, pit.entry, pit.exit, n)) other = Math.min(other, d);
+        else if (d < bestD) [best, bestD] = [i, d];
+      }
+      if (other < (HALF_WIDTH + 30) ** 2) continue;
+      if (best < 0) continue;
+      const p = track.samples[best];
+      const across = ((x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir)) * pit.side;
+      if (across <= HALF_WIDTH) continue;
+      // (eased in from the track's edge, so the road's own slope across it is left as it was, and out beyond the garages)
+      const fade = Math.min(1, (across - HALF_WIDTH) / PIT_PAD.edge, (PIT.offset + padReach + PIT_PAD.fade - across) / PIT_PAD.fade);
+      if (fade <= 0) continue;
+      const at = cy * (W + 1) + cx;
+      heights[at] += (elevationAt(layout.elevation, best / n) - heights[at]) * fade;
     }
   }
   // the jumps: each crest laid over the smoothed ground, across the track and its run-off, easing out beyond
