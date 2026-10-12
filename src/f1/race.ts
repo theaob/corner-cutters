@@ -885,11 +885,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else startRace();
   };
   newWeekend();
+  /** A restart during the count back from a pause: the count's over (the new session isn't held by it), and its sounds are back. */
+  const cancelResumeCount = () => {
+    if (!resumeLeft) return;
+    resumeLeft = 0;
+    setAudioPaused(false);
+    last = performance.now();
+    settle = 2;
+  };
   /**
    * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
    * need to qualify again); without qualifying, a new weekend (new rivals), as ever.
    */
-  const restart = () => (dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
+  const restart = () => (cancelResumeCount(), dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
