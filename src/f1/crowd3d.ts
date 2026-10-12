@@ -8,14 +8,18 @@
 
 import * as THREE from 'three';
 import { groundAt, type Grid } from '../engine/sim';
-import type { Stand } from './stands';
+import { STAND, type Stand } from './stands';
 
 export const CROWD = {
-  /** rows of them, on steps in front of the stand (px deep each, and px higher each row back), and px apart along a row */
-  rows: 3,
-  step: 4.5,
-  riser: 2.6,
-  spacing: 4.5,
+  /** rows of them, on steps in front of the stand's back wall (px deep each, and px higher each row back), and px apart along a row */
+  rows: 6,
+  step: 7,
+  riser: 4.5,
+  spacing: 5.5,
+  /** px: how big a spectator is, to the cars' scale (an F1 car is 14 across and 30 long: about 6 px to the metre) */
+  body: { w: 4.6, h: 6.4, d: 3.4 },
+  head: 3.4,
+  arm: { w: 1.4, h: 5 },
   /** px from the stand's middle within which a car excites its crowd (and fully, this near) */
   near: 360,
   full: 120,
@@ -23,7 +27,7 @@ export const CROWD = {
   rise: 3,
   settle: 0.5,
   /** px they hop at their most excited; hops a second */
-  hop: 2.4,
+  hop: 4,
   hops: 1.3,
 };
 
@@ -42,15 +46,20 @@ export function spectatorPose(excited: number, time: number, phase: number): { h
   return { hop, arms, sway: Math.sin(time * 1.3 + phase) * (0.06 + 0.08 * excited) };
 }
 
+/** A row's x in the stand's own space: the rows climb back from the front of its footprint, the last against its back wall. */
+function rowX(row: number): number {
+  return STAND.depth / 2 - STAND.wall - (CROWD.rows - row) * CROWD.step + CROWD.step / 2;
+}
+
 /** Where each spectator in front of `stand` stands, in the stand's own space (its face toward the track is −x, its length runs along z): x and z, its floor's height off the ground, and its own phase. */
 export function spectatorsOf(stand: Stand, seed: number): { x: number; z: number; floor: number; phase: number }[] {
   const out: { x: number; z: number; floor: number; phase: number }[] = [];
   let s = seed >>> 0;
   const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-  const half = stand.len / 2 - 3;
+  const half = stand.len / 2 - 4;
   for (let row = 0; row < CROWD.rows; row++) {
     // (the front row nearest the track, lowest; each row back a step higher)
-    const x = -9 - (CROWD.rows - row) * CROWD.step + CROWD.step / 2;
+    const x = rowX(row);
     for (let z = -half; z <= half; z += CROWD.spacing) {
       if (r() < 0.12) continue;
       out.push({ x: x + (r() - 0.5), z: z + (r() - 0.5) * 1.5, floor: (row + 1) * CROWD.riser, phase: r() * Math.PI * 2 });
@@ -68,10 +77,10 @@ export function buildCrowds(scene: THREE.Scene, grid: Grid, stands: Stand[]): (d
   const n = people.reduce((a, p) => a + p.length, 0);
   const stepMat = new THREE.MeshLambertMaterial({ color: 0x9a9ea8 });
   const lambert = () => new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const bodies = new THREE.InstancedMesh(new THREE.BoxGeometry(2.6, 3.6, 2).translate(0, 1.8, 0), lambert(), n);
-  const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(1.8, 1.8, 1.8).translate(0, 0.9, 0), lambert(), n);
+  const bodies = new THREE.InstancedMesh(new THREE.BoxGeometry(CROWD.body.w, CROWD.body.h, CROWD.body.d).translate(0, CROWD.body.h / 2, 0), lambert(), n);
+  const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(CROWD.head, CROWD.head, CROWD.head).translate(0, CROWD.head / 2, 0), lambert(), n);
   // (an arm hangs from its shoulder: it turns up about the shoulder)
-  const arm = () => new THREE.InstancedMesh(new THREE.BoxGeometry(0.8, 2.8, 0.8).translate(0, -1.4, 0), lambert(), n);
+  const arm = () => new THREE.InstancedMesh(new THREE.BoxGeometry(CROWD.arm.w, CROWD.arm.h, CROWD.arm.w).translate(0, -CROWD.arm.h / 2, 0), lambert(), n);
   const arms = [arm(), arm()];
   const c = new THREE.Color();
   // the stands' own spaces, and their steps
@@ -81,7 +90,7 @@ export function buildCrowds(scene: THREE.Scene, grid: Grid, stands: Stand[]): (d
     frame.rotation.y = -s.dir + (s.side < 0 ? Math.PI : 0);
     frame.updateMatrixWorld();
     for (let row = 0; row < CROWD.rows; row++) {
-      const x = -9 - (CROWD.rows - row) * CROWD.step + CROWD.step / 2;
+      const x = rowX(row);
       const h = (row + 1) * CROWD.riser;
       const step = new THREE.Mesh(new THREE.BoxGeometry(CROWD.step, h, s.len).translate(x, h / 2, 0), stepMat);
       step.receiveShadow = true;
@@ -123,13 +132,13 @@ export function buildCrowds(scene: THREE.Scene, grid: Grid, stands: Stand[]): (d
         q.setFromEuler(e.set(pose.sway, -Math.PI / 2, 0, 'YXZ'));
         m.compose(v.set(p.x, y, p.z), q, one).premultiply(frame);
         bodies.setMatrixAt(j, m);
-        m.compose(v.set(p.x, y + 3.6, p.z), q, one).premultiply(frame);
+        m.compose(v.set(p.x, y + CROWD.body.h, p.z), q, one).premultiply(frame);
         heads.setMatrixAt(j, m);
         // arms: hanging at its sides, or turned up over its head about the shoulder
         arms.forEach((a, side) => {
           const sign = side === 0 ? -1 : 1;
           q.setFromEuler(e.set(pose.sway, -Math.PI / 2, sign * (0.15 + pose.arms * 2.7), 'YXZ'));
-          m.compose(v.set(p.x, y + 3.3, p.z + sign * 1.7), q, one).premultiply(frame);
+          m.compose(v.set(p.x, y + CROWD.body.h - 0.4, p.z + sign * (CROWD.body.w / 2 + 0.2)), q, one).premultiply(frame);
           a.setMatrixAt(j, m);
         });
         j++;

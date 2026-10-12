@@ -26,12 +26,16 @@ export interface Stand {
 }
 
 export const STAND = {
-  /** px deep (back from the track) and high (with its roof), and long by a bend */
-  depth: 18,
-  height: 22,
-  len: 110,
+  // (to the cars' scale: a car is 14 px across and 30 long, a spectator about 10 high, and the rows of seats rise
+  // in steps about the height of a stair, as they do beside a real track)
+  /** px deep (back from the track: its terraces and its back wall) and high (with its roof), and long by a bend */
+  depth: 56,
+  height: 46,
+  len: 220,
+  /** px deep its back wall (at the back of the footprint, the terraces in front of it) */
+  wall: 14,
   /** and with its flags on top, px high */
-  flags: 32,
+  flags: 62,
   /** px between the run-off's edge and its front */
   gap: 24,
   /** px between stands, at the least, and from the pit lane */
@@ -64,14 +68,14 @@ export function standsOf(circuit: Circuit): Stand[] {
   const side = -pit.side as -1 | 1;
   const stands: Stand[] = [];
   const startStand = (k: number, sd: -1 | 1): Stand => {
-    const p = samples[(n - 20 - k * 16 + 4 * n) % n];
-    const lat = (sd === side ? HALF_WIDTH + runoff + 40 : PIT.offset + GARAGE_ACROSS + 60) * sd;
-    return { x: p.x + Math.cos(p.dir) * lat, y: p.y + Math.sin(p.dir) * lat, dir: p.dir, side: sd, len: 110, at: 'start' };
+    const p = samples[(n - 20 - k * 8 + 4 * n) % n];
+    const lat = (sd === side ? HALF_WIDTH + runoff + 22 + STAND.depth / 2 : PIT.offset + GARAGE_ACROSS + 40 + STAND.depth / 2) * sd;
+    return { x: p.x + Math.cos(p.dir) * lat, y: p.y + Math.sin(p.dir) * lat, dir: p.dir, side: sd, len: STAND.len, at: 'start' };
   };
   for (const sd of [side, -side as -1 | 1]) {
-    for (let k = 0; k < 12 && stands.length < 3; k++) {
+    for (let k = 0; k < 36 && stands.length < 3; k++) {
       // (on the straight: not round the bend before it)
-      if (Math.abs(samples[(n - 20 - k * 16 + 4 * n) % n].curve) >= 1 / 700) break;
+      if (Math.abs(samples[(n - 20 - k * 8 + 4 * n) % n].curve) >= 1 / 700) break;
       const s = startStand(k, sd);
       if (clear(s) && stands.every((o) => Math.hypot(o.x - s.x, o.y - s.y) >= s.len)) stands.push(s);
     }

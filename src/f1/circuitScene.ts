@@ -29,7 +29,7 @@ import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Ci
 import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
-import { standsOf } from './stands';
+import { STAND, standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
 import { buildForest, type Tree } from './forest3d';
 import { buildCamels } from './camels';
@@ -661,12 +661,12 @@ function paint(circuit: Circuit): HTMLCanvasElement {
 }
 
 function grandstand(len: number, roofColor = 0x3d7fc4): THREE.Mesh {
-  const [c, x] = canvas(len, 20);
+  const [c, x] = canvas(len, STAND.height);
   x.fillStyle = '#6c707a';
-  x.fillRect(0, 0, len, 20);
+  x.fillRect(0, 0, len, STAND.height);
   const r = rng(len);
   const shirts = ['#d8323c', '#f2c14e', '#3d7fc4', '#f4f4f8', '#5fe0d0', '#ff5fb8', '#8a3cc8'];
-  for (let row = 2; row < 18; row += 3) {
+  for (let row = 2; row < STAND.height - 2; row += 3) {
     for (let k = 1; k < len - 1; k += 2) {
       if (r() < 0.8) {
         x.fillStyle = shirts[Math.floor(r() * shirts.length)];
@@ -677,9 +677,13 @@ function grandstand(len: number, roofColor = 0x3d7fc4): THREE.Mesh {
   const crowd = new THREE.MeshLambertMaterial({ map: pixelTexture(c) });
   const grey = new THREE.MeshLambertMaterial({ color: 0x8e929c });
   const roof = new THREE.MeshLambertMaterial({ color: roofColor });
-  // a stepped stand is suggested by a tall box with the crowd painted on the face toward the track (−x)
+  // its back wall, the terraces (crowd3d.ts) rising against it, with the crowd painted on the wall's face toward the
+  // track (−x), and a canopy over the back rows; the stand's own space has its footprint's middle on the ground
   // (its grey faces one draw call, not four)
-  const m = mergedByMaterial([{ geometry: new THREE.BoxGeometry(18, 22, len), faces: [grey, crowd, roof, grey, grey, grey] }]);
+  const m = mergedByMaterial([
+    { geometry: new THREE.BoxGeometry(STAND.wall, STAND.height, len).translate(STAND.depth / 2 - STAND.wall / 2, STAND.height / 2, 0), faces: [grey, crowd, roof, grey, grey, grey] },
+    { geometry: new THREE.BoxGeometry(24, 2, len).translate(STAND.depth / 2 - STAND.wall - 10, STAND.height - 7, 0), faces: [roof, roof, roof, roof, roof, roof] },
+  ]);
   m.castShadow = m.receiveShadow = true;
   return m;
 }
@@ -779,17 +783,17 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const flags: { flag: THREE.Mesh; phase: number }[] = [];
   standsOf(circuit).forEach((s, k) => {
     const stand = grandstand(s.len, s.at === 'start' ? 0x3d7fc4 : roofs[k % roofs.length]);
-    stand.position.set(s.x, groundAt(grid, s.x, s.y).h + 11, s.y);
+    stand.position.set(s.x, groundAt(grid, s.x, s.y).h, s.y);
     // (the crowd's face toward the track)
     stand.rotation.y = -s.dir + (s.side < 0 ? Math.PI : 0);
     scene.add(stand);
     // flags on poles along its back, in the teams' colours
     for (const along of [-0.35, 0, 0.35]) {
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 10, 4), new THREE.MeshLambertMaterial({ color: 0xc9ccd4 }));
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(8, 5).translate(4, 0, 0), new THREE.MeshLambertMaterial({ color: FLAG_COLORS[(k * 3 + Math.round(along * 3) + 1) % FLAG_COLORS.length], side: THREE.DoubleSide }));
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, STAND.flags - STAND.height, 4), new THREE.MeshLambertMaterial({ color: 0xc9ccd4 }));
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(13, 8).translate(6.5, 0, 0), new THREE.MeshLambertMaterial({ color: FLAG_COLORS[(k * 3 + Math.round(along * 3) + 1) % FLAG_COLORS.length], side: THREE.DoubleSide }));
       // (in the stand's own space: its back is +x, away from the track; its length runs along z)
-      pole.position.set(7, 16, along * s.len);
-      flag.position.set(7, 18.5, along * s.len);
+      pole.position.set(STAND.depth / 2 - STAND.wall / 2, STAND.height + (STAND.flags - STAND.height) / 2, along * s.len);
+      flag.position.set(STAND.depth / 2 - STAND.wall / 2, STAND.flags - 4, along * s.len);
       stand.add(pole, flag);
       flags.push({ flag, phase: k * 1.7 + along * 5 });
     }

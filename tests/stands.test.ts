@@ -15,10 +15,10 @@ describe.each(LAYOUTS)('the grandstands at $name', (layout) => {
   const fromTrack = (x: number, y: number) => Math.min(...c.track.samples.map((p) => Math.hypot(p.x - x, p.y - y)));
 
   it(layout.street ? 'line the main straight (the town is round the bends)' : 'line the main straight and the outside of the bends', () => {
-    expect(stands.filter((s) => s.at === 'start')).toHaveLength(3);
+    // (three side by side, each as long as seven cars end to end, where the straight is long enough: two on Nippon's and Dune Coast's)
+    expect(stands.filter((s) => s.at === 'start').length).toBeGreaterThanOrEqual(2);
     if (layout.street) expect(stands.filter((s) => s.at === 'bend')).toHaveLength(0);
-    // (at Volcano Isle, four: the lava river runs round the outside of its top hairpin)
-    else expect(stands.filter((s) => s.at === 'bend').length).toBeGreaterThanOrEqual(layout.volcano ? 4 : 5);
+    else expect(stands.filter((s) => s.at === 'bend').length).toBeGreaterThanOrEqual(4);
   });
   it('stand clear of the track and its run-off, every one of them, the main straight\'s too (another stretch can pass behind it)', () => {
     for (const s of stands) {
