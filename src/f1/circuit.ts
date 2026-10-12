@@ -122,7 +122,7 @@ export function laneOut(off: number): number {
   return HALF_WIDTH - off + (PIT.offset + LANE_OUT - HALF_WIDTH) * t;
 }
 /** px from the centreline where the pit wall starts, beyond the track edge */
-const PIT_WALL = PIT.offset - LANE_IN - 18;
+export const PIT_WALL = PIT.offset - LANE_IN - 18;
 
 export interface Circuit {
   layout: CircuitLayout;
