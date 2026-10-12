@@ -460,14 +460,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       });
     }
   };
-  const setPaused = (on: boolean) => {
+  const setPaused = (on: boolean, count = true) => {
     // (paused: the race kept on the device, to come back to if the app's closed now)
     if (on) keepNow();
     if (on === paused) return;
     paused = on;
     note(on ? 'paused' : 'resumed');
     // (back from a pause: three seconds of count first, the race and its sounds held)
-    resumeLeft = !on && !replay && !done ? RESUME_COUNT : 0;
+    resumeLeft = !on && count && !replay && !done ? RESUME_COUNT : 0;
     if (on || !resumeLeft) setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     if (!on) openPauseSettings(false);
@@ -628,7 +628,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     tookDamage = false;
     startHits.clear();
     paintRows(medalLine, '');
-    setPaused(false);
+    // (a new session from the pause menu: no count back into it)
+    setPaused(false, false);
     resetClock(simClock);
     before = undefined;
     frameEvents = [];
