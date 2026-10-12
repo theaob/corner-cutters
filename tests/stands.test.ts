@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { carClass } from '../src/engine/driving';
-import { HALF_WIDTH, RUNOFF, buildCircuit } from '../src/f1/circuit';
+import { HALF_WIDTH, RUNOFF, TILE, buildCircuit } from '../src/f1/circuit';
+import { barrierTiles } from '../src/f1/circuitScene';
 import { LAYOUTS } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { STAND, standsOf } from '../src/f1/stands';
@@ -28,6 +29,24 @@ describe.each(LAYOUTS)('the grandstands at $name', (layout) => {
         const x = s.x + ax.x * u * s.len + ac.x * v * STAND.depth;
         const y = s.y + ax.y * u * s.len + ac.y * v * STAND.depth;
         expect(fromTrack(x, y)).toBeGreaterThan(reach);
+      }
+    }
+  });
+  it('stand clear of the barriers, the run-off and the pit lane: every point of each on plain ground, a tile from any of them', () => {
+    const barrier = new Set([...barrierTiles(c).walls, ...barrierTiles(c).pitWall, ...barrierTiles(c).bankWall].map(([i, j]) => j * c.width + i));
+    for (const s of stands) {
+      const ax = { x: Math.sin(s.dir), y: -Math.cos(s.dir) };
+      const ac = { x: Math.cos(s.dir), y: Math.sin(s.dir) };
+      for (let u = -s.len / 2; u <= s.len / 2; u += TILE / 2) for (let v = -STAND.depth / 2; v <= STAND.depth / 2; v += TILE / 2) {
+        const tx = Math.floor((s.x + ax.x * u + ac.x * v) / TILE);
+        const ty = Math.floor((s.y + ax.y * u + ac.y * v) / TILE);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const i = tx + dx;
+          const j = ty + dy;
+          if (i < 0 || j < 0 || i >= c.width || j >= c.height) continue;
+          expect(c.cells[j * c.width + i]).toBe('wall');
+        }
+        expect(barrier.has(ty * c.width + tx)).toBe(false);
       }
     }
   });
