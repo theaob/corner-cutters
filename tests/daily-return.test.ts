@@ -220,6 +220,8 @@ describe('the daily reminder', () => {
 
 describe('planning the daily reminders', () => {
   it('schedules over the week’s ids and cancels only what is no longer due', async () => {
+    // (a morning, so that today's 18:00 reminder is still due whenever the test runs)
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 12, 9, 0, 0) });
     vi.resetModules();
     const calls: string[] = [];
     vi.doMock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true } }));
@@ -246,5 +248,6 @@ describe('planning the daily reminders', () => {
     expect(calls).toEqual([`cancel ${PLAN_DAYS}`]);
     vi.doUnmock('@capacitor/core');
     vi.doUnmock('@capacitor/local-notifications');
+    vi.useRealTimers();
   });
 });
