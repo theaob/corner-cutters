@@ -44,15 +44,31 @@ export function lampsOf(circuit: Circuit): { x: number; y: number; dir: number; 
   const out: { x: number; y: number; dir: number; reach: number }[] = [];
   const runoff = circuit.layout.street?.runoff ?? 72;
   const off = HALF_WIDTH + runoff + NIGHT.lampOut;
+  // (samples this close along the lap are the lamp's own stretch of track)
+  const alongside = Math.ceil(300 / spacing);
   for (let i = 0; i < samples.length; i += step) {
     const p = samples[i];
     // (staggered: one side, then the other half a step on)
     const side = (i / step) % 2 === 0 ? 1 : -1;
     const x = p.x + Math.cos(p.dir) * off * side;
     const y = p.y + Math.sin(p.dir) * off * side;
-    // (not where another stretch of track runs: a lamp is never on the racing surface)
-    if (samples.some((q) => Math.hypot(q.x - x, q.y - y) < HALF_WIDTH + 10)) continue;
-    out.push({ x, y, dir: p.dir + (side > 0 ? Math.PI : 0), reach: off - HALF_WIDTH * 0.4 });
+    // (a lamp is never on the racing surface, nor does its arm or its pool of light reach over another stretch of track: where
+    // the road doubles back close by, it is left out)
+    const lamp = { x, y, dir: p.dir + (side > 0 ? Math.PI : 0), reach: off - HALF_WIDTH * 0.4 };
+    const ax = Math.cos(lamp.dir);
+    const ay = Math.sin(lamp.dir);
+    const spots = [
+      { x, y, r: HALF_WIDTH + 10 },
+      { x: x + ax * lamp.reach * 0.55, y: y + ay * lamp.reach * 0.55, r: HALF_WIDTH + 10 },
+      { x: x + ax * lamp.reach, y: y + ay * lamp.reach, r: HALF_WIDTH + NIGHT.pool * 0.35 },
+    ];
+    const clear = samples.every((q, j) => {
+      const gap = Math.abs(j - i);
+      if (Math.min(gap, samples.length - gap) < alongside) return true;
+      return spots.every((c) => Math.hypot(q.x - c.x, q.y - c.y) >= c.r);
+    });
+    if (!clear) continue;
+    out.push(lamp);
   }
   return out;
 }
