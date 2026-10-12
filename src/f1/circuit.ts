@@ -112,6 +112,15 @@ export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'apron' | 'wal
 /** px from the lane's centre that its tiles reach: on the track's side (up to the pit wall), and away from it */
 export const LANE_IN = 42;
 export const LANE_OUT = 56;
+/**
+ * px from the lane's centre that its tiles reach away from the track, where its centre is `off` px out from the
+ * track's centreline: at the join, only to the track's own edge (the road leaves the track flush with it, the edge
+ * running on unbroken), widening to the lane's full reach as the road moves out to the pit wall.
+ */
+export function laneOut(off: number): number {
+  const t = Math.max(0, Math.min(1, (off - PIT.joinAt) / (PIT.offset - PIT.joinAt)));
+  return HALF_WIDTH - off + (PIT.offset + LANE_OUT - HALF_WIDTH) * t;
+}
 /** px from the centreline where the pit wall starts, beyond the track edge */
 const PIT_WALL = PIT.offset - LANE_IN - 18;
 
@@ -189,14 +198,14 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   // (from the samples, already shifted onto the map)
   const pit = buildPitLane(track, layout.pit);
   /** px across the pit lane (+ = away from the track) of (x, y), if it's beside the lane */
-  const acrossLane = (x: number, y: number): number | undefined => {
+  const acrossLane = (x: number, y: number): { across: number; out: number } | undefined => {
     let best: (typeof pit.points)[0] | undefined;
     let bestD = (LANE_OUT + 24) ** 2;
     for (const q of pit.points) {
       const d = (q.x - x) ** 2 + (q.y - y) ** 2;
       if (d < bestD) [best, bestD] = [q, d];
     }
-    return best && ((x - best.x) * Math.cos(best.dir) + (y - best.y) * Math.sin(best.dir)) * pit.side;
+    return best && { across: ((x - best.x) * Math.cos(best.dir) + (y - best.y) * Math.sin(best.dir)) * pit.side, out: laneOut(best.off) };
   };
   /** px from the track's edge to the walls: the run-off, or a street circuit's pavement */
   const runoff = layout.street?.runoff ?? RUNOFF;
@@ -246,12 +255,12 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
       // the pit lane and its wall, beside the main straight on the pit side
       if (i >= 0 && d > HALF_WIDTH + 4) {
         const side = ((x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir)) * pit.side > 0;
-        const across = side ? acrossLane(x, y) : undefined;
+        const lane = side ? acrossLane(x, y) : undefined;
         if (side && between(i, pit.wallFrom, pit.wallTo, n) && d > PIT_WALL && d <= PIT.offset - LANE_IN) {
           cells.push('pitwall');
           continue;
         }
-        if (across !== undefined && across >= -LANE_IN && across <= LANE_OUT) {
+        if (lane && lane.across >= -LANE_IN && lane.across <= lane.out) {
           cells.push('pit');
           continue;
         }

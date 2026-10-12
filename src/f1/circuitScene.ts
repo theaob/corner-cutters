@@ -25,7 +25,7 @@ import { buildStreetLights, nightSky } from './night';
 import { buildCowStatue, statueOf } from './cowStatue';
 import { buildCrowds } from './crowd3d';
 import { GARAGE_ACROSS, PIT } from './pits';
-import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, TILE as T, kerbed, type Circuit } from './circuit';
+import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, laneOut, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
@@ -427,28 +427,21 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   x.lineCap = 'butt';
   // the pit lane: asphalt under the track's, so the track's edge runs unbroken past the entry and exit
   const { pit } = circuit;
-  const lane = (across: number) => pit.points.map((p) => ({ x: p.x + Math.cos(p.dir) * across * pit.side, y: p.y + Math.sin(p.dir) * across * pit.side }));
-  /** a line along the lane, `across` px out, left out where it would fold back on itself (round the inside of a tight bend on an entry or exit road) */
-  const laneLine = (across: number) => {
-    const pts = lane(across);
-    x.beginPath();
-    let pen = false;
-    pts.forEach((q, k) => {
-      const d = pit.points[k].dir;
-      const prev = pts[k - 1];
-      const forward = prev ? (q.x - prev.x) * Math.sin(d) - (q.y - prev.y) * Math.cos(d) > 0 : false;
-      if (pen && forward) x.lineTo(q.x, q.y);
-      else x.moveTo(q.x, q.y);
-      pen = true;
-    });
-  };
-  x.strokeStyle = dirt ? DIRT.lane : '#4a4d59';
-  x.lineWidth = LANE_IN + LANE_OUT;
-  laneLine((LANE_OUT - LANE_IN) / 2);
-  x.stroke();
+  /** the lane's points, `across(k)` px out from the lane's centre (toward the pit wall) */
+  const lane = (across: (k: number) => number) => pit.points.map((p, k) => ({ x: p.x + Math.cos(p.dir) * across(k) * pit.side, y: p.y + Math.sin(p.dir) * across(k) * pit.side }));
+  const reach = (k: number) => laneOut(pit.points[k].off);
+  /** the lane's edge on the pit-wall side: flush with the track's edge where the road leaves it, out to the lane's full width */
+  const outerEdge = (back = 0) => lane((k) => reach(k) - back);
+  const inner = lane(() => -LANE_IN);
+  x.fillStyle = dirt ? DIRT.lane : '#4a4d59';
+  x.beginPath();
+  [...outerEdge(), ...inner.reverse()].forEach((q, k) => (k ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y)));
+  x.closePath();
+  x.fill();
   x.strokeStyle = '#e8e8ee';
   x.lineWidth = 2;
-  laneLine(LANE_OUT - 4);
+  x.beginPath();
+  outerEdge(4).forEach((q, k) => (k ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y)));
   x.stroke();
   // the boxes: a yellow frame each, beside the fast lane
   x.strokeStyle = '#f2c14e';
