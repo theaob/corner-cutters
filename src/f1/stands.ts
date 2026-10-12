@@ -5,7 +5,7 @@
 // Each is clear of the track, the pits and the other stands, and never so tall
 // that it hides the track from the camera (looking down from the south).
 
-import { HALF_WIDTH, RUNOFF, type Circuit } from './circuit';
+import { HALF_WIDTH, RUNOFF, TILE, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
 import { seeOver } from './town3d';
 import { GARAGE_ACROSS, PIT } from './pits';
@@ -37,7 +37,7 @@ export const STAND = {
   /** and with its flags on top, px high */
   flags: 62,
   /** px between the run-off's edge and its front */
-  gap: 24,
+  gap: 40,
   /** px between stands, at the least, and from the pit lane */
   apart: 170,
   clearOfPits: 110,
@@ -48,6 +48,31 @@ function corners(s: Stand): { x: number; y: number }[] {
   const ax = { x: Math.sin(s.dir), y: -Math.cos(s.dir) };
   const ac = { x: Math.cos(s.dir), y: Math.sin(s.dir) };
   return [-1, 1].flatMap((u) => [-1, 1].map((v) => ({ x: s.x + ax.x * (u * s.len) / 2 + ac.x * (v * STAND.depth) / 2, y: s.y + ax.y * (u * s.len) / 2 + ac.y * (v * STAND.depth) / 2 })));
+}
+
+/**
+ * Whether a stand's footprint is on open ground: every point of it (and a tile round it) on plain ground beyond the
+ * barriers, none on or beside the run-off, the barriers (the first ring of wall tiles), the pit lane or its wall.
+ */
+function onOpenGround(circuit: Circuit, s: Stand): boolean {
+  const { width: W, height: H, cells } = circuit;
+  const ax = { x: Math.sin(s.dir), y: -Math.cos(s.dir) };
+  const ac = { x: Math.cos(s.dir), y: Math.sin(s.dir) };
+  const step = TILE / 2;
+  for (let u = -s.len / 2; u <= s.len / 2 + 0.01; u += step) {
+    for (let v = -STAND.depth / 2; v <= STAND.depth / 2 + 0.01; v += step) {
+      const tx = Math.floor((s.x + ax.x * u + ac.x * v) / TILE);
+      const ty = Math.floor((s.y + ax.y * u + ac.y * v) / TILE);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const i = tx + dx;
+          const j = ty + dy;
+          if (i >= 0 && j >= 0 && i < W && j < H && cells[j * W + i] !== 'wall') return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 /** A circuit's grandstands. */
@@ -61,7 +86,7 @@ export function standsOf(circuit: Circuit): Stand[] {
   /** clear of every stretch of the track and its run-off (another can pass close behind a stand, round a bend), and out of any lake */
   const lakes = lakesOf(circuit);
   const volcano = volcanoOf(circuit);
-  const clear = (s: Stand) => [...corners(s), s].every((c) => fromTrack(c.x, c.y) >= HALF_WIDTH + runoff + 8 && !inLake(lakes, c.x, c.y, 20) && !nearLava(volcano, c.x, c.y, 20));
+  const clear = (s: Stand) => [...corners(s), s].every((c) => fromTrack(c.x, c.y) >= HALF_WIDTH + runoff + 8 && !inLake(lakes, c.x, c.y, 20) && !nearLava(volcano, c.x, c.y, 20)) && onOpenGround(circuit, s);
   // the main straight's: three side by side behind the start line, across from the pits; one with another stretch
   // of track close behind it moves on back along the straight (and, as a last resort, over to the pit side, past
   // the garages)
@@ -69,7 +94,7 @@ export function standsOf(circuit: Circuit): Stand[] {
   const stands: Stand[] = [];
   const startStand = (k: number, sd: -1 | 1): Stand => {
     const p = samples[(n - 20 - k * 8 + 4 * n) % n];
-    const lat = (sd === side ? HALF_WIDTH + runoff + 22 + STAND.depth / 2 : PIT.offset + GARAGE_ACROSS + 40 + STAND.depth / 2) * sd;
+    const lat = (sd === side ? HALF_WIDTH + runoff + STAND.gap + STAND.depth / 2 : PIT.offset + GARAGE_ACROSS + 40 + STAND.depth / 2) * sd;
     return { x: p.x + Math.cos(p.dir) * lat, y: p.y + Math.sin(p.dir) * lat, dir: p.dir, side: sd, len: STAND.len, at: 'start' };
   };
   for (const sd of [side, -side as -1 | 1]) {
