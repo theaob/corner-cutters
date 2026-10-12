@@ -4,7 +4,7 @@ import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
 import { CROWD, excitement, spectatorPose, spectatorsOf } from '../src/f1/crowd3d';
 import { DUST_BOWL, LAYOUTS } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { standsOf } from '../src/f1/stands';
+import { STAND, standsOf } from '../src/f1/stands';
 
 describe('the crowd in the grandstands', () => {
   it('is on its feet in every circuit\'s stands, not only Dust Bowl\'s', () => {
@@ -46,8 +46,8 @@ describe('the crowd in the grandstands', () => {
       expect(people.length).toBeGreaterThan((s.len / CROWD.spacing) * CROWD.rows * 0.7);
       for (const p of people) {
         // (in front of its face, −x; within its length)
-        expect(p.x).toBeLessThan(-9);
-        expect(p.x).toBeGreaterThan(-9 - CROWD.rows * CROWD.step - 1);
+        expect(p.x).toBeLessThan(STAND.depth / 2 - STAND.wall);
+        expect(p.x).toBeGreaterThan(-STAND.depth / 2 - 1);
         expect(Math.abs(p.z)).toBeLessThan(s.len / 2);
         // on the map: off the track
         const turn = -s.dir + (s.side < 0 ? Math.PI : 0);

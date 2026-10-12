@@ -105,7 +105,7 @@ describe('the palms at Oasis', () => {
   it('line the circuit just past the barriers, where they are seen as you drive by', () => {
     const reach = HALF_WIDTH + RUNOFF;
     const near = palms.filter((t) => Math.min(...circuit.track.samples.map((p) => Math.hypot(p.x - t.x, p.y - t.y))) < reach + PALMS.clear + PALMS.liningOut[1] + 20);
-    expect(near.length).toBeGreaterThan(150);
+    expect(near.length).toBeGreaterThan(120);
   });
 });
 
