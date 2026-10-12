@@ -24,8 +24,8 @@ import { buildNeonCity } from './neonCity';
 import { buildStreetLights, nightSky } from './night';
 import { buildCowStatue, statueOf } from './cowStatue';
 import { buildCrowds } from './crowd3d';
-import { GARAGE_ACROSS, PIT } from './pits';
-import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, RUNOFF, laneOut, TILE as T, kerbed, type Circuit } from './circuit';
+import { GARAGE_ACROSS, PIT, between } from './pits';
+import { HALF_WIDTH, KERB, LANE_IN, LANE_OUT, PIT_WALL, RUNOFF, laneOut, TILE as T, kerbed, type Circuit } from './circuit';
 import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 import { buildTown, inside, seaOf } from './town3d';
@@ -710,7 +710,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // tyre walls: on every wall tile that touches the run-off, stacked red and white (the garages
   // stand behind the pit lane instead, where they are: along the lane's entry and exit roads, past them, the walls
   // carry on); concrete blocks along the pit wall
-  const { walls, pitWall, bankWall } = barrierTiles(circuit);
+  const { walls, bankWall } = barrierTiles(circuit);
   // (a street circuit: steel barriers, grey with red and white bands, in place of tyre stacks)
   const tyres = new THREE.InstancedMesh(street ? new THREE.BoxGeometry(T, 9, T) : new THREE.CylinderGeometry(7, 7, 7, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }), walls.length);
   const m = new THREE.Matrix4();
@@ -740,11 +740,24 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     concrete.castShadow = concrete.receiveShadow = true;
     scene.add(concrete, fence);
   }
-  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(T, 8, T), new THREE.MeshLambertMaterial({ color: 0xc9ccd4 }), pitWall.length);
-  pitWall.forEach(([i, j], k) => {
-    m.makeTranslation((i + 0.5) * T, groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h + 4, (j + 0.5) * T);
-    blocks.setMatrixAt(k, m);
-  });
+  // the pit wall: a run of blocks along the lane (not a square tile each, which stairs up and down a lane that runs
+  // across the map's grid), turned to the lane's direction, its outer face on the garages' side of the lane
+  const wallPts = circuit.pit.points.filter((p) => between(p.idx, circuit.pit.wallFrom, circuit.pit.wallTo, circuit.track.samples.length));
+  const wallThick = PIT.offset - LANE_IN - PIT_WALL;
+  const wallAcross = -(PIT.offset - PIT_WALL - wallThick / 2) * circuit.pit.side;
+  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(wallThick, 8, 1), new THREE.MeshLambertMaterial({ color: 0xc9ccd4 }), Math.max(0, wallPts.length - 1));
+  const segment = new THREE.Object3D();
+  for (let k = 0; k + 1 < wallPts.length; k++) {
+    const a = wallPts[k];
+    const b = wallPts[k + 1];
+    const x = (a.x + b.x) / 2 + Math.cos(a.dir) * wallAcross;
+    const y = (a.y + b.y) / 2 + Math.sin(a.dir) * wallAcross;
+    segment.position.set(x, groundAt(grid, x, y).h + 4, y);
+    segment.rotation.y = -Math.atan2(b.x - a.x, -(b.y - a.y));
+    segment.scale.set(1, 1, Math.hypot(b.x - a.x, b.y - a.y) + 0.6);
+    segment.updateMatrix();
+    blocks.setMatrixAt(k, segment.matrix);
+  }
   blocks.castShadow = blocks.receiveShadow = true;
   scene.add(blocks);
 
