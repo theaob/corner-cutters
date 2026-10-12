@@ -26,12 +26,12 @@ export function nightSky(sky: SkyState): SkyState {
   const day = Math.min(1, sky.keyIntensity / 2.6);
   return {
     ...sky,
-    background: 0x0b0a24,
-    sky: 0x4a4a9a,
-    ground: 0x3a2030,
-    ambient: 0.9 + 0.25 * (1 - day),
-    key: 0xa8b4ff,
-    keyIntensity: 0.25 + 0.35 * day,
+    background: 0x15133a,
+    sky: 0x7a7ad0,
+    ground: 0x6a4658,
+    ambient: 1.7 + 0.3 * (1 - day),
+    key: 0xbcc6ff,
+    keyIntensity: 0.5 + 0.5 * day,
     moon: true,
     lights: 1,
   };
@@ -83,7 +83,7 @@ export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circu
   const head = new THREE.InstancedMesh(new THREE.BoxGeometry(6, 1.6, 3), new THREE.MeshBasicMaterial({ color: 0xffe2a8, toneMapped: false }), lamps.length);
   const pool = new THREE.InstancedMesh(
     new THREE.PlaneGeometry(NIGHT.pool, NIGHT.pool).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.55, toneMapped: false }),
+    new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.7, toneMapped: false }),
     lamps.length,
   );
   const m = new THREE.Matrix4();

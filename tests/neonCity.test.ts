@@ -24,7 +24,7 @@ describe('the night at Neon Strip', () => {
       const n = nightSky(w.sky);
       expect(n.moon).toBe(true);
       expect(n.keyIntensity).toBeLessThan(w.sky.keyIntensity);
-      expect(n.background).toBe(0x0b0a24);
+      expect(n.background).toBe(0x15133a);
     }
     const wet = WEATHERS.find((w) => w.id === 'wet')!;
     expect(nightSky(wet.sky).keyIntensity).toBeLessThan(nightSky(DRY.sky).keyIntensity);
