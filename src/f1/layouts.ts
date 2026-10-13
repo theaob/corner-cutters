@@ -19,6 +19,8 @@ export interface CircuitLayout {
   about: string;
   /** the kerb's stripe colours, in turn (red and white unless given) */
   kerb?: string[];
+  /** a playing-card suit painted on each kerb stripe, in turn */
+  kerbSuits?: boolean;
   /** centreline control points (px, before scaling), in racing order; the first is on the start/finish line */
   points: Pt[];
   /** px per unit of `points` */
@@ -926,6 +928,7 @@ export const VEGAS: CircuitLayout = {
   id: 'vegas',
   name: 'Neon Strip',
   about: 'anticlockwise · at night, down the Strip under the neon',
+  kerbSuits: true,
   points: ([
     [599, 1937], [627, 1937], [655, 1937], [683, 1937], [711, 1937], [739, 1936],
     [767, 1934], [795, 1930], [822, 1925], [850, 1920], [878, 1915], [903, 1905],
