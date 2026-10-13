@@ -575,12 +575,14 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fill();
           // (a card suit on the stripe's middle, once, however many steps the stripe spans)
           const mid1 = stripe * KERB.stripe + KERB.stripe / 2;
-          if (circuit.layout.kerbSuits && seg > 0 && mid1 >= along + t0 * seg - 1e-6 && mid1 < along + t1 * seg) {
+          if (circuit.layout.kerbSuits && stripe % 2 === 1 && seg > 0 && mid1 >= along + t0 * seg - 1e-6 && mid1 < along + t1 * seg) {
             const t = (mid1 - along) / seg;
             const c = lerp(mid, t);
             const ang = Math.atan2(mid[b].y - mid[a].y, mid[b].x - mid[a].x);
-            x.fillStyle = stripe % kerbColours.length === 0 ? '#1b1b26' : '#f4f4f8';
-            suit(x, stripe % 4, c.x, c.y, ang, 3.4);
+            // (on the white stripes, the black suits and the red ones in turn)
+            const kind = (stripe >> 1) % 4;
+            x.fillStyle = kind === 0 || kind === 2 ? '#1b1b26' : '#d8323c';
+            suit(x, kind, c.x, c.y, ang, 3.4);
           }
           t0 = t1;
         }

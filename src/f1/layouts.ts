@@ -19,7 +19,7 @@ export interface CircuitLayout {
   about: string;
   /** the kerb's stripe colours, in turn (red and white unless given) */
   kerb?: string[];
-  /** a playing-card suit painted on each kerb stripe, in turn */
+  /** a playing-card suit painted on every other kerb stripe (the white ones), in turn */
   kerbSuits?: boolean;
   /** centreline control points (px, before scaling), in racing order; the first is on the start/finish line */
   points: Pt[];
