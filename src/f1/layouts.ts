@@ -17,6 +17,8 @@ export interface CircuitLayout {
   name: string;
   /** a line about it, for the menu */
   about: string;
+  /** the kerb's two stripe colours, as [first, second] (red and white unless given) */
+  kerb?: [string, string];
   /** centreline control points (px, before scaling), in racing order; the first is on the start/finish line */
   points: Pt[];
   /** px per unit of `points` */
@@ -509,6 +511,7 @@ export const TWIN_LAKES: CircuitLayout = {
   id: 'twin-lakes',
   name: 'Twin Lakes',
   about: 'anticlockwise · a bowl of a circuit, down and up',
+  kerb: ['#2f9e44', '#f2c14e'],
   points: ([
     [93, 729], [100, 756], [107, 784], [114, 811], [121, 838], [128, 865],
     [135, 892], [142, 919], [149, 946], [156, 973], [168, 998], [192, 1011],

@@ -1,5 +1,5 @@
 // A circuit in 3D: grass and gravel run-off, a smooth painted track with
-// white edge lines and red-and-white kerbs, yellow track-limit strips inside
+// white edge lines and kerbs (red and white unless the circuit sets its own), yellow track-limit strips inside
 // the marked corners, the start line and grid boxes, all
 // draped over the circuit's heights; tyre walls round the outside and
 // grandstands along the main straight and round the bends; the pit lane beside it, with its
@@ -546,6 +546,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   // (none on dirt: its berms instead)
   const kerbs = dirt ? track.samples.map(() => false) : kerbed(track);
   const n = pts.length;
+  const [kerbA, kerbB] = circuit.layout.kerb ?? ['#d8323c', '#f4f4f8'];
   for (const side of [-1, 1]) {
     const inner = offset(side * KERB.inner);
     const outer = offset(side * KERB.outer);
@@ -567,7 +568,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           const t1 = seg > 0 ? Math.min(1, ((stripe + 1) * KERB.stripe - along) / seg) : 1;
           const lerp = (p: Pt[], t: number) => ({ x: p[a].x + (p[b].x - p[a].x) * t, y: p[a].y + (p[b].y - p[a].y) * t });
           const q = [lerp(inner, t0), lerp(outer, t0), lerp(outer, t1), lerp(inner, t1)];
-          x.fillStyle = stripe % 2 === 0 ? '#d8323c' : '#f4f4f8';
+          x.fillStyle = stripe % 2 === 0 ? kerbA : kerbB;
           x.beginPath();
           q.forEach((v, j) => (j ? x.lineTo(v.x, v.y) : x.moveTo(v.x, v.y)));
           x.closePath();
