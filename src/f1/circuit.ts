@@ -346,19 +346,31 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   // (not sloping away from it, which left the garages standing out of the ground or above it), easing back to the
   // surrounding ground beyond them
   const padReach = GARAGE_ACROSS + PIT_PAD.back;
+  const padNear = padReach + PIT.offset + PIT_PAD.fade;
+  // (which samples are the lane's own stretch, once; and the box they lie in, with the lookup's reach round it: a corner outside it has none of them in reach, and is left as it is)
+  const inLane = track.samples.map((_, i) => between(i, pit.entry, pit.exit, n));
+  const lane = track.samples.filter((_, i) => inLane[i]);
+  const padBox = padNear + 2 * B;
+  const box = {
+    x0: Math.min(...lane.map((p) => p.x)) - padBox,
+    x1: Math.max(...lane.map((p) => p.x)) + padBox,
+    y0: Math.min(...lane.map((p) => p.y)) - padBox,
+    y1: Math.max(...lane.map((p) => p.y)) + padBox,
+  };
   for (let cy = 0; cy <= H; cy++) {
     for (let cx = 0; cx <= W; cx++) {
       const x = cx * TILE;
       const y = cy * TILE;
+      if (lane.length && (x < box.x0 || x > box.x1 || y < box.y0 || y > box.y1)) continue;
       let best = -1;
       let bestD = Infinity;
       // (the lane's own stretch of the lap: another stretch passing nearby isn't what it's level with, and where it is
       // on or beside that other road, the ground is left to it)
       let other = Infinity;
-      for (const i of near(x, y, padReach + PIT.offset + PIT_PAD.fade)) {
+      for (const i of near(x, y, padNear)) {
         const p = track.samples[i];
         const d = (p.x - x) ** 2 + (p.y - y) ** 2;
-        if (!between(i, pit.entry, pit.exit, n)) other = Math.min(other, d);
+        if (!inLane[i]) other = Math.min(other, d);
         else if (d < bestD) [best, bestD] = [i, d];
       }
       if (other < (HALF_WIDTH + 30) ** 2) continue;

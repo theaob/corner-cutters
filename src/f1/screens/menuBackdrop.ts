@@ -40,8 +40,8 @@ export const BACKDROP = {
   /** share of the screen's resolution it's drawn at, and the most frames a second */
   res: 0.75,
   fps: 30,
-  /** the page's frames this slow (a second) or slower: drawn without the glow and blur */
-  slowFps: 20,
+  /** the page's frames this slow (a second) or slower: drawn without the glow and blur (40, where the menu starts being reported as slow: it was 20, and a phone at 35 fps stayed with the glow) */
+  slowFps: 40,
   /** frames drawn before it's kept as the still the next menu opens on (3 s in) */
   keepAt: 90,
 };
