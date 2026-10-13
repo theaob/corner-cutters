@@ -121,9 +121,13 @@ export function buildCrowds(scene: THREE.Scene, grid: Grid, stands: Stand[]): (d
   const v = new THREE.Vector3();
   const one = new THREE.Vector3(1, 1, 1);
   let time = 0;
-  const draw = () => {
-    let j = 0;
+  /** where each stand's spectators start in the instanced meshes */
+  const starts = people.map((_, k) => people.slice(0, k).reduce((a, p) => a + p.length, 0));
+  /** a stand's spectators put in place at `time` (for every one of them, 4 matrices) */
+  const draw = (only?: (k: number) => boolean) => {
     people.forEach((list, k) => {
+      if (only && !only(k)) return;
+      let j = starts[k];
       const frame = frames[k].matrixWorld;
       for (const p of list) {
         const pose = spectatorPose(excited[k], time, p.phase);
@@ -147,13 +151,19 @@ export function buildCrowds(scene: THREE.Scene, grid: Grid, stands: Stand[]): (d
     for (const mesh of [bodies, heads, ...arms]) mesh.instanceMatrix.needsUpdate = true;
   };
   draw();
+  let tick = 0;
+  /** the stands' distance from the nearest car */
+  const away = stands.map(() => Infinity);
   return (dt, cars) => {
     time += dt;
+    tick++;
     stands.forEach((s, k) => {
       let nearest = Infinity;
       for (const car of cars) nearest = Math.min(nearest, Math.hypot(car.x - s.x, car.y - s.y));
+      away[k] = nearest;
       excited[k] = excitement(excited[k], nearest, dt);
     });
-    draw();
+    // (a stand the cars are near, or still settling, every frame; the others' sway a frame in four, staggered: nobody's looking, and it was a quarter of a slow phone's frame)
+    draw((k) => away[k] < CROWD.near * 2 || excited[k] > 0 || (tick + k) % 4 === 0);
   };
 }
