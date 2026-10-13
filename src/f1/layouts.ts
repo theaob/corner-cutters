@@ -190,6 +190,7 @@ export const SILVER_HEATH: CircuitLayout = {
   id: 'silver-heath',
   name: 'Silver Heath',
   about: 'clockwise · fast, two hard stops',
+  kerb: ['#1b1b26', '#f4f4f8'],
   points: ([
     [451, 636], [487, 589], [524, 542], [564, 499], [611, 470], [666, 460],
     [725, 462], [783, 460], [838, 444], [889, 415], [937, 380], [984, 352],
@@ -590,6 +591,7 @@ export const OASIS: CircuitLayout = {
   id: 'oasis',
   name: 'Oasis',
   about: 'clockwise · in the desert, under the lights, hard on the brakes',
+  kerb: ['#f4f4f8', '#8a1538'],
   points: ([
     [32, 367], [33, 339], [34, 311], [35, 283], [36, 255], [38, 227],
     [39, 199], [40, 171], [41, 143], [42, 115], [43, 87], [44, 59],
@@ -832,6 +834,7 @@ export const DUNE_COAST: CircuitLayout = {
   id: 'dune-coast',
   name: 'Dune Coast',
   about: 'clockwise · over the dunes, two banked bends',
+  kerb: ['#f4f4f8', '#f08a24'],
   points: ([
     [159, 271], [170, 245], [181, 219], [192, 193], [203, 168], [214, 142],
     [224, 116], [235, 90], [246, 64], [257, 38], [271, 14], [294, 0],
