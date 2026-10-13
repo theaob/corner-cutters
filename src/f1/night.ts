@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { groundAt, type Grid } from '../engine/sim';
 import type { SkyState } from '../engine/render/daylight';
-import { HALF_WIDTH, type Circuit } from './circuit';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { HALF_WIDTH, TILE, type Circuit } from './circuit';
 
 export const NIGHT = {
   /** the glow (bloom) at night, stronger than by day: the neon and the lamps shine */
@@ -90,6 +91,20 @@ function poolTexture(): THREE.Texture {
   return t;
 }
 
+/** A pool of light's square patch centred on (cx, cy): a grid of one tile a cell, each corner lifted just above the ground under it. */
+export function poolPatch(grid: Grid, cx: number, cy: number): THREE.BufferGeometry {
+  const n = Math.ceil(NIGHT.pool / TILE);
+  const g = new THREE.PlaneGeometry(NIGHT.pool, NIGHT.pool, n, n).rotateX(-Math.PI / 2);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = cx + pos.getX(i);
+    const y = cy + pos.getZ(i);
+    // (a tile's two triangles sit a little over or under the bilinear height: lifted past that)
+    pos.setXYZ(i, x, groundAt(grid, x, y).h + 1.5, y);
+  }
+  return g;
+}
+
 /** The street lamps in `scene` (on `grid`'s ground): their posts and arms, their glowing heads, and the pools of light they throw on the track. */
 export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circuit): void {
   const lamps = lampsOf(circuit);
@@ -97,11 +112,8 @@ export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circu
   const post = new THREE.InstancedMesh(new THREE.BoxGeometry(2, NIGHT.lampHigh, 2).translate(0, NIGHT.lampHigh / 2, 0), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
   const arm = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 1.4, 1).translate(0, 0, 0.5), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
   const head = new THREE.InstancedMesh(new THREE.BoxGeometry(6, 1.6, 3), new THREE.MeshBasicMaterial({ color: 0xffe2a8, toneMapped: false }), lamps.length);
-  const pool = new THREE.InstancedMesh(
-    new THREE.PlaneGeometry(NIGHT.pool, NIGHT.pool).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.7, toneMapped: false }),
-    lamps.length,
-  );
+  const poolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.7, toneMapped: false });
+  const pools: THREE.BufferGeometry[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
@@ -120,16 +132,15 @@ export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circu
     const hy = l.y + ay * l.reach * 0.55;
     m.compose(new THREE.Vector3(hx, h + NIGHT.lampHigh - 1, hy), q, one);
     head.setMatrixAt(k, m);
-    // (its pool on the track under it, just above the ground)
-    const px = l.x + ax * l.reach;
-    const py = l.y + ay * l.reach;
-    m.compose(new THREE.Vector3(px, groundAt(grid, px, py).h + 0.6, py), new THREE.Quaternion(), one);
-    pool.setMatrixAt(k, m);
+    // (its pool on the track under it: draped over the ground's own heights, so no slope or step of it cuts the light off)
+    pools.push(poolPatch(grid, l.x + ax * l.reach, l.y + ay * l.reach));
   });
   post.castShadow = true;
+  const pool = new THREE.Mesh(mergeGeometries(pools), poolMat);
   pool.renderOrder = 2;
   for (const mesh of [post, arm, head, pool]) {
-    mesh.computeBoundingSphere();
+    if (mesh instanceof THREE.InstancedMesh) mesh.computeBoundingSphere();
+    else mesh.geometry.computeBoundingSphere();
     scene.add(mesh);
   }
 }

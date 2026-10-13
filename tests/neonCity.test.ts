@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { groundAt } from '../src/engine/sim';
 import { carClass } from '../src/engine/driving';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
 import { LAYOUTS, VEGAS } from '../src/f1/layouts';
 import { NEON, landmarkHides, neonOf, towersOf } from '../src/f1/neonCity';
-import { NIGHT, lampsOf, nightSky } from '../src/f1/night';
+import { NIGHT, lampsOf, nightSky, poolPatch } from '../src/f1/night';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { standsOf } from '../src/f1/stands';
 import { DRY, WEATHERS } from '../src/f1/weather';
@@ -37,6 +38,18 @@ describe('the night at Neon Strip', () => {
       const d = fromTrack(l);
       expect(d).toBeGreaterThan(HALF_WIDTH);
       expect(d).toBeLessThan(reach + NIGHT.lampOut + 2);
+    }
+  });
+
+  it('drapes each pool of light over the ground, so no slope or step of it cuts the light off', () => {
+    for (const l of lampsOf(c)) {
+      const pos = poolPatch(c.grid, l.x, l.y).attributes.position;
+      expect(pos.count).toBeGreaterThan(4);
+      for (let i = 0; i < pos.count; i++) {
+        const lift = pos.getY(i) - groundAt(c.grid, pos.getX(i), pos.getZ(i)).h;
+        expect(lift).toBeGreaterThan(0.5);
+        expect(lift).toBeLessThan(3);
+      }
     }
   });
 
