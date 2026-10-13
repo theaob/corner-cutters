@@ -43,3 +43,10 @@ describe('the lakes at Twin Lakes', () => {
     }
   });
 });
+
+describe('Twin Lakes at Interlagos', () => {
+  it('has palms, and no other circuit is tropical', () => {
+    expect(TWIN_LAKES.tropical).toBe(true);
+    for (const l of LAYOUTS) if (l !== TWIN_LAKES) expect(l.tropical).toBeFalsy();
+  });
+});

@@ -1,5 +1,5 @@
 // A circuit in 3D: grass and gravel run-off, a smooth painted track with
-// white edge lines and red-and-white kerbs, yellow track-limit strips inside
+// white edge lines and kerbs (red and white unless the circuit sets its own), yellow track-limit strips inside
 // the marked corners, the start line and grid boxes, all
 // draped over the circuit's heights; tyre walls round the outside and
 // grandstands along the main straight and round the bends; the pit lane beside it, with its
@@ -286,6 +286,57 @@ export function garageSpots(circuit: Circuit): { x: number; y: number; dir: numb
   });
 }
 
+/** the road surface: a dark, fine-grained circuit asphalt (painted once into the ground texture, so it costs nothing per frame) */
+const ASPHALT = {
+  base: '#3b3e48',
+  deck: 0x3b3e48,
+  tunnel: '#25272e',
+  /** the aggregate: pale and dark flecks */
+  light: ['#5a5e6b', '#6c707d', '#4c505c'],
+  dark: ['#2c2e36', '#33353e'],
+  /** rubber laid down in the wheel paths of the racing line */
+  rubber: 'rgba(14, 15, 20, 0.22)',
+  /** flecks per sample across the road: the bulk of the load-time cost, so kept modest */
+  flecks: 9,
+};
+
+/** Fine aggregate texture, slightly lighter and darker patches, and darker rubbered wheel paths down the road. */
+function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: number; dir: number }[], normal: Pt[]): void {
+  // (its own random stream, so the rest of the picture is untouched)
+  const g = rng(97);
+  const at = (p: { x: number; y: number }, n: Pt, across: number) => ({ x: p.x + n.x * across, y: p.y + n.y * across });
+  // patches: broad, faint, slightly lighter or darker, like resurfaced repairs and weathering
+  for (let i = 0; i < pts.length; i += 3) {
+    if (g() > 0.35) continue;
+    const q = at(pts[i], normal[i], (g() * 2 - 1) * (HALF_WIDTH - 10));
+    x.fillStyle = g() < 0.5 ? 'rgba(255, 255, 255, 0.035)' : 'rgba(0, 0, 0, 0.07)';
+    x.fillRect(Math.round(q.x - 8), Math.round(q.y - 8), 10 + Math.floor(g() * 14), 10 + Math.floor(g() * 14));
+  }
+  // rubber: a darker band in each wheel path of the line the cars run
+  x.lineCap = 'butt';
+  x.strokeStyle = ASPHALT.rubber;
+  x.lineWidth = 9;
+  for (const off of [-13, 13]) {
+    x.beginPath();
+    pts.forEach((p, i) => {
+      const q = at(p, normal[i], off);
+      if (i) x.lineTo(q.x, q.y);
+      else x.moveTo(q.x, q.y);
+    });
+    x.closePath();
+    x.stroke();
+  }
+  // the aggregate: single-pixel flecks, more of them pale than dark
+  for (const p of pts.keys()) {
+    for (let k = 0; k < ASPHALT.flecks; k++) {
+      const q = at(pts[p], normal[p], (g() * 2 - 1) * (HALF_WIDTH - 3));
+      const set = g() < 0.65 ? ASPHALT.light : ASPHALT.dark;
+      x.fillStyle = set[Math.floor(g() * set.length)];
+      x.fillRect(Math.round(q.x + (g() - 0.5) * 6), Math.round(q.y + (g() - 0.5) * 6), 1, 1);
+    }
+  }
+}
+
 function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
@@ -433,7 +484,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   /** the lane's edge on the pit-wall side: flush with the track's edge where the road leaves it, out to the lane's full width */
   const outerEdge = (back = 0) => lane((k) => reach(k) - back);
   const inner = lane(() => -LANE_IN);
-  x.fillStyle = dirt ? DIRT.lane : '#4a4d59';
+  x.fillStyle = dirt ? DIRT.lane : ASPHALT.base;
   x.beginPath();
   [...outerEdge(), ...inner.reverse()].forEach((q, k) => (k ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y)));
   x.closePath();
@@ -469,7 +520,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   }
   // asphalt (on dirt, wet earth: ruts worn deep along it where the cars run, wet clods strewn over it, puddles in
   // the ruts catching the light, and a berm of drier earth thrown up along each edge)
-  x.strokeStyle = dirt ? DIRT.track : '#4a4d59';
+  x.strokeStyle = dirt ? DIRT.track : ASPHALT.base;
   x.lineWidth = HALF_WIDTH * 2;
   path(pts);
   x.stroke();
@@ -513,6 +564,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       x.fillRect(Math.round(q.x), Math.round(q.y), 2, 1);
     }
   }
+  if (!dirt) paintAsphaltGrain(x, pts, normal);
   // the banking: seams in its concrete running along the track, so it reads as a slope, out to the walls
   // (a sample's banking rises toward its sign's side: each banked bend toward its own outside)
   for (const outside of [-1, 1]) {
@@ -546,6 +598,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   // (none on dirt: its berms instead)
   const kerbs = dirt ? track.samples.map(() => false) : kerbed(track);
   const n = pts.length;
+  const kerbColours = circuit.layout.kerb ?? ['#d8323c', '#f4f4f8'];
   for (const side of [-1, 1]) {
     const inner = offset(side * KERB.inner);
     const outer = offset(side * KERB.outer);
@@ -567,11 +620,22 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           const t1 = seg > 0 ? Math.min(1, ((stripe + 1) * KERB.stripe - along) / seg) : 1;
           const lerp = (p: Pt[], t: number) => ({ x: p[a].x + (p[b].x - p[a].x) * t, y: p[a].y + (p[b].y - p[a].y) * t });
           const q = [lerp(inner, t0), lerp(outer, t0), lerp(outer, t1), lerp(inner, t1)];
-          x.fillStyle = stripe % 2 === 0 ? '#d8323c' : '#f4f4f8';
+          x.fillStyle = kerbColours[stripe % kerbColours.length];
           x.beginPath();
           q.forEach((v, j) => (j ? x.lineTo(v.x, v.y) : x.moveTo(v.x, v.y)));
           x.closePath();
           x.fill();
+          // (a card suit on the stripe's middle, once, however many steps the stripe spans)
+          const mid1 = stripe * KERB.stripe + KERB.stripe / 2;
+          if (circuit.layout.kerbSuits && stripe % 2 === 1 && seg > 0 && mid1 >= along + t0 * seg - 1e-6 && mid1 < along + t1 * seg) {
+            const t = (mid1 - along) / seg;
+            const c = lerp(mid, t);
+            const ang = Math.atan2(mid[b].y - mid[a].y, mid[b].x - mid[a].x);
+            // (on the white stripes, the black suits and the red ones in turn)
+            const kind = (stripe >> 1) % 4;
+            x.fillStyle = kind === 0 || kind === 2 ? '#1b1b26' : '#d8323c';
+            suit(x, kind, c.x, c.y, ang, 3.4);
+          }
           t0 = t1;
         }
         along += seg;
@@ -597,7 +661,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   if (tunnel) {
     const [from, to] = tunnel.map((d) => Math.round(d / track.spacing));
     const run = pts.slice(from, to + 1);
-    x.strokeStyle = '#2f3139';
+    x.strokeStyle = ASPHALT.tunnel;
     x.lineWidth = HALF_WIDTH * 2 - 6;
     path(run, false);
     x.stroke();
@@ -950,7 +1014,7 @@ function addBridge(scene: THREE.Scene, circuit: Circuit): void {
     scene.add(mesh);
   };
   // the deck, its white edge lines, and its sides down to the ground
-  strip(-half, half, top, top, 0x4a4d59);
+  strip(-half, half, top, top, ASPHALT.deck);
   for (const s of [-1, 1]) strip(s * (HALF_WIDTH - 3), s * (HALF_WIDTH - 1), (i) => top(i) + 0.1, (i) => top(i) + 0.1, 0xf4f4f8);
   for (const s of [-1, 1]) strip(s * half, s * half, top, (i) => Math.min(top(i), base(i)), 0xb4b2ac);
   // its walls, where it's off the ground: a low concrete wall each side, unbroken (its faces and top following the
@@ -998,4 +1062,30 @@ function addBridge(scene: THREE.Scene, circuit: Circuit): void {
       scene.add(post);
     }
   }
+}
+
+/** A playing-card suit (0 spade, 1 heart, 2 club, 3 diamond) filled in the current colour, `r` px across, its top towards `ang`. */
+function suit(x: CanvasRenderingContext2D, kind: number, cx: number, cy: number, ang: number, r: number): void {
+  x.save();
+  x.translate(cx, cy);
+  x.rotate(ang);
+  x.beginPath();
+  if (kind === 3) {
+    x.moveTo(0, -r); x.lineTo(r * 0.8, 0); x.lineTo(0, r); x.lineTo(-r * 0.8, 0);
+  } else if (kind === 2) {
+    x.arc(0, -r * 0.5, r * 0.5, 0, Math.PI * 2);
+    x.moveTo(r * 0.55, r * 0.2); x.arc(r * 0.05, r * 0.2, r * 0.5, 0, Math.PI * 2);
+    x.moveTo(-r * 0.05 + r * 0.5, r * 0.2); x.arc(-r * 0.55, r * 0.2, r * 0.5, 0, Math.PI * 2);
+    x.moveTo(0, 0); x.lineTo(r * 0.3, r); x.lineTo(-r * 0.3, r);
+  } else {
+    // heart (1), or its mirror with a stem: spade (0)
+    const f = kind === 1 ? 1 : -1;
+    x.moveTo(0, r * f);
+    x.bezierCurveTo(r * 1.4, -r * 0.1 * f, r * 0.8, -r * f, 0, -r * 0.4 * f);
+    x.bezierCurveTo(-r * 0.8, -r * f, -r * 1.4, -r * 0.1 * f, 0, r * f);
+    if (kind === 0) { x.moveTo(0, 0); x.lineTo(r * 0.3, r * 1.1); x.lineTo(-r * 0.3, r * 1.1); }
+  }
+  x.closePath();
+  x.fill();
+  x.restore();
 }
