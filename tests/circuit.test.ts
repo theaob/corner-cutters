@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, DUST_BOWL, GLACIER_PASS, SUZUKA, DUNE_COAST, VEGAS, VOLCANO_ISLE, HARBOUR, LAYOUTS, OASIS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, SOUTHERN_LAKE, JADE_SPIRAL, MAPLE_ISLAND, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, DUST_BOWL, GLACIER_PASS, SUZUKA, DUNE_COAST, VEGAS, VOLCANO_ISLE, HARBOUR, LAYOUTS, OASIS, PEARL_SANDS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, SOUTHERN_LAKE, JADE_SPIRAL, MAPLE_ISLAND, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -31,6 +31,8 @@ const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, n
   { layout: TWIN_LAKES, length: [7400, 8400], lap: [22, 28], flatGap: 1.5, braking: 1 },
   // the heavy stops: Turn 1, the hairpin and the downhill Turn 10
   { layout: OASIS, length: [8500, 9400], lap: [25, 31], flatGap: 1.5, braking: 1.2 },
+  // the gulf: the flowing sweepers are flat out; Turn 1 and the hairpin want a stop
+  { layout: PEARL_SANDS, length: [8800, 10200], lap: [26, 33], flatGap: 1.5, braking: 1 },
   // the castle section, then the longest run flat out
   { layout: BAKU, length: [10400, 11400], lap: [30, 38], flatGap: 1.5, braking: 1.2 },
   // the figure of eight: the esses, the hairpin and the chicane want a lift
@@ -56,7 +58,7 @@ describe('circuit list', () => {
   });
 
   it('puts only Oasis in the desert', () => {
-    expect(LAYOUTS.filter((l) => l.desert)).toEqual([OASIS]);
+    expect(LAYOUTS.filter((l) => l.desert)).toEqual([OASIS, PEARL_SANDS]);
     expect(LAYOUTS.filter((l) => l.forest)).toEqual([ARDENNES, ALPINE_RING]);
   });
 
