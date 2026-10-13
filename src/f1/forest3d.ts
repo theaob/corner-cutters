@@ -218,7 +218,7 @@ function growth(circuit: Circuit, clear: number) {
 
 /** The forest's trees (none for a circuit that isn't in one); in the desert, its palms. */
 export function treesOf(circuit: Circuit): Tree[] {
-  if (circuit.layout.desert || circuit.layout.volcano) return palmsOf(circuit);
+  if (circuit.layout.desert || circuit.layout.volcano || circuit.layout.tropical) return palmsOf(circuit);
   if (circuit.layout.park) return parkOf(circuit, circuit.layout.park.avenue);
   if (circuit.layout.mountain) return mountainOf(circuit);
   if (circuit.layout.blossoms) return blossomsOf(circuit);

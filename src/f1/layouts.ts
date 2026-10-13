@@ -37,6 +37,8 @@ export interface CircuitLayout {
   park?: { avenue?: [number, number] };
   /** in the desert: sand all round, beyond the barriers and on the run-off */
   desert?: boolean;
+  /** in the tropics: palms in groves over the grass and lining the lap (Twin Lakes) */
+  tropical?: boolean;
   /** lakes beyond the barriers: polygons (in `points` units), their water flat in the hollows of the ground */
   lakes?: Pt[][];
   /** the track crosses itself on a bridge: px along the lap where the stretch on the bridge (`over`) and the one
@@ -503,7 +505,8 @@ export const ALPINE_RING: CircuitLayout = {
  * line into the left–right of the esses, the long curving back straight down
  * to the lake, the twisty climb through the infield to its highest bends, the
  * dip, the slow left onto the climb, and the long uphill drag flat out to the
- * line. About 8000 px, about 26 s.
+ * line. Palms over the grass, as there. About
+ * 8000 px, about 26 s.
  */
 export const TWIN_LAKES: CircuitLayout = {
   id: 'twin-lakes',
@@ -537,6 +540,8 @@ export const TWIN_LAKES: CircuitLayout = {
   ] as [number, number][]).map(([x, y]) => ({ x, y })),
   scale: 2.0,
   gophers: true,
+  // palms over the grass
+  tropical: true,
   // (a share of the lap): down through the esses and the back straight to the lake, up through the infield, down the dip, and the long climb to the line
   elevation: [
     [0, 36],
