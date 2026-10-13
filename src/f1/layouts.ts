@@ -651,6 +651,73 @@ export const OASIS: CircuitLayout = {
 };
 
 /**
+ * Pearl Sands. Clockwise, in the desert on the gulf, after the floodlit one
+ * outside the new city there (outline data from the same source, eased a
+ * little): the long main straight to the right-hander at Turn 1, the
+ * sweeping left–right through Turns 2 to 5, the fast left round to the
+ * straight, the tightening right and the flat-out sweepers of the back half,
+ * the hairpin-ish stop at Turn 12 and the long last right onto the straight.
+ * Sand all round, maroon and white kerbs. About 9600 px, about 31 s.
+ */
+export const PEARL_SANDS: CircuitLayout = {
+  id: 'pearl-sands',
+  name: 'Pearl Sands',
+  about: 'clockwise · fast and flowing, in the desert',
+  kerb: ['#8a1538', '#f4f4f8'],
+  points: ([
+    [0, 725], [0, 698], [0, 671], [0, 644], [0, 617], [0, 590],
+    [0, 563], [0, 536], [0, 509], [0, 482], [0, 455], [1, 428],
+    [1, 401], [1, 374], [1, 347], [1, 320], [1, 293], [1, 266],
+    [1, 239], [1, 212], [1, 185], [3, 158], [10, 132], [26, 110],
+    [49, 98], [76, 98], [100, 111], [118, 130], [133, 153], [147, 176],
+    [160, 199], [174, 223], [188, 245], [206, 266], [228, 281], [254, 285],
+    [280, 276], [300, 258], [315, 236], [328, 213], [340, 189], [353, 165],
+    [368, 143], [386, 123], [409, 108], [433, 96], [458, 87], [484, 78],
+    [509, 70], [535, 61], [561, 52], [586, 44], [612, 35], [637, 26],
+    [663, 18], [688, 9], [714, 2], [741, 0], [767, 7], [788, 23],
+    [803, 46], [812, 71], [819, 97], [822, 124], [815, 150], [799, 171],
+    [776, 185], [751, 195], [725, 204], [700, 212], [674, 221], [649, 230],
+    [623, 239], [599, 250], [581, 269], [584, 295], [607, 309], [633, 315],
+    [660, 319], [686, 322], [713, 326], [740, 329], [767, 332], [793, 336],
+    [820, 339], [847, 344], [873, 350], [896, 363], [913, 384], [918, 410],
+    [910, 435], [892, 455], [868, 467], [842, 476], [817, 485], [792, 496],
+    [769, 510], [748, 526], [727, 544], [708, 563], [687, 579], [662, 590],
+    [635, 591], [608, 587], [582, 580], [556, 573], [530, 567], [503, 563],
+    [477, 566], [456, 583], [448, 608], [450, 635], [457, 661], [467, 686],
+    [479, 710], [493, 733], [509, 755], [527, 775], [546, 794], [567, 811],
+    [589, 826], [612, 840], [637, 851], [661, 862], [686, 873], [711, 883],
+    [736, 893], [761, 904], [786, 914], [810, 925], [834, 939], [854, 956],
+    [869, 979], [878, 1004], [881, 1031], [882, 1058], [881, 1085], [878, 1112],
+    [870, 1137], [855, 1159], [834, 1176], [811, 1190], [788, 1204], [764, 1217],
+    [740, 1229], [715, 1238], [688, 1239], [662, 1231], [639, 1216], [618, 1200],
+    [598, 1182], [577, 1165], [557, 1147], [536, 1130], [516, 1112], [495, 1095],
+    [473, 1079], [449, 1068], [422, 1065], [396, 1072], [372, 1085], [350, 1099],
+    [327, 1114], [305, 1129], [282, 1144], [260, 1159], [237, 1174], [215, 1189],
+    [192, 1204], [170, 1219], [147, 1233], [125, 1248], [101, 1261], [76, 1270],
+    [49, 1270], [26, 1257], [10, 1236], [2, 1210], [0, 1183], [0, 1156],
+    [0, 1129], [0, 1102], [0, 1075], [0, 1048], [0, 1021], [0, 994],
+    [0, 967], [0, 940], [0, 913], [0, 886], [0, 859], [0, 832],
+    [0, 805], [0, 778], [0, 751],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1.8,
+  // the desert floor with a gentle swell through the middle sweepers
+  elevation: [
+    [0, 10],
+    [0.2, 8],
+    [0.36, 24],
+    [0.5, 34],
+    [0.64, 14],
+    [0.8, 6],
+    [0.92, 8],
+    [1, 10],
+  ],
+  // on the outside of the main straight
+  pit: { from: -600, to: 560, side: -1 },
+  tyreWear: 0.8,
+  desert: true,
+};
+
+/**
  * Baku. Anticlockwise through the old city on the Caspian, after the one there
  * (outline data from the same source, its right-angled corners and the castle
  * section opened out a little so the cars fit): from the line, the left and the
@@ -1216,7 +1283,7 @@ export const VOLCANO_ISLE: CircuitLayout = {
   free: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, BAKU, SUZUKA, DUNE_COAST, VEGAS, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, PEARL_SANDS, BAKU, SUZUKA, DUNE_COAST, VEGAS, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
 
 /** The Championship's circuits, a round on each, in order (the free circuits aren't among them). */
 export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.free);
