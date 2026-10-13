@@ -2316,7 +2316,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
 
     if (settle > 0) settle--;
-    else governor.sample(dt);
+    // (the frame's real length, not the simulation's capped one: at 5 fps the capped time ran the governor's waits four times too long, a step down every 20 s)
+    else governor.sample(Math.min(real, 0.25));
     setQuality(QUALITY_LEVELS[governor.level].name);
     const q = QUALITY_LEVELS[governor.level];
     applySize();
