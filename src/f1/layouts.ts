@@ -17,6 +17,10 @@ export interface CircuitLayout {
   name: string;
   /** a line about it, for the menu */
   about: string;
+  /** the kerb's stripe colours, in turn (red and white unless given) */
+  kerb?: string[];
+  /** a playing-card suit painted on every other kerb stripe (the white ones), in turn */
+  kerbSuits?: boolean;
   /** centreline control points (px, before scaling), in racing order; the first is on the start/finish line */
   points: Pt[];
   /** px per unit of `points` */
@@ -190,6 +194,7 @@ export const SILVER_HEATH: CircuitLayout = {
   id: 'silver-heath',
   name: 'Silver Heath',
   about: 'clockwise · fast, two hard stops',
+  kerb: ['#1b1b26', '#f4f4f8'],
   points: ([
     [451, 636], [487, 589], [524, 542], [564, 499], [611, 470], [666, 460],
     [725, 462], [783, 460], [838, 444], [889, 415], [937, 380], [984, 352],
@@ -325,6 +330,7 @@ export const ROYAL_PARK: CircuitLayout = {
   id: 'royal-park',
   name: 'Royal Park',
   about: 'clockwise · the banking, the longest straight',
+  kerb: ['#2f9e44', '#f4f4f8', '#d8323c'],
   points: ([
     // the main straight, east, the pits on the outside (north)
     [1000, 300], [1500, 300], [2000, 300], [2440, 300],
@@ -383,6 +389,7 @@ export const ARDENNES: CircuitLayout = {
   id: 'ardennes',
   name: 'Ardennes',
   about: 'clockwise · the longest, up and down through the forest',
+  kerb: ['#d8323c', '#f2c14e'],
   points: ([
     [227, -50], [161, -162], [135, -215], [139, -249], [165, -263], [199, -249],
     [268, -202], [311, -175], [357, -142], [417, -74], [450, -39], [489, 16],
@@ -512,6 +519,7 @@ export const TWIN_LAKES: CircuitLayout = {
   id: 'twin-lakes',
   name: 'Twin Lakes',
   about: 'anticlockwise · a bowl of a circuit, down and up',
+  kerb: ['#2f9e44', '#f2c14e'],
   points: ([
     [93, 729], [100, 756], [107, 784], [114, 811], [121, 838], [128, 865],
     [135, 892], [142, 919], [149, 946], [156, 973], [168, 998], [192, 1011],
@@ -590,6 +598,7 @@ export const OASIS: CircuitLayout = {
   id: 'oasis',
   name: 'Oasis',
   about: 'clockwise · in the desert, under the lights, hard on the brakes',
+  kerb: ['#f4f4f8', '#8a1538'],
   points: ([
     [32, 367], [33, 339], [34, 311], [35, 283], [36, 255], [38, 227],
     [39, 199], [40, 171], [41, 143], [42, 115], [43, 87], [44, 59],
@@ -832,6 +841,7 @@ export const DUNE_COAST: CircuitLayout = {
   id: 'dune-coast',
   name: 'Dune Coast',
   about: 'clockwise · over the dunes, two banked bends',
+  kerb: ['#f4f4f8', '#f08a24'],
   points: ([
     [159, 271], [170, 245], [181, 219], [192, 193], [203, 168], [214, 142],
     [224, 116], [235, 90], [246, 64], [257, 38], [271, 14], [294, 0],
@@ -923,6 +933,7 @@ export const VEGAS: CircuitLayout = {
   id: 'vegas',
   name: 'Neon Strip',
   about: 'anticlockwise · at night, down the Strip under the neon',
+  kerbSuits: true,
   points: ([
     [599, 1937], [627, 1937], [655, 1937], [683, 1937], [711, 1937], [739, 1936],
     [767, 1934], [795, 1930], [822, 1925], [850, 1920], [878, 1915], [903, 1905],

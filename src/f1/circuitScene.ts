@@ -1,5 +1,5 @@
 // A circuit in 3D: grass and gravel run-off, a smooth painted track with
-// white edge lines and red-and-white kerbs, yellow track-limit strips inside
+// white edge lines and kerbs (red and white unless the circuit sets its own), yellow track-limit strips inside
 // the marked corners, the start line and grid boxes, all
 // draped over the circuit's heights; tyre walls round the outside and
 // grandstands along the main straight and round the bends; the pit lane beside it, with its
@@ -598,6 +598,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   // (none on dirt: its berms instead)
   const kerbs = dirt ? track.samples.map(() => false) : kerbed(track);
   const n = pts.length;
+  const kerbColours = circuit.layout.kerb ?? ['#d8323c', '#f4f4f8'];
   for (const side of [-1, 1]) {
     const inner = offset(side * KERB.inner);
     const outer = offset(side * KERB.outer);
@@ -619,11 +620,22 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           const t1 = seg > 0 ? Math.min(1, ((stripe + 1) * KERB.stripe - along) / seg) : 1;
           const lerp = (p: Pt[], t: number) => ({ x: p[a].x + (p[b].x - p[a].x) * t, y: p[a].y + (p[b].y - p[a].y) * t });
           const q = [lerp(inner, t0), lerp(outer, t0), lerp(outer, t1), lerp(inner, t1)];
-          x.fillStyle = stripe % 2 === 0 ? '#d8323c' : '#f4f4f8';
+          x.fillStyle = kerbColours[stripe % kerbColours.length];
           x.beginPath();
           q.forEach((v, j) => (j ? x.lineTo(v.x, v.y) : x.moveTo(v.x, v.y)));
           x.closePath();
           x.fill();
+          // (a card suit on the stripe's middle, once, however many steps the stripe spans)
+          const mid1 = stripe * KERB.stripe + KERB.stripe / 2;
+          if (circuit.layout.kerbSuits && stripe % 2 === 1 && seg > 0 && mid1 >= along + t0 * seg - 1e-6 && mid1 < along + t1 * seg) {
+            const t = (mid1 - along) / seg;
+            const c = lerp(mid, t);
+            const ang = Math.atan2(mid[b].y - mid[a].y, mid[b].x - mid[a].x);
+            // (on the white stripes, the black suits and the red ones in turn)
+            const kind = (stripe >> 1) % 4;
+            x.fillStyle = kind === 0 || kind === 2 ? '#1b1b26' : '#d8323c';
+            suit(x, kind, c.x, c.y, ang, 3.4);
+          }
           t0 = t1;
         }
         along += seg;
@@ -1050,4 +1062,30 @@ function addBridge(scene: THREE.Scene, circuit: Circuit): void {
       scene.add(post);
     }
   }
+}
+
+/** A playing-card suit (0 spade, 1 heart, 2 club, 3 diamond) filled in the current colour, `r` px across, its top towards `ang`. */
+function suit(x: CanvasRenderingContext2D, kind: number, cx: number, cy: number, ang: number, r: number): void {
+  x.save();
+  x.translate(cx, cy);
+  x.rotate(ang);
+  x.beginPath();
+  if (kind === 3) {
+    x.moveTo(0, -r); x.lineTo(r * 0.8, 0); x.lineTo(0, r); x.lineTo(-r * 0.8, 0);
+  } else if (kind === 2) {
+    x.arc(0, -r * 0.5, r * 0.5, 0, Math.PI * 2);
+    x.moveTo(r * 0.55, r * 0.2); x.arc(r * 0.05, r * 0.2, r * 0.5, 0, Math.PI * 2);
+    x.moveTo(-r * 0.05 + r * 0.5, r * 0.2); x.arc(-r * 0.55, r * 0.2, r * 0.5, 0, Math.PI * 2);
+    x.moveTo(0, 0); x.lineTo(r * 0.3, r); x.lineTo(-r * 0.3, r);
+  } else {
+    // heart (1), or its mirror with a stem: spade (0)
+    const f = kind === 1 ? 1 : -1;
+    x.moveTo(0, r * f);
+    x.bezierCurveTo(r * 1.4, -r * 0.1 * f, r * 0.8, -r * f, 0, -r * 0.4 * f);
+    x.bezierCurveTo(-r * 0.8, -r * f, -r * 1.4, -r * 0.1 * f, 0, r * f);
+    if (kind === 0) { x.moveTo(0, 0); x.lineTo(r * 0.3, r * 1.1); x.lineTo(-r * 0.3, r * 1.1); }
+  }
+  x.closePath();
+  x.fill();
+  x.restore();
 }
