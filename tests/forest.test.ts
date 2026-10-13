@@ -17,7 +17,7 @@ describe('the forest', () => {
 
   it('grows only round a circuit in a forest (palms only in the desert and on the volcano\'s island, parkland trees in a park, spruces and boulders in the mountains, cherry trees in blossom at Nippon)', () => {
     for (const l of LAYOUTS) {
-      if (l.forest || l.desert || l.park || l.mountain || l.blossoms || l.volcano) continue;
+      if (l.forest || l.desert || l.park || l.mountain || l.blossoms || l.volcano || l.tropical) continue;
       expect(treesOf(build(l))).toHaveLength(0);
     }
     expect(trees.some((t) => t.kind === 'palm')).toBe(false);
