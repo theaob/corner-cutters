@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
-import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, DUST_BOWL, GLACIER_PASS, SUZUKA, DUNE_COAST, VEGAS, VOLCANO_ISLE, HARBOUR, LAYOUTS, OASIS, PEARL_SANDS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, layoutById, type CircuitLayout } from '../src/f1/layouts';
+import { ALPINE_RING, ARDENNES, BAKU, CRESCENT_PARK, DUST_BOWL, GLACIER_PASS, SUZUKA, DUNE_COAST, VEGAS, VOLCANO_ISLE, HARBOUR, LAYOUTS, OASIS, PEARL_SANDS, ROYAL_PARK, SILVER_HEATH, TWIN_LAKES, SOUTHERN_LAKE, JADE_SPIRAL, MAPLE_ISLAND, layoutById, type CircuitLayout } from '../src/f1/layouts';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
 import { RACE_HANDLING, aiInput, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
@@ -11,10 +11,16 @@ const f1 = carClass('f1');
 const EXPECT: { layout: CircuitLayout; length: [number, number]; lap: [number, number]; flatGap: number; braking?: number }[] = [
   // over the hills: flat out almost everywhere, a lift for Turn 12
   { layout: CRESCENT_PARK, length: [9600, 10600], lap: [27, 33], flatGap: 1 },
+  // the park round the lake: sweeps, a chicane, hard stops at the far end
+  { layout: SOUTHERN_LAKE, length: [8500, 10500], lap: [24, 34], flatGap: 2, braking: 1 },
+  // the snail, the esses, two hairpins and the long back straight
+  { layout: JADE_SPIRAL, length: [9000, 11000], lap: [25, 36], flatGap: 2, braking: 1 },
   // the hook's hairpin and the last complex want a lift
   { layout: SILVER_HEATH, length: [9500, 10500], lap: [26, 33], flatGap: 0.75 },
   // the streets: tight, but the cars grip enough to take nearly all of it flat out too
   { layout: HARBOUR, length: [8300, 9300], lap: [24, 34], flatGap: 0.5 },
+  // the island: the long straights and the stops at the chicanes
+  { layout: MAPLE_ISLAND, length: [8500, 10500], lap: [24, 34], flatGap: 2, braking: 1 },
   // the temple of speed: flat out all the way round, the banking included
   { layout: ROYAL_PARK, length: [9000, 10000], lap: [26, 32], flatGap: 0.5 },
   // the longest: up and down through the forest, three hard stops

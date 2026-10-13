@@ -547,7 +547,6 @@ export const TWIN_LAKES: CircuitLayout = {
     [75, 661], [82, 688], [89, 715],
   ] as [number, number][]).map(([x, y]) => ({ x, y })),
   scale: 2.0,
-  gophers: true,
   // palms over the grass
   tropical: true,
   // (a share of the lap): down through the esses and the back straight to the lake, up through the infield, down the dip, and the long climb to the line
@@ -1283,7 +1282,181 @@ export const VOLCANO_ISLE: CircuitLayout = {
   free: true,
 };
 
-export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SILVER_HEATH, HARBOUR, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, PEARL_SANDS, BAKU, SUZUKA, DUNE_COAST, VEGAS, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
+/**
+ * Southern Lake. Clockwise round the lake in a city park at the far end of the
+ * world, after the one that opens the season there (outline data from
+ * github.com/bacinger/f1-circuits, MIT; its corners eased a little for the
+ * arcade handling): the long run down to the tight right of Turn 1, the
+ * sweeps along the lakeside, the fast chicane, the hard stop at the far end,
+ * back along the water and the last tight bends onto the main straight. Park
+ * roads, so grass and trees beside them and the lake in the middle. A lap of
+ * about 9,500 px, about 29 s.
+ */
+export const SOUTHERN_LAKE: CircuitLayout = {
+  id: 'southern-lake',
+  name: 'Southern Lake',
+  about: 'clockwise · round the lake, fast sweeps, hard stops',
+  points: ([
+    [923, 52], [959, 52], [995, 52], [1031, 52], [1067, 52], [1103, 52],
+    [1139, 52], [1175, 52], [1211, 52], [1247, 55], [1273, 79], [1289, 111],
+    [1314, 138], [1345, 156], [1380, 164], [1416, 164], [1452, 163], [1488, 162],
+    [1524, 162], [1560, 163], [1596, 164], [1631, 167], [1667, 171], [1703, 176],
+    [1738, 182], [1774, 190], [1809, 198], [1843, 208], [1878, 218], [1910, 234],
+    [1918, 267], [1900, 298], [1880, 328], [1866, 360], [1876, 394], [1901, 419],
+    [1927, 444], [1953, 469], [1980, 494], [2002, 521], [2009, 556], [2005, 591],
+    [1999, 627], [1993, 662], [1984, 697], [1972, 731], [1958, 764], [1944, 798],
+    [1930, 831], [1918, 865], [1908, 899], [1890, 929], [1857, 941], [1822, 946],
+    [1789, 961], [1761, 983], [1732, 1005], [1700, 1021], [1666, 1032], [1630, 1036],
+    [1595, 1033], [1560, 1023], [1528, 1008], [1497, 989], [1468, 968], [1438, 948],
+    [1408, 927], [1380, 905], [1358, 877], [1345, 843], [1339, 808], [1331, 773],
+    [1316, 741], [1297, 710], [1277, 680], [1256, 651], [1236, 621], [1213, 593],
+    [1188, 567], [1161, 544], [1131, 524], [1099, 507], [1066, 493], [1031, 483],
+    [996, 474], [961, 470], [925, 471], [889, 472], [853, 475], [817, 478],
+    [782, 484], [750, 500], [723, 524], [698, 550], [669, 571], [635, 582],
+    [599, 586], [564, 589], [528, 592], [492, 595], [456, 598], [420, 598],
+    [384, 595], [349, 586], [316, 572], [284, 555], [252, 538], [221, 522],
+    [189, 504], [158, 487], [126, 469], [95, 451], [64, 432], [50, 400],
+    [61, 366], [75, 333], [89, 300], [103, 267], [117, 234], [133, 202],
+    [161, 179], [196, 174], [231, 181], [266, 191], [301, 201], [335, 210],
+    [370, 219], [403, 208], [412, 175], [410, 139], [409, 103], [425, 71],
+    [455, 52], [491, 50], [527, 50], [563, 50], [599, 51], [635, 51],
+    [671, 51], [707, 51], [743, 51], [779, 52], [815, 52], [851, 52],
+    [887, 52],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1.8,
+  // park roads, nearly flat: a gentle rise along the lakeside and down again
+  elevation: [
+    [0, 8],
+    [0.2, 30],
+    [0.4, 56],
+    [0.6, 30],
+    [0.8, 6],
+    [1, 8],
+  ],
+  pit: { from: -700, to: 370, side: 1 },
+  park: {},
+  // the lake in the middle of the park
+  lakes: [
+    ([
+      [398, 378], [670, 260], [1180, 260], [1638, 362], [1758, 582], [1740, 650], [1706, 736], [1672, 770], [1588, 820], [1536, 820], [500, 446], [414, 396],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  ],
+};
+
+/**
+ * Jade Spiral. Clockwise, after the circuit in the great port city on the
+ * Yangtze (outline data from github.com/bacinger/f1-circuits, MIT; its
+ * corners eased a little for the arcade handling): the long main straight
+ * into the snail of Turns 1 and 2, a tightening right that winds round on
+ * itself, the flick through the esses, the hairpin, the second-longest
+ * straight of all, flat out down the back, and the hairpin that turns it
+ * round onto the main straight. A lap of about 9,800 px, about 30 s.
+ */
+export const JADE_SPIRAL: CircuitLayout = {
+  id: 'jade-spiral',
+  name: 'Jade Spiral',
+  about: 'clockwise · the snail, the long back straight',
+  points: ([
+    [917, 347], [953, 347], [989, 346], [1025, 348], [1060, 356], [1089, 376],
+    [1110, 406], [1118, 442], [1110, 481], [1090, 515], [1056, 533], [1024, 527],
+    [1014, 503], [1020, 477], [1003, 454], [969, 453], [939, 475], [926, 510],
+    [928, 544], [941, 574], [959, 599], [976, 623], [992, 646], [1008, 669],
+    [1025, 692], [1041, 715], [1056, 741], [1065, 772], [1069, 807], [1072, 843],
+    [1076, 879], [1079, 915], [1078, 950], [1054, 976], [1018, 976], [993, 952],
+    [975, 921], [961, 888], [950, 853], [940, 819], [930, 784], [920, 750],
+    [908, 716], [891, 684], [865, 659], [833, 643], [798, 636], [763, 640],
+    [729, 653], [701, 675], [678, 703], [655, 731], [629, 756], [597, 771],
+    [561, 771], [529, 755], [507, 727], [496, 693], [487, 658], [467, 629],
+    [432, 623], [402, 642], [378, 669], [375, 704], [385, 739], [395, 773],
+    [406, 808], [417, 842], [427, 877], [438, 911], [449, 945], [460, 979],
+    [472, 1013], [483, 1048], [495, 1082], [512, 1113], [546, 1123], [580, 1112],
+    [614, 1122], [632, 1152], [635, 1188], [622, 1221], [597, 1246], [563, 1257],
+    [527, 1255], [494, 1241], [466, 1219], [446, 1189], [432, 1156], [419, 1123],
+    [407, 1089], [395, 1055], [382, 1021], [370, 987], [358, 953], [346, 919],
+    [334, 885], [321, 851], [309, 817], [297, 783], [285, 749], [272, 716],
+    [260, 682], [248, 648], [236, 614], [223, 580], [211, 546], [198, 512],
+    [186, 478], [174, 444], [162, 410], [151, 376], [139, 342], [126, 308],
+    [113, 275], [101, 241], [88, 207], [75, 174], [62, 140], [50, 106],
+    [54, 71], [82, 50], [117, 55], [140, 83], [155, 115], [170, 148],
+    [184, 181], [198, 215], [212, 248], [226, 281], [241, 314], [268, 336],
+    [304, 340], [340, 341], [376, 342], [412, 342], [448, 342], [484, 343],
+    [520, 343], [556, 343], [592, 344], [628, 344], [664, 345], [700, 345],
+    [736, 345], [772, 345], [808, 345], [844, 346], [881, 347],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 1.8,
+  // flat delta land: a low crest through the snail
+  elevation: [
+    [0, 8],
+    [0.1, 18],
+    [0.25, 34],
+    [0.45, 16],
+    [0.7, 6],
+    [0.9, 12],
+    [1, 8],
+  ],
+  pit: { from: -940, to: 110, side: 1 },
+};
+
+/**
+ * Maple Island. Clockwise round a man-made island in a great river, after the circuit
+ * on the island in the French-speaking city of Canada (outline data from github.com/bacinger/f1-circuits, MIT; its
+ * corners eased a little for the arcade handling): the short run to the hairpin at the end of the main
+ * straight, the quick esses, the long straight along the rowing basin, the chicane at its end and the
+ * long straight down to the chicane by the wall of champions, where the cars run flat out onto the main straight. A
+ * lap of about 9,600 px, about 30 s. A gopher now and then crosses the road.
+ */
+export const MAPLE_ISLAND: CircuitLayout = {
+  id: 'maple-island',
+  name: 'Maple Island',
+  about: 'a stop-and-go island · the long straights, the final chicane',
+  points: ([
+    [907, 51], [937, 51], [967, 51], [997, 52], [1027, 52], [1057, 52],
+    [1087, 52], [1117, 52], [1147, 52], [1177, 52], [1206, 54], [1230, 72],
+    [1255, 88], [1285, 89], [1315, 89], [1345, 89], [1375, 89], [1405, 89],
+    [1435, 89], [1465, 89], [1494, 89], [1524, 89], [1554, 89], [1584, 89],
+    [1614, 89], [1644, 90], [1674, 91], [1704, 92], [1734, 96], [1763, 104],
+    [1791, 112], [1820, 122], [1848, 132], [1877, 140], [1906, 138], [1928, 117],
+    [1950, 99], [1978, 106], [1989, 132], [1983, 161], [1970, 188], [1956, 215],
+    [1940, 240], [1921, 263], [1900, 284], [1877, 303], [1854, 322], [1830, 340],
+    [1806, 358], [1780, 373], [1751, 376], [1723, 366], [1694, 367], [1667, 380],
+    [1641, 394], [1614, 408], [1589, 424], [1565, 442], [1542, 461], [1515, 474],
+    [1486, 479], [1456, 479], [1426, 475], [1397, 469], [1367, 463], [1338, 457],
+    [1309, 452], [1281, 460], [1269, 486], [1262, 515], [1244, 538], [1217, 551],
+    [1188, 555], [1158, 556], [1128, 554], [1098, 550], [1069, 546], [1039, 542],
+    [1009, 539], [980, 533], [951, 527], [921, 520], [892, 513], [864, 504],
+    [835, 495], [807, 485], [779, 474], [752, 461], [725, 449], [698, 435],
+    [671, 422], [644, 409], [625, 387], [620, 358], [610, 330], [588, 310],
+    [562, 295], [536, 281], [509, 268], [482, 255], [455, 245], [427, 236],
+    [399, 228], [372, 221], [343, 215], [315, 211], [286, 206], [257, 200],
+    [227, 195], [198, 193], [168, 190], [138, 186], [108, 183], [78, 178],
+    [52, 162], [50, 129], [74, 111], [104, 112], [134, 114], [164, 114],
+    [193, 107], [222, 100], [251, 93], [281, 88], [310, 84], [340, 79],
+    [369, 74], [399, 69], [429, 64], [458, 59], [488, 55], [518, 51],
+    [547, 50], [577, 51], [607, 51], [637, 51], [667, 50], [697, 50],
+    [727, 50], [757, 50], [787, 51], [817, 51], [847, 51], [877, 51],
+  ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  scale: 2.2,
+  // park roads, flat: a rise through the esses
+  elevation: [
+    [0, 8],
+    [0.2, 30],
+    [0.4, 54],
+    [0.6, 22],
+    [0.85, 8],
+    [1, 8],
+  ],
+  pit: { from: -700, to: 380, side: 1 },
+  park: {},
+  // the rowing basin in the middle of the island
+  lakes: [
+    ([
+      [654, 190], [1209, 190], [1629, 220], [1674, 235], [1689, 250], [1644, 280], [1434, 370], [1194, 430], [1179, 430], [1074, 415], [954, 385], [864, 340],
+    ] as [number, number][]).map(([x, y]) => ({ x, y })),
+  ],
+  gophers: true,
+};
+
+export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SOUTHERN_LAKE, JADE_SPIRAL, SILVER_HEATH, HARBOUR, MAPLE_ISLAND, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, PEARL_SANDS, BAKU, SUZUKA, DUNE_COAST, VEGAS, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
 
 /** The Championship's circuits, a round on each, in order (the free circuits aren't among them). */
 export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.free);
