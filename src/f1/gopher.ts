@@ -1,4 +1,4 @@
-// A gopher at Twin Lakes (layout.gophers): now and then one pops up out of its
+// A gopher at Maple Island (layout.gophers): now and then one pops up out of its
 // hole just past the edge of the track, up the road from the camera, looks
 // about, and scurries across to its hole on the other side, where it ducks back
 // in. It only sets off with no car near; caught on the track by one, it freezes

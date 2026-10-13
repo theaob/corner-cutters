@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { carClass } from '../src/engine/driving';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
 import { GOPHER, GopherRun } from '../src/f1/gopher';
-import { LAYOUTS, TWIN_LAKES } from '../src/f1/layouts';
+import { LAYOUTS, MAPLE_ISLAND } from '../src/f1/layouts';
 import { lateralOffset, lineCornerSpeed, lineDecel, nearestSample } from '../src/f1/racing';
 
 const f1 = carClass('f1');
-const c = buildCircuit(TWIN_LAKES, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+const c = buildCircuit(MAPLE_ISLAND, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
 const focus = c.track.samples[200];
 const far = { x: -99999, y: -99999, vx: 0, vy: 0 };
 /** how far across the track (px from its centreline) a point is */
@@ -17,9 +17,9 @@ const untilOut = (g: GopherRun, cars = [far], limit = 60) => {
 };
 
 describe('the gopher', () => {
-  it('lives at Twin Lakes, and only there', () => {
-    expect(TWIN_LAKES.gophers).toBe(true);
-    for (const l of LAYOUTS) if (l !== TWIN_LAKES) expect(l.gophers).toBeFalsy();
+  it('lives at Maple Island, and only there', () => {
+    expect(MAPLE_ISLAND.gophers).toBe(true);
+    for (const l of LAYOUTS) if (l !== MAPLE_ISLAND) expect(l.gophers).toBeFalsy();
   });
 
   it('waits in its hole a while, then pops up up the road from the camera, from a hole just off one side of the track to one just off the other', () => {
