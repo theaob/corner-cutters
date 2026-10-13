@@ -294,13 +294,11 @@ const ASPHALT = {
   /** the aggregate: pale and dark flecks */
   light: ['#5a5e6b', '#6c707d', '#4c505c'],
   dark: ['#2c2e36', '#33353e'],
-  /** rubber laid down in the wheel paths of the racing line */
-  rubber: 'rgba(14, 15, 20, 0.22)',
   /** flecks per sample across the road: the bulk of the load-time cost, so kept modest */
   flecks: 9,
 };
 
-/** Fine aggregate texture, slightly lighter and darker patches, and darker rubbered wheel paths down the road. */
+/** Fine aggregate texture, and slightly lighter and darker patches. */
 function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: number; dir: number }[], normal: Pt[]): void {
   // (its own random stream, so the rest of the picture is untouched)
   const g = rng(97);
@@ -311,20 +309,6 @@ function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: num
     const q = at(pts[i], normal[i], (g() * 2 - 1) * (HALF_WIDTH - 10));
     x.fillStyle = g() < 0.5 ? 'rgba(255, 255, 255, 0.035)' : 'rgba(0, 0, 0, 0.07)';
     x.fillRect(Math.round(q.x - 8), Math.round(q.y - 8), 10 + Math.floor(g() * 14), 10 + Math.floor(g() * 14));
-  }
-  // rubber: a darker band in each wheel path of the line the cars run
-  x.lineCap = 'butt';
-  x.strokeStyle = ASPHALT.rubber;
-  x.lineWidth = 9;
-  for (const off of [-13, 13]) {
-    x.beginPath();
-    pts.forEach((p, i) => {
-      const q = at(p, normal[i], off);
-      if (i) x.lineTo(q.x, q.y);
-      else x.moveTo(q.x, q.y);
-    });
-    x.closePath();
-    x.stroke();
   }
   // the aggregate: single-pixel flecks, more of them pale than dark
   for (const p of pts.keys()) {
