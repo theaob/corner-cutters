@@ -598,7 +598,6 @@ export const OASIS: CircuitLayout = {
   id: 'oasis',
   name: 'Oasis',
   about: 'clockwise · in the desert, under the lights, hard on the brakes',
-  kerb: ['#f4f4f8', '#8a1538'],
   points: ([
     [32, 367], [33, 339], [34, 311], [35, 283], [36, 255], [38, 227],
     [39, 199], [40, 171], [41, 143], [42, 115], [43, 87], [44, 59],
