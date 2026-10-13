@@ -17,8 +17,8 @@ export interface CircuitLayout {
   name: string;
   /** a line about it, for the menu */
   about: string;
-  /** the kerb's two stripe colours, as [first, second] (red and white unless given) */
-  kerb?: [string, string];
+  /** the kerb's stripe colours, in turn (red and white unless given) */
+  kerb?: string[];
   /** centreline control points (px, before scaling), in racing order; the first is on the start/finish line */
   points: Pt[];
   /** px per unit of `points` */
@@ -325,6 +325,7 @@ export const ROYAL_PARK: CircuitLayout = {
   id: 'royal-park',
   name: 'Royal Park',
   about: 'clockwise · the banking, the longest straight',
+  kerb: ['#2f9e44', '#f4f4f8', '#d8323c'],
   points: ([
     // the main straight, east, the pits on the outside (north)
     [1000, 300], [1500, 300], [2000, 300], [2440, 300],
@@ -383,6 +384,7 @@ export const ARDENNES: CircuitLayout = {
   id: 'ardennes',
   name: 'Ardennes',
   about: 'clockwise · the longest, up and down through the forest',
+  kerb: ['#d8323c', '#f2c14e'],
   points: ([
     [227, -50], [161, -162], [135, -215], [139, -249], [165, -263], [199, -249],
     [268, -202], [311, -175], [357, -142], [417, -74], [450, -39], [489, 16],
