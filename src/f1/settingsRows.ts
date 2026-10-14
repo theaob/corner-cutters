@@ -39,10 +39,10 @@ const volumeName = (v: number) => ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.index
 
 export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
 
-/** The settings' pages: CONTROLS (how you drive), GAME (how it plays and looks) and SOUND. */
-export type SettingsSection = 'controls' | 'game' | 'sound';
-export const SETTINGS_SECTIONS: SettingsSection[] = ['controls', 'game', 'sound'];
-const SECTION_ABOUT: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND' };
+/** The settings' pages: CONTROLS (how you drive), GAME (how it plays), SOUND and ACCESSIBILITY (text size, colours, camera shake). */
+export type SettingsSection = 'controls' | 'game' | 'sound' | 'access';
+export const SETTINGS_SECTIONS: SettingsSection[] = ['controls', 'game', 'sound', 'access'];
+const SECTION_ABOUT: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY' };
 
 /** The rows, read from the save as they are now, by page. */
 export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
@@ -89,8 +89,9 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
   // (the page for what doesn't clearly fit: the daily reminder, the car style, STATS and the screen are about the game)
   return {
     controls: [stickRow, drivingRow, vibrationRow],
-    game: [styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), textRow, coloursRow, shakeRow, gridWalkRow, ...(online() ? [statsRow] : [])],
+    game: [styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
     sound: [soundRow, musicRow],
+    access: [textRow, coloursRow, shakeRow],
   } as Record<SettingsSection, SettingsRow[]>;
 }
 
@@ -117,6 +118,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
   };
   const links = SETTINGS_SECTIONS.map((s) => menuButton(SECTION_ABOUT[s], () => open(s)));
   const end = menuButton('DONE', back);
+  end.classList.add('settings-done');
   const version = versionLine();
   const els: HTMLElement[] = [title, ...links, ...SETTINGS_SECTIONS.flatMap((s) => rows[s].map((r) => r.el)), end, version];
   const shown = () => (page ? rows[page] : links);
