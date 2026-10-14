@@ -20,12 +20,12 @@ export const NIGHT = {
   /** px across the stretch of track a lamp lights (so none is put where it would light another stretch) */
   pool: 120,
   /** the spotlights: how many shine at once (the lamps nearest the camera, the rest dark), their intensity, how far they reach, the cone's half angle (rad) and softness, and how far from the camera they fade out */
-  spots: 8,
-  spotIntensity: 9,
-  spotReach: 260,
-  spotAngle: 0.95,
+  spots: 10,
+  spotIntensity: 18,
+  spotReach: 340,
+  spotAngle: 1.05,
   spotSoft: 0.7,
-  spotFade: [300, 460],
+  spotFade: [380, 560],
 };
 
 /** `sky` (a weather's, by day) at night: a dark violet sky, the light cool moonlight and the city's warm glow, as much darker as the weather is dull. */
