@@ -21,7 +21,7 @@ import { buildPlanes, type PlaneRun } from './planes';
 import { buildCoast } from './coast';
 import { buildVolcano } from './volcano';
 import { buildNeonCity } from './neonCity';
-import { buildStreetLights, nightSky } from './night';
+import { buildStreetLights, nightLook, nightSky } from './night';
 import { buildCowStatue, statueOf } from './cowStatue';
 import { buildCrowds } from './crowd3d';
 import { GARAGE_ACROSS, PIT, between } from './pits';
@@ -298,8 +298,9 @@ const ASPHALT = {
   flecks: 9,
 };
 
+
 /** Fine aggregate texture, and slightly lighter and darker patches. */
-function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: number; dir: number }[], normal: Pt[]): void {
+function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: number; dir: number }[], normal: Pt[], asphalt: typeof ASPHALT): void {
   // (its own random stream, so the rest of the picture is untouched)
   const g = rng(97);
   const at = (p: { x: number; y: number }, n: Pt, across: number) => ({ x: p.x + n.x * across, y: p.y + n.y * across });
@@ -312,9 +313,9 @@ function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: num
   }
   // the aggregate: single-pixel flecks, more of them pale than dark
   for (const p of pts.keys()) {
-    for (let k = 0; k < ASPHALT.flecks; k++) {
+    for (let k = 0; k < asphalt.flecks; k++) {
       const q = at(pts[p], normal[p], (g() * 2 - 1) * (HALF_WIDTH - 3));
-      const set = g() < 0.65 ? ASPHALT.light : ASPHALT.dark;
+      const set = g() < 0.65 ? asphalt.light : asphalt.dark;
       x.fillStyle = set[Math.floor(g() * set.length)];
       x.fillRect(Math.round(q.x + (g() - 0.5) * 6), Math.round(q.y + (g() - 0.5) * 6), 1, 1);
     }
@@ -325,6 +326,9 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
   const r = rng(11);
+  // (at night, the road painted lit: evenly floodlit along its whole length, as at the real night circuits)
+  const town = circuit.layout.night ? { ...STREET, ...nightLook().town } : STREET;
+  const asphalt = circuit.layout.night ? { ...ASPHALT, ...nightLook().road } : ASPHALT;
   const street = !!circuit.layout.street;
   const forest = !!circuit.layout.forest;
   const desert = !!circuit.layout.desert;
@@ -351,15 +355,15 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       if (street) {
         // a street circuit: pavement up to the barriers; beyond them the town's paving, or the sea
         const wet = cell === 'wall' && sea && inside(sea, px + T / 2, py + T / 2);
-        x.fillStyle = cell === 'wall' ? (wet ? STREET.sea : STREET.town) : STREET.pavement;
+        x.fillStyle = cell === 'wall' ? (wet ? town.sea : town.town) : town.pavement;
         x.fillRect(px, py, T, T);
         if (cell !== 'wall') {
-          x.fillStyle = STREET.joint;
+          x.fillStyle = town.joint;
           x.fillRect(px, py, T, 1);
           x.fillRect(px, py, 1, T);
         } else {
           for (let k = 0; k < (wet ? 2 : 4); k++) {
-            x.fillStyle = wet ? STREET.wave : STREET.townDot;
+            x.fillStyle = wet ? town.wave : town.townDot;
             x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wet ? 3 : 1, 1);
           }
         }
@@ -468,7 +472,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   /** the lane's edge on the pit-wall side: flush with the track's edge where the road leaves it, out to the lane's full width */
   const outerEdge = (back = 0) => lane((k) => reach(k) - back);
   const inner = lane(() => -LANE_IN);
-  x.fillStyle = dirt ? DIRT.lane : ASPHALT.base;
+  x.fillStyle = dirt ? DIRT.lane : asphalt.base;
   x.beginPath();
   [...outerEdge(), ...inner.reverse()].forEach((q, k) => (k ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y)));
   x.closePath();
@@ -504,7 +508,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   }
   // asphalt (on dirt, wet earth: ruts worn deep along it where the cars run, wet clods strewn over it, puddles in
   // the ruts catching the light, and a berm of drier earth thrown up along each edge)
-  x.strokeStyle = dirt ? DIRT.track : ASPHALT.base;
+  x.strokeStyle = dirt ? DIRT.track : asphalt.base;
   x.lineWidth = HALF_WIDTH * 2;
   path(pts);
   x.stroke();
@@ -548,7 +552,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       x.fillRect(Math.round(q.x), Math.round(q.y), 2, 1);
     }
   }
-  if (!dirt) paintAsphaltGrain(x, pts, normal);
+  if (!dirt) paintAsphaltGrain(x, pts, normal, asphalt);
   // the banking: seams in its concrete running along the track, so it reads as a slope, out to the walls
   // (a sample's banking rises toward its sign's side: each banked bend toward its own outside)
   for (const outside of [-1, 1]) {
@@ -745,11 +749,14 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   for (let i = 0; i < pos.count; i++) pos.setY(i, grid.heights![i]);
   geo.computeVertexNormals();
   const tint = new THREE.Color(weather.groundTint);
-  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: pixelTexture(paint(circuit)), color: tint }));
+  const groundMap = pixelTexture(paint(circuit));
+  // (at night the ground is floodlit all over, the same wherever the camera is: its own picture, glowing a little warm)
+  const lit = night ? { emissive: new THREE.Color(nightLook().glow.color), emissiveMap: groundMap, emissiveIntensity: nightLook().glow.intensity } : {};
+  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: groundMap, color: tint, ...lit }));
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.coast ? DUNES.sand : circuit.layout.volcano ? VOLCANIC.rock : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
+  const outerColor = new THREE.Color(street ? (night ? nightLook().town.town : STREET.town) : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.coast ? DUNES.sand : circuit.layout.volcano ? VOLCANIC.rock : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: outerColor.clone().multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
@@ -766,7 +773,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const dirtTrack = !!circuit.layout.dirt;
   const red = new THREE.Color(dirtTrack ? DIRT.bale[0] : '#d8323c');
   const white = new THREE.Color(dirtTrack ? DIRT.bale[1] : '#f4f4f8');
-  const steel = new THREE.Color('#b8bcc6');
+  const steel = new THREE.Color(night ? nightLook().barrier : '#b8bcc6');
   walls.forEach(([i, j], k) => {
     const h = groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h;
     m.makeTranslation((i + 0.5) * T, h + (street ? 4.5 : 3.5), (j + 0.5) * T);
@@ -856,7 +863,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const neonCity = circuit.layout.neon ? buildNeonCity(scene, circuit) : undefined;
   const town = street && !circuit.layout.neon ? buildTown(scene, circuit) : undefined;
   // (at night, the street lamps along the track)
-  const lampLights = night ? buildStreetLights(scene, circuit.grid, circuit) : undefined;
+  if (night) buildStreetLights(scene, circuit.grid, circuit);
   // (at a circuit whose podium hangs over the main straight: its deck)
   const deck = createPodiumDeck(circuit);
   if (deck) scene.add(deck);
@@ -939,7 +946,6 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     planes: planes?.run,
     yeti: yeti?.run,
     stepScenery: (dt, cars, focus) => {
-      lampLights?.(focus);
       petals?.(dt, cars, focus);
       gopher?.step(dt, cars, focus);
       yeti?.step(dt, focus);

@@ -41,22 +41,11 @@ describe('the night at Neon Strip', () => {
     }
   });
 
-  it('lights the track with a few spotlights, on the lamps nearest the camera, aimed down at the road', () => {
+  it('lights nothing that moves: the lamps are posts and heads, the road painted lit, no light following the camera', () => {
     const scene = new THREE.Scene();
-    const step = buildStreetLights(scene, c.grid, c);
-    const spots = scene.children.filter((o): o is THREE.SpotLight => o instanceof THREE.SpotLight);
-    expect(spots.length).toBe(NIGHT.spots);
-    const lamp = lampsOf(c)[0];
-    step({ x: lamp.x, y: lamp.y });
-    const lit = spots.filter((s) => s.intensity > 0);
-    expect(lit.length).toBeGreaterThan(2);
-    for (const s of lit) {
-      expect(s.target.position.y).toBeLessThan(s.position.y);
-      expect(Math.hypot(s.position.x - lamp.x, s.position.z - lamp.y)).toBeLessThan(NIGHT.spotFade[1]);
-    }
-    // (the farthest ones fade out rather than pop)
-    step({ x: lamp.x + 5000, y: lamp.y });
-    expect(spots.every((s) => s.intensity === 0)).toBe(true);
+    buildStreetLights(scene, c.grid, c);
+    expect(scene.children.some((o) => o instanceof THREE.Light)).toBe(false);
+    expect(scene.children.length).toBeGreaterThan(0);
   });
 
   it('keeps each lamp\'s post, arm and pool of light off every other stretch of road', () => {
