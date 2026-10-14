@@ -21,7 +21,7 @@ import { buildPlanes, type PlaneRun } from './planes';
 import { buildCoast } from './coast';
 import { buildVolcano } from './volcano';
 import { buildNeonCity } from './neonCity';
-import { buildStreetLights, nightSky } from './night';
+import { buildStreetLights, nightLook, nightSky } from './night';
 import { buildCowStatue, statueOf } from './cowStatue';
 import { buildCrowds } from './crowd3d';
 import { GARAGE_ACROSS, PIT, between } from './pits';
@@ -298,13 +298,6 @@ const ASPHALT = {
   flecks: 9,
 };
 
-/** The same road at night, under the floodlights (layout.night): evenly lit along its whole length, as at the real night circuits, in a warm grey. */
-const ASPHALT_LIT = {
-  ...ASPHALT,
-  base: '#a09cb0',
-  light: ['#bcb8c9', '#cbc7d6', '#aaa6b8'],
-  dark: ['#827e92', '#8b8799'],
-};
 
 /** Fine aggregate texture, and slightly lighter and darker patches. */
 function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: number; dir: number }[], normal: Pt[], asphalt: typeof ASPHALT): void {
@@ -333,7 +326,8 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
   const r = rng(11);
-  const asphalt = circuit.layout.night ? ASPHALT_LIT : ASPHALT;
+  // (at night, the road painted lit: evenly floodlit along its whole length, as at the real night circuits)
+  const asphalt = circuit.layout.night ? { ...ASPHALT, ...nightLook().road } : ASPHALT;
   const street = !!circuit.layout.street;
   const forest = !!circuit.layout.forest;
   const desert = !!circuit.layout.desert;
@@ -738,9 +732,6 @@ function grandstand(len: number, roofColor = 0x3d7fc4): THREE.Mesh {
   return m;
 }
 
-/** How much the ground glows at night (layout.night): its floodlit look, from the picture painted on it. */
-const NIGHT_GROUND_GLOW = 0.3;
-
 /** The circuit in `weather`: its sky and light, and the ground darker when it's wet. */
 export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): CircuitScene {
   const scene = new THREE.Scene();
@@ -759,7 +750,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const tint = new THREE.Color(weather.groundTint);
   const groundMap = pixelTexture(paint(circuit));
   // (at night the ground is floodlit all over, the same wherever the camera is: its own picture, glowing a little warm)
-  const lit = night ? { emissive: new THREE.Color(0xffe2bc), emissiveMap: groundMap, emissiveIntensity: NIGHT_GROUND_GLOW } : {};
+  const lit = night ? { emissive: new THREE.Color(nightLook().glow.color), emissiveMap: groundMap, emissiveIntensity: nightLook().glow.intensity } : {};
   const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: groundMap, color: tint, ...lit }));
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
@@ -781,7 +772,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const dirtTrack = !!circuit.layout.dirt;
   const red = new THREE.Color(dirtTrack ? DIRT.bale[0] : '#d8323c');
   const white = new THREE.Color(dirtTrack ? DIRT.bale[1] : '#f4f4f8');
-  const steel = new THREE.Color('#b8bcc6');
+  const steel = new THREE.Color(night ? nightLook().barrier : '#b8bcc6');
   walls.forEach(([i, j], k) => {
     const h = groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h;
     m.makeTranslation((i + 0.5) * T, h + (street ? 4.5 : 3.5), (j + 0.5) * T);

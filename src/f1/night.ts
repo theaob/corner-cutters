@@ -21,15 +21,35 @@ export const NIGHT = {
   pool: 120,
 };
 
+/** The night looks: the road's and barriers' colours, how the ground glows, the sky and the glow of the lamps. */
+export interface NightLook {
+  road: { base: string; light: string[]; dark: string[] };
+  barrier: string;
+  glow: { color: number; intensity: number };
+  sky: { background: number; sky: number; ground: number };
+  lamp: number;
+}
+export const NIGHT_LOOKS: Record<string, NightLook> = {
+  // floodlit: a bright, even warm-grey road, deep blue all round
+  a: { road: { base: '#a09cb0', light: ['#bcb8c9', '#cbc7d6', '#aaa6b8'], dark: ['#827e92', '#8b8799'] }, barrier: '#e9e6f2', glow: { color: 0xffe2bc, intensity: 0.3 }, sky: { background: 0x15133a, sky: 0x7a7ad0, ground: 0x6a4658 }, lamp: 0xffe6b8 },
+  // warm sodium: an amber road, orange on the kerbs and walls
+  b: { road: { base: '#a89684', light: ['#c4b19c', '#d2bfa8', '#b3a08c'], dark: ['#857462', '#8e7d6a'] }, barrier: '#e2d6c6', glow: { color: 0xffbe70, intensity: 0.34 }, sky: { background: 0x120a1c, sky: 0x6a4a9a, ground: 0x1d1430 }, lamp: 0xffc070 },
+  // cool LED: a crisp cool-white road, near-black round it
+  c: { road: { base: '#aab4cc', light: ['#c4cde2', '#d4dcef', '#b4bdd4'], dark: ['#8892ab', '#939db6'] }, barrier: '#eef2fb', glow: { color: 0xd8ecff, intensity: 0.3 }, sky: { background: 0x070a1e, sky: 0x4a5ab0, ground: 0x0f1230 }, lamp: 0xd8ecff },
+};
+/** The look in use (`?look=a|b|c` picks one, for trying them out). */
+export function nightLook(): NightLook {
+  const id = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('look') : null;
+  return NIGHT_LOOKS[id ?? 'a'] ?? NIGHT_LOOKS.a;
+}
+
 /** `sky` (a weather's, by day) at night: a dark violet sky, the light cool moonlight and the city's warm glow, as much darker as the weather is dull. */
 export function nightSky(sky: SkyState): SkyState {
   // (how bright the day would be: a clear day's 2.6 down to an overcast one's)
   const day = Math.min(1, sky.keyIntensity / 2.6);
   return {
     ...sky,
-    background: 0x15133a,
-    sky: 0x7a7ad0,
-    ground: 0x6a4658,
+    ...nightLook().sky,
     ambient: 1.7 + 0.3 * (1 - day),
     key: 0xbcc6ff,
     keyIntensity: 0.5 + 0.5 * day,
@@ -80,7 +100,7 @@ export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circu
   if (!lamps.length) return;
   const post = new THREE.InstancedMesh(new THREE.BoxGeometry(2, NIGHT.lampHigh, 2).translate(0, NIGHT.lampHigh / 2, 0), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
   const arm = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 1.4, 1).translate(0, 0, 0.5), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
-  const head = new THREE.InstancedMesh(new THREE.BoxGeometry(6, 1.6, 3), new THREE.MeshBasicMaterial({ color: 0xffe2a8, toneMapped: false }), lamps.length);
+  const head = new THREE.InstancedMesh(new THREE.BoxGeometry(6, 1.6, 3), new THREE.MeshBasicMaterial({ color: nightLook().lamp, toneMapped: false }), lamps.length);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
