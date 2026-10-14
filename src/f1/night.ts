@@ -28,14 +28,16 @@ export interface NightLook {
   glow: { color: number; intensity: number };
   sky: { background: number; sky: number; ground: number };
   lamp: number;
+  /** the town's ground by night: the pavement beside the track and the paving beyond the barriers */
+  town: { pavement: string; joint: string; town: string; townDot: string };
 }
 export const NIGHT_LOOKS: Record<string, NightLook> = {
   // floodlit: a bright, even warm-grey road, deep blue all round
-  a: { road: { base: '#a09cb0', light: ['#bcb8c9', '#cbc7d6', '#aaa6b8'], dark: ['#827e92', '#8b8799'] }, barrier: '#e9e6f2', glow: { color: 0xffe2bc, intensity: 0.3 }, sky: { background: 0x15133a, sky: 0x7a7ad0, ground: 0x6a4658 }, lamp: 0xffe6b8 },
+  a: { road: { base: '#a09cb0', light: ['#bcb8c9', '#cbc7d6', '#aaa6b8'], dark: ['#827e92', '#8b8799'] }, barrier: '#e9e6f2', glow: { color: 0xffe2bc, intensity: 0.3 }, sky: { background: 0x15133a, sky: 0x7a7ad0, ground: 0x6a4658 }, lamp: 0xffe6b8, town: { pavement: '#46465e', joint: '#3a3a52', town: '#13112c', townDot: '#1a1838' } },
   // warm sodium: an amber road, orange on the kerbs and walls
-  b: { road: { base: '#a89684', light: ['#c4b19c', '#d2bfa8', '#b3a08c'], dark: ['#857462', '#8e7d6a'] }, barrier: '#e2d6c6', glow: { color: 0xffbe70, intensity: 0.34 }, sky: { background: 0x120a1c, sky: 0x6a4a9a, ground: 0x1d1430 }, lamp: 0xffc070 },
+  b: { road: { base: '#a89684', light: ['#c4b19c', '#d2bfa8', '#b3a08c'], dark: ['#857462', '#8e7d6a'] }, barrier: '#e2d6c6', glow: { color: 0xffbe70, intensity: 0.34 }, sky: { background: 0x120a1c, sky: 0x6a4a9a, ground: 0x1d1430 }, lamp: 0xffc070, town: { pavement: '#4a4056', joint: '#3e3449', town: '#17102a', townDot: '#1e1634' } },
   // cool LED: a crisp cool-white road, near-black round it
-  c: { road: { base: '#aab4cc', light: ['#c4cde2', '#d4dcef', '#b4bdd4'], dark: ['#8892ab', '#939db6'] }, barrier: '#eef2fb', glow: { color: 0xd8ecff, intensity: 0.3 }, sky: { background: 0x070a1e, sky: 0x4a5ab0, ground: 0x0f1230 }, lamp: 0xd8ecff },
+  c: { road: { base: '#aab4cc', light: ['#c4cde2', '#d4dcef', '#b4bdd4'], dark: ['#8892ab', '#939db6'] }, barrier: '#eef2fb', glow: { color: 0xd8ecff, intensity: 0.3 }, sky: { background: 0x070a1e, sky: 0x4a5ab0, ground: 0x0f1230 }, lamp: 0xd8ecff, town: { pavement: '#40465e', joint: '#343a52', town: '#0d1028', townDot: '#141734' } },
 };
 /** The look in use (`?look=a|b|c` picks one, for trying them out). */
 export function nightLook(): NightLook {

@@ -327,6 +327,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const [c, x] = canvas(W * T, H * T);
   const r = rng(11);
   // (at night, the road painted lit: evenly floodlit along its whole length, as at the real night circuits)
+  const town = circuit.layout.night ? { ...STREET, ...nightLook().town } : STREET;
   const asphalt = circuit.layout.night ? { ...ASPHALT, ...nightLook().road } : ASPHALT;
   const street = !!circuit.layout.street;
   const forest = !!circuit.layout.forest;
@@ -354,15 +355,15 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       if (street) {
         // a street circuit: pavement up to the barriers; beyond them the town's paving, or the sea
         const wet = cell === 'wall' && sea && inside(sea, px + T / 2, py + T / 2);
-        x.fillStyle = cell === 'wall' ? (wet ? STREET.sea : STREET.town) : STREET.pavement;
+        x.fillStyle = cell === 'wall' ? (wet ? town.sea : town.town) : town.pavement;
         x.fillRect(px, py, T, T);
         if (cell !== 'wall') {
-          x.fillStyle = STREET.joint;
+          x.fillStyle = town.joint;
           x.fillRect(px, py, T, 1);
           x.fillRect(px, py, 1, T);
         } else {
           for (let k = 0; k < (wet ? 2 : 4); k++) {
-            x.fillStyle = wet ? STREET.wave : STREET.townDot;
+            x.fillStyle = wet ? town.wave : town.townDot;
             x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wet ? 3 : 1, 1);
           }
         }
@@ -755,7 +756,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
-  const outerColor = new THREE.Color(street ? STREET.town : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.coast ? DUNES.sand : circuit.layout.volcano ? VOLCANIC.rock : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
+  const outerColor = new THREE.Color(street ? (night ? nightLook().town.town : STREET.town) : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.coast ? DUNES.sand : circuit.layout.volcano ? VOLCANIC.rock : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: outerColor.clone().multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
