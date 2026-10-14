@@ -301,9 +301,9 @@ const ASPHALT = {
 /** The same road at night, under the floodlights (layout.night): evenly lit along its whole length, as at the real night circuits, in a warm grey. */
 const ASPHALT_LIT = {
   ...ASPHALT,
-  base: '#706d7c',
-  light: ['#8d8a99', '#9d9aa9', '#7d7a89'],
-  dark: ['#58556a', '#615e6e'],
+  base: '#a09cb0',
+  light: ['#bcb8c9', '#cbc7d6', '#aaa6b8'],
+  dark: ['#827e92', '#8b8799'],
 };
 
 /** Fine aggregate texture, and slightly lighter and darker patches. */
@@ -738,6 +738,9 @@ function grandstand(len: number, roofColor = 0x3d7fc4): THREE.Mesh {
   return m;
 }
 
+/** How much the ground glows at night (layout.night): its floodlit look, from the picture painted on it. */
+const NIGHT_GROUND_GLOW = 0.3;
+
 /** The circuit in `weather`: its sky and light, and the ground darker when it's wet. */
 export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): CircuitScene {
   const scene = new THREE.Scene();
@@ -754,7 +757,10 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   for (let i = 0; i < pos.count; i++) pos.setY(i, grid.heights![i]);
   geo.computeVertexNormals();
   const tint = new THREE.Color(weather.groundTint);
-  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: pixelTexture(paint(circuit)), color: tint }));
+  const groundMap = pixelTexture(paint(circuit));
+  // (at night the ground is floodlit all over, the same wherever the camera is: its own picture, glowing a little warm)
+  const lit = night ? { emissive: new THREE.Color(0xffe2bc), emissiveMap: groundMap, emissiveIntensity: NIGHT_GROUND_GLOW } : {};
+  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: groundMap, color: tint, ...lit }));
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
   const street = circuit.layout.street;
@@ -865,7 +871,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const neonCity = circuit.layout.neon ? buildNeonCity(scene, circuit) : undefined;
   const town = street && !circuit.layout.neon ? buildTown(scene, circuit) : undefined;
   // (at night, the street lamps along the track)
-  const lampLights = night ? buildStreetLights(scene, circuit.grid, circuit) : undefined;
+  if (night) buildStreetLights(scene, circuit.grid, circuit);
   // (at a circuit whose podium hangs over the main straight: its deck)
   const deck = createPodiumDeck(circuit);
   if (deck) scene.add(deck);
@@ -948,7 +954,6 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     planes: planes?.run,
     yeti: yeti?.run,
     stepScenery: (dt, cars, focus) => {
-      lampLights?.(focus);
       petals?.(dt, cars, focus);
       gopher?.step(dt, cars, focus);
       yeti?.step(dt, focus);
