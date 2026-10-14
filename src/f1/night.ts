@@ -99,7 +99,8 @@ export function poolPatch(grid: Grid, cx: number, cy: number): THREE.BufferGeome
   for (let i = 0; i < pos.count; i++) {
     const x = cx + pos.getX(i);
     const y = cy + pos.getZ(i);
-    // (a tile's two triangles sit a little over or under the bilinear height: lifted past that)
+    // (a tile's two triangles sit a little over or under the bilinear height: lifted past that; the material's polygon offset
+    // covers the depth buffer's coarseness far off, which on a phone's 16-bit one clipped it in jagged steps)
     pos.setXYZ(i, x, groundAt(grid, x, y).h + 1.5, y);
   }
   return g;
@@ -112,7 +113,7 @@ export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circu
   const post = new THREE.InstancedMesh(new THREE.BoxGeometry(2, NIGHT.lampHigh, 2).translate(0, NIGHT.lampHigh / 2, 0), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
   const arm = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 1.4, 1).translate(0, 0, 0.5), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
   const head = new THREE.InstancedMesh(new THREE.BoxGeometry(6, 1.6, 3), new THREE.MeshBasicMaterial({ color: 0xffe2a8, toneMapped: false }), lamps.length);
-  const poolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.7, toneMapped: false });
+  const poolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.7, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   const pools: THREE.BufferGeometry[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
