@@ -50,3 +50,17 @@ describe('Twin Lakes at Interlagos', () => {
     for (const l of LAYOUTS) if (l !== TWIN_LAKES) expect(l.tropical).toBeFalsy();
   });
 });
+
+describe('the lake at Southern Lake', () => {
+  const c = buildCircuit(SOUTHERN_LAKE, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+  const lakes = lakesOf(c);
+
+  it('lies clear of the track, its run-off and barriers, and the pit lane: the road never goes under water', () => {
+    for (const p of c.track.samples) expect(inLake(lakes, p.x, p.y, HALF_WIDTH + RUNOFF + 24)).toBe(false);
+    for (const q of c.pit.points) expect(inLake(lakes, q.x, q.y, 100)).toBe(false);
+  });
+
+  it('keeps the grandstands out of the water', () => {
+    for (const s of standsOf(c)) expect(inLake(lakes, s.x, s.y, 20)).toBe(false);
+  });
+});

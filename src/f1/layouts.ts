@@ -1335,10 +1335,10 @@ export const SOUTHERN_LAKE: CircuitLayout = {
   ],
   pit: { from: -700, to: 370, side: 1 },
   park: {},
-  // the lake in the middle of the park
+  // the lake in the middle of the park (north of the road that cuts across the middle, clear of it)
   lakes: [
     ([
-      [398, 378], [670, 260], [1180, 260], [1638, 362], [1758, 582], [1740, 650], [1706, 736], [1672, 770], [1588, 820], [1536, 820], [500, 446], [414, 396],
+      [440, 380], [560, 290], [670, 260], [1180, 260], [1638, 362], [1700, 500], [1620, 640], [1480, 640], [1300, 510], [1170, 440], [1000, 370], [800, 365], [640, 430], [500, 445],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
   ],
 };
