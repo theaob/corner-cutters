@@ -298,8 +298,16 @@ const ASPHALT = {
   flecks: 9,
 };
 
+/** The same road at night, under the floodlights (layout.night): evenly lit along its whole length, as at the real night circuits, in a warm grey. */
+const ASPHALT_LIT = {
+  ...ASPHALT,
+  base: '#706d7c',
+  light: ['#8d8a99', '#9d9aa9', '#7d7a89'],
+  dark: ['#58556a', '#615e6e'],
+};
+
 /** Fine aggregate texture, and slightly lighter and darker patches. */
-function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: number; dir: number }[], normal: Pt[]): void {
+function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: number; dir: number }[], normal: Pt[], asphalt: typeof ASPHALT): void {
   // (its own random stream, so the rest of the picture is untouched)
   const g = rng(97);
   const at = (p: { x: number; y: number }, n: Pt, across: number) => ({ x: p.x + n.x * across, y: p.y + n.y * across });
@@ -312,9 +320,9 @@ function paintAsphaltGrain(x: CanvasRenderingContext2D, pts: { x: number; y: num
   }
   // the aggregate: single-pixel flecks, more of them pale than dark
   for (const p of pts.keys()) {
-    for (let k = 0; k < ASPHALT.flecks; k++) {
+    for (let k = 0; k < asphalt.flecks; k++) {
       const q = at(pts[p], normal[p], (g() * 2 - 1) * (HALF_WIDTH - 3));
-      const set = g() < 0.65 ? ASPHALT.light : ASPHALT.dark;
+      const set = g() < 0.65 ? asphalt.light : asphalt.dark;
       x.fillStyle = set[Math.floor(g() * set.length)];
       x.fillRect(Math.round(q.x + (g() - 0.5) * 6), Math.round(q.y + (g() - 0.5) * 6), 1, 1);
     }
@@ -325,6 +333,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
   const r = rng(11);
+  const asphalt = circuit.layout.night ? ASPHALT_LIT : ASPHALT;
   const street = !!circuit.layout.street;
   const forest = !!circuit.layout.forest;
   const desert = !!circuit.layout.desert;
@@ -468,7 +477,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   /** the lane's edge on the pit-wall side: flush with the track's edge where the road leaves it, out to the lane's full width */
   const outerEdge = (back = 0) => lane((k) => reach(k) - back);
   const inner = lane(() => -LANE_IN);
-  x.fillStyle = dirt ? DIRT.lane : ASPHALT.base;
+  x.fillStyle = dirt ? DIRT.lane : asphalt.base;
   x.beginPath();
   [...outerEdge(), ...inner.reverse()].forEach((q, k) => (k ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y)));
   x.closePath();
@@ -504,7 +513,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   }
   // asphalt (on dirt, wet earth: ruts worn deep along it where the cars run, wet clods strewn over it, puddles in
   // the ruts catching the light, and a berm of drier earth thrown up along each edge)
-  x.strokeStyle = dirt ? DIRT.track : ASPHALT.base;
+  x.strokeStyle = dirt ? DIRT.track : asphalt.base;
   x.lineWidth = HALF_WIDTH * 2;
   path(pts);
   x.stroke();
@@ -548,7 +557,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       x.fillRect(Math.round(q.x), Math.round(q.y), 2, 1);
     }
   }
-  if (!dirt) paintAsphaltGrain(x, pts, normal);
+  if (!dirt) paintAsphaltGrain(x, pts, normal, asphalt);
   // the banking: seams in its concrete running along the track, so it reads as a slope, out to the walls
   // (a sample's banking rises toward its sign's side: each banked bend toward its own outside)
   for (const outside of [-1, 1]) {

@@ -21,7 +21,7 @@ export const NIGHT = {
   pool: 120,
   /** the spotlights: how many shine at once (the lamps nearest the camera, the rest dark), their intensity, how far they reach, the cone's half angle (rad) and softness, and how far from the camera they fade out */
   spots: 10,
-  spotIntensity: 18,
+  spotIntensity: 12,
   spotReach: 340,
   spotAngle: 1.05,
   spotSoft: 0.7,
