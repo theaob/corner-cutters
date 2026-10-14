@@ -65,6 +65,10 @@ export interface CircuitLayout {
   coast?: { shore: [number, number][]; windmill: [number, number] };
   /** an airport next door: airliners now and then flying over, coming in to land or taking off, the way its runway runs (radians, as Math.atan2 of their run on the map: planes.ts) */
   airport?: { runway: number };
+  /** kangaroos: mobs bounding about on the grass beside the track (kangaroos.ts) */
+  kangaroos?: boolean;
+  /** flocks of budgerigars and cockatoos wheeling over the middle of the park (birds.ts) */
+  birds?: boolean;
   /** a gopher now and then popping up out of its hole by the track near the camera and scurrying across (gopher.ts) */
   gophers?: boolean;
   /** under snow (a winter's circuit in the mountains): snow over the run-off and beyond, the spruces laden with it */
@@ -1335,6 +1339,9 @@ export const SOUTHERN_LAKE: CircuitLayout = {
   ],
   pit: { from: -700, to: 370, side: 1 },
   park: {},
+  // kangaroos bounding about in the park
+  kangaroos: true,
+  birds: true,
   // the lake in the middle of the park (north of the road that cuts across the middle, clear of it)
   lakes: [
     ([

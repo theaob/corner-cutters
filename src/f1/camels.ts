@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { groundAt } from '../engine/sim';
 import { HALF_WIDTH, RUNOFF, TILE as T, type Circuit } from './circuit';
 import { treesOf } from './forest3d';
+import { inLake, lakesOf } from './lakes';
 import { GARAGE_ACROSS } from './pits';
 import { STAND, standsOf } from './stands';
 
@@ -119,17 +120,38 @@ export function camelsAt(c: Caravan, t: number): CamelAt[] {
   return out;
 }
 
+/** What a herd's loops are placed by: how many, how big, how far past the barriers, how far apart, and the seed of their dice. */
+export interface HerdPlan {
+  caravans: number;
+  least: number;
+  more: number;
+  length: number;
+  longer: number;
+  out: number;
+  further: number;
+  clearTrack: number;
+  clearPalm: number;
+  seed: number;
+}
+
 /** The caravans at a desert circuit (none elsewhere): spread round the lap, each beside a stretch of track. */
 export function caravansOf(circuit: Circuit): Caravan[] {
   if (!circuit.layout.desert) return [];
+  return herdsOf(circuit, { ...CAMELS, seed: 71 });
+}
+
+/** Loops for herds of `plan` beside the track, clear of it, the pits, the grandstands, the trees and any water. */
+export function herdsOf(circuit: Circuit, plan: HerdPlan): Caravan[] {
+  const CAMELS = plan;
   const { track, pit } = circuit;
   const n = track.samples.length;
   const reach = HALF_WIDTH + RUNOFF;
   const stands = standsOf(circuit);
   const palms = treesOf(circuit);
+  const lakes = lakesOf(circuit);
   const W = circuit.width * T;
   const H = circuit.height * T;
-  const r = rng(71);
+  const r = rng(plan.seed);
   const clearOf = (x: number, y: number) => {
     if (x < 0 || y < 0 || x > W || y > H) return false;
     for (let i = 0; i < n; i += 2) {
@@ -139,6 +161,7 @@ export function caravansOf(circuit: Circuit): Caravan[] {
     if (pit.points.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 40)) return false;
     if (stands.some((s) => Math.hypot(s.x - x, s.y - y) < s.len / 2 + STAND.depth + 12)) return false;
     if (palms.some((p) => Math.hypot(p.x - x, p.y - y) < CAMELS.clearPalm)) return false;
+    if (inLake(lakes, x, y, 30)) return false;
     return true;
   };
   const out: Caravan[] = [];

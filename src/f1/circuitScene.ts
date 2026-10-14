@@ -33,6 +33,8 @@ import { STAND, standsOf } from './stands';
 import { createPodiumDeck } from './podium3d';
 import { buildForest, type Tree } from './forest3d';
 import { buildCamels } from './camels';
+import { buildBirds } from './birds';
+import { buildKangaroos } from './kangaroos';
 import { buildLakes, inLake, lakesOf } from './lakes';
 import { BRIDGE, liftAt } from './bridge';
 
@@ -929,6 +931,10 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   buildLakes(scene, circuit);
   // (at a desert circuit: its camels)
   const camels = circuit.layout.desert ? buildCamels(scene, circuit) : undefined;
+  // (and at one with kangaroos: its mobs)
+  const kangaroos = circuit.layout.kangaroos ? buildKangaroos(scene, circuit) : undefined;
+  // (and its flocks of birds)
+  const birds = circuit.layout.birds ? buildBirds(scene, circuit) : undefined;
 
   return {
     scene,
@@ -939,6 +945,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     animate: (t) => {
       town?.animate(t);
       camels?.animate(t);
+      kangaroos?.animate(t);
+      birds?.animate(t);
       // the flags flap in the wind
       for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
     },
