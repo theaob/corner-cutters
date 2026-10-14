@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { carClass } from '../src/engine/driving';
 import { HALF_WIDTH, buildCircuit } from '../src/f1/circuit';
 import { LAYOUTS, VEGAS } from '../src/f1/layouts';
 import { NEON, landmarkHides, neonOf, towersOf } from '../src/f1/neonCity';
-import { NIGHT, lampsOf, nightSky } from '../src/f1/night';
+import { NIGHT, lampsOf, nightSky, buildStreetLights } from '../src/f1/night';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { standsOf } from '../src/f1/stands';
 import { DRY, WEATHERS } from '../src/f1/weather';
@@ -38,6 +39,24 @@ describe('the night at Neon Strip', () => {
       expect(d).toBeGreaterThan(HALF_WIDTH);
       expect(d).toBeLessThan(reach + NIGHT.lampOut + 2);
     }
+  });
+
+  it('lights the track with a few spotlights, on the lamps nearest the camera, aimed down at the road', () => {
+    const scene = new THREE.Scene();
+    const step = buildStreetLights(scene, c.grid, c);
+    const spots = scene.children.filter((o): o is THREE.SpotLight => o instanceof THREE.SpotLight);
+    expect(spots.length).toBe(NIGHT.spots);
+    const lamp = lampsOf(c)[0];
+    step({ x: lamp.x, y: lamp.y });
+    const lit = spots.filter((s) => s.intensity > 0);
+    expect(lit.length).toBeGreaterThan(2);
+    for (const s of lit) {
+      expect(s.target.position.y).toBeLessThan(s.position.y);
+      expect(Math.hypot(s.position.x - lamp.x, s.position.z - lamp.y)).toBeLessThan(NIGHT.spotFade[1]);
+    }
+    // (the farthest ones fade out rather than pop)
+    step({ x: lamp.x + 5000, y: lamp.y });
+    expect(spots.every((s) => s.intensity === 0)).toBe(true);
   });
 
   it('keeps each lamp\'s post, arm and pool of light off every other stretch of road', () => {
