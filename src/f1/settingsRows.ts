@@ -8,7 +8,7 @@ import { setStickSide, stickSide, type StickSide } from '../engine/deck';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
-import { optionRow } from './circuitSelect';
+import { menuButton, optionRow } from './circuitSelect';
 import { setShake, shakeOn } from './shake';
 import { gridWalkOn, setGridWalk } from './gridPan';
 import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
@@ -39,8 +39,13 @@ const volumeName = (v: number) => ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.index
 
 export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
 
-/** The rows, read from the save as they are now. */
-export function settingsRows(): SettingsRow[] {
+/** The settings' pages: CONTROLS (how you drive), GAME (how it plays), SOUND and ACCESSIBILITY (text size, colours, camera shake). */
+export type SettingsSection = 'controls' | 'game' | 'sound' | 'access';
+export const SETTINGS_SECTIONS: SettingsSection[] = ['controls', 'game', 'sound', 'access'];
+const SECTION_ABOUT: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY' };
+
+/** The rows, read from the save as they are now, by page. */
+export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
   const deck = document.getElementById('deck');
   const sides: StickSide[] = ['left', 'right'];
   const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'thumbstick left · A and B right' : 'thumbstick right · A and B left' }), (side) => {
@@ -81,7 +86,97 @@ export function settingsRows(): SettingsRow[] {
     }), (v) => void setReminder(v))
     : undefined;
   // (STATS only where the build has a backend to send them to)
-  return [styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), textRow, coloursRow, stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  // (the page for what doesn't clearly fit: the daily reminder, the car style, STATS and the screen are about the game)
+  return {
+    controls: [stickRow, drivingRow, vibrationRow],
+    game: [styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
+    sound: [soundRow, musicRow],
+    access: [textRow, coloursRow, shakeRow],
+  } as Record<SettingsSection, SettingsRow[]>;
+}
+
+/**
+ * The settings as pages: a list (CONTROLS, GAME, SOUND, DONE), and a page of rows under each (and BACK). One for the
+ * menu's screen and one for the pause screen's; they share how it is moved (up/down, left/right, A) and drawn.
+ * `onDone` is called when the list is left.
+ */
+export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDone: () => void) {
+  let page: SettingsSection | undefined;
+  let focus = 0;
+  const title = document.createElement('h2');
+  const open = (s: SettingsSection) => {
+    page = s;
+    focus = 0;
+    render();
+  };
+  const back = () => {
+    if (page) {
+      focus = SETTINGS_SECTIONS.indexOf(page);
+      page = undefined;
+      render();
+    } else onDone();
+  };
+  const links = SETTINGS_SECTIONS.map((s) => menuButton(SECTION_ABOUT[s], () => open(s)));
+  const end = menuButton('DONE', back);
+  end.classList.add('settings-done');
+  const version = versionLine();
+  const els: HTMLElement[] = [title, ...links, ...SETTINGS_SECTIONS.flatMap((s) => rows[s].map((r) => r.el)), end, version];
+  const shown = () => (page ? rows[page] : links);
+  /** how many places up/down moves between: the page's rows (or the list) and the button at the end */
+  const places = () => shown().length + 1;
+  const render = () => {
+    title.textContent = page ? SECTION_ABOUT[page] : 'SETTINGS';
+    title.style.display = '';
+    end.style.display = '';
+    links.forEach((b, k) => {
+      b.style.display = page ? 'none' : '';
+      b.classList.toggle('focused', !page && focus === k);
+    });
+    for (const s of SETTINGS_SECTIONS) rows[s].forEach((r, k) => {
+      r.el.style.display = s === page ? '' : 'none';
+      r.el.classList.toggle('focused', s === page && focus === k);
+    });
+    end.textContent = page ? '◀ BACK' : 'DONE';
+    end.classList.toggle('focused', focus === shown().length);
+    version.style.display = page ? 'none' : '';
+  };
+  // a tap on a row focuses it too
+  for (const s of SETTINGS_SECTIONS) rows[s].forEach((r, k) => r.el.addEventListener('pointerdown', () => {
+    focus = k;
+    render();
+  }));
+  render();
+  return {
+    els,
+    /** back to the list, as the page was first opened */
+    reset() {
+      page = undefined;
+      focus = 0;
+      render();
+    },
+    /** up (-1) or down (1) */
+    move(d: number) {
+      focus = (focus + d + places()) % places();
+      render();
+    },
+    /** left (-1) or right (1) on a row */
+    step(d: number) {
+      if (page) rows[page][focus]?.step(d);
+    },
+    /** A or START: opens a page from the list, or goes back */
+    pick() {
+      if (!page && focus < SETTINGS_SECTIONS.length) open(SETTINGS_SECTIONS[focus]);
+      else back();
+    },
+    /** B or the phone's back button: up a level, and out of the settings from the list */
+    back,
+    /** shown or hidden (the rows' own displays kept for the page) */
+    show(on: boolean) {
+      if (on) render();
+      else for (const el of els) el.style.display = 'none';
+    },
+    open: () => page,
+  };
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */
