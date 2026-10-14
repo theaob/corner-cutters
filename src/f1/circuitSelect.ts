@@ -27,7 +27,7 @@ import { DRY, RACE_WEATHERS, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
 import { ownsChampionship } from './purchase';
 import { distance } from './timeAttack';
-import { settingsRows as settingsRowsNow, versionLine } from './settingsRows';
+import { settingsPages, settingsRows as settingsRowsNow } from './settingsRows';
 import { worldBoard } from './screens/worldBoard';
 import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
@@ -359,13 +359,14 @@ export function chooseCircuit(
 
   // the settings screen: difficulty, then the rows the pause screen has too (src/f1/settingsRows.ts)
   const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
-  const settingsRows = [difficultyRow, ...settingsRowsNow()];
-  const settingsTitle = document.createElement('h2');
-  settingsTitle.textContent = 'SETTINGS';
+  const pages = settingsRowsNow();
+  pages.game.unshift(difficultyRow);
+  const settings = settingsPages(pages, () => closeSettings());
   const openSettings = () => {
     menuPick();
     view = 'settings';
     focus = 0;
+    settings.reset();
     show();
   };
   const closeSettings = () => {
@@ -507,7 +508,6 @@ export function chooseCircuit(
   };
   const trophiesButton = menuButton('TROPHIES', openCabinet);
   const cabinetDone = menuButton('DONE', closeCabinet);
-  const doneButton = menuButton('DONE', closeSettings);
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
   // dots under it for where it is in the list
@@ -682,7 +682,7 @@ export function chooseCircuit(
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   // (a report is made from the REPORT in the column's top corner, as on every menu screen)
-  const settingsParts: HTMLElement[] = [settingsTitle, ...settingsRows.map((r) => r.el), doneButton, versionLine()];
+  const settingsParts: HTMLElement[] = settings.els;
   const show = () => {
     hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
     // (the settings on black, for reading: the race behind the menu hidden)
@@ -690,7 +690,7 @@ export function chooseCircuit(
     for (const el of cabinetParts) el.style.display = view === 'trophies' ? '' : 'none';
     for (const el of modesParts) el.style.display = view === 'modes' ? '' : 'none';
     for (const el of circuitParts) el.style.display = view === 'circuit' ? '' : 'none';
-    for (const el of settingsParts) el.style.display = view === 'settings' ? '' : 'none';
+    settings.show(view === 'settings');
     resumeButton?.classList.toggle('focused', view === 'modes' && focus === 0);
     modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === R + k));
     settingsButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length);
@@ -700,8 +700,6 @@ export function chooseCircuit(
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
     raceButton.classList.toggle('focused', view === 'circuit' && focus === raceAt());
     backButton.classList.toggle('focused', view === 'circuit' && focus === backAt());
-    settingsRows.forEach((r, k) => r.el.classList.toggle('focused', view === 'settings' && focus === k));
-    doneButton.classList.toggle('focused', view === 'settings' && focus === settingsRows.length);
     // (the settings: no A on the deck, their own DONE closes them; A still does on the keys and a gamepad)
     hud.setLabel('a', view === 'circuit' ? 'RACE' : view === 'modes' ? 'PICK' : view === 'settings' ? '' : 'DONE');
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
@@ -709,10 +707,6 @@ export function chooseCircuit(
   // a tap on a row focuses it too
   [teamRow, carChoice, raceWeatherRow, clockWeatherRow, qualifyingRow, lapsRow, tyresRow].forEach((r) => r.el.addEventListener('pointerdown', () => {
     focus = 1 + rows.indexOf(r);
-    show();
-  }));
-  settingsRows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
-    focus = k;
     show();
   }));
   renderCard();
@@ -741,7 +735,7 @@ export function chooseCircuit(
     // modes, nowhere to go (the app asks before it leaves)
     const offBack = onBack(() => {
       if (view === 'modes') return false;
-      if (view === 'settings') closeSettings();
+      if (view === 'settings') settings.back();
       else if (view === 'trophies') closeCabinet();
       else toModes();
       return true;
@@ -774,15 +768,11 @@ export function chooseCircuit(
       if (reportOpen()) {
         // (nothing)
       } else if (view === 'settings') {
-        // the settings: up/down moves, left/right changes a row, A or START (or DONE) goes back
-        const places = settingsRows.length + 1;
-        if (move) {
-          focus = (focus + move + places) % places;
-          show();
-        }
-        const row = settingsRows[focus];
-        if (row && (left || right)) row.step(right ? 1 : -1);
-        if (a || start) closeSettings();
+        // the settings: up/down moves, left/right changes a row, A or START opens a page (or DONE goes back)
+        if (move) settings.move(move);
+        if (left || right) settings.step(right ? 1 : -1);
+        if (a || start) settings.pick();
+        else if (b) settings.back();
       } else if (view === 'trophies') {
         // the cabinet: left/right switches its tab; A, START or B goes back
         if (left || right) {

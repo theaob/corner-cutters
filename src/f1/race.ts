@@ -58,8 +58,7 @@ import { RaceSounds, crowdNear, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { note, setGpu, setQuality } from '../engine/logbook';
 import { reportProblem, setRaceSpot } from './crashes';
-import { menuButton } from './circuitSelect';
-import { settingsRows, versionLine } from './settingsRows';
+import { settingsPages, settingsRows } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
 import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
@@ -1194,23 +1193,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const pauseSettings = document.createElement('div');
   pauseSettings.className = 'circuit-menu pause-settings';
   style(pauseSettings, { zIndex: '5', display: 'none', justifyContent: 'center', background: '#000' });
-  const settingsTitle = document.createElement('h2');
-  settingsTitle.textContent = 'SETTINGS';
-  const pauseRows = settingsRows();
-  const settingsDone = menuButton('DONE', () => openPauseSettings(false));
-  pauseSettings.append(settingsTitle, ...pauseRows.map((r) => r.el), settingsDone, versionLine());
+  const pausePages = settingsPages(settingsRows(), () => openPauseSettings(false));
+  pauseSettings.append(...pausePages.els);
   host.append(pauseSettings);
-  /** the settings are up, and the row the deck is on (the last place is DONE) */
+  /** the settings are up */
   let pauseSettingsOn = false;
-  let pauseFocus = 0;
-  const showPauseFocus = () => {
-    pauseRows.forEach((r, k) => r.el.classList.toggle('focused', k === pauseFocus));
-    settingsDone.classList.toggle('focused', pauseFocus === pauseRows.length);
-  };
-  pauseRows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
-    pauseFocus = k;
-    showPauseFocus();
-  }));
   const openPauseSettings = (on: boolean) => {
     if (on === pauseSettingsOn) return;
     menuPick();
@@ -1218,8 +1205,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseSettings.style.display = on ? 'flex' : 'none';
     // (the pause screen's buttons out of the way under it)
     pauseScreen.style.visibility = on ? 'hidden' : '';
-    pauseFocus = 0;
-    showPauseFocus();
+    pausePages.reset();
   };
   // the pause screen's buttons, and in their place once EXIT is pressed, the question: leave? (STAY first)
   const pauseMain = [
@@ -1272,7 +1258,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // it's over, on (a Championship round with its results seen counts, as with A)
   const offBack = onBack(() => {
     if (replay && !paused) endReplay();
-    else if (pauseSettingsOn) openPauseSettings(false);
+    else if (pauseSettingsOn) pausePages.back();
     else if (asking) askExit(false);
     else if (paused) setPaused(false);
     else if (!done) setPaused(true);
@@ -1546,14 +1532,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
       pressed('select');
-      const places = pauseRows.length + 1;
-      if (up || down) {
-        pauseFocus = (pauseFocus + (down ? 1 : -1) + places) % places;
-        showPauseFocus();
-      }
-      const row = pauseRows[pauseFocus];
-      if (row && (left || right)) row.step(right ? 1 : -1);
-      if (a || b || start) openPauseSettings(false);
+      if (up || down) pausePages.move(down ? 1 : -1);
+      if (left || right) pausePages.step(right ? 1 : -1);
+      if (a || start) pausePages.pick();
+      else if (b) pausePages.back();
       requestAnimationFrame(tick);
       return;
     }
