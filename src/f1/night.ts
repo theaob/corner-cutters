@@ -7,8 +7,7 @@
 import * as THREE from 'three';
 import { groundAt, type Grid } from '../engine/sim';
 import type { SkyState } from '../engine/render/daylight';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { HALF_WIDTH, TILE, type Circuit } from './circuit';
+import { HALF_WIDTH, type Circuit } from './circuit';
 
 export const NIGHT = {
   /** the glow (bloom) at night, stronger than by day: the neon and the lamps shine */
@@ -16,9 +15,17 @@ export const NIGHT = {
   /** px between lamps along each side, and px out past the track's edge they stand */
   lampEvery: 150,
   lampOut: 14,
-  /** px up the lamp's head is; px across the pool of light it throws */
+  /** px up the lamp's head is */
   lampHigh: 30,
+  /** px across the stretch of track a lamp lights (so none is put where it would light another stretch) */
   pool: 120,
+  /** the spotlights: how many shine at once (the lamps nearest the camera, the rest dark), their intensity, how far they reach, the cone's half angle (rad) and softness, and how far from the camera they fade out */
+  spots: 8,
+  spotIntensity: 9,
+  spotReach: 260,
+  spotAngle: 0.95,
+  spotSoft: 0.7,
+  spotFade: [300, 460],
 };
 
 /** `sky` (a weather's, by day) at night: a dark violet sky, the light cool moonlight and the city's warm glow, as much darker as the weather is dull. */
@@ -74,54 +81,20 @@ export function lampsOf(circuit: Circuit): { x: number; y: number; dir: number; 
   return out;
 }
 
-/** A soft round pool of light: bright in the middle, fading to nothing at its edge. */
-function poolTexture(): THREE.Texture {
-  const N = 64;
-  const c = document.createElement('canvas');
-  c.width = c.height = N;
-  const x = c.getContext('2d')!;
-  const g = x.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2);
-  g.addColorStop(0, 'rgba(255,226,170,0.9)');
-  g.addColorStop(0.45, 'rgba(255,210,150,0.45)');
-  g.addColorStop(1, 'rgba(255,200,140,0)');
-  x.fillStyle = g;
-  x.fillRect(0, 0, N, N);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-/** A pool of light's square patch centred on (cx, cy): a grid of one tile a cell, each corner lifted just above the ground under it. */
-export function poolPatch(grid: Grid, cx: number, cy: number): THREE.BufferGeometry {
-  const n = Math.ceil(NIGHT.pool / TILE);
-  const g = new THREE.PlaneGeometry(NIGHT.pool, NIGHT.pool, n, n).rotateX(-Math.PI / 2);
-  const pos = g.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = cx + pos.getX(i);
-    const y = cy + pos.getZ(i);
-    // (a tile's two triangles sit a little over or under the bilinear height: lifted past that; the material's polygon offset
-    // covers the depth buffer's coarseness far off, which on a phone's 16-bit one clipped it in jagged steps)
-    pos.setXYZ(i, x, groundAt(grid, x, y).h + 1.5, y);
-  }
-  return g;
-}
-
-/** The street lamps in `scene` (on `grid`'s ground): their posts and arms, their glowing heads, and the pools of light they throw on the track. */
-export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circuit): void {
+/** The street lamps in `scene` (on `grid`'s ground): their posts and arms and glowing heads, and the spotlights that light the track from them. Returns the step that keeps those lights on the lamps nearest `focus`. */
+export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circuit): (focus: { x: number; y: number }) => void {
   const lamps = lampsOf(circuit);
-  if (!lamps.length) return;
+  if (!lamps.length) return () => {};
   const post = new THREE.InstancedMesh(new THREE.BoxGeometry(2, NIGHT.lampHigh, 2).translate(0, NIGHT.lampHigh / 2, 0), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
   const arm = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 1.4, 1).translate(0, 0, 0.5), new THREE.MeshLambertMaterial({ color: 0x3a3c48 }), lamps.length);
   const head = new THREE.InstancedMesh(new THREE.BoxGeometry(6, 1.6, 3), new THREE.MeshBasicMaterial({ color: 0xffe2a8, toneMapped: false }), lamps.length);
-  const poolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.7, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  const pools: THREE.BufferGeometry[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   const one = new THREE.Vector3(1, 1, 1);
-  lamps.forEach((l, k) => {
+  // (where each lamp's light comes from: its head; and where it points: the track under the arm's tip)
+  const spots = lamps.map((l, k) => {
     const h = groundAt(grid, l.x, l.y).h;
-    // (the arm reaches out over the track, toward its middle: `dir` is the way across, from the lamp)
     const ax = Math.cos(l.dir);
     const ay = Math.sin(l.dir);
     q.setFromAxisAngle(up, -l.dir + Math.PI / 2);
@@ -133,15 +106,32 @@ export function buildStreetLights(scene: THREE.Scene, grid: Grid, circuit: Circu
     const hy = l.y + ay * l.reach * 0.55;
     m.compose(new THREE.Vector3(hx, h + NIGHT.lampHigh - 1, hy), q, one);
     head.setMatrixAt(k, m);
-    // (its pool on the track under it: draped over the ground's own heights, so no slope or step of it cuts the light off)
-    pools.push(poolPatch(grid, l.x + ax * l.reach, l.y + ay * l.reach));
+    const px = l.x + ax * l.reach;
+    const py = l.y + ay * l.reach;
+    return { from: new THREE.Vector3(hx, h + NIGHT.lampHigh - 2, hy), to: new THREE.Vector3(px, groundAt(grid, px, py).h, py) };
   });
   post.castShadow = true;
-  const pool = new THREE.Mesh(mergeGeometries(pools), poolMat);
-  pool.renderOrder = 2;
-  for (const mesh of [post, arm, head, pool]) {
-    if (mesh instanceof THREE.InstancedMesh) mesh.computeBoundingSphere();
-    else mesh.geometry.computeBoundingSphere();
+  for (const mesh of [post, arm, head]) {
+    mesh.computeBoundingSphere();
     scene.add(mesh);
   }
+  // the spotlights themselves: a few, kept on the lamps nearest the camera (every light costs every surface a little, so not one a lamp)
+  const lights = Array.from({ length: Math.min(NIGHT.spots, lamps.length) }, () => {
+    const light = new THREE.SpotLight(0xffd9a0, 0, NIGHT.spotReach, NIGHT.spotAngle, NIGHT.spotSoft, 0);
+    scene.add(light, light.target);
+    return light;
+  });
+  const [near, far] = NIGHT.spotFade;
+  return (focus) => {
+    const dist = (i: number) => Math.hypot(spots[i].to.x - focus.x, spots[i].to.z - focus.y);
+    const nearest = spots.map((_, i) => i).sort((i, j) => dist(i) - dist(j)).slice(0, lights.length);
+    nearest.forEach((i, k) => {
+      const light = lights[k];
+      light.position.copy(spots[i].from);
+      light.target.position.copy(spots[i].to);
+      light.target.updateMatrixWorld();
+      // (fading in and out with the camera's distance, so a lamp coming into range doesn't light up with a pop)
+      light.intensity = NIGHT.spotIntensity * Math.min(1, Math.max(0, (far - dist(i)) / (far - near)));
+    });
+  };
 }

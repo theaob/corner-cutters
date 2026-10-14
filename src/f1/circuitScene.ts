@@ -856,7 +856,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const neonCity = circuit.layout.neon ? buildNeonCity(scene, circuit) : undefined;
   const town = street && !circuit.layout.neon ? buildTown(scene, circuit) : undefined;
   // (at night, the street lamps along the track)
-  if (night) buildStreetLights(scene, circuit.grid, circuit);
+  const lampLights = night ? buildStreetLights(scene, circuit.grid, circuit) : undefined;
   // (at a circuit whose podium hangs over the main straight: its deck)
   const deck = createPodiumDeck(circuit);
   if (deck) scene.add(deck);
@@ -939,6 +939,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     planes: planes?.run,
     yeti: yeti?.run,
     stepScenery: (dt, cars, focus) => {
+      lampLights?.(focus);
       petals?.(dt, cars, focus);
       gopher?.step(dt, cars, focus);
       yeti?.step(dt, focus);
