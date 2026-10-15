@@ -153,11 +153,25 @@
       /* SETTINGS and TROPHIES: a row of their own under the modes, apart from them */
       .circuit-menu .menu-utility {
         display: flex;
-        gap: 10px;
-        margin-top: 8px;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--key-edge);
       }
       .circuit-menu .menu-utility .menu-button {
         flex: 1;
+      }
+      /* (smaller than the modes' tiles: a row, the icon beside its name) */
+      .circuit-menu .menu-utility .menu-button.menu-tile {
+        aspect-ratio: auto;
+        flex-direction: row;
+        gap: 8px;
+        min-height: 44px;
+        padding: 6px 8px;
+      }
+      .circuit-menu .menu-utility .menu-tile .tile-icon {
+        width: 22px;
+        max-width: none;
       }
       .circuit-menu .menu-button.focused {
         border-color: var(--accent-b);

@@ -674,13 +674,13 @@ export function chooseCircuit(
   const utilityRow = document.createElement('div');
   utilityRow.className = 'menu-utility';
   utilityRow.append(settingsButton, trophiesButton);
-  // (the modes and those two a grid of square tiles: RESUME RACE, when there's one, across the top of it)
+  // (the modes a grid of square tiles, RESUME RACE when there's one across the top of it; SETTINGS and TROPHIES smaller, apart below)
   const grid = document.createElement('div');
   grid.className = 'menu-tiles';
-  grid.append(...(resumeButton ? [resumeButton] : []), ...modeButtons, settingsButton, trophiesButton);
+  grid.append(...(resumeButton ? [resumeButton] : []), ...modeButtons);
   // TODAY over the modes: your streak, the day's missions, yesterday's Daily (screens/todayPanel.ts)
   const today = todayPanel(closed);
-  const modesParts: HTMLElement[] = [today, grid, ...(tab ? [tab] : [])];
+  const modesParts: HTMLElement[] = [today, grid, utilityRow, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   // (a report is made from the REPORT in the column's top corner, as on every menu screen)
@@ -716,7 +716,7 @@ export function chooseCircuit(
   renderCard();
   renderRace();
   options.append(...rows.map((r) => r.el));
-  menu.append(today, grid, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
+  menu.append(today, grid, utilityRow, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
@@ -786,14 +786,20 @@ export function chooseCircuit(
         if (a || start || b) closeCabinet();
       } else if (view === 'modes') {
         // the modes: up/down moves, A or START picks (or opens SETTINGS or TROPHIES)
-        const tiles = MODES.length + 2;
+        const modeN = MODES.length;
+        const util = R + modeN;
         const dx = (right ? 1 : 0) - (left ? 1 : 0);
         if (move || dx) {
-          // (from none highlighted: the first tile, or with up or left the last; RESUME RACE is a row of its own above the grid)
           const g = focus - R;
-          if (resumeButton && focus === 0) focus = dx || move > 0 ? R : R + tiles - 1;
-          else if (resumeButton && move < 0 && focus >= R && g < TILE_COLUMNS) focus = 0;
-          else focus = R + gridStep(focus < 0 ? -1 : g, dx, move, tiles);
+          if (focus < 0) focus = move < 0 || dx < 0 ? util + 1 : resumeButton ? 0 : R;
+          // RESUME RACE: a row of its own above the grid
+          else if (resumeButton && focus === 0) focus = dx || move > 0 ? R : util + 1;
+          // SETTINGS and TROPHIES: left/right between them, up to the last row of modes, down round to the top
+          else if (focus >= util) focus = dx ? util + (focus === util ? 1 : 0) : move < 0 ? R + modeN - 2 + (focus - util) : resumeButton ? 0 : R;
+          // down off the grid's last row: to SETTINGS or TROPHIES (the one nearest), up off its top row: to RESUME RACE or round to them
+          else if (move > 0 && g + TILE_COLUMNS >= modeN) focus = util + (g % TILE_COLUMNS === 0 ? 0 : 1);
+          else if (move < 0 && g < TILE_COLUMNS) focus = resumeButton ? 0 : util + (g % TILE_COLUMNS === 0 ? 0 : 1);
+          else focus = R + gridStep(g, dx, move, modeN);
           menuTick();
           show();
         }
