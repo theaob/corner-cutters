@@ -12,7 +12,7 @@ import { menuButton, optionRow } from './circuitSelect';
 import { setShake, shakeOn } from './shake';
 import { gridWalkOn, setGridWalk } from './gridPan';
 import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
-import { setStats, statsOn } from './profile';
+import { INITIALS, initials, setInitials, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
@@ -83,6 +83,29 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
   const next = nextReward(best);
   const styleAbout = (st: CarStyle) =>
     st.days === 0 ? (next ? `${next.days} days running earns the ${next.name.toLowerCase()}` : "your team's colours") : `earned with a ${st.days}-day streak`;
+  // NAME: your three letters on the timing screens and the boards, typed (the phone's keyboard comes up), as on an arcade board
+  const nameRow = (() => {
+    const el = document.createElement('div');
+    el.className = 'option-row';
+    const label = Object.assign(document.createElement('b'), { textContent: 'NAME' });
+    const right = document.createElement('div');
+    right.className = 'value';
+    const field = document.createElement('input');
+    Object.assign(field, { type: 'text', maxLength: 3, autocomplete: 'off', spellcheck: false, value: initials() ?? '', placeholder: 'YOU' });
+    field.setAttribute('autocapitalize', 'characters');
+    field.setAttribute('enterkeyhint', 'done');
+    field.setAttribute('aria-label', 'Your three letters');
+    Object.assign(field.style, { width: '4.5em', textAlign: 'center', font: 'inherit', textTransform: 'uppercase' });
+    const about = Object.assign(document.createElement('span'), { textContent: 'three letters or digits, for races and boards' });
+    field.addEventListener('input', () => {
+      const clean = field.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+      if (clean !== field.value) field.value = clean;
+      if (INITIALS.test(clean)) setInitials(clean);
+    });
+    right.append(field, about);
+    el.append(label, right);
+    return { el, step: () => {}, value: () => initials(), refresh: () => { field.value = initials() ?? ''; } };
+  })();
   const styleRow = optionRow('CAR STYLE', stylesFor(best), carStyle(best), (st) => ({ name: st.name, about: styleAbout(st) }), setCarStyle);
   // DAILY REMINDER (the app): a notification at that hour on a day not yet played (reminder.ts)
   const reminderRow = remindersHere()
@@ -95,7 +118,7 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
   // (the page for what doesn't clearly fit: the daily reminder, the car style, STATS and the screen are about the game)
   return {
     controls: [stickRow, drivingRow, vibrationRow],
-    game: [styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
+    game: [nameRow, styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
     sound: [soundRow, musicRow],
     access: [textRow, coloursRow, motionRow, shakeRow],
   } as Record<SettingsSection, SettingsRow[]>;

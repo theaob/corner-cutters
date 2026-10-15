@@ -8,6 +8,7 @@ import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton, optionRow } from '../circuitSelect';
+import { driverName } from '../profile';
 import { trophy } from './celebrate';
 import { celebrateTitle } from './titleWin';
 import { onBack } from '../../engine/backButton';
@@ -93,7 +94,7 @@ function standingsTable(s: Season): HTMLTableElement {
     const plus = cell('td', scored ? `+${scored}` : '');
     Object.assign(plus.style, { color: 'var(--gold)', fontSize: '10px', animation: scored ? `score-in 1.6s ease-out ${(0.5 + pos * 0.06).toFixed(2)}s both` : '' });
     row.append(
-      cell('td', `${pos + 1}`, true), cell('td', `${numberIn(s, r.driver) ?? ''}`, true), cell('td', d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
+      cell('td', `${pos + 1}`, true), cell('td', `${numberIn(s, r.driver) ?? ''}`, true), cell('td', d.name === 'YOU' ? driverName() : d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
       cell('td', lastPlace === undefined ? '' : lastPlace < 0 ? 'DNF' : `P${lastPlace + 1}`, true),
     );
     table.append(row);
