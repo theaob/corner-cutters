@@ -1,4 +1,4 @@
-// The locker: every look for your car (carStyle.ts), the ones your daily streak has earned to equip (tap, or A), the
+// The shop: every look for your car (carStyle.ts), the ones your daily streak has earned to equip (tap, or A), the
 // rest shown locked with the streak that earns them. The one equipped is the one raced in. Touch, or keys: up/down
 // moves, A or START equips, SELECT (or the phone's back button) goes back.
 
@@ -6,7 +6,7 @@ import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton } from '../circuitSelect';
-import { carStyle, lockerStyles, setCarStyle, styled, type CarStyle } from '../carStyle';
+import { carStyle, shopStyles, setCarStyle, styled, type CarStyle } from '../carStyle';
 import { loadDaily } from '../daily';
 import { reportOpen } from '../report';
 import { menuPick, menuTick } from '../sounds';
@@ -41,13 +41,13 @@ export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
   return svg;
 }
 
-/** The locker in `host` until the player goes back. */
-export function showLocker(host: HTMLElement, services: Services, team: Team, closed?: AbortSignal): Promise<void> {
+/** The shop in `host` until the player goes back. */
+export function showCarShop(host: HTMLElement, services: Services, team: Team, closed?: AbortSignal): Promise<void> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'LOCKER';
+  title.textContent = 'SHOP';
   const best = loadStreak(loadDaily()).best;
   const line = (text: string, color = 'var(--muted)') => {
     const p = document.createElement('p');
@@ -57,7 +57,7 @@ export function showLocker(host: HTMLElement, services: Services, team: Team, cl
   };
   const status = line('\u00a0');
   screen.append(title, line('LOOKS FOR YOUR CAR: A STREAK OF DAYS PLAYED EARNS THEM, YOURS FOR GOOD', 'var(--text)'), status);
-  const entries = lockerStyles(best);
+  const entries = shopStyles(best);
   const rows = entries.map(({ style, owned }) => {
     const b = menuButton('', () => equip(style, owned));
     b.disabled = false;

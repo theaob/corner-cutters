@@ -43,8 +43,8 @@ export function carStyle(best: number): CarStyle {
   return stylesFor(best).find((s) => s.id === id) ?? CAR_STYLES[0];
 }
 
-/** Every style for the locker (locker.ts): the ones `best` has earned open, the rest shown locked. */
-export const lockerStyles = (best: number): { style: CarStyle; owned: boolean }[] => {
+/** Every style for the shop (carShop.ts): the ones `best` has earned open, the rest shown locked. */
+export const shopStyles = (best: number): { style: CarStyle; owned: boolean }[] => {
   const got = new Set(stylesFor(best).map((s) => s.id));
   return CAR_STYLES.map((style) => ({ style, owned: got.has(style.id) }));
 };
