@@ -19,7 +19,6 @@ import { holdTouches } from '../engine/deck';
 import { menuPick, menuTick } from './sounds';
 import type { Services } from '../engine/services';
 import type { CircuitLayout } from './layouts';
-import { numberOf } from './drivers';
 import { TEAMS, type Seat, type Team } from './teams';
 import { logoSvg } from './logos';
 import { formatTime, loadRecords } from './records';
@@ -110,10 +109,10 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
 ];
 
 /** The option rows a mode has on its circuit screen (a Championship has none: it has its own screen); on dirt, no TYRES (off-road tyres, the only ones). */
-export const rowsOf = (mode: GameMode, layout?: CircuitLayout): ('team' | 'car' | 'weather' | 'qualifying' | 'laps' | 'tyres')[] =>
+export const rowsOf = (mode: GameMode, layout?: CircuitLayout): ('team' | 'weather' | 'qualifying' | 'laps' | 'tyres')[] =>
   mode === 'race'
-    ? ['team', 'car', 'weather', 'qualifying', 'laps', ...(layout?.dirt ? [] : ['tyres' as const])]
-    : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
+    ? ['team', 'weather', 'qualifying', 'laps', ...(layout?.dirt ? [] : ['tyres' as const])]
+    : mode === 'championship' || mode === 'daily' ? [] : ['team', 'weather'];
 
 /** The circuits with the open ones first (each lot in the order it came): the locked ones, reached in a Championship, after them. */
 export const openFirst = <T extends { id: string }>(layouts: readonly T[], open: ReadonlySet<string>): T[] => [
@@ -258,18 +257,6 @@ export function optionRow<T>(
   return { el, step, value: () => values[i], refresh: render };
 }
 
-/**
- * The CAR row, under TEAM: which of the team's two cars you drive (`team()`, the team picked): you take that
- * driver's seat and number, and their teammate races the other.
- */
-export function carRow(team: () => Team, start: Seat) {
-  const named = (code: string) => {
-    const n = numberOf(code);
-    return n === undefined ? code : `#${n} ${code}`;
-  };
-  return optionRow<Seat>('CAR', [0, 1], start, (s) => ({ name: named(team().drivers[s]), about: `teammate ${named(team().drivers[s === 0 ? 1 : 0])}` }));
-}
-
 /** A menu button, picked on the press's release (not 'click': in a cross-origin frame on a phone a tap's click can go astray). */
 export function menuButton(text: string, onPick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
@@ -301,8 +288,6 @@ export function chooseCircuit(
   mode: GameMode = 'race',
   /** a Quick Race's laps, as last chosen */
   laps: number = RACE_LAPS,
-  /** which of the team's cars you drive, as last chosen */
-  seat: Seat = 0,
   /** the circuits open for a Quick Race, a Time Attack or a Time Trial (the rest are reached in a Championship) */
   open: ReadonlySet<string> = new Set(layouts.map((l) => l.id)),
   /** closes the menu without a choice (the player went elsewhere: the browser's back or forward button) */
@@ -340,8 +325,7 @@ export function chooseCircuit(
   let finish: (l: CircuitLayout) => void = () => {};
 
   // (the CAR row names the team's drivers: drawn again when the team changes)
-  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }), () => carChoice.refresh());
-  const carChoice = carRow(() => teamRow.value(), seat);
+  const teamRow = optionRow('TEAM', TEAMS, team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
   // (a Quick Race's weather may be changeable; against the clock it's the same all session)
   const raceWeatherRow = optionRow('WEATHER', RACE_WEATHERS, weather, (w) => ({ name: w.name, about: w.about }));
   const clockWeatherRow = optionRow('WEATHER', WEATHERS, weather, (w) => ({ name: w.name, about: w.about }), () => showWorld());
@@ -355,7 +339,7 @@ export function chooseCircuit(
     about: t === 'auto' ? "the pit wall's strategy, in the dry" : t === 'slick' ? 'start on softs: quick, but they wear' : 'start on hards: slower, they last',
     colors: t === 'auto' ? undefined : [COMPOUNDS[t].color],
   }));
-  const ROWS = { team: () => teamRow, car: () => carChoice, weather: weatherRow, qualifying: () => qualifyingRow, laps: () => lapsRow, tyres: () => tyresRow };
+  const ROWS = { team: () => teamRow, weather: weatherRow, qualifying: () => qualifyingRow, laps: () => lapsRow, tyres: () => tyresRow };
   /** the rows on the circuit screen, for the mode picked */
   let rows = rowsOf(current.id, layouts[selected]).map((k) => ROWS[k]());
 
@@ -725,7 +709,7 @@ export function chooseCircuit(
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
   };
   // a tap on a row focuses it too
-  [teamRow, carChoice, raceWeatherRow, clockWeatherRow, qualifyingRow, lapsRow, tyresRow].forEach((r) => r.el.addEventListener('pointerdown', () => {
+  [teamRow, raceWeatherRow, clockWeatherRow, qualifyingRow, lapsRow, tyresRow].forEach((r) => r.el.addEventListener('pointerdown', () => {
     focus = 1 + rows.indexOf(r);
     show();
   }));
@@ -772,7 +756,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value(), ...(resumePicked ? { resume: true as const } : {}), ...(shopPicked ? { shop: true as const } : {}) });
+      resolve({ mode: current.id, layout, team: teamRow.value(), seat: 0, difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value(), ...(resumePicked ? { resume: true as const } : {}), ...(shopPicked ? { shop: true as const } : {}) });
     };
     closed?.addEventListener('abort', () => {
       done = true;

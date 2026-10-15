@@ -1,6 +1,6 @@
 // Your streak: the days running you've played (a race finished, a Time Trial lap set, a Time Attack or Daily run
 // over), by your own clock's days. One day missed a week is forgiven (the streak saved, not grown); a second ends it.
-// Reaching 3, 7, 14, 21, 30 and 45 days earns a look for your car (carStyle.ts), yours for good. Engine-free but for the save.
+// Reaching 3, 7, 14, 21, 30, 45, 60, 90 and 120 days earns a look for your car (carStyle.ts), yours for good. Engine-free but for the save.
 
 import { save, saved } from '../engine/save';
 
@@ -54,6 +54,9 @@ export const REWARDS: Reward[] = [
   { id: 'golden-helmet', days: 21, name: 'GOLDEN HELMET' },
   { id: 'black-gold', days: 30, name: 'BLACK & GOLD' },
   { id: 'led-helmet', days: 45, name: 'LED HELMET' },
+  { id: 'night-racer', days: 60, name: 'NIGHT RACER' },
+  { id: 'retro-racer', days: 90, name: 'RETRO RACER' },
+  { id: 'chequered', days: 120, name: 'CHEQUERED' },
 ];
 
 /** The streak, as saved. (A Daily Challenge streak from before carries over: `daily` is its last day and length.) */

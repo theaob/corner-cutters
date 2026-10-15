@@ -63,13 +63,14 @@ describe('the streak', () => {
   it('earns the rewards as it reaches them, once, and they stay with the best streak', () => {
     const s: Streak = { days: 0, best: 0 };
     const got: string[] = [];
-    for (let k = 0; k < 45; k++) got.push(...playedOn(s, addDays(D, k)).rewards.map((r) => r.id));
+    for (let k = 0; k < 120; k++) got.push(...playedOn(s, addDays(D, k)).rewards.map((r) => r.id));
     expect(got).toEqual(REWARDS.map((r) => r.id));
     playedOn(s, addDays(D, 40));
     expect(earned(s.best).length).toBe(REWARDS.length);
     expect(nextReward(5)?.days).toBe(7);
     expect(nextReward(30)?.days).toBe(45);
-    expect(nextReward(45)).toBeUndefined();
+    expect(nextReward(45)?.days).toBe(60);
+    expect(nextReward(120)).toBeUndefined();
   });
 
   it("carries a Daily Challenge streak over from before, and keeps what's saved", () => {
