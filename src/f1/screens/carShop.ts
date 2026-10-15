@@ -2,6 +2,7 @@
 // rest shown locked with the streak that earns them. The one equipped is the one raced in. Touch, or keys: up/down
 // moves, A or START equips, SELECT (or the phone's back button) goes back.
 
+import type { LiveryPattern } from '../../engine/render/vehicles3d';
 import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -18,7 +19,7 @@ const GOLD_HELMET = '#f2c14e';
 
 /** A small car from above in `team`'s colours with a style's look over them: wings, body, sidepods and the helmet. */
 export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
-  const look = styled({ body: team.body, stripe: team.trim, accent: team.accent ?? team.body, helmet: WHITE_HELMET } as { body: string; stripe?: string; accent?: string; helmet?: string }, style);
+  const look = styled({ body: team.body, stripe: team.trim, accent: team.accent ?? team.body, helmet: WHITE_HELMET, pattern: team.pattern } as { body: string; stripe?: string; accent?: string; helmet?: string; pattern?: LiveryPattern }, style);
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', '0 0 40 56');
@@ -38,6 +39,30 @@ export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
   shape('rect', { x: 6, y: 50, width: 28, height: 5, fill: stripe });
   shape('rect', { x: 9, y: 22, width: 22, height: 16, rx: 3, fill: look.accent ?? look.body });
   shape('rect', { x: 15, y: 6, width: 10, height: 44, rx: 4, fill: look.body });
+  // (the livery's pattern over the body, as the car is painted: the front is the top)
+  const clip = document.createElementNS(ns, 'clipPath');
+  clip.setAttribute('id', 'body-clip');
+  const clipShape = document.createElementNS(ns, 'rect');
+  for (const [k, v] of Object.entries({ x: 15, y: 6, width: 10, height: 44, rx: 4 })) clipShape.setAttribute(k, String(v));
+  clip.append(clipShape);
+  svg.append(clip);
+  const paint = document.createElementNS(ns, 'g');
+  paint.setAttribute('clip-path', 'url(#body-clip)');
+  svg.append(paint);
+  const mark = (attrs: Record<string, string | number>, tag = 'rect') => {
+    const el = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries({ fill: stripe, ...attrs })) el.setAttribute(k, String(v));
+    paint.append(el);
+  };
+  switch (look.pattern) {
+    case 'stripe': mark({ x: 18.6, y: 6, width: 2.8, height: 44 }); break;
+    case 'twin': mark({ x: 16.4, y: 6, width: 1.8, height: 44 }); mark({ x: 21.8, y: 6, width: 1.8, height: 44 }); break;
+    case 'band': for (let y = 11; y < 50; y += 13) mark({ x: 15, y, width: 10, height: 5 }); break;
+    case 'chevron': for (let y = 12; y < 56; y += 15) mark({ d: `M15 ${y + 5} L20 ${y} L25 ${y + 5}`, fill: 'none', stroke: stripe, 'stroke-width': 3.5 }, 'path'); break;
+    case 'halves': mark({ x: 15, y: 6, width: 10, height: 22 }); break;
+    case 'split': mark({ x: 20, y: 6, width: 5, height: 44 }); break;
+    case 'nose': mark({ x: 15, y: 6, width: 10, height: 15 }); break;
+  }
   // (the LED helmet: the Neon City's swirl of colours)
   if (look.helmet === 'led') {
     const grad = document.createElementNS(ns, 'linearGradient');

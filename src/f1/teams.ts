@@ -1,7 +1,7 @@
 // The teams: a name, a three-letter code for the timing screens, a livery
 // (body, trim, and an optional third colour for the sidepods), and their two
-// drivers. A race runs five of them, two cars each: yours (you in the first
-// seat, the team's second driver beside you) and four drawn at random.
+// drivers. A race runs one car from each team: yours (you in the first seat)
+// and the rest drawn at random.
 
 import type { LiveryPattern } from '../engine/render/vehicles3d';
 
@@ -39,11 +39,8 @@ export const TEAMS: Team[] = [
   { id: 'grandmas-fave', code: 'GMF', name: "Grandma's Fave", body: '#1b1b26', trim: '#f4f4f8', pattern: 'twin', drivers: ['BOT', 'PER'] },
 ];
 
-/** How many teams race at once, two cars each. */
 /** A team's car: its first (0) or its second (1), each with its own driver. */
 export type Seat = 0 | 1;
-
-export const TEAMS_PER_RACE = 5;
 
 /** The team with this id, or undefined. */
 export const teamById = (id: string | null | undefined) => TEAMS.find((t) => t.id === id);
@@ -74,14 +71,12 @@ function shuffled<T>(list: T[], rng: () => number): T[] {
 }
 
 /**
- * Each grid slot's team, for `total` cars with the player in slot `you`: the
- * player's team fills two cars (the teammate somewhere else on the grid), and
- * four teams drawn at random fill the rest, two cars each, in a shuffled order.
+ * Each grid slot's team, for `total` cars with the player in slot `you`: one car
+ * for the player's team, and the rest from teams drawn at random, each once, in
+ * a shuffled order (a grid bigger than the teams starts a second car for some).
  */
 export function teamGrid(yours: Team, total: number, you: number, rng: () => number = Math.random): Team[] {
-  const rivals = shuffled(TEAMS.filter((t) => t !== yours), rng).slice(0, TEAMS_PER_RACE - 1);
-  // the other cars: your teammate first, then each rival twice, as many as there are seats
-  const cars = [yours, ...rivals.flatMap((t) => [t, t])].slice(0, Math.max(0, total - 1));
-  const others = shuffled(cars, rng);
+  const rivals = shuffled(TEAMS.filter((t) => t !== yours), rng);
+  const others = Array.from({ length: Math.max(0, total - 1) }, (_, k) => rivals[k % rivals.length]);
   return Array.from({ length: total }, (_, i) => (i === you ? yours : others[i < you ? i : i - 1]));
 }
