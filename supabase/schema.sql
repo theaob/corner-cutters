@@ -365,14 +365,14 @@ grant execute on function public.game_stats() to anon;
 -- events already sent; nothing new is collected. The last 60 cohorts.
 create or replace function public.retention_stats() returns jsonb
 language sql stable security definer set search_path = public as $$
-  with seen as (select distinct player, (at at time zone 'utc')::date d from events),
-  first as (select player, min(d) f from seen group by player),
+  with seen as (select distinct player, (at at time zone 'utc')::date as d from events),
+  firsts as (select player, min(d) as f from seen group by player),
   cohorts as (
-    select f.f day, count(*) size,
-      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 1)) d1,
-      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 7)) d7,
-      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 30)) d30
-    from first f where f.f > (now() at time zone 'utc')::date - 60 group by f.f
+    select f.f as day, count(*) as size,
+      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 1)) as d1,
+      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 7)) as d7,
+      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 30)) as d30
+    from firsts f where f.f > (now() at time zone 'utc')::date - 60 group by f.f
   )
   select jsonb_build_object(
     'today', (now() at time zone 'utc')::date,
