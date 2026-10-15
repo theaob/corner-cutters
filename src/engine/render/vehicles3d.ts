@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { carClass, type CarClassId } from '../driving';
 import { mergedByMaterial } from './merge';
+import { lightsTexture } from './textures';
 
 const lambert = (extra: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial(extra);
 
@@ -24,8 +25,8 @@ export interface CarLook {
    * green on its second, so teammates tell apart (carbon when unset)
    */
   tcam?: string;
-  /** the driver's helmet: plain white unless set; 'gold' is shiny metallic gold (the player's) */
-  helmet?: string | 'gold';
+  /** the driver's helmet: plain white unless set; 'gold' is shiny metallic gold, 'led' a ball of swirling lights (as the Neon City's sphere) */
+  helmet?: string | 'gold' | 'led';
   /** the driver's race number, on a white plate filling the engine cover (none when unset) */
   number?: number;
 }
@@ -240,8 +241,19 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   const helmetMat =
     look.helmet === 'gold'
       ? new THREE.MeshPhongMaterial({ color: 0xf5b82e, specular: 0xfff4c8, shininess: 90, emissive: 0x4a3000 })
-      : mat(look.helmet ?? '#e8e8ee');
+      : look.helmet === 'led'
+        ? new THREE.MeshBasicMaterial({ map: lightsTexture(), toneMapped: false })
+        : mat(look.helmet ?? '#e8e8ee');
   const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 12, 10), helmetMat);
+  // (the LED one's lights swirl, as the Neon City's sphere)
+  if (look.helmet === 'led') {
+    const lights = (helmetMat as THREE.MeshBasicMaterial).map!;
+    helmet.onBeforeRender = () => {
+      const t = performance.now() / 1000;
+      lights.offset.x = t * 0.15;
+      lights.offset.y = Math.sin(t) * 0.1;
+    };
+  }
   helmet.position.set(0, 7.2, 0.5);
   helmet.castShadow = true;
   car.add(helmet);

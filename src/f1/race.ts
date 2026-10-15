@@ -570,7 +570,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** A car on the track in its team's livery (teammates: the team's second car has the bright green T-camera). */
   const addLook = (livery: Team, seat: number, mine: boolean): Look => {
     const number = numberOf(livery.drivers[seat]);
-    const plain = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, helmet: mine ? ('gold' as const) : undefined, number };
+    const plain = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, number };
     // (yours in the look you picked, a streak's reward: carStyle.ts)
     const look = mine ? styled(plain, carStyle(loadStreak(loadDaily()).best)) : plain;
     // (on dirt, on off-road tyres)

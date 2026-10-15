@@ -141,6 +141,8 @@ export interface MenuChoice {
   laps: number;
   /** RESUME RACE picked: back to the race kept on the device (raceSave.ts), the rest of the choice as it was */
   resume?: true;
+  /** SHOP picked: to the shop screen (screens/carShop.ts), the rest of the choice as it was */
+  shop?: true;
 }
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
@@ -508,6 +510,14 @@ export function chooseCircuit(
     show();
   };
   const trophiesButton = menuButton('TROPHIES', openCabinet);
+  // SHOP: the looks your streak has earned for your car, to pick from (screens/carShop.ts)
+  let shopPicked = false;
+  const openShop = () => {
+    shopPicked = true;
+    finish(layouts[selected]);
+  };
+  const shopButton = menuButton('SHOP', openShop);
+  makeTile(shopButton, 'shop', 'SHOP', 'helmets and looks for your car');
   makeTile(trophiesButton, 'trophies', 'TROPHIES', 'your titles, medals and achievements');
   const cabinetDone = menuButton('◀ BACK', closeCabinet);
 
@@ -676,10 +686,10 @@ export function chooseCircuit(
   /** the circuit screen's places for up/down: the circuit, the rows, the race button, BACK */
   const raceAt = () => 1 + rows.length;
   const backAt = () => raceAt() + 1;
-  // (SETTINGS and TROPHIES side by side in a row of their own, set apart under the modes: not modes themselves)
+  // (SETTINGS, TROPHIES and SHOP side by side in a row of their own, set apart under the modes: not modes themselves)
   const utilityRow = document.createElement('div');
   utilityRow.className = 'menu-utility';
-  utilityRow.append(settingsButton, trophiesButton);
+  utilityRow.append(settingsButton, trophiesButton, shopButton);
   // (the modes a grid of square tiles, RESUME RACE when there's one across the top of it; SETTINGS and TROPHIES smaller, apart below)
   const grid = document.createElement('div');
   grid.className = 'menu-tiles';
@@ -704,6 +714,7 @@ export function chooseCircuit(
     modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === R + k));
     settingsButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length);
     trophiesButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length + 1);
+    shopButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length + 2);
     cabinetDone.classList.toggle('focused', view === 'trophies');
     card.classList.toggle('focused', view === 'circuit' && focus === 0);
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
@@ -752,7 +763,7 @@ export function chooseCircuit(
     finish = (layout) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
-      if (!resumePicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
+      if (!resumePicked && !shopPicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
         menuTick();
         hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
         return;
@@ -761,7 +772,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value(), ...(resumePicked ? { resume: true as const } : {}) });
+      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value(), ...(resumePicked ? { resume: true as const } : {}), ...(shopPicked ? { shop: true as const } : {}) });
     };
     closed?.addEventListener('abort', () => {
       done = true;
@@ -796,14 +807,14 @@ export function chooseCircuit(
         const dx = (right ? 1 : 0) - (left ? 1 : 0);
         if (move || dx) {
           const g = focus - R;
-          if (focus < 0) focus = move < 0 || dx < 0 ? util + 1 : resumeButton ? 0 : R;
+          if (focus < 0) focus = move < 0 || dx < 0 ? util + 2 : resumeButton ? 0 : R;
           // RESUME RACE: a row of its own above the grid
-          else if (resumeButton && focus === 0) focus = dx || move > 0 ? R : util + 1;
-          // SETTINGS and TROPHIES: left/right between them, up to the last row of modes, down round to the top
-          else if (focus >= util) focus = dx ? util + (focus === util ? 1 : 0) : move < 0 ? R + modeN - 2 + (focus - util) : resumeButton ? 0 : R;
-          // down off the grid's last row: to SETTINGS or TROPHIES (the one nearest), up off its top row: to RESUME RACE or round to them
-          else if (move > 0 && g + TILE_COLUMNS >= modeN) focus = util + (g % TILE_COLUMNS === 0 ? 0 : 1);
-          else if (move < 0 && g < TILE_COLUMNS) focus = resumeButton ? 0 : util + (g % TILE_COLUMNS === 0 ? 0 : 1);
+          else if (resumeButton && focus === 0) focus = dx || move > 0 ? R : util + 2;
+          // SETTINGS, TROPHIES and SHOP: left/right between them, up to the last row of modes, down round to the top
+          else if (focus >= util) focus = dx ? Math.min(util + 2, Math.max(util, focus + dx)) : move < 0 ? R + modeN - 2 + Math.min(focus - util, 1) : resumeButton ? 0 : R;
+          // down off the grid's last row: to SETTINGS, TROPHIES or SHOP (the one nearest), up off its top row: to RESUME RACE or round to them
+          else if (move > 0 && g + TILE_COLUMNS >= modeN) focus = util + (g % TILE_COLUMNS);
+          else if (move < 0 && g < TILE_COLUMNS) focus = resumeButton ? 0 : util + (g % TILE_COLUMNS);
           else focus = R + gridStep(g, dx, move, modeN);
           menuTick();
           show();
@@ -815,6 +826,7 @@ export function chooseCircuit(
           finish(layouts[selected]);
         } else if ((a || start) && focus === R + MODES.length) openSettings();
         else if ((a || start) && focus === R + MODES.length + 1) openCabinet();
+        else if ((a || start) && focus === R + MODES.length + 2) openShop();
         else if (a || start) pickMode(MODES[focus - R]);
       } else {
         const places = backAt() + 1;
