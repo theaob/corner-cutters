@@ -147,7 +147,6 @@ const SWIPE = 28;
 const TAP_SLOP = 12;
 
 const HINT = 'SWIPE TO CHANGE · TAP THE CIRCUIT TO RACE';
-const MODES_HINT = 'PICK A MODE';
 
 /**
  * What a gesture on the circuit card does: a swipe left is the next circuit and
@@ -319,7 +318,6 @@ export function chooseCircuit(
   const title = document.createElement('h1');
   title.textContent = 'CORNER CUTTERS';
   const hint = document.createElement('p');
-  hint.textContent = MODES_HINT;
   menu.append(title, hint);
 
   /** the circuit A or START races (the last one moved to) */
@@ -636,8 +634,7 @@ export function chooseCircuit(
   const toModes = () => {
     menuPick();
     view = 'modes';
-    hint.textContent = MODES_HINT;
-    focus = -1;
+      focus = -1;
     show();
   };
   /** RESUME RACE, the race kept on the device: first of the modes (a place of its own for up/down) */
@@ -686,7 +683,8 @@ export function chooseCircuit(
   // (a report is made from the REPORT in the column's top corner, as on every menu screen)
   const settingsParts: HTMLElement[] = settings.els;
   const show = () => {
-    hint.style.display = view === 'settings' || view === 'trophies' ? 'none' : '';
+    // (no line under the title on the modes: each tile's own description is its tooltip)
+    hint.style.display = view === 'settings' || view === 'trophies' || view === 'modes' ? 'none' : '';
     // (the settings on black, for reading: the race behind the menu hidden)
     menu.classList.toggle('settings-view', view === 'settings');
     for (const el of cabinetParts) el.style.display = view === 'trophies' ? '' : 'none';
@@ -697,8 +695,6 @@ export function chooseCircuit(
     modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === R + k));
     settingsButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length);
     trophiesButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length + 1);
-    // (the highlighted tile's line about it, in the hint: its square has room for a name only)
-    if (view === 'modes') hint.textContent = (resumeButton && focus === 0 ? resumeButton : [...modeButtons, settingsButton, trophiesButton][focus - R])?.title || MODES_HINT;
     cabinetDone.classList.toggle('focused', view === 'trophies');
     card.classList.toggle('focused', view === 'circuit' && focus === 0);
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
