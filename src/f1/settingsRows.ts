@@ -117,7 +117,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
     } else onDone();
   };
   const links = SETTINGS_SECTIONS.map((s) => menuButton(SECTION_ABOUT[s], () => open(s)));
-  const end = menuButton('DONE', back);
+  const end = menuButton('◀ BACK', back);
   end.classList.add('settings-done');
   const version = versionLine();
   const els: HTMLElement[] = [title, ...links, ...SETTINGS_SECTIONS.flatMap((s) => rows[s].map((r) => r.el)), end, version];
@@ -136,7 +136,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
       r.el.style.display = s === page ? '' : 'none';
       r.el.classList.toggle('focused', s === page && focus === k);
     });
-    end.textContent = page ? '◀ BACK' : 'DONE';
+    end.textContent = '◀ BACK';
     end.classList.toggle('focused', focus === shown().length);
     version.style.display = page ? 'none' : '';
   };

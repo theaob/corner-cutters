@@ -214,7 +214,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     const choices: { el: HTMLButtonElement; pick: () => void }[] = [
       ...(season && !over ? [{ el: menuButton(`RACE ROUND ${season.round + 1} · ${nameOf(season.rounds[season.round])}`, () => finish('race')), pick: () => finish('race') }] : []),
       { el: newButton, pick: pickNew },
-      { el: menuButton('BACK', () => finish('back')), pick: () => finish('back') },
+      { el: menuButton('◀ BACK', () => finish('back')), pick: () => finish('back') },
     ];
     const buttons = choices.map((c) => c.el);
     if (roundRow) screen.append(roundOptions);

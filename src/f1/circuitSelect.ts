@@ -330,7 +330,7 @@ export function chooseCircuit(
   /**
    * where up/down is: on the modes screen a mode, then SETTINGS, then TROPHIES (none highlighted until up/down is
    * pressed: −1); on the circuit screen the circuit (0), then the mode's
-   * rows, then the race button, then BACK; in the settings, a row, then DONE
+   * rows, then the race button, then BACK; in the settings, a row, then BACK
    */
   let focus = -1;
   /** the modes, a mode's circuit screen, the settings, or the trophy cabinet */
@@ -507,7 +507,7 @@ export function chooseCircuit(
     show();
   };
   const trophiesButton = menuButton('TROPHIES', openCabinet);
-  const cabinetDone = menuButton('DONE', closeCabinet);
+  const cabinetDone = menuButton('◀ BACK', closeCabinet);
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
   // dots under it for where it is in the list
@@ -700,7 +700,7 @@ export function chooseCircuit(
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
     raceButton.classList.toggle('focused', view === 'circuit' && focus === raceAt());
     backButton.classList.toggle('focused', view === 'circuit' && focus === backAt());
-    // (the settings: no A on the deck, their own DONE closes them; A still does on the keys and a gamepad)
+    // (the settings: no A on the deck, their own BACK closes them; A still does on the keys and a gamepad)
     hud.setLabel('a', view === 'circuit' ? 'RACE' : view === 'modes' ? 'PICK' : view === 'settings' ? '' : 'DONE');
     hud.setLabel('b', view === 'circuit' ? 'BACK' : '');
   };
@@ -768,7 +768,7 @@ export function chooseCircuit(
       if (reportOpen()) {
         // (nothing)
       } else if (view === 'settings') {
-        // the settings: up/down moves, left/right changes a row, A or START opens a page (or DONE goes back)
+        // the settings: up/down moves, left/right changes a row, A or START opens a page (or BACK goes back)
         if (move) settings.move(move);
         if (left || right) settings.step(right ? 1 : -1);
         if (a || start) settings.pick();
