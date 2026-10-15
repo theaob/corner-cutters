@@ -7,26 +7,23 @@ import { GRAND_PRIX_LAPS, RACE_LAPS, seasonLength } from '../src/f1/laps';
 const season = () => newSeason({ seed: 42, team: TEAMS[2], difficulty: 'normal', qualifying: false, rounds: ['crescent-park', 'silver-heath'], total: 10 });
 
 describe('a championship season', () => {
-  it('has the same field all season: you mid-field in your team, the rest two to a team, each with a pace rank', () => {
+  it('has the same field all season: you mid-field in your team, the rest from other teams, one car a team, each with a pace rank', () => {
     const s = season();
     expect(s.drivers).toHaveLength(10);
     expect(s.drivers[s.you]).toMatchObject({ name: 'YOU', team: TEAMS[2].id });
     const perTeam = new Map<string, number>();
     for (const d of s.drivers) perTeam.set(d.team, (perTeam.get(d.team) ?? 0) + 1);
-    expect([...perTeam.values()].every((c) => c === 2)).toBe(true);
+    expect([...perTeam.values()].every((c) => c === 1)).toBe(true);
     expect(s.drivers.map((d) => d.rank).sort((a, b) => a - b)).toEqual([...Array(10).keys()]);
     // (the same seed, the same field)
     expect(season()).toEqual(s);
     expect(roundSeed(s, 0)).not.toBe(roundSeed(s, 1));
   });
-  it('puts you in the car you picked, your teammate in the other, all season', () => {
+  it('keeps the seat a season was saved with, and its numbers, all season', () => {
     const first = season();
-    const mateOf = (s: typeof first) => s.drivers.find((d, k) => k !== s.you && d.team === TEAMS[2].id)!;
     expect(first.seat).toBe(0);
-    expect(mateOf(first).name).toBe(TEAMS[2].drivers[1]);
     const second = newSeason({ seed: 42, team: TEAMS[2], seat: 1, difficulty: 'normal', qualifying: false, rounds: ['crescent-park'], total: 10 });
     expect(second.seat).toBe(1);
-    expect(mateOf(second).name).toBe(TEAMS[2].drivers[0]);
     // (your number: your car's driver's; each other driver their own)
     expect(numberIn(first, first.you)).toBe(numberOf(TEAMS[2].drivers[0]));
     expect(numberIn(second, second.you)).toBe(numberOf(TEAMS[2].drivers[1]));
