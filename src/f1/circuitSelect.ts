@@ -647,6 +647,14 @@ export function chooseCircuit(
     resumeButton.classList.add('mode-button', 'resume-button');
     makeTile(resumeButton, 'resume', 'RESUME RACE', kept!.about);
     resumeButton.classList.add('wide');
+    // (its circuit and lap beside the icon, under the name: where the race is to be come back to)
+    const label = resumeButton.querySelector('strong')!;
+    const about = document.createElement('span');
+    about.textContent = kept!.about;
+    const words = document.createElement('div');
+    words.className = 'tile-words';
+    words.append(label, about);
+    resumeButton.append(words);
   }
   /** places on the modes screen before the modes themselves (RESUME RACE) */
   const R = resumeButton ? 1 : 0;
