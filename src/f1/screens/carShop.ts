@@ -13,11 +13,12 @@ import { menuPick, menuTick } from '../sounds';
 import { loadStreak } from '../streak';
 import type { Team } from '../teams';
 
+const WHITE_HELMET = '#f4f4f8';
 const GOLD_HELMET = '#f2c14e';
 
 /** A small car from above in `team`'s colours with a style's look over them: wings, body, sidepods and the helmet. */
 export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
-  const look = styled({ body: team.body, stripe: team.trim, accent: team.accent ?? team.body, helmet: GOLD_HELMET } as { body: string; stripe?: string; accent?: string; helmet?: string }, style);
+  const look = styled({ body: team.body, stripe: team.trim, accent: team.accent ?? team.body, helmet: WHITE_HELMET } as { body: string; stripe?: string; accent?: string; helmet?: string }, style);
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', '0 0 40 56');
@@ -37,7 +38,7 @@ export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
   shape('rect', { x: 6, y: 50, width: 28, height: 5, fill: stripe });
   shape('rect', { x: 9, y: 22, width: 22, height: 16, rx: 3, fill: look.accent ?? look.body });
   shape('rect', { x: 15, y: 6, width: 10, height: 44, rx: 4, fill: look.body });
-  shape('circle', { cx: 20, cy: 28, r: 5, fill: look.helmet ?? GOLD_HELMET, stroke: '#15151c', 'stroke-width': 1 });
+  shape('circle', { cx: 20, cy: 28, r: 5, fill: look.helmet === 'gold' ? GOLD_HELMET : look.helmet ?? WHITE_HELMET, stroke: '#15151c', 'stroke-width': 1 });
   return svg;
 }
 

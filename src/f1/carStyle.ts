@@ -1,4 +1,4 @@
-// Your car's look: your team's livery as it is (STANDARD), or a look a streak has earned (streak.ts): a silver or
+// Your car's look: your team's livery as it is (STANDARD, with a white helmet), the golden helmet, or a look a streak has earned (streak.ts): a silver or
 // neon helmet, gold wings, or black and gold all over. Picked in the settings (CAR STYLE), kept on the device; one
 // not earned (yet) can't be picked. Engine-free but for the save.
 
@@ -19,6 +19,8 @@ const GOLD = '#f2c14e';
 
 export const CAR_STYLES: CarStyle[] = [
   { id: 'standard', name: 'STANDARD', days: 0, look: {} },
+  // (the shiny metallic gold helmet, always yours: it was every player's before the white one became the default)
+  { id: 'golden-helmet', name: 'GOLDEN HELMET', days: 0, look: { helmet: 'gold' } },
   ...REWARDS.map((r): CarStyle => ({
     id: r.id,
     name: r.name,
