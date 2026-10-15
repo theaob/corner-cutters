@@ -139,6 +139,8 @@ export interface MenuChoice {
   laps: number;
   /** RESUME RACE picked: back to the race kept on the device (raceSave.ts), the rest of the choice as it was */
   resume?: true;
+  /** LOCKER picked: to the locker screen (screens/locker.ts), the rest of the choice as it was */
+  locker?: true;
 }
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
@@ -507,6 +509,13 @@ export function chooseCircuit(
     show();
   };
   const trophiesButton = menuButton('TROPHIES', openCabinet);
+  // LOCKER: the looks your streak has earned for your car, to pick from (screens/locker.ts)
+  let lockerPicked = false;
+  const openLocker = () => {
+    lockerPicked = true;
+    finish(layouts[selected]);
+  };
+  const lockerButton = menuButton('LOCKER', openLocker);
   const cabinetDone = menuButton('DONE', closeCabinet);
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
@@ -675,7 +684,7 @@ export function chooseCircuit(
   // (SETTINGS and TROPHIES side by side in a row of their own, set apart under the modes: not modes themselves)
   const utilityRow = document.createElement('div');
   utilityRow.className = 'menu-utility';
-  utilityRow.append(settingsButton, trophiesButton);
+  utilityRow.append(settingsButton, trophiesButton, lockerButton);
   // TODAY over the modes: your streak, the day's missions, yesterday's Daily (screens/todayPanel.ts)
   const today = todayPanel(closed);
   const modesParts: HTMLElement[] = [today, ...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, ...(tab ? [tab] : [])];
@@ -695,6 +704,7 @@ export function chooseCircuit(
     modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === R + k));
     settingsButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length);
     trophiesButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length + 1);
+    lockerButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length + 2);
     cabinetDone.classList.toggle('focused', view === 'trophies');
     card.classList.toggle('focused', view === 'circuit' && focus === 0);
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
@@ -743,7 +753,7 @@ export function chooseCircuit(
     finish = (layout) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
-      if (!resumePicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
+      if (!resumePicked && !lockerPicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
         menuTick();
         hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
         return;
@@ -752,7 +762,7 @@ export function chooseCircuit(
       offBack();
       menuPick();
       menu.remove();
-      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value(), ...(resumePicked ? { resume: true as const } : {}) });
+      resolve({ mode: current.id, layout, team: teamRow.value(), seat: carChoice.value(), difficulty: difficultyRow.value(), weather: weatherRow().value(), qualifying: qualifyingRow.value(), laps: lapsRow.value(), tyres: tyresRow.value(), ...(resumePicked ? { resume: true as const } : {}), ...(lockerPicked ? { locker: true as const } : {}) });
     };
     closed?.addEventListener('abort', () => {
       done = true;
@@ -782,17 +792,17 @@ export function chooseCircuit(
         if (a || start || b) closeCabinet();
       } else if (view === 'modes') {
         // the modes: up/down moves, A or START picks (or opens SETTINGS or TROPHIES)
-        const places = R + MODES.length + 2;
+        const places = R + MODES.length + 3;
         if (move) {
           // (from none highlighted: down to the first, up to the last)
           focus = focus < 0 ? (move > 0 ? 0 : places - 1) : (focus + move + places) % places;
           show();
         }
-        // (left/right across the row SETTINGS and TROPHIES share)
+        // (left/right across the row SETTINGS, TROPHIES and LOCKER share)
         const settingsAt = R + MODES.length;
-        if ((left || right) && (focus === settingsAt || focus === settingsAt + 1)) {
+        if ((left || right) && focus >= settingsAt && focus <= settingsAt + 2) {
           menuTick();
-          focus = right ? settingsAt + 1 : settingsAt;
+          focus = Math.min(settingsAt + 2, Math.max(settingsAt, focus + (right ? 1 : -1)));
           show();
         }
         if (focus < 0) {
@@ -802,6 +812,7 @@ export function chooseCircuit(
           finish(layouts[selected]);
         } else if ((a || start) && focus === R + MODES.length) openSettings();
         else if ((a || start) && focus === R + MODES.length + 1) openCabinet();
+        else if ((a || start) && focus === R + MODES.length + 2) openLocker();
         else if (a || start) pickMode(MODES[focus - R]);
       } else {
         const places = backAt() + 1;

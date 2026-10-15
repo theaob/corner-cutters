@@ -133,7 +133,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 /** This page's address with ?circuit set to `id` (or removed: null) and ?mode to a mode other than a race (or removed); other flags (?tune, ?debug…) stay. */
-function withCircuit(id: string | null, mode: GameMode | 'tutorial' = 'race'): string {
+function withCircuit(id: string | null, mode: GameMode | 'tutorial' | 'locker' = 'race'): string {
   const url = new URL(window.location.href);
   if (id) url.searchParams.set('circuit', id);
   else url.searchParams.delete('circuit');
@@ -238,6 +238,7 @@ async function route(): Promise<void> {
     if (params.get('mode') === 'tutorial' && layout) await showRace(id, layout, 'tutorial');
     else if (mode === 'championship' && !layout) await showSeason(id);
     else if (mode === 'daily' && !layout) await showDailyScreen(id);
+    else if (params.get('mode') === 'locker' && !layout) await showLockerScreen(id);
     else if (!layout) await showMenu(id);
     else await showRace(id, layout, mode);
   } catch (e) {
@@ -377,6 +378,8 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'laps', String(picked.laps));
   save('choices', 'tyres', picked.tyres);
   save('choices', 'mode', picked.mode);
+  // LOCKER: the car looks to pick from
+  if (picked.locker) return navigate(withCircuit(null, 'locker'));
   // (a Championship picks its own circuits, and the Daily Challenge has the day's: to their screens)
   navigate(withCircuit(picked.mode === 'championship' || picked.mode === 'daily' ? null : picked.layout.id, picked.mode));
 }
@@ -482,6 +485,22 @@ async function showDailyScreen(id: number): Promise<void> {
   const action = await showing;
   if (id !== routeId) return;
   navigate(action === 'play' ? withCircuit(today.layout.id, 'daily') : withCircuit(null));
+}
+
+/** The locker: the looks your streak has earned for your car, to equip. */
+async function showLockerScreen(id: number): Promise<void> {
+  menuScreen();
+  menuName = 'locker';
+  playMusic(THEME_MUSIC);
+  const closed = new AbortController();
+  current = { close: () => closed.abort() };
+  raceBehind(closed.signal);
+  const { showLocker } = await import('./f1/screens/locker');
+  const showing = showLocker(screen, services, savedTeam(), closed.signal);
+  curtainUp();
+  await showing;
+  if (id !== routeId) return;
+  navigate(withCircuit(null));
 }
 
 async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial'): Promise<void> {

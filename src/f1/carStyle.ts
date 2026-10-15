@@ -43,6 +43,12 @@ export function carStyle(best: number): CarStyle {
   return stylesFor(best).find((s) => s.id === id) ?? CAR_STYLES[0];
 }
 
+/** Every style for the locker (locker.ts): the ones `best` has earned open, the rest shown locked. */
+export const lockerStyles = (best: number): { style: CarStyle; owned: boolean }[] => {
+  const got = new Set(stylesFor(best).map((s) => s.id));
+  return CAR_STYLES.map((style) => ({ style, owned: got.has(style.id) }));
+};
+
 export const setCarStyle = (s: CarStyle): void => save('choices', 'carStyle', s.id);
 
 /** Your car's look: `look` (your team's livery) with your style over it. */
