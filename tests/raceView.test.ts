@@ -23,6 +23,11 @@ describe('the deck labels', () => {
     expect(deckLabels(deck({ paused: true }))).toEqual({ a: '', b: '', start: '', select: '' });
     expect(deckLabels(deck({ settings: true }))).toEqual({ a: '', b: '', start: '', select: '' });
   });
+  it('a crash replay or the grid pan: A skips it, and SELECT still pauses (it read EXIT, a dead pause button)', () => {
+    expect(deckLabels(deck({ watching: true }))).toMatchObject({ a: 'SKIP', select: 'PAUSE' });
+    // (after your flag the race is over: SKIP, then EXIT as before)
+    expect(deckLabels(deck({ watching: true, done: true })).select).toBe('EXIT');
+  });
   it('skips the grid pan, a replay, qualifying and the wait after the flag; NEXT, RACE and AGAIN once they are over', () => {
     expect(deckLabels(deck({ watching: true })).a).toBe('SKIP');
     expect(deckLabels(deck({ session: 'qualifying' })).a).toBe('SKIP');
