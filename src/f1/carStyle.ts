@@ -28,6 +28,8 @@ export const CAR_STYLES: CarStyle[] = [
       : r.id === 'neon-helmet' ? { helmet: '#39ff14' }
       // (the shiny metallic gold one)
       : r.id === 'golden-helmet' ? { helmet: 'gold' }
+      // (a ball of swirling lights, as the Neon City's sphere)
+      : r.id === 'led-helmet' ? { helmet: 'led' }
       : r.id === 'gold-wings' ? { stripe: GOLD }
       : { body: '#17161f', stripe: GOLD, accent: '#17161f' },
   })),

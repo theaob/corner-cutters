@@ -38,7 +38,19 @@ export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
   shape('rect', { x: 6, y: 50, width: 28, height: 5, fill: stripe });
   shape('rect', { x: 9, y: 22, width: 22, height: 16, rx: 3, fill: look.accent ?? look.body });
   shape('rect', { x: 15, y: 6, width: 10, height: 44, rx: 4, fill: look.body });
-  shape('circle', { cx: 20, cy: 28, r: 5, fill: look.helmet === 'gold' ? GOLD_HELMET : look.helmet ?? WHITE_HELMET, stroke: '#15151c', 'stroke-width': 1 });
+  // (the LED helmet: the Neon City's swirl of colours)
+  if (look.helmet === 'led') {
+    const grad = document.createElementNS(ns, 'linearGradient');
+    grad.setAttribute('id', 'led-helmet');
+    ['#ff3df2', '#3dd8ff', '#9d4dff', '#ff7a3d'].forEach((c, k) => {
+      const stop = document.createElementNS(ns, 'stop');
+      stop.setAttribute('offset', String(k / 3));
+      stop.setAttribute('stop-color', c);
+      grad.append(stop);
+    });
+    svg.append(grad);
+  }
+  shape('circle', { cx: 20, cy: 28, r: 5, fill: look.helmet === 'led' ? 'url(#led-helmet)' : look.helmet === 'gold' ? GOLD_HELMET : look.helmet ?? WHITE_HELMET, stroke: '#15151c', 'stroke-width': 1 });
   return svg;
 }
 

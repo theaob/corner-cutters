@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { groundAt } from '../engine/sim';
 import { canvas } from '../engine/render/sprites';
-import { pixelTexture } from '../engine/render/textures';
+import { lightsTexture, pixelTexture } from '../engine/render/textures';
 import { mergedByMaterial } from '../engine/render/merge';
 import { HALF_WIDTH, type Circuit } from './circuit';
 import type { Pt } from './racing';
@@ -93,22 +93,6 @@ function windowsLit(cols: number, rows: number, r: () => number): THREE.Texture 
   return t;
 }
 
-/** The sphere's lights: bands of colour, swirling (its texture scrolls). */
-function sphereTexture(): THREE.Texture {
-  const [c, x] = canvas(64, 32);
-  for (let i = 0; i < 64; i++) {
-    for (let j = 0; j < 32; j++) {
-      const v = Math.sin(i * 0.3 + j * 0.45) + Math.sin(i * 0.12 - j * 0.2);
-      const hue = (v * 60 + 280) % 360;
-      x.fillStyle = `hsl(${hue}, 95%, ${55 + v * 8}%)`;
-      x.fillRect(i, j, 1, 1);
-    }
-  }
-  const t = pixelTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
-}
-
 /** The city in `scene`. Gives back its step (`dt` s on): the sphere's lights and the wheel turning, the neon flickering on. */
 export function buildNeonCity(scene: THREE.Scene, circuit: Circuit): (dt: number) => void {
   const grid = circuit.grid;
@@ -164,7 +148,7 @@ export function buildNeonCity(scene: THREE.Scene, circuit: Circuit): (dt: number
   const n = neonOf(circuit);
   if (!n) return () => {};
   // the sphere: a giant ball of lights, on a low plinth, its colours swirling
-  const sphereTex = sphereTexture();
+  const sphereTex = lightsTexture();
   const sphere = new THREE.Mesh(new THREE.SphereGeometry(NEON.sphere, 24, 16), new THREE.MeshBasicMaterial({ map: sphereTex, toneMapped: false }));
   sphere.position.set(n.sphere.x, ground(n.sphere.x, n.sphere.y) + NEON.sphere * 0.92, n.sphere.y);
   scene.add(sphere);
