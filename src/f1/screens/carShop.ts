@@ -25,7 +25,7 @@ export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
   svg.setAttribute('width', '40');
   svg.setAttribute('height', '56');
   svg.setAttribute('aria-hidden', 'true');
-  Object.assign(svg.style, { width: '40px', height: '56px', flex: 'none' });
+  Object.assign(svg.style, { width: '29px', height: '40px', flex: 'none' });
   const shape = (tag: string, attrs: Record<string, string | number>) => {
     const el = document.createElementNS(ns, tag);
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
@@ -75,7 +75,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     const b = menuButton('', () => equip(style, owned));
     b.disabled = false;
     b.setAttribute('aria-disabled', String(!owned));
-    Object.assign(b.style, { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', textAlign: 'left', padding: '8px 14px', opacity: owned ? '1' : '0.45' });
+    Object.assign(b.style, { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', textAlign: 'left', padding: '10px 12px', opacity: owned ? '1' : '0.45' });
     const text = document.createElement('div');
     text.style.flex = '1';
     const name = document.createElement('strong');
@@ -90,7 +90,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     return { b, style, owned, about, state };
   });
   let finish = () => {};
-  const backButton = menuButton('BACK', () => finish());
+  const backButton = menuButton('◀ BACK', () => finish());
   screen.append(...rows.map((r) => r.b), backButton);
   let focus = Math.max(0, entries.findIndex((e) => e.style.id === carStyle(best).id));
   const render = () => {
