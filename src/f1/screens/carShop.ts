@@ -75,7 +75,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     const b = menuButton('', () => equip(style, owned));
     b.disabled = false;
     b.setAttribute('aria-disabled', String(!owned));
-    Object.assign(b.style, { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', textAlign: 'left', padding: '10px 12px', opacity: owned ? '1' : '0.45' });
+    Object.assign(b.style, { display: 'flex', flexDirection: 'row', flex: 'none', alignItems: 'center', gap: '14px', textAlign: 'left', padding: '10px 12px', opacity: owned ? '1' : '0.45' });
     const text = document.createElement('div');
     text.style.flex = '1';
     const name = document.createElement('strong');
@@ -91,6 +91,8 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
   });
   let finish = () => {};
   const backButton = menuButton('◀ BACK', () => finish());
+  // (set a little apart from the looks above it)
+  backButton.style.marginTop = '6px';
   screen.append(...rows.map((r) => r.b), backButton);
   let focus = Math.max(0, entries.findIndex((e) => e.style.id === carStyle(best).id));
   const render = () => {
