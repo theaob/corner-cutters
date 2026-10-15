@@ -3,7 +3,7 @@
 
 const SVG = 'http://www.w3.org/2000/svg';
 
-export type TileIcon = 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial' | 'settings' | 'trophies' | 'locker' | 'resume';
+export type TileIcon = 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial' | 'settings' | 'trophies' | 'shop' | 'resume';
 
 const ICONS: Record<TileIcon, string> = {
   // a calendar page with the day marked
@@ -20,8 +20,8 @@ const ICONS: Record<TileIcon, string> = {
   settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.2" fill="#111118"/><circle cx="15.5" cy="12" r="2.2" fill="#111118"/><circle cx="8" cy="17" r="2.2" fill="#111118"/>',
   // a medal on its ribbon
   trophies: '<circle cx="12" cy="15" r="5.5"/><path d="M8.5 10.7 6 3h4l2 5M15.5 10.7 18 3h-4l-2 5"/><path d="m12 12.4 1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z" fill="currentColor" stroke="none"/>',
-  // a helmet
-  locker: '<path d="M4 14a8 8 0 0 1 16 0v3a2 2 0 0 1-2 2H9l-3.5-3.2A2 2 0 0 1 4 14.3z"/><path d="M10 11h10v3.5H10z" fill="currentColor" opacity=".4"/>',
+  // a shopping bag
+  shop: '<path d="M5 8h14l-1 12H6zM9 8V6.5a3 3 0 0 1 6 0V8"/><path d="M9.5 12.5a2.5 2.5 0 0 0 5 0"/>',
   // play
   resume: '<circle cx="12" cy="12" r="9"/><path d="m10 8.5 6 3.5-6 3.5z" fill="currentColor"/>',
 };
