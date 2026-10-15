@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MODES, openFirst, rowsOf } from '../src/f1/circuitSelect';
+import { gridStep } from '../src/f1/menuTiles';
 import { versionText } from '../src/f1/settingsRows';
 import { DUST_BOWL, GLACIER_PASS } from '../src/f1/layouts';
 
@@ -37,5 +38,31 @@ describe('the version under the settings', () => {
     expect(versionText('0.0.1+2790585')).toBe('VERSION 0.0.1 · BUILD 2790585');
     expect(versionText('1.2.0')).toBe('VERSION 1.2.0');
     expect(versionText('0.0.1+local')).toBe('VERSION 0.0.1 · BUILD LOCAL');
+  });
+});
+
+describe('the tile grid', () => {
+  // seven tiles, three to a row: the five modes, SETTINGS, TROPHIES (the last row's one tile)
+  const step = (at: number, dx: number, dy: number) => gridStep(at, dx, dy, 7);
+  it('moves left and right to the neighbour, wrapping at the ends', () => {
+    expect(step(0, 1, 0)).toBe(1);
+    expect(step(2, 1, 0)).toBe(3);
+    expect(step(6, 1, 0)).toBe(0);
+    expect(step(0, -1, 0)).toBe(6);
+  });
+  it('moves up and down a row, wrapping within the column', () => {
+    expect(step(0, 0, 1)).toBe(3);
+    expect(step(3, 0, 1)).toBe(6);
+    // (down from the last row, or off a short one: the top of the column; up from the top: the column's last tile)
+    expect(step(6, 0, 1)).toBe(0);
+    expect(step(4, 0, 1)).toBe(1);
+    expect(step(0, 0, -1)).toBe(6);
+    expect(step(1, 0, -1)).toBe(4);
+    expect(step(2, 0, -1)).toBe(5);
+  });
+  it('starts at the first tile (up or left: the last) when none is highlighted', () => {
+    expect(step(-1, 0, 1)).toBe(0);
+    expect(step(-1, 1, 0)).toBe(0);
+    expect(step(-1, 0, -1)).toBe(6);
   });
 });

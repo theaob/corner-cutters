@@ -11,6 +11,7 @@
 // keyboard, up/down moves, left/right changes the circuit or a row, Enter picks
 // or races, and B goes back.
 
+import { TILE_COLUMNS, gridStep, makeTile } from './menuTiles';
 import { challengeOn, dayOf } from './daily';
 import type { Button } from '../engine/controls';
 import { onBack } from '../engine/backButton';
@@ -376,6 +377,7 @@ export function chooseCircuit(
     show();
   };
   const settingsButton = menuButton('SETTINGS', openSettings);
+  makeTile(settingsButton, 'settings', 'SETTINGS', 'sound, controls, accessibility and the game');
   // the trophy cabinet: the Championships won, then each circuit's medals in a Time Trial and a Time Attack
   const trophies = loadTrophies();
   /** the cabinet's tab up, and a way to switch (set once it's built) */
@@ -507,6 +509,7 @@ export function chooseCircuit(
     show();
   };
   const trophiesButton = menuButton('TROPHIES', openCabinet);
+  makeTile(trophiesButton, 'trophies', 'TROPHIES', 'your titles, medals and achievements');
   const cabinetDone = menuButton('◀ BACK', closeCabinet);
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
@@ -645,26 +648,21 @@ export function chooseCircuit(
   }) : undefined;
   if (resumeButton) {
     resumeButton.classList.add('mode-button', 'resume-button');
-    const name = document.createElement('strong');
-    name.textContent = 'RESUME RACE';
-    const about = document.createElement('span');
-    about.textContent = kept!.about;
-    resumeButton.append(name, about);
+    makeTile(resumeButton, 'resume', 'RESUME RACE', kept!.about);
+    resumeButton.classList.add('wide');
   }
   /** places on the modes screen before the modes themselves (RESUME RACE) */
   const R = resumeButton ? 1 : 0;
   const modeButtons = MODES.map((m) => {
     const b = menuButton('', () => pickMode(m));
     b.classList.add('mode-button');
-    const name = document.createElement('strong');
-    name.textContent = m.name;
-    const about = document.createElement('span');
     // (the Championship not bought yet, in the Google Play build: what unlocking it brings)
     const locked = m.id === 'championship' && !ownsChampionship();
     // (the Daily Challenge: today's circuit and weather)
     const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
-    about.textContent = locked ? 'unlock: a full season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · race the world` : m.about;
-    b.append(name, about);
+    const about = locked ? 'unlock: a full season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · race the world` : m.about;
+    makeTile(b, m.id, m.name, about);
+    if (locked) b.classList.add('locked');
     return b;
   });
   const backButton = menuButton('◀ BACK', toModes);
@@ -676,9 +674,13 @@ export function chooseCircuit(
   const utilityRow = document.createElement('div');
   utilityRow.className = 'menu-utility';
   utilityRow.append(settingsButton, trophiesButton);
+  // (the modes and those two a grid of square tiles: RESUME RACE, when there's one, across the top of it)
+  const grid = document.createElement('div');
+  grid.className = 'menu-tiles';
+  grid.append(...(resumeButton ? [resumeButton] : []), ...modeButtons, settingsButton, trophiesButton);
   // TODAY over the modes: your streak, the day's missions, yesterday's Daily (screens/todayPanel.ts)
   const today = todayPanel(closed);
-  const modesParts: HTMLElement[] = [today, ...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, ...(tab ? [tab] : [])];
+  const modesParts: HTMLElement[] = [today, grid, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   // (a report is made from the REPORT in the column's top corner, as on every menu screen)
@@ -695,6 +697,8 @@ export function chooseCircuit(
     modeButtons.forEach((b, k) => b.classList.toggle('focused', view === 'modes' && focus === R + k));
     settingsButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length);
     trophiesButton.classList.toggle('focused', view === 'modes' && focus === R + MODES.length + 1);
+    // (the highlighted tile's line about it, in the hint: its square has room for a name only)
+    if (view === 'modes') hint.textContent = (resumeButton && focus === 0 ? resumeButton : [...modeButtons, settingsButton, trophiesButton][focus - R])?.title || MODES_HINT;
     cabinetDone.classList.toggle('focused', view === 'trophies');
     card.classList.toggle('focused', view === 'circuit' && focus === 0);
     rows.forEach((r, k) => r.el.classList.toggle('focused', view === 'circuit' && focus === 1 + k));
@@ -712,7 +716,7 @@ export function chooseCircuit(
   renderCard();
   renderRace();
   options.append(...rows.map((r) => r.el));
-  menu.append(today, ...(resumeButton ? [resumeButton] : []), ...modeButtons, utilityRow, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
+  menu.append(today, grid, card, dots, world.el, options, raceButton, backButton, ...settingsParts, ...cabinetParts);
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
@@ -782,17 +786,15 @@ export function chooseCircuit(
         if (a || start || b) closeCabinet();
       } else if (view === 'modes') {
         // the modes: up/down moves, A or START picks (or opens SETTINGS or TROPHIES)
-        const places = R + MODES.length + 2;
-        if (move) {
-          // (from none highlighted: down to the first, up to the last)
-          focus = focus < 0 ? (move > 0 ? 0 : places - 1) : (focus + move + places) % places;
-          show();
-        }
-        // (left/right across the row SETTINGS and TROPHIES share)
-        const settingsAt = R + MODES.length;
-        if ((left || right) && (focus === settingsAt || focus === settingsAt + 1)) {
+        const tiles = MODES.length + 2;
+        const dx = (right ? 1 : 0) - (left ? 1 : 0);
+        if (move || dx) {
+          // (from none highlighted: the first tile, or with up or left the last; RESUME RACE is a row of its own above the grid)
+          const g = focus - R;
+          if (resumeButton && focus === 0) focus = dx || move > 0 ? R : R + tiles - 1;
+          else if (resumeButton && move < 0 && focus >= R && g < TILE_COLUMNS) focus = 0;
+          else focus = R + gridStep(focus < 0 ? -1 : g, dx, move, tiles);
           menuTick();
-          focus = right ? settingsAt + 1 : settingsAt;
           show();
         }
         if (focus < 0) {
