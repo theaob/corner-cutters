@@ -38,7 +38,7 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   );
   const buyButton = menuButton('', () => void buy());
   const restoreButton = menuButton('RESTORE PURCHASE', () => void restore());
-  const backButton = menuButton('BACK', () => finish('back'));
+  const backButton = menuButton('◀ BACK', () => finish('back'));
   const buttons = [buyButton, restoreButton, backButton];
   screen.append(...buttons);
   let busy = false;
