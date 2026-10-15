@@ -5,11 +5,12 @@
 // the medal and trophy just appear and there's no confetti.
 
 import { MEDAL_COLOR, MEDAL_NAME, type Medal } from '../medals';
+import { motionReduced } from '../access';
 
 /** ms the medal stays up (dropping in, held, fading). */
 export const STAMP_MS = 2600;
 
-const reduced = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+const reduced = motionReduced;
 
 /** A medal: a disc in its colour on a ribbon, with a star; `size` px across. */
 export function medalBadge(medal: Medal, size: number): HTMLDivElement {

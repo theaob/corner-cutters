@@ -39,6 +39,7 @@ import { TRACK_MODEL, drawModel, fitModel, trackModel } from './trackModel';
 import { reportOpen } from './report';
 import { gameHidden } from '../engine/host';
 import { COMPOUNDS, type DryCompound } from './tyres';
+import { motionReduced } from './access';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -51,7 +52,7 @@ function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement
   if (!ctx) return c;
   const m = trackModel(layout);
   const view = fitModel(m, c.width, c.height);
-  const still = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const still = motionReduced();
   const yawAt = (now: number) => (still ? -0.35 : -0.35 + ((now / 1000) * 2 * Math.PI) / TRACK_MODEL.turn);
   drawModel(ctx, m, view, c.width, c.height, yawAt(performance.now()));
   if (still) return c;

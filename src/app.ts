@@ -25,7 +25,7 @@ import { askModel, device, expectBusy, lines, note, noteConsole, sightChanged, w
 import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
 import { useLayoutSwitch } from './f1/settingsRows';
-import { applyText } from './f1/access';
+import { applyMotion, applyText } from './f1/access';
 import { reportProblem, watchCrashes } from './f1/crashes';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, TYRE_PICKS, type GameMode, type TyrePick } from './f1/circuitSelect';
@@ -61,6 +61,8 @@ useStore('cc:');
 useSave(CC_SAVE);
 // (TEXT: LARGE in the settings, from the start)
 applyText();
+applyMotion();
+globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change', () => applyMotion());
 // (records and ghosts on a circuit an update has reshaped were set on another track: forgotten)
 forgetChangedCircuits(LAYOUTS);
 

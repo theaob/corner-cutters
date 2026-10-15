@@ -15,7 +15,7 @@ import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
 import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
-import { colourSafe, largeText, setColourSafe, setLargeText } from './access';
+import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
 import { carStyle, setCarStyle, stylesFor, type CarStyle } from './carStyle';
 import { loadStreak, nextReward } from './streak';
 import { loadDaily } from './daily';
@@ -72,6 +72,12 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
     : undefined;
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
+  const MOTION_ABOUT: Record<MotionSetting, { name: string; about: string }> = {
+    auto: { name: 'PHONE', about: "follows your phone's reduce-motion setting" },
+    reduced: { name: 'REDUCED', about: 'less movement, whatever the phone says' },
+    full: { name: 'FULL', about: 'all the movement, whatever the phone says' },
+  };
+  const motionRow = optionRow('MOTION', MOTION_SETTINGS, motionSetting(), (m) => MOTION_ABOUT[m], setMotionSetting);
   // CAR STYLE: the looks a daily streak has earned your car (carStyle.ts), and what earns the next
   const best = loadStreak(loadDaily()).best;
   const next = nextReward(best);
@@ -91,7 +97,7 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
     controls: [stickRow, drivingRow, vibrationRow],
     game: [styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
     sound: [soundRow, musicRow],
-    access: [textRow, coloursRow, shakeRow],
+    access: [textRow, coloursRow, motionRow, shakeRow],
   } as Record<SettingsSection, SettingsRow[]>;
 }
 
