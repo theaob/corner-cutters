@@ -359,3 +359,25 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.game_stats() from public;
 grant execute on function public.game_stats() to anon;
+
+-- Retention: players grouped by the (UTC) day their random id first appeared, and how many of each group were back
+-- exactly 1, 7 and 30 days later (any event counts as being active: a launch is the first). Only counts, from the
+-- events already sent; nothing new is collected. The last 60 cohorts.
+create or replace function public.retention_stats() returns jsonb
+language sql stable security definer set search_path = public as $$
+  with seen as (select distinct player, (at at time zone 'utc')::date d from events),
+  first as (select player, min(d) f from seen group by player),
+  cohorts as (
+    select f.f day, count(*) size,
+      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 1)) d1,
+      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 7)) d7,
+      count(*) filter (where exists (select 1 from seen s where s.player = f.player and s.d = f.f + 30)) d30
+    from first f where f.f > (now() at time zone 'utc')::date - 60 group by f.f
+  )
+  select jsonb_build_object(
+    'today', (now() at time zone 'utc')::date,
+    'cohorts', coalesce(jsonb_agg(jsonb_build_object('day', day, 'size', size, 'd1', d1, 'd7', d7, 'd30', d30) order by day), '[]')
+  ) from cohorts;
+$$;
+revoke all on function public.retention_stats() from public;
+grant execute on function public.retention_stats() to anon;

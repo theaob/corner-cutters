@@ -76,6 +76,7 @@ platforms, versions and screens, and the latest stack. (`errors_list` in `schema
 - players, launches and time played per day over the last 30 days (time in minutes, or in hours once a day's had three or more);
 - players by platform, and finished sessions by mode and by circuit;
 - each circuit: the times it's been played (sessions started), the races finished, the km driven and the minutes on it, and each of those by mode (every circuit listed, the unplayed ones faint);
+- retention: how many players were back 1, 7 and 30 days after the day they first played, overall and for each of the last 14 days' newcomers (`retention_stats()` in `schema.sql`; run it again to add it). It only counts the events already sent, so nothing new is collected;
 - today's Daily Challenge board.
 
 It refreshes every minute. `.github/workflows/stats.yml` publishes it to GitHub Pages, at https://theaob.github.io/corner-cutters/. To switch it on, once: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then **Actions → stats → Run workflow**. After that it redeploys itself when the dashboard changes. It reads with the same public key as the game, and shows only totals (no player's events). `npm run stats` runs it locally (with `.env.local` as above).

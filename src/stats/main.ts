@@ -6,6 +6,7 @@ import { challengeOn, dayOf, type Board } from '../f1/daily';
 import { LAYOUTS } from '../f1/layouts';
 import { TEAMS } from '../f1/teams';
 import { distance } from '../f1/timeAttack';
+import { MARKS, cohortRate, rate, type Retention } from './retention';
 
 /** What game_stats() gives. */
 interface Stats {
@@ -292,6 +293,46 @@ function circuitsTable(list: CircuitStats[]) {
   $('circuits').replaceChildren(table);
 }
 
+/** The retention tiles (D1, D7, D30 over the cohorts old enough) and the last 14 days' cohorts. */
+function retention(r: Retention | undefined) {
+  const el = $('retention');
+  if (!r) {
+    $('retention-tiles').replaceChildren();
+    el.innerHTML = '<p class="empty">Retention could not be read. Run supabase/schema.sql again to add it.</p>';
+    return;
+  }
+  $('retention-tiles').replaceChildren(...MARKS.map((m) => {
+    const x = rate(r, m);
+    return tile(`DAY ${m}`, x ? `${Math.round(x.rate * 100)}%` : '–', x ? `${fmt(x.back)} of ${fmt(x.of)} players came back` : 'no player is old enough yet');
+  }));
+  if (!r.cohorts.length) {
+    el.innerHTML = '<p class="empty">No players yet.</p>';
+    return;
+  }
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>FIRST PLAYED</th><th class="r">PLAYERS</th>' + MARKS.map((m) => `<th class="r">DAY ${m}</th>`).join('') + '</tr></thead>';
+  const body = document.createElement('tbody');
+  for (const c of r.cohorts.slice(-14).reverse()) {
+    const tr = document.createElement('tr');
+    const cells = [c.day, fmt(c.size), ...MARKS.map((m) => {
+      const x = cohortRate(c, m, r.today);
+      return x === undefined ? '–' : `${Math.round(x * 100)}%`;
+    })];
+    cells.forEach((t, i) => {
+      const td = document.createElement('td');
+      if (i) td.className = 'r';
+      td.textContent = t;
+      tr.append(td);
+    });
+    body.append(tr);
+  }
+  table.append(body);
+  const note = document.createElement('p');
+  note.className = 'empty';
+  note.textContent = 'A player counts as back on day N if the same device played exactly N days after its first day. The last 14 days of newcomers shown.';
+  el.replaceChildren(table, note);
+}
+
 function board(b: Board | undefined) {
   const c = challengeOn(dayOf());
   $('board-title').textContent = `TODAY'S DAILY CHALLENGE · ${c.layout.name.toUpperCase()} · ${c.weather.name}`;
@@ -333,7 +374,7 @@ async function load() {
     return;
   }
   status('READING…', '');
-  const [s, b] = await Promise.all([rpc<Stats>('game_stats', {}), rpc<Board>('daily_board', { p_day: dayOf(), p_player: '00000000-0000-4000-8000-000000000000', p_top: 10 })]);
+  const [s, b, ret] = await Promise.all([rpc<Stats>('game_stats', {}), rpc<Board>('daily_board', { p_day: dayOf(), p_player: '00000000-0000-4000-8000-000000000000', p_top: 10 }), rpc<Retention>('retention_stats', {})]);
   const n = $('notice');
   if (!s) {
     status('NO CONNECTION', 'off');
@@ -359,6 +400,7 @@ async function load() {
   circuitsTable(s.circuits ?? []);
   picks(s);
   board(b);
+  retention(ret);
   $('errors-title').textContent = `ERRORS · CAUGHT IN THE GAME · ${fmt(s.errors ?? 0)} (${fmt(s.errors_today ?? 0)} TODAY)`;
   const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   status(`LIVE · ${at}`, 'on');
