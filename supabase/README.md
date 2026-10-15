@@ -26,6 +26,17 @@ For a local build, put them in `.env.local` as `VITE_SUPABASE_URL=…` and `VITE
 
 When `schema.sql` changes, paste all of it into the SQL Editor again and run it. It's safe to run over the project as it is: it keeps every event and run, and adds what's new. For example, the time in the game, and the team and driver picks on the dashboard, need the `seconds` column and the `session` kind, added after the first version.
 
+## Cheating on the boards
+
+The public key is in every build, so anyone can call `submit_lap` and `submit_daily` with whatever they like. They check before keeping a run:
+
+- A lap quicker than half the circuit's ideal lap (`lap_floors`), or on a circuit not listed there, is dropped. **Add a row to `lap_floors` with every new circuit**, or its laps are dropped.
+- A Daily run has to take at least 3 s per checkpoint.
+- A player id can send 60 runs an hour, and one IP address 120; more raises `too many submissions`.
+- A player in `banned_players` is ignored.
+
+To clean up a cheat: delete its row in `lap_times` or `daily_times` in the Table Editor, and add the player id to `banned_players`. This stops the obvious fakes, not a careful one who posts a believable time. A ghost check on the server would be the next step.
+
 ## Reading the reports
 
 **On the dashboard** (the REPORTS section at the bottom), newest first, 20 at a time: each one's screenshot (tap it
