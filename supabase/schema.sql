@@ -35,6 +35,54 @@ grant insert on public.events to anon;
 revoke select, update, delete on public.events from anon;
 -- (no reading them with the public key: the totals come from game_stats(), for the dashboard)
 
+-- ---------------------------------------------------------------- guarding the boards
+-- The public key is in every build, so anyone can call the submit functions with anything. These are the checks they make
+-- before keeping a run: a circuit's quickest believable lap, a cap on how often one address can send, and a ban list.
+-- (The boards' tables stay closed to the public key; clean one up in the Table Editor, or ban a player id:
+--    insert into banned_players (player) values ('<the player id>') on conflict do nothing;
+--  and remove their rows from daily_times and lap_times.)
+create table if not exists public.banned_players (player uuid primary key, at timestamptz not null default now());
+alter table public.banned_players enable row level security;
+revoke all on public.banned_players from anon;
+
+-- Half of each circuit's ideal lap (the racing line's speed all the way round: cutting corners saves
+-- a little, never half). A circuit missing here takes no laps: add it with the circuit.
+create table if not exists public.lap_floors (circuit text primary key, seconds real not null);
+alter table public.lap_floors enable row level security;
+revoke all on public.lap_floors from anon;
+insert into public.lap_floors (circuit, seconds) values
+  ('crescent-park', 16.2), ('southern-lake', 14.8), ('jade-spiral', 15.2), ('silver-heath', 16.3), ('harbour', 13.9),
+  ('maple-island', 15.0), ('royal-park', 14.9), ('ardennes', 21.5), ('alpine-ring', 13.2), ('twin-lakes', 12.4),
+  ('oasis', 14.1), ('pearl-sands', 14.9), ('baku', 17.1), ('suzuka', 16.1), ('dune-coast', 16.9), ('vegas', 19.5),
+  ('glacier-pass', 16.6), ('dust-bowl', 9.8), ('volcano-isle', 12.7)
+on conflict (circuit) do update set seconds = excluded.seconds;
+
+-- Who sent what, when: for the limit below (a day's worth is kept).
+create table if not exists public.submit_log (at timestamptz not null default now(), player uuid not null, ip text);
+create index if not exists submit_log_at on public.submit_log (at);
+alter table public.submit_log enable row level security;
+revoke all on public.submit_log from anon;
+
+-- Raises when this player (or the address it came from) has sent too much lately, and says whether to keep the run
+-- (false for a banned player: they're told nothing, and it goes nowhere).
+create or replace function public.submit_allowed(p_player uuid) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare
+  v_ip text := nullif(trim(split_part(coalesce(current_setting('request.headers', true)::json ->> 'x-forwarded-for', ''), ',', 1)), '');
+begin
+  if exists (select 1 from banned_players where player = p_player) then return false; end if;
+  if random() < 0.02 then delete from submit_log where at < now() - interval '1 day'; end if;
+  if (select count(*) from submit_log where player = p_player and at > now() - interval '1 hour') >= 60
+     or (v_ip is not null and (select count(*) from submit_log where ip = v_ip and at > now() - interval '1 hour') >= 120) then
+    raise exception 'too many submissions';
+  end if;
+  insert into submit_log (player, ip) values (p_player, v_ip);
+  return true;
+end;
+$$;
+revoke all on function public.submit_allowed(uuid) from public;
+revoke all on function public.submit_allowed(uuid) from anon;
+
 -- ---------------------------------------------------------------- the Daily Challenge's board
 create table if not exists public.daily_times (
   day date not null,
@@ -63,6 +111,9 @@ create or replace function public.submit_daily(p_day date, p_player uuid, p_name
 language plpgsql security definer set search_path = public as $$
 begin
   if abs(p_day - (now() at time zone 'utc')::date) > 1 then raise exception 'not a challenge being played'; end if;
+  -- a checkpoint is a third of a lap (racing.ts SECTORS): no run passes them faster than the quickest circuit's lap floor allows
+  if p_score < 1 or p_time < p_score * 3 then return; end if;
+  if not submit_allowed(p_player) then return; end if;
   insert into daily_times (day, player, name, score, time, ghost) values (p_day, p_player, upper(p_name), p_score, p_time, p_ghost)
   on conflict (day, player) do update set
     name = excluded.name,
@@ -125,13 +176,18 @@ revoke all on public.lap_times from anon;
 
 -- A lap: kept if it's the player's best there (their initials as they are now, either way).
 create or replace function public.submit_lap(p_circuit text, p_weather text, p_player uuid, p_name text, p_time real, p_version text default null) returns void
-language sql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public as $$
+begin
+  -- a lap no one could drive (or on a circuit that isn't one) is dropped, as if it were kept: the game has nothing to retry
+  if not exists (select 1 from lap_floors where circuit = p_circuit and p_time >= seconds) then return; end if;
+  if not submit_allowed(p_player) then return; end if;
   insert into lap_times (circuit, weather, player, name, time, version) values (p_circuit, p_weather, p_player, upper(p_name), p_time, p_version)
   on conflict (circuit, weather, player) do update set
     name = excluded.name,
     time = least(lap_times.time, excluded.time),
     version = case when excluded.time < lap_times.time then excluded.version else lap_times.version end,
     at = case when excluded.time < lap_times.time then now() else lap_times.at end;
+end;
 $$;
 revoke all on function public.submit_lap(text, text, uuid, text, real, text) from public;
 grant execute on function public.submit_lap(text, text, uuid, text, real, text) to anon;
