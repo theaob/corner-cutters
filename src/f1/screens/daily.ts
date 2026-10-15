@@ -158,7 +158,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     };
     const playButton = menuButton('PLAY ▶', () => finish('play'));
     playButton.classList.add('race-button');
-    const backButton = menuButton('BACK', () => finish('back'));
+    const backButton = menuButton('◀ BACK', () => finish('back'));
     screen.append(nameButton, playButton, backButton);
     let places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
     let focus = 0;
