@@ -357,7 +357,7 @@ async function showMenu(id: number): Promise<void> {
   let stopBackdrop = () => {};
   current = { close: () => closed.abort() };
   const kept = keptToOffer();
-  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), savedSeat(), openNow(), closed.signal, savedTyres(), kept && { about: `${kept.name} · ${keptLap(kept)}${kept.mode === 'championship' ? ` · round ${(kept.round ?? 0) + 1}` : ''}`.toLowerCase() });
+  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal, savedTyres(), kept && { about: `${kept.name} · ${keptLap(kept)}${kept.mode === 'championship' ? ` · round ${(kept.round ?? 0) + 1}` : ''}`.toLowerCase() });
   curtainUp();
   stopBackdrop = raceBehind(closed.signal);
   // (the app, after a first day's play: a daily reminder offered, once)

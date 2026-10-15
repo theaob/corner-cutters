@@ -83,7 +83,7 @@ import { createShareButton } from './race/shareButton';
 import { kmOf, track as noteStat } from './metrics';
 import { fetchBoard, loadDaily, logRun, saveDaily, sendPending, type Run } from './daily';
 import { fetchDailyGhost, fetchLapBoard, isBoardWeather, packGhost, queueLap, sendLaps, type DailyRival } from './boards';
-import { initials, playerId } from './profile';
+import { driverName, initials, playerId } from './profile';
 import { attackCard, raceCard, type ShareCard } from './shareCard';
 import { drawCars } from './race/drawCars';
 import { BLUE_COLOR, renderTower } from './race/towerView';
@@ -579,7 +579,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (under a bridge, the deck hides it: its outline drawn through the deck, yours in gold)
     const outline = track.levels ? carOutline(mesh, mine ? 0xf2c14e : 0xf4f4f8) : undefined;
     if (outline) world.scene.add(outline.group);
-    return { name: mine ? 'YOU' : livery.drivers[seat], outline, number, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
+    return { name: mine ? driverName() : livery.drivers[seat], outline, number, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
   /** px you've driven since the last 'drive' event, and where your car was last frame; and s on the circuit since then, not paused (for the play stats) */
@@ -1014,7 +1014,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         gridPan: () => gridPan && { t: gridPan.t, length: gridPan.length, car: panAt(gridPan.slots, gridPan.t).car },
         /** the session (qualifying or race), and once qualifying's over, the grid it set (names, pole first) and your time */
         session: () => session,
-        qualifying: () => quali?.over && { grid: quali.over.grid.map((k) => (k === quali!.weekend.youDriver ? 'YOU' : quali!.weekend.drivers[k].livery.drivers[quali!.weekend.drivers[k].seat])), you: quali.over.times[quali.weekend.youDriver] },
+        qualifying: () => quali?.over && { grid: quali.over.grid.map((k) => (k === quali!.weekend.youDriver ? driverName() : quali!.weekend.drivers[k].livery.drivers[quali!.weekend.drivers[k].seat])), you: quali.over.times[quali.weekend.youDriver] },
         skip: (seconds: number) => (race.clock += seconds),
         /** make the next frame fail (the loop carries on past it) */
         failFrame: () => (failNext = true),
@@ -1178,7 +1178,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const showQualifying = () => {
     if (!quali?.over) return;
     const w = quali.weekend;
-    const named = w.drivers.map((d, k) => ({ name: k === w.youDriver ? 'YOU' : d.livery.drivers[d.seat], team: d.livery }));
+    const named = w.drivers.map((d, k) => ({ name: k === w.youDriver ? driverName() : d.livery.drivers[d.seat], team: d.livery }));
     renderQualifying(results, `QUALIFYING · ${difficulty.name} · ${weather.name}`, qualifyingRows(quali.over.grid, quali.over.times, named, w.youDriver), {
       text: `QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}`, isNew: saved.newQualifying,
     });

@@ -63,7 +63,7 @@ export function createCeremonyView(circuit: Circuit, title: string, scene: THREE
       ceremony.setDrivers(top.map((d) => ({ body: d.body, trim: d.trim, helmet: d.you ? '#f2c14e' : '#f4f4f8', car: d.car })));
       ceremony.group.traverse((o) => o.layers.enable(LAYER));
       const gold = (text: string) => `<span style="color:#f2c14e">${text}</span>`;
-      top.forEach((d, k) => (plates[k].innerHTML = `${gold(`P${k + 1}`)} ${d.number === undefined ? '' : `#${d.number} `}${d.you ? gold('YOU') : d.name}`));
+      top.forEach((d, k) => (plates[k].innerHTML = `${gold(`P${k + 1}`)} ${d.number === undefined ? '' : `#${d.number} `}${d.you ? gold(d.name) : d.name}`));
     },
     /** Put the camera on the set at `t` s (the ceremony's own shot). */
     aim(t: number, cam: THREE.PerspectiveCamera) {

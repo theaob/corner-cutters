@@ -1,5 +1,5 @@
 // Your car's look: your team's livery as it is (STANDARD, with a white helmet), or a look a streak has earned (streak.ts): a silver or
-// neon helmet, gold wings, or black and gold all over. Picked in the settings (CAR STYLE), kept on the device; one
+// neon helmet, gold wings, black and gold all over, or a whole-car livery (night racer, retro racer, chequered). Picked in the settings (CAR STYLE), kept on the device; one
 // not earned (yet) can't be picked. Engine-free but for the save.
 
 import { save, saved } from '../engine/save';
@@ -30,6 +30,10 @@ export const CAR_STYLES: CarStyle[] = [
       : r.id === 'golden-helmet' ? { helmet: 'gold' }
       // (a ball of swirling lights, as the Neon City's sphere)
       : r.id === 'led-helmet' ? { helmet: 'led' }
+      // (whole-car liveries, replacing your team's paint)
+      : r.id === 'night-racer' ? { body: '#0b1026', stripe: '#00e5ff', accent: '#ff2bd6', pattern: 'chevron' }
+      : r.id === 'retro-racer' ? { body: '#f2e6c8', stripe: '#c8372d', accent: '#1f4e79', pattern: 'twin' }
+      : r.id === 'chequered' ? { body: '#f4f4f8', stripe: '#15151c', accent: '#15151c', pattern: 'band' }
       : r.id === 'gold-wings' ? { stripe: GOLD }
       : { body: '#17161f', stripe: GOLD, accent: '#17161f' },
   })),

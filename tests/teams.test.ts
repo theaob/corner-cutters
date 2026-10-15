@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEAMS, TEAMS_PER_RACE, driverSeats, teamById, teamGrid } from '../src/f1/teams';
+import { TEAMS, driverSeats, teamById, teamGrid } from '../src/f1/teams';
 
 /** A repeatable random sequence. */
 const seeded = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
@@ -19,39 +19,20 @@ describe('teams', () => {
     expect(teamById('nobody')).toBeUndefined();
   });
 
-  it('fill a full grid: you in your slot, your teammate elsewhere, five teams of two', () => {
+  it('fill a full grid: you in your slot, and every other car from a different team', () => {
     const yours = teamById('frankies-groove')!;
     const grid = teamGrid(yours, 10, 5, seeded(7));
     expect(grid).toHaveLength(10);
     expect(grid[5]).toBe(yours);
     const c = counts(grid);
-    expect(Object.keys(c)).toHaveLength(TEAMS_PER_RACE);
-    expect(Object.values(c).every((k) => k === 2)).toBe(true);
-    expect(c[yours.id]).toBe(2);
+    expect(Object.keys(c)).toHaveLength(10);
+    expect(Object.values(c).every((k) => k === 1)).toBe(true);
   });
 
-  it('seat each pair as the first and second driver (the second has the green T-camera), you in your team\'s first seat', () => {
+  it('seat every car in its team\'s first seat, you too', () => {
     for (const seed of [11, 3, 7]) {
       const grid = teamGrid(TEAMS[2], 10, 5, seeded(seed));
-      const seats = driverSeats(grid, 5);
-      expect(seats[5]).toBe(0);
-      for (const t of new Set(grid)) {
-        const marks = grid.flatMap((g, i) => (g === t ? [seats[i]] : []));
-        expect(marks.sort()).toEqual([0, 1]);
-      }
-    }
-  });
-
-  it('seat you in the car you picked, your teammate in the other', () => {
-    for (const seed of [11, 3, 7]) {
-      const grid = teamGrid(TEAMS[2], 10, 5, seeded(seed));
-      const seats = driverSeats(grid, 5, 1);
-      expect(seats[5]).toBe(1);
-      const mate = grid.findIndex((t, i) => i !== 5 && t === grid[5]);
-      expect(seats[mate]).toBe(0);
-      // (the other teams as before)
-      const before = driverSeats(grid, 5);
-      grid.forEach((t, i) => t !== grid[5] && expect(seats[i]).toBe(before[i]));
+      expect(driverSeats(grid, 5)).toEqual(grid.map(() => 0));
     }
   });
 
@@ -69,13 +50,11 @@ describe('teams', () => {
     expect(fields.size).toBeGreaterThan(3);
   });
 
-  it('pair up on a smaller grid, your teammate first', () => {
+  it('start a smaller grid with one car a team', () => {
     const yours = TEAMS[3];
     expect(teamGrid(yours, 1, 0)).toEqual([yours]);
     const four = teamGrid(yours, 4, 2, seeded(3));
-    const c = counts(four);
-    expect(c[yours.id]).toBe(2);
-    // four cars: you, your teammate, and one rival team's pair
-    expect(Object.values(c)).toEqual([2, 2]);
+    expect(four[2]).toBe(yours);
+    expect(Object.values(counts(four))).toEqual([1, 1, 1, 1]);
   });
 });
