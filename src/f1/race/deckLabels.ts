@@ -46,7 +46,10 @@ export function deckLabels(s: DeckState): Record<DeckButton, string> {
   // once more; so paused, the deck has neither EXIT nor RESTART, the pause screen has both, and the top's left as
   // it's right)
   const racing = a === 'PAUSE';
+  // (the grid pan and a crash's replay hold the race but are not the pause: SELECT still pauses there, as it does racing, and
+  // A skips; before, it read EXIT there, and the pause button was dead for the seconds the replay ran)
+  const holdsRace = s.watching && s.session === 'race' && !s.done && !s.paused;
   // (the lesson learnt: MENU, and nothing else, on the deck)
   const lessonDone = s.session === 'tutorial' && s.learnt;
-  return { a: racing ? '' : a, b: driving && !lessonDone ? 'DRIFT' : '', start: s.paused || s.roundOver || s.qualifyingOver || s.attackOver ? '' : 'RESTART', select: racing ? 'PAUSE' : s.paused ? '' : 'EXIT' };
+  return { a: racing ? '' : a, b: driving && !lessonDone ? 'DRIFT' : '', start: s.paused || s.roundOver || s.qualifyingOver || s.attackOver ? '' : 'RESTART', select: racing || holdsRace ? 'PAUSE' : s.paused ? '' : 'EXIT' };
 }
