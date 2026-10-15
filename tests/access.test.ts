@@ -72,3 +72,22 @@ describe('accessibility', () => {
     expect(full.shakeOn()).toBe(true);
   });
 });
+
+describe('MOTION setting', () => {
+  it('follows the phone unless set; reduced/full override it', async () => {
+    const a = await import('../src/f1/access');
+    reducedMotion(true);
+    expect(a.motionSetting()).toBe('auto');
+    expect(a.motionReduced()).toBe(true);
+    a.setMotionSetting('full');
+    expect(a.motionReduced()).toBe(false);
+    reducedMotion(false);
+    a.setMotionSetting('reduced');
+    expect(a.motionReduced()).toBe(true);
+    const on: boolean[] = [];
+    a.applyMotion({ classList: { toggle: (_c: string, v: boolean) => on.push(v) } } as unknown as HTMLElement);
+    expect(on).toEqual([true]);
+    a.setMotionSetting('auto');
+    expect(a.motionReduced()).toBe(false);
+  });
+});

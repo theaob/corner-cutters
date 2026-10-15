@@ -423,13 +423,12 @@
         from { transform: scale(0); opacity: 0; }
         to { transform: none; opacity: 1; }
       }
-      @media (prefers-reduced-motion: reduce) {
-        .medal-stamp, .trophy, .circuit-menu .cabinet .medal.won, .circuit-menu .cabinet .achievement.got, .medal-badge .disc::after {
-          animation: none !important;
-        }
-        .medal-stamp {
-          transform: translateX(-50%);
-        }
+      /* less motion: html.reduce-motion (src/f1/access.ts), from the phone's setting or the game's MOTION */
+      html.reduce-motion .medal-stamp, html.reduce-motion .trophy, html.reduce-motion .circuit-menu .cabinet .medal.won, html.reduce-motion .circuit-menu .cabinet .achievement.got, html.reduce-motion .medal-badge .disc::after {
+        animation: none !important;
+      }
+      html.reduce-motion .medal-stamp {
+        transform: translateX(-50%);
       }
       /* a short line at the bottom (PRESS BACK AGAIN TO EXIT) */
       /* a report's screenshot being taken (report.ts): said at once, left out of the picture */
@@ -523,10 +522,8 @@
         from { transform: rotate(-180deg) scale(0.3); }
         to { transform: none; }
       }
-      @media (prefers-reduced-motion: reduce) {
-        .achievement-toast b {
-          animation: none;
-        }
+      html.reduce-motion .achievement-toast b {
+        animation: none;
       }
       /* the menu's live backdrop (src/f1/screens/menuBackdrop.ts): a race behind it, faded in; the menu over it see-through */
       .live-backdrop {
@@ -2035,14 +2032,12 @@
       @keyframes splash-blink {
         50% { opacity: 0; }
       }
-      @media (prefers-reduced-motion: reduce) {
-        .splash-logo,
-        .splash-kerb,
-        .splash-tag,
-        .splash-start,
-        .splash.go .splash-start {
-          animation: none;
-        }
+      html.reduce-motion .splash-logo,
+      html.reduce-motion .splash-kerb,
+      html.reduce-motion .splash-tag,
+      html.reduce-motion .splash-start,
+      html.reduce-motion .splash.go .splash-start {
+        animation: none;
       }
       /* (nothing else on the screen while it's up: no REPORT) */
       html.splash-up .menu-report {

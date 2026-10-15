@@ -1,4 +1,4 @@
-// Accessibility: the device's ask for less motion, and two settings of the
+// Accessibility: less motion (the device's ask, or the game's own MOTION setting over it), and two settings of the
 // game's own. TEXT: LARGE makes the menus' text and the race's messages (the
 // banner, the radio, the pause screen) a fifth bigger (index.html: their sizes
 // times --ts). COLOURS: COLOUR-SAFE swaps the colours that tell things apart
@@ -9,9 +9,29 @@
 import { save, saved } from '../engine/save';
 import type { SplitMark } from './timeTrial';
 
-/** The device asks for less motion (prefers-reduced-motion): no screen shake unless turned on, no speed lines. */
-export function motionReduced(): boolean {
+/** MOTION in the settings: follow the phone's reduced-motion setting, or override it either way (the phone's unless set). */
+export type MotionSetting = 'auto' | 'reduced' | 'full';
+export const MOTION_SETTINGS: MotionSetting[] = ['auto', 'reduced', 'full'];
+export function motionSetting(): MotionSetting {
+  const v = saved('settings', 'motion');
+  return v === 'reduced' || v === 'full' ? v : 'auto';
+}
+export function setMotionSetting(m: MotionSetting): void {
+  save('settings', 'motion', m);
+  applyMotion();
+}
+/** The device asks for less motion (prefers-reduced-motion). */
+export function systemMotionReduced(): boolean {
   return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+}
+/** Less motion wanted: the setting if it's set, else the device's ask. No screen shake unless turned on, no speed lines, no animations. */
+export function motionReduced(): boolean {
+  const m = motionSetting();
+  return m === 'auto' ? systemMotionReduced() : m === 'reduced';
+}
+/** Mark the page's root as html.reduce-motion when less motion is wanted (the stylesheet's animations key off it). */
+export function applyMotion(root: HTMLElement | undefined = globalThis.document?.documentElement): void {
+  root?.classList.toggle('reduce-motion', motionReduced());
 }
 
 /** how much bigger LARGE text is */

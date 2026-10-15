@@ -8,6 +8,7 @@
 import { beep } from '../../engine/audio';
 import { vibrate } from '../../engine/haptics';
 import { confetti, trophy } from './celebrate';
+import { motionReduced } from '../access';
 
 /** What the card says about your season. */
 export interface TitleWin {
@@ -25,7 +26,7 @@ export const FIREWORKS_MS = 7000;
 /** ms before a tap can close it (so the tap that got you here doesn't) */
 export const TITLE_HOLD_MS = 1500;
 
-const reduced = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+const reduced = motionReduced;
 
 /** The numbers under the team: points, wins and the margin (the WINS and CLEAR singular as they must be). */
 export function titleLine(w: Pick<TitleWin, 'points' | 'wins' | 'clear'>): string {

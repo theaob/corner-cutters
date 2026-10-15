@@ -25,6 +25,7 @@ import { TEAMS } from '../teams';
 import { DRY } from '../weather';
 import { keepStill } from './backdropStill';
 import { gameHidden } from '../../engine/host';
+import { motionReduced } from '../access';
 
 export const BACKDROP = {
   /** cars lapping */
@@ -54,7 +55,7 @@ const deg = THREE.MathUtils.degToRad;
  * Gives back a function that stops it.
  */
 export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: HTMLElement): () => void {
-  if (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return () => {};
+  if (motionReduced()) return () => {};
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
