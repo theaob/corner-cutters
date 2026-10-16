@@ -24,7 +24,7 @@ export function setMotionSetting(m: MotionSetting): void {
 export function systemMotionReduced(): boolean {
   return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
-/** Less motion wanted: the setting if it's set, else the device's ask. No screen shake unless turned on, no speed lines, no animations. */
+/** Less motion wanted: the setting if it's set, else the device's ask. No screen shake unless turned on, a gentler speed zoom, no animations. */
 export function motionReduced(): boolean {
   const m = motionSetting();
   return m === 'auto' ? systemMotionReduced() : m === 'reduced';

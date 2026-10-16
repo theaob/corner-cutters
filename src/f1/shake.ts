@@ -104,16 +104,30 @@ export function shakeOffset(s: ShakeState): { x: number; y: number } {
 /** How fast the race runs now: at a crawl through a hit-stop, else 1. */
 export const timeScale = (s: ShakeState): number => (s.hold > 0 ? SHAKE.crawl : 1);
 
-/** The rush of speed: streaks past the screen's edges and the camera pulling back a touch, from near top speed and in a tow. */
+/** The rush of speed (it feeds the sound), from near top speed and in a tow. */
 export const RUSH = {
   /** share of top speed it starts at (all of it at top speed) */
   from: 0.82,
   /** a full tow's rush (it needs a fair speed: from `towFrom` of top speed) */
   tow: 0.7,
   towFrom: 0.6,
-  /** how much further the camera pulls back at full rush (×) */
-  pullBack: 0.06,
 };
+
+/** The camera pulling back as the car speeds up. */
+export const ZOOM_OUT = {
+  /** share of top speed it starts at */
+  from: 0.3,
+  /** how much further the camera is at top speed (×) */
+  pullBack: 0.14,
+  /** the share of it kept for a device asking for less motion */
+  calm: 0.4,
+};
+
+/** How far the camera has pulled back (0…1) at `speed` px/s of `top`: a smooth ramp from `from` of top speed. */
+export function zoomOf(speed: number, top: number): number {
+  const k = Math.min(1, Math.max(0, (speed / Math.max(1, top) - ZOOM_OUT.from) / (1 - ZOOM_OUT.from)));
+  return k * k * (3 - 2 * k);
+}
 
 /** How much rush there is (0…1) at `speed` px/s of `top`, `tow` (0…1) in a car's wake. */
 export function rushOf(speed: number, top: number, tow = 0): number {
