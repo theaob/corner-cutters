@@ -54,7 +54,7 @@ import { defaults } from '../engine/tuning';
 import { HALF_WIDTH, TILE, buildCircuit } from './circuit';
 import { vibrate } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
-import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
+import { ZOOM_OUT, newShake, rushOf, zoomOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
 import { RaceSounds, crowdNear, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { note, setGpu, setQuality } from '../engine/logbook';
@@ -95,7 +95,7 @@ import { bannerMessage, evenLines } from './race/banner';
 import { motionReduced, splitColor, splitWord } from './access';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
-import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
+import { createFlagOverlay, createRain } from './race/screenFx';
 import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
@@ -280,12 +280,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (race.entrants[you].car.wrecked && cue !== 'wreck') return;
     say(radioQ, radioLine(cue));
   };
-  // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
-  const streaks = createStreaks();
-  /** the device asks for less motion: no speed lines */
-  const calm = motionReduced();
-  /** the rush now (eased toward what the speed says) */
+  // the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
+  /** the rush now (eased toward what the speed says; it feeds the sound) */
   let rushNow = 0;
+  /** how far the camera has pulled back for speed now (eased toward what the speed says) */
+  let zoomNow = 0;
   /** wheel to wheel: a rival this close (px) pulls the camera back this much more, eased in and slowly out */
   const BATTLE = { near: 50, pullBack: 0.08 };
   let battleNow = 0;
@@ -315,7 +314,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     bannerShown = { text, drawn: banner.textContent };
   };
-  host.append(streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay.el);
+  host.append(rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay.el);
   placeHud = (desktop) => {
     phoneHud = !desktop;
     layHud(desktop, host);
@@ -2225,14 +2224,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (replay) debris.replay(replay.t, (x, z) => groundAt(grid, x, z).h);
     else debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
     rain.draw(dt, race.rain);
-    {
-      // (the way the car's going, on the screen: the ground's y is foreshortened by the camera's pitch)
-      const c = race.entrants[you].car;
-      const sy = c.vy * Math.sin(deg(LOOK.pitch));
-      const len = Math.hypot(c.vx, sy) || 1;
-      // (none for a device asking for less motion)
-      streaks.draw(dt, calm ? 0 : rushNow, c.vx / len, sy / len);
-    }
     skids.update(dt);
     deckSkids?.update(dt);
 
@@ -2262,15 +2253,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const pitch = deg(LOOK.pitch);
     // (the zoom eases back out from the grid pan's)
     panZoom += ((gridPan ? GRID_PAN.zoom : 1) - panZoom) * (1 - Math.exp(-dt * 4));
-    // (the rush of speed pulls the camera back a touch)
+    // (speed pulls the camera back, smoothly: a touch less for a device asking for less motion)
     const meNow = race.entrants[you];
     const rushWant = !replay && !podium && !gridPan && running(meNow) && !meNow.pit ? rushOf(speedOf(meNow.car), meNow.car.cls.topSpeed, meNow.tow) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
+    const zoomWant = !replay && !podium && !gridPan && running(meNow) && !meNow.pit ? zoomOf(speedOf(meNow.car), meNow.car.cls.topSpeed) * (motionReduced() ? ZOOM_OUT.calm : 1) : 0;
+    zoomNow += (zoomWant - zoomNow) * Math.min(1, dt * 1.5);
     // (wheel to wheel with a rival, it pulls back a touch more, to show you both)
     const battleWant = !replay && !podium && !gridPan && session === 'race' && race.phase === 'racing' && running(meNow) && !meNow.pit
       && race.entrants.some((e, i) => i !== you && running(e) && !e.pit && Math.hypot(e.car.x - meNow.car.x, e.car.y - meNow.car.y) < BATTLE.near) ? 1 : 0;
     battleNow += (battleWant - battleNow) * Math.min(1, dt * (battleWant ? 2 : 0.8));
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + RUSH.pullBack * rushNow + BATTLE.pullBack * battleNow);
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + ZOOM_OUT.pullBack * zoomNow + BATTLE.pullBack * battleNow);
     camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
     camera.lookAt(focus.x, focus.y, focus.z);
     // the shake: the camera moved across and up its own view (SCREEN SHAKE off in the settings: still)
@@ -2374,7 +2367,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     step(noteDriven);
     step(() => setAudioPaused(false));
     step(() => sounds.dispose());
-    for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, tyrePick, ...plates]) step(() => el.remove());
+    for (const el of [rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, tyrePick, ...plates]) step(() => el.remove());
     step(() => {
       deckEl?.classList.remove('results-up');
       deckEl?.classList.remove('steer-deck');
