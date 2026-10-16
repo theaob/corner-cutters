@@ -147,6 +147,15 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
   }
   render();
   holdTouches(screen);
+  // (holdTouches takes the browser's own scrolling, so a finger dragging the list scrolls it here)
+  let dragFrom: number | undefined;
+  screen.addEventListener('touchstart', (e) => (dragFrom = e.touches[0]?.clientY), { passive: true });
+  screen.addEventListener('touchmove', (e) => {
+    const y = e.touches[0]?.clientY;
+    if (y === undefined || dragFrom === undefined) return;
+    screen.scrollTop += dragFrom - y;
+    dragFrom = y;
+  }, { passive: true });
   host.append(screen);
   hud.setPosition('');
   hud.setLap('');
