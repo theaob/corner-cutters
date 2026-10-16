@@ -13,16 +13,14 @@ import { icon, type IconName } from './icons';
 /** A driver as the results name them. */
 export interface Named {
   name: string;
-  number?: number;
   team: { code: string };
 }
 
-/** One row of the results: place, places gained from the grid, number, name, team, time, best lap, notes. */
+/** One row of the results: place, places gained from the grid, name, team, time, best lap, notes. */
 export interface ResultRow {
   place: number;
   /** places gained (+) or lost (−) from the grid slot */
   moved: number;
-  number?: number;
   name: string;
   team: string;
   /** the winner's time, the gap to it, laps done, or DNF */
@@ -57,7 +55,7 @@ export function resultRows(race: Race, order: number[], named: Named[], you: num
           : `+${(p.finished + p.penalty - winner).toFixed(2)}`
         : `${p.lap}/${race.laps} LAPS`;
     return {
-      place: pos + 1, moved: i - pos, number: named[i].number, name: named[i].name, team: named[i].team.code, time,
+      place: pos + 1, moved: i - pos, name: named[i].name, team: named[i].team.code, time,
       best: p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–', fastest: fastestWho === i,
       notes: [p.penalty ? `+${p.penalty}S` : '', e.stops ? `${e.stops}P` : ''].filter(Boolean).join(' '), stops: e.stops, penalty: p.penalty,
       out: !!p.retired, finished: !!p.retired || p.finished !== undefined, you: i === you,
@@ -192,7 +190,7 @@ function notesCell(r: ResultRow): HTMLElement {
  * in where they were.
  */
 export function renderResults(el: HTMLElement, title: string, rows: ResultRow[], notes: Note[], next: string | undefined, since: number, footer?: HTMLElement): void {
-  const t = table([['', true], ['', false], ['NO', true], ['NAME', false], ['TEAM', false], ['TIME', true], ['BEST', true], ['', false]]);
+  const t = table([['', true], ['', false], ['NAME', false], ['TEAM', false], ['TIME', true], ['BEST', true], ['', false]]);
   for (const r of rows) {
     const row = document.createElement('tr');
     if (r.you) row.style.color = '#f2c14e';
@@ -201,7 +199,7 @@ export function renderResults(el: HTMLElement, title: string, rows: ResultRow[],
     change.style.color = r.moved > 0 ? '#5fe0d0' : r.moved < 0 ? '#d8323c' : '#6c6a88';
     const best = cell('td', r.best, true);
     if (r.fastest) best.style.color = '#b36bff';
-    row.append(cell('td', `${r.place}`, true), change, cell('td', r.number === undefined ? '' : `${r.number}`, true), cell('td', r.name), cell('td', r.team), cell('td', r.time, true), best, notesCell(r));
+    row.append(cell('td', `${r.place}`, true), change, cell('td', r.name), cell('td', r.team), cell('td', r.time, true), best, notesCell(r));
     t.append(row);
   }
   const summary = raceSummary(rows);

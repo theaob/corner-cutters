@@ -12,7 +12,7 @@ import { driverName } from '../profile';
 import { trophy } from './celebrate';
 import { celebrateTitle } from './titleWin';
 import { onBack } from '../../engine/backButton';
-import { POINTS, numberIn, pointsOf, roundSeed, saveSeason, seasonOver, standings, teamOf, type Season } from '../championship';
+import { POINTS, pointsOf, roundSeed, saveSeason, seasonOver, standings, teamOf, type Season } from '../championship';
 import { difficultyById } from '../difficulty';
 import { layoutById } from '../layouts';
 import { RACE_LAPS, SEASON_LENGTHS, seasonLength } from '../laps';
@@ -78,7 +78,7 @@ function standingsTable(s: Season): HTMLTableElement {
   Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
   const head = document.createElement('tr');
   head.style.color = 'var(--muted)';
-  head.append(cell('th', '', true), cell('th', 'NO', true), cell('th', 'DRIVER'), cell('th', 'TEAM'), cell('th', 'PTS', true), cell('th', ''), cell('th', 'WINS', true), cell('th', 'LAST', true));
+  head.append(cell('th', '', true), cell('th', 'DRIVER'), cell('th', 'TEAM'), cell('th', 'PTS', true), cell('th', ''), cell('th', 'WINS', true), cell('th', 'LAST', true));
   table.append(head);
   standings(s).forEach((r, pos) => {
     const d = s.drivers[r.driver];
@@ -94,7 +94,7 @@ function standingsTable(s: Season): HTMLTableElement {
     const plus = cell('td', scored ? `+${scored}` : '');
     Object.assign(plus.style, { color: 'var(--gold)', fontSize: '10px', animation: scored ? `score-in 1.6s ease-out ${(0.5 + pos * 0.06).toFixed(2)}s both` : '' });
     row.append(
-      cell('td', `${pos + 1}`, true), cell('td', `${numberIn(s, r.driver) ?? ''}`, true), cell('td', d.name === 'YOU' ? driverName() : d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
+      cell('td', `${pos + 1}`, true), cell('td', d.name === 'YOU' ? driverName() : d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
       cell('td', lastPlace === undefined ? '' : lastPlace < 0 ? 'DNF' : `P${lastPlace + 1}`, true),
     );
     table.append(row);

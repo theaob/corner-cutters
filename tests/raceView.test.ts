@@ -118,7 +118,7 @@ describe('the results rows', () => {
   const f1 = carClass('f1');
   const c = buildCircuit(CRESCENT_PARK, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
   const field = c.slots.slice(0, 3).map((s) => ({ car: newCar(f1, s.x, s.y, s.heading) }));
-  const named = ['VER', 'YOU', 'HAM'].map((name, k) => ({ name, number: k + 1, team: { code: 'MLK' } }));
+  const named = ['VER', 'YOU', 'HAM'].map((name) => ({ name, team: { code: 'MLK' } }));
 
   it('the winner\'s time, gaps, laps or DNF; places from the grid; penalties and stops', () => {
     const race = newRace(c.track, c.grid, handlingFor(NORMAL), 3, field, 0.5, c.pit);

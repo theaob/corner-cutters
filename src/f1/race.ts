@@ -14,7 +14,7 @@ import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
 import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, nearestSample, playerInput, stickWheel, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
-import { numberOf, styleOf } from './drivers';
+import { styleOf } from './drivers';
 import { DRY, lookAt as weatherLook, type Weather, type WeatherId } from './weather';
 import { changeableForecast, conditionOf, fixedForecast, roundForecast, type Forecast } from './forecast';
 import { COMPOUNDS, fitTyres, isDry, tyreFor, type Compound, type DryCompound } from './tyres';
@@ -134,7 +134,6 @@ interface Look {
 }
 
 /** A driver as the screens name them: their number first, when they have one (#44 HAM). */
-const numbered = (l: Pick<Look, 'name' | 'number'>) => (l.number === undefined ? l.name : `#${l.number} ${l.name}`);
 
 
 
@@ -394,7 +393,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const e = race.entrants[i];
       const place = order.indexOf(i) + 1;
       const gap = e.progress.retired ? 'OUT' : e.pit ? 'PIT' : e.blue !== undefined ? '▮ BLUE' : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
-      return { place, color: looks[i].color, trim: looks[i].team.trim, number: looks[i].number, name: looks[i].name, gap, you: i === you, out: !!e.progress.retired, blue: e.blue !== undefined };
+      return { place, color: looks[i].color, trim: looks[i].team.trim, name: looks[i].name, gap, you: i === you, out: !!e.progress.retired, blue: e.blue !== undefined };
     }));
   };
   /** Show the next medal here and what it asks for (on starting a Time Trial or a Time Attack, and on winning one). */
@@ -528,7 +527,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     before = undefined;
     hudState.flashUntil = 0;
     ceremonyView.setDrivers(podium.top.map((i) => ({
-      body: looks[i].team.body, trim: looks[i].team.trim, car: createCarMesh('f1', looks[i].livery, !!circuit.layout.dirt), number: looks[i].number, name: looks[i].name, you: i === you,
+      body: looks[i].team.body, trim: looks[i].team.trim, car: createCarMesh('f1', looks[i].livery, !!circuit.layout.dirt), name: looks[i].name, you: i === you,
     })));
   };
 
@@ -569,8 +568,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   /** A car on the track in its team's livery (teammates: the team's second car has the bright green T-camera). */
   const addLook = (livery: Team, seat: number, mine: boolean): Look => {
-    const number = numberOf(livery.drivers[seat]);
-    const plain = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined, number };
+    const plain = { body: livery.body, stripe: livery.trim, accent: livery.accent, pattern: livery.pattern, tcam: seat === 1 ? TCAM_GREEN : undefined };
     // (yours in the look you picked, a streak's reward: carStyle.ts)
     const look = mine ? styled(plain, carStyle(loadStreak(loadDaily()).best)) : plain;
     // (on dirt, on off-road tyres)
@@ -579,7 +577,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (under a bridge, the deck hides it: its outline drawn through the deck, yours in gold)
     const outline = track.levels ? carOutline(mesh, mine ? 0xf2c14e : 0xf4f4f8) : undefined;
     if (outline) world.scene.add(outline.group);
-    return { name: mine ? driverName() : livery.drivers[seat], outline, number, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
+    return { name: mine ? driverName() : livery.drivers[seat], outline, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
   /** px you've driven since the last 'drive' event, and where your car was last frame; and s on the circuit since then, not paused (for the play stats) */
@@ -2132,7 +2130,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (gridPan) {
       // the grid pan: the car the camera's on, by grid place, name and team (you in gold)
       const k = panAt(gridPan.slots, gridPan.t).car;
-      banner.textContent = `P${k + 1} ${numbered(looks[k])} · ${looks[k].team.code}`;
+      banner.textContent = `P${k + 1} ${looks[k].name} · ${looks[k].team.code}`;
       banner.style.color = k === you ? '#f2c14e' : '#f4f4f8';
     } else if (race.phase === 'lights') {
       const lit = Math.max(0, Math.min(5, Math.floor((clock + LIGHTS) / 0.6)));
