@@ -2,7 +2,7 @@
 // rest shown locked with the streak that earns them. The one equipped is the one raced in. Touch, or keys: up/down
 // moves, A or START equips, SELECT (or the phone's back button) goes back.
 
-import type { LiveryPattern } from '../../engine/render/vehicles3d';
+import type { CarLook, LiveryPattern } from '../../engine/render/vehicles3d';
 import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -12,6 +12,8 @@ import { loadDaily } from '../daily';
 import { reportOpen } from '../report';
 import { menuPick, menuTick } from '../sounds';
 import { loadStreak } from '../streak';
+import { motionReduced } from '../access';
+import { startPreviews3d, type Preview3d } from './carPreview3d';
 import type { Team } from '../teams';
 
 const WHITE_HELMET = '#f4f4f8';
@@ -79,6 +81,9 @@ export function carPreview(team: Team, style: CarStyle): SVGSVGElement {
   return svg;
 }
 
+/** A tile's preview, in px: the 3D canvas's size on a phone's screen. */
+const PREVIEW = 104;
+
 /** The shop in `host` until the player goes back. */
 export function showCarShop(host: HTMLElement, services: Services, team: Team, closed?: AbortSignal): Promise<void> {
   const { controls, hud } = services;
@@ -93,40 +98,62 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     Object.assign(p.style, { margin: '0', color, textAlign: 'center', font: '11px var(--pixel)' });
     return p;
   };
-  const status = line('\u00a0');
-  screen.append(title, line('LOOKS FOR YOUR CAR: A STREAK OF DAYS PLAYED EARNS THEM, YOURS FOR GOOD', 'var(--text)'), status);
+  const status = line(' ');
+  screen.append(title, line('LOOKS FOR YOUR CAR: A STREAK OF DAYS PLAYED EARNS THEM, YOURS FOR GOOD', 'var(--text)'));
   const entries = shopStyles(best);
-  const rows = entries.map(({ style, owned }) => {
+  // (helmets, and whole-car paint, apart: a look that sets only the helmet is a helmet, NO CUSTOMIZATION leading them)
+  const isPaint = (s: CarStyle) => !('helmet' in s.look) && Object.keys(s.look).length > 0;
+  const sections = [
+    { name: 'HELMETS', entries: entries.filter((e) => !isPaint(e.style)) },
+    { name: 'CAR PAINT', entries: entries.filter((e) => isPaint(e.style)) },
+  ];
+  const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+  const previews: Preview3d[] = [];
+  const rows = sections.flatMap((section) => section.entries.map(({ style, owned }) => {
     const b = menuButton('', () => equip(style, owned));
     b.disabled = false;
     b.setAttribute('aria-disabled', String(!owned));
-    Object.assign(b.style, { display: 'flex', flexDirection: 'row', flex: 'none', alignItems: 'center', gap: '14px', textAlign: 'left', padding: '10px 12px', opacity: owned ? '1' : '0.45' });
-    const text = document.createElement('div');
-    text.style.flex = '1';
+    Object.assign(b.style, { flexDirection: 'column', justifyContent: 'center', gap: '4px', minHeight: '0', padding: '8px 2px', textAlign: 'center', opacity: owned ? '1' : '0.45' });
+    // (the car turning in 3D, or its flat picture where there's no WebGL)
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = Math.round(PREVIEW * dpr);
+    Object.assign(canvas.style, { width: `${PREVIEW}px`, height: `${PREVIEW}px` });
+    const flat = carPreview(team, style);
+    const look = styled({ body: team.body, stripe: team.trim, accent: team.accent ?? team.body, pattern: team.pattern } as Partial<CarLook>, style);
+    previews.push({ canvas, look, helmetOnly: !isPaint(style) });
     const name = document.createElement('strong');
-    name.textContent = style.name;
-    const about = document.createElement('span');
-    about.style.display = 'block';
-    about.textContent = owned ? '' : `LOCKED · ${style.days} DAYS RUNNING TO EARN${best ? ` · BEST SO FAR ${best}` : ''}`.toLowerCase();
-    text.append(name, about);
+    Object.assign(name.style, { font: '10px var(--pixel)', lineHeight: '1.2' });
+    name.textContent = style.days === 0 ? 'STANDARD' : style.name;
     const state = document.createElement('span');
-    Object.assign(state.style, { font: '11px var(--pixel)' });
-    b.append(carPreview(team, style), text, state);
-    return { b, style, owned, about, state };
-  });
+    Object.assign(state.style, { font: '9px var(--pixel)' });
+    b.append(canvas, name, state);
+    return { b, canvas, flat, style, owned, state, section: section.name };
+  }));
+  const grids = sections.map((section) => {
+    const heading = document.createElement('h2');
+    heading.textContent = section.name;
+    Object.assign(heading.style, { margin: '6px 2px 0', font: '11px var(--pixel)', letterSpacing: '0.1em', color: 'var(--gold)', fontWeight: '400' });
+    const grid = document.createElement('div');
+    Object.assign(grid.style, { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' });
+    grid.append(...rows.filter((r) => r.section === section.name).map((r) => r.b));
+    return [heading, grid];
+  }).flat();
   let finish = () => {};
   const backButton = menuButton('◀ BACK', () => finish());
-  // (set a little apart from the looks above it, and held at the bottom of the screen: a phone can't scroll this
-  // list (holdTouches), and with the looks and cars it holds BACK was below the fold)
-  Object.assign(backButton.style, { marginTop: '6px', position: 'sticky', bottom: '-20px', flex: 'none', zIndex: '1', boxShadow: '0 0 0 10px #111118' });
-  screen.append(...rows.map((r) => r.b), backButton);
-  let focus = Math.max(0, entries.findIndex((e) => e.style.id === carStyle(best).id));
+  // (the status line and BACK held at the bottom of the screen, set a little apart from the looks above them: a phone
+  // can't scroll this list with the browser's own scrolling (holdTouches), and with the looks and cars it holds BACK
+  // was below the fold)
+  const footer = document.createElement('div');
+  Object.assign(footer.style, { position: 'sticky', bottom: '-20px', flex: 'none', zIndex: '1', display: 'flex', flexDirection: 'column', gap: '6px', margin: '0 -16px -20px', padding: '8px 16px 20px', background: '#111118' });
+  footer.append(status, backButton);
+  screen.append(...grids, footer);
+  const tiles = rows.map((r) => r.b);
+  let focus = Math.max(0, rows.findIndex((r) => r.style.id === carStyle(best).id));
   const render = () => {
     const mine = carStyle(best).id;
     for (const [k, r] of rows.entries()) {
-      r.state.textContent = !r.owned ? '🔒' : r.style.id === mine ? 'EQUIPPED' : 'EQUIP';
+      r.state.textContent = !r.owned ? `🔒 ${r.style.days} DAYS` : r.style.id === mine ? 'EQUIPPED' : 'EQUIP';
       r.state.style.color = r.style.id === mine ? 'var(--gold)' : 'var(--muted)';
-      if (r.owned) r.about.textContent = r.style.id === mine ? 'raced in on the track' : r.style.days === 0 ? "tap for your team's own colours" : 'tap to wear it';
       r.b.classList.toggle('focused', k === focus);
     }
     backButton.classList.toggle('focused', focus === rows.length);
@@ -135,7 +162,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     focus = rows.findIndex((r) => r.style === style);
     if (!owned) {
       menuTick();
-      status.textContent = `${style.name}: ${style.days} DAYS RUNNING EARNS IT`;
+      status.textContent = `${style.name}: ${style.days} DAYS RUNNING EARNS IT${best ? ` · BEST SO FAR ${best}` : ''}`;
       status.style.color = 'var(--gold)';
     } else {
       menuPick();
@@ -157,10 +184,36 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     dragFrom = y;
   }, { passive: true });
   host.append(screen);
+  // (the previews turn once the tiles are on the page; those with no WebGL show the flat cars)
+  const stopPreviews = startPreviews3d(previews, Math.round(PREVIEW * dpr), motionReduced());
+  if (!stopPreviews) for (const r of rows) r.canvas.replaceWith(r.flat);
   hud.setPosition('');
   hud.setLap('');
   hud.setLabel('a', 'EQUIP');
   hud.setLabel('b', '');
+
+  /** Move the focus to the nearest tile (or BACK) in a direction on the screen. */
+  const step = (dx: number, dy: number) => {
+    const at = (i: number) => (i === rows.length ? backButton : tiles[i]).getBoundingClientRect();
+    const from = at(focus);
+    const cx = from.left + from.width / 2;
+    const cy = from.top + from.height / 2;
+    let best: { i: number; cost: number } | undefined;
+    for (let i = 0; i <= rows.length; i++) {
+      if (i === focus) continue;
+      const r = at(i);
+      const ahead = ((r.left + r.width / 2) - cx) * dx + ((r.top + r.height / 2) - cy) * dy;
+      if (ahead <= 1) continue;
+      const aside = Math.abs(((r.left + r.width / 2) - cx) * dy + ((r.top + r.height / 2) - cy) * dx);
+      const cost = ahead + aside * 3;
+      if (!best || cost < best.cost) best = { i, cost };
+    }
+    if (!best) return;
+    focus = best.i;
+    menuTick();
+    render();
+    (focus === rows.length ? backButton : tiles[focus]).scrollIntoView({ block: 'nearest' });
+  };
 
   return new Promise((resolve) => {
     let done = false;
@@ -168,6 +221,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     finish = () => {
       if (done) return;
       done = true;
+      stopPreviews?.();
       offBack();
       menuPick();
       screen.remove();
@@ -175,12 +229,13 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     };
     closed?.addEventListener('abort', () => {
       done = true;
+      stopPreviews?.();
       offBack();
       screen.remove();
       resolve();
     });
     const seen = new Map<string, number>();
-    const pressed = (b: 'down' | 'up' | 'a' | 'start' | 'select') => {
+    const pressed = (b: 'down' | 'up' | 'left' | 'right' | 'a' | 'start' | 'select') => {
       const n = controls.presses(b);
       const edge = n > (seen.get(b) ?? n);
       seen.set(b, n);
@@ -188,13 +243,11 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     };
     const tick = () => {
       if (done) return;
-      const [down, up, a, start, select] = (['down', 'up', 'a', 'start', 'select'] as const).map(pressed);
-      const move = (down ? 1 : 0) - (up ? 1 : 0);
-      if (move) {
-        focus = (focus + move + rows.length + 1) % (rows.length + 1);
-        menuTick();
-        render();
-      }
+      const [down, up, left, right, a, start, select] = (['down', 'up', 'left', 'right', 'a', 'start', 'select'] as const).map(pressed);
+      if (down) step(0, 1);
+      else if (up) step(0, -1);
+      else if (right) step(1, 0);
+      else if (left) step(-1, 0);
       if (a || start) {
         if (focus === rows.length) finish();
         else equip(rows[focus].style, rows[focus].owned);
