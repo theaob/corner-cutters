@@ -19,7 +19,7 @@ export function sayDayNews(news: TodayNews, achieve: (ids: string[]) => void): v
       name: `DAY ${s.days}`,
       about: s.forgave ? 'a missed day forgiven: keep it going' : s.days === 1 ? 'play tomorrow for day 2' : next ? `${next.days - s.days} more for the ${next.name.toLowerCase()}` : 'every look earned: keep it going',
     });
-    for (const r of s.rewards) achievementToast({ head: 'REWARD', mark: '◆', name: r.name, about: 'yours: pick it in settings · car style' });
+    for (const r of s.rewards) achievementToast({ head: 'REWARD', mark: '◆', name: r.name, about: 'yours: wear it from the shop' });
   }
   if (news.achievements.length) achieve(news.achievements);
 }

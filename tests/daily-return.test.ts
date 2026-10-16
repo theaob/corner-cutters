@@ -172,7 +172,7 @@ describe('playing today', () => {
 });
 
 describe('your car style', () => {
-  it('STANDARD, and the looks your best streak has earned; one not earned falls back to STANDARD', () => {
+  it('NO CUSTOMIZATION, and the looks your best streak has earned; one not earned falls back to it', () => {
     expect(stylesFor(0).map((s) => s.id)).toEqual(['standard']);
     expect(stylesFor(7).map((s) => s.id)).toEqual(['standard', 'silver-helmet', 'neon-helmet']);
     setCarStyle(CAR_STYLES.find((s) => s.id === 'black-gold')!);

@@ -3,7 +3,7 @@ import { CAR_STYLES, shopStyles, stylesFor } from '../src/f1/carStyle';
 import { REWARDS } from '../src/f1/streak';
 
 describe('the shop', () => {
-  it('lists every look: STANDARD (white helmet) always yours, the streak looks locked', () => {
+  it('lists every look: NO CUSTOMIZATION (white helmet) always yours, the streak looks locked', () => {
     const all = shopStyles(0);
     expect(all.map((e) => e.style.id)).toEqual(CAR_STYLES.map((s) => s.id));
     expect(all[0]).toMatchObject({ owned: true });
@@ -27,5 +27,12 @@ describe('the shop', () => {
     expect(shopStyles(45).find((e) => e.style.id === 'night-racer')?.owned).toBe(false);
     expect(CAR_STYLES.find((s) => s.id === 'chequered')).toMatchObject({ days: 120, look: { pattern: 'band' } });
     expect(CAR_STYLES.length).toBe(REWARDS.length + 1);
+  });
+});
+
+describe('settings', () => {
+  it('has no CAR STYLE row any more: the look is chosen in the shop', async () => {
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/f1/settingsRows.ts', 'utf8')).not.toContain('CAR STYLE');
   });
 });

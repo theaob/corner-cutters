@@ -125,7 +125,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     for (const [k, r] of rows.entries()) {
       r.state.textContent = !r.owned ? '🔒' : r.style.id === mine ? 'EQUIPPED' : 'EQUIP';
       r.state.style.color = r.style.id === mine ? 'var(--gold)' : 'var(--muted)';
-      if (r.owned) r.about.textContent = r.style.id === mine ? 'raced in on the track' : 'tap to wear it';
+      if (r.owned) r.about.textContent = r.style.id === mine ? 'raced in on the track' : r.style.days === 0 ? "tap for your team's own colours" : 'tap to wear it';
       r.b.classList.toggle('focused', k === focus);
     }
     backButton.classList.toggle('focused', focus === rows.length);
