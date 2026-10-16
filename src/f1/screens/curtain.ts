@@ -5,6 +5,7 @@
 // weather, and a run of chequered squares lighting in turn) while the circuit is
 // built. The page opens with it down, lifted once the first screen is up.
 
+import { flagSvg } from '../flags';
 import type { CircuitLayout } from '../layouts';
 
 /** ms the curtain takes to fade in or out. */
@@ -58,6 +59,7 @@ export async function curtainDown(race?: { layout: CircuitLayout; line: string }
   if (race) {
     const name = document.createElement('strong');
     name.textContent = race.layout.name.toUpperCase();
+    name.prepend(flagSvg(race.layout.country, 24) ?? '');
     const line = document.createElement('span');
     line.textContent = race.line;
     const dots = document.createElement('div');
