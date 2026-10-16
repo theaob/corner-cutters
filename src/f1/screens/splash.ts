@@ -36,8 +36,10 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
   const { signal } = closed;
   const still = showStill(host);
   let stopBackdrop = () => {};
-  void import('./menuBackdrop').then(({ startBackdrop }) => {
-    if (!signal.aborted) stopBackdrop = startBackdrop(host, layout, still);
+  let parkBackdrop = (stop: () => void) => stop();
+  void import('./menuBackdrop').then((m) => {
+    parkBackdrop = m.parkBackdrop;
+    if (!signal.aborted) stopBackdrop = m.startBackdrop(host, layout, still);
   });
 
   const page = document.createElement('div');
@@ -95,7 +97,8 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
     started,
     close: () => {
       closed.abort();
-      stopBackdrop();
+      // (the race behind it goes on into the menu, if that's next)
+      parkBackdrop(stopBackdrop);
       still.remove();
       page.remove();
     },
