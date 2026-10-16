@@ -1192,7 +1192,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // changes; tapped and swiped, or up/down and left/right on the deck, A, START or B back to the pause screen
   const pauseSettings = document.createElement('div');
   pauseSettings.className = 'circuit-menu pause-settings';
-  style(pauseSettings, { zIndex: '5', display: 'none', justifyContent: 'center', background: '#000' });
+  // (the race still shows through, blurred: index.html .pause-settings; dark enough to read the rows on)
+  style(pauseSettings, { zIndex: '5', display: 'none', justifyContent: 'center', background: 'rgba(8,8,14,.72)' });
   const pausePages = settingsPages(settingsRows(), () => openPauseSettings(false));
   pauseSettings.append(...pausePages.els);
   host.append(pauseSettings);
@@ -2302,6 +2303,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else governor.sample(Math.min(real, 0.25));
     setQuality(QUALITY_LEVELS[governor.level].name);
     const q = QUALITY_LEVELS[governor.level];
+    // (the pause menus' blur is a cost on a phone already at the lowest level: they go darker instead, index.html)
+    document.documentElement.classList.toggle('no-pause-blur', governor.level >= QUALITY_LEVELS.length - 1);
     applySize();
     world.setShadowMapSize(q.shadowMap);
     // (the frame's draw calls counted across all the passes, not just the last: for __cc.perf)
@@ -2375,7 +2378,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     step(() => {
       deckEl?.classList.remove('results-up');
       deckEl?.classList.remove('steer-deck');
-      document.documentElement.classList.remove('results-up', 'ceremony', 'paused', 'dirt');
+      document.documentElement.classList.remove('results-up', 'ceremony', 'paused', 'dirt', 'no-pause-blur');
     });
     delete (window as { __cc?: unknown }).__cc;
     // everything on the GPU: the scene's meshes, materials and textures, the post passes, the context itself

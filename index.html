@@ -562,6 +562,19 @@
       .live-backdrop ~ .circuit-menu {
         background: linear-gradient(rgba(14, 13, 22, 0.05), rgba(14, 13, 22, 0.15) 18%, rgba(14, 13, 22, 0.7) 30%, rgba(14, 13, 22, 0.8));
       }
+      /* the pause menus over the race, blurred (the game keeps drawing behind them; on the lowest quality level there's no
+         blur, the plain darker backdrop instead, so a slow phone isn't asked to blur a scene it's redrawing every frame) */
+      .pause-screen,
+      .pause-settings {
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+      }
+      html.no-pause-blur .pause-screen,
+      html.no-pause-blur .pause-settings {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background: rgba(8, 8, 14, 0.9) !important;
+      }
       /* (the settings on black, for reading: the race behind hidden) */
       .circuit-menu.settings-view,
       .live-backdrop ~ .circuit-menu.settings-view {
