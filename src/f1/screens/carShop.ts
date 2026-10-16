@@ -116,8 +116,9 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
   });
   let finish = () => {};
   const backButton = menuButton('◀ BACK', () => finish());
-  // (set a little apart from the looks above it)
-  backButton.style.marginTop = '6px';
+  // (set a little apart from the looks above it, and held at the bottom of the screen: a phone can't scroll this
+  // list (holdTouches), and with the looks and cars it holds BACK was below the fold)
+  Object.assign(backButton.style, { marginTop: '6px', position: 'sticky', bottom: '-20px', flex: 'none', zIndex: '1', boxShadow: '0 0 0 10px #111118' });
   screen.append(...rows.map((r) => r.b), backButton);
   let focus = Math.max(0, entries.findIndex((e) => e.style.id === carStyle(best).id));
   const render = () => {
