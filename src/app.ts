@@ -25,7 +25,7 @@ import { askModel, device, expectBusy, lines, note, noteConsole, sightChanged, w
 import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
 import { useLayoutSwitch } from './f1/settingsRows';
-import { applyMotion, applyText } from './f1/access';
+import { applyMotion, applyText, motionReduced, onMotionChange } from './f1/access';
 import { reportProblem, watchCrashes } from './f1/crashes';
 import { forgetChangedCircuits } from './f1/circuitHash';
 import { chooseCircuit, TYRE_PICKS, type GameMode, type TyrePick } from './f1/circuitSelect';
@@ -398,15 +398,28 @@ const backdropCircuit = (): CircuitLayout => {
  * aborts. Gives back a stop for the live race (once a race is picked: its view needs the GPU).
  */
 function raceBehind(signal: AbortSignal): () => void {
-  const still = showStill(screen);
+  let still = showStill(screen);
   let stop = () => {};
+  const unwatch = onMotionChange(() => {
+    if (signal.aborted) return;
+    // (MOTION changed: less motion takes the live race away for its still; full brings it back)
+    stop();
+    stop = () => {};
+    still.remove();
+    still = showStill(screen);
+    if (!motionReduced()) start();
+  });
   signal.addEventListener('abort', () => {
+    unwatch();
     stop();
     still.remove();
   });
-  void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
-    if (!signal.aborted) stop = startBackdrop(screen, backdropCircuit(), still);
-  });
+  const start = () => {
+    void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
+      if (!signal.aborted) stop = startBackdrop(screen, backdropCircuit(), still);
+    });
+  };
+  start();
   return () => stop();
 }
 

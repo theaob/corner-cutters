@@ -32,6 +32,13 @@ export function motionReduced(): boolean {
 /** Mark the page's root as html.reduce-motion when less motion is wanted (the stylesheet's animations key off it). */
 export function applyMotion(root: HTMLElement | undefined = globalThis.document?.documentElement): void {
   root?.classList.toggle('reduce-motion', motionReduced());
+  for (const fn of [...motionListeners]) fn();
+}
+const motionListeners = new Set<() => void>();
+/** Run `fn` whenever the MOTION setting (or the device's ask, under PHONE) changes, so what's on screen follows at once. Gives back a stop. */
+export function onMotionChange(fn: () => void): () => void {
+  motionListeners.add(fn);
+  return () => void motionListeners.delete(fn);
 }
 
 /** how much bigger LARGE text is */

@@ -15,8 +15,8 @@ let enabled: boolean | undefined;
 /** SCREEN SHAKE in the settings: on unless turned off (remembered); off to start with for a device asking for less motion. */
 export function shakeOn(): boolean {
   const set = saved('settings', 'shake');
-  enabled ??= typeof set === 'boolean' ? set : !motionReduced();
-  return enabled;
+  // (not kept when unset: the default follows the MOTION setting as it changes)
+  return enabled ?? (typeof set === 'boolean' ? set : !motionReduced());
 }
 export function setShake(on: boolean): void {
   enabled = on;

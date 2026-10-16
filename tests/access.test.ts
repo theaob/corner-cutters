@@ -90,4 +90,18 @@ describe('MOTION setting', () => {
     a.setMotionSetting('auto');
     expect(a.motionReduced()).toBe(false);
   });
+
+  it('tells listeners at once when it changes, until they stop', async () => {
+    const a = await import('../src/f1/access');
+    reducedMotion(false);
+    const seen: boolean[] = [];
+    const stop = a.onMotionChange(() => seen.push(a.motionReduced()));
+    a.setMotionSetting('reduced');
+    a.setMotionSetting('full');
+    expect(seen).toEqual([true, false]);
+    stop();
+    a.setMotionSetting('reduced');
+    expect(seen).toEqual([true, false]);
+    a.setMotionSetting('auto');
+  });
 });
