@@ -4,6 +4,7 @@
 // Touch, or keys: up/down moves, left/right changes a letter, A or START picks,
 // SELECT goes back.
 
+import { flagSvg } from '../flags';
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -72,10 +73,11 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   const best = log.best[c.day];
   // (your streak of days played, any mode: streak.ts)
   const streak = streakNow(loadStreak(log), localDay());
+  const withFlag = (p: HTMLElement, country?: string) => (p.prepend(flagSvg(country, 20) ?? ''), p);
   const when = line(`${c.day} · THE NEXT ONE IN ${hm(untilNext())}`);
   screen.append(
     title,
-    line(c.layout.name.toUpperCase(), 'var(--gold)'),
+    withFlag(line(c.layout.name.toUpperCase(), 'var(--gold)'), c.layout.country),
     line(`TIME ATTACK · NORMAL · ${c.weather.name} · THE SAME FOR EVERYONE TODAY`, 'var(--accent-b)'),
     when,
     line(best ? `YOUR BEST TODAY: ${runText(best.score, best.time)}` : 'NO RUN YET TODAY: AS MANY AS YOU LIKE, YOUR BEST COUNTS', best ? 'var(--text)' : 'var(--muted)'),

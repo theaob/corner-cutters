@@ -4,6 +4,7 @@
 // of the season it crowns the champion. Touch, or keys: up/down moves, A or
 // START picks, SELECT goes back.
 
+import { flagSvg } from '../flags';
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -143,7 +144,9 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       }
       screen.append(line(champ.name === 'YOU' ? 'YOU ARE THE CHAMPION!' : `CHAMPION: ${champ.name} (${teamOf(champ).code})`, 'var(--gold)'));
     } else {
-      screen.append(line(`ROUND ${season.round + 1} OF ${season.rounds.length} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)'));
+      const roundLine = line(`ROUND ${season.round + 1} OF ${season.rounds.length} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)');
+      roundLine.prepend(flagSvg(layoutById(season.rounds[season.round])?.country, 20) ?? '');
+      screen.append(roundLine);
       // the round's weather: its own, drawn from the season (its name doesn't hang on the race's length)
       screen.append(line(`FORECAST: ${roundForecast(roundSeed(season, season.round), 1).name}`, 'var(--accent-b)'));
     }

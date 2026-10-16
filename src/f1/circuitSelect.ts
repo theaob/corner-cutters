@@ -11,6 +11,7 @@
 // keyboard, up/down moves, left/right changes the circuit or a row, Enter picks
 // or races, and B goes back.
 
+import { flagSvg } from './flags';
 import { TILE_COLUMNS, gridStep, makeTile } from './menuTiles';
 import { challengeOn, dayOf } from './daily';
 import type { Button } from '../engine/controls';
@@ -437,6 +438,7 @@ export function chooseCircuit(
       row.className = 'cabinet-row';
       const name = document.createElement('span');
       name.textContent = l.name.toUpperCase();
+      name.prepend(flagSvg(l.country, 18) ?? '');
       row.classList.toggle('locked', !open.has(l.id));
       row.append(name, medalCell(trophies.medals[l.id]?.trial), medalCell(trophies.medals[l.id]?.attack));
       return row;
@@ -533,6 +535,7 @@ export function chooseCircuit(
     next.textContent = '▶';
     const name = document.createElement('strong');
     name.textContent = layout.name;
+    name.prepend(flagSvg(layout.country, 24) ?? '');
     const about = document.createElement('span');
     about.textContent = locked ? (ownsChampionship() ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : 'LOCKED · COMES WITH THE CHAMPIONSHIP') : layout.about;
     const text = document.createElement('div');

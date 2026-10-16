@@ -15,6 +15,8 @@ export interface Banking {
 export interface CircuitLayout {
   id: string;
   name: string;
+  /** the two-letter code of the country it's in, for its flag (flags.ts); none for a circuit of our own */
+  country?: string;
   /** a line about it, for the menu */
   about: string;
   /** the kerb's stripe colours, in turn (red and white unless given) */
@@ -120,6 +122,7 @@ export type LandmarkKind = 'casino' | 'pool' | 'tennis' | 'maiden' | 'flames' | 
 export const CRESCENT_PARK: CircuitLayout = {
   id: 'crescent-park',
   name: 'Crescent Park',
+  country: 'TR',
   about: 'anticlockwise · over the hills, the long Turn 8',
   points: ([
     [505, 1186], [532, 1180], [559, 1174], [587, 1168], [614, 1162], [641, 1156],
@@ -197,6 +200,7 @@ export const CRESCENT_PARK: CircuitLayout = {
 export const SILVER_HEATH: CircuitLayout = {
   id: 'silver-heath',
   name: 'Silver Heath',
+  country: 'GB',
   about: 'clockwise · fast, two hard stops',
   kerb: ['#1b1b26', '#f4f4f8'],
   points: ([
@@ -253,6 +257,7 @@ export const SILVER_HEATH: CircuitLayout = {
 export const HARBOUR: CircuitLayout = {
   id: 'harbour',
   name: 'Harbour',
+  country: 'MC',
   about: 'clockwise · tight streets, walls close',
   points: ([
     // the main straight, north, the pits on the harbour side
@@ -333,6 +338,7 @@ export const HARBOUR: CircuitLayout = {
 export const ROYAL_PARK: CircuitLayout = {
   id: 'royal-park',
   name: 'Royal Park',
+  country: 'IT',
   about: 'clockwise · the banking, the longest straight',
   kerb: ['#2f9e44', '#f4f4f8', '#d8323c'],
   points: ([
@@ -392,6 +398,7 @@ export const ROYAL_PARK: CircuitLayout = {
 export const ARDENNES: CircuitLayout = {
   id: 'ardennes',
   name: 'Ardennes',
+  country: 'BE',
   about: 'clockwise · the longest, up and down through the forest',
   kerb: ['#d8323c', '#f2c14e'],
   points: ([
@@ -460,6 +467,7 @@ export const ARDENNES: CircuitLayout = {
 export const ALPINE_RING: CircuitLayout = {
   id: 'alpine-ring',
   name: 'Alpine Ring',
+  country: 'AT',
   about: 'clockwise · short and steep, in the mountains',
   points: ([
     [803, 700], [776, 708], [749, 715], [721, 722], [694, 729], [667, 737],
@@ -522,6 +530,7 @@ export const ALPINE_RING: CircuitLayout = {
 export const TWIN_LAKES: CircuitLayout = {
   id: 'twin-lakes',
   name: 'Twin Lakes',
+  country: 'BR',
   about: 'anticlockwise · a bowl of a circuit, down and up',
   kerb: ['#2f9e44', '#f2c14e'],
   points: ([
@@ -600,6 +609,7 @@ export const TWIN_LAKES: CircuitLayout = {
 export const OASIS: CircuitLayout = {
   id: 'oasis',
   name: 'Oasis',
+  country: 'BH',
   about: 'clockwise · in the desert, under the lights, hard on the brakes',
   points: ([
     [32, 367], [33, 339], [34, 311], [35, 283], [36, 255], [38, 227],
@@ -665,6 +675,7 @@ export const OASIS: CircuitLayout = {
 export const PEARL_SANDS: CircuitLayout = {
   id: 'pearl-sands',
   name: 'Pearl Sands',
+  country: 'QA',
   about: 'clockwise · fast and flowing, in the desert',
   kerb: ['#8a1538', '#f4f4f8'],
   points: ([
@@ -733,6 +744,7 @@ export const PEARL_SANDS: CircuitLayout = {
 export const BAKU: CircuitLayout = {
   id: 'baku',
   name: 'Caspian Shores',
+  country: 'AZ',
   about: 'anticlockwise · the castle, then flat out by the sea',
   points: ([
     [1893, 372], [1919, 361], [1945, 350], [1971, 339], [1996, 328], [2022, 317],
@@ -826,6 +838,7 @@ export const BAKU: CircuitLayout = {
 export const SUZUKA: CircuitLayout = {
   id: 'suzuka',
   name: 'Nippon',
+  country: 'JP',
   about: 'a figure of eight · the esses, over the bridge, 130R',
   points: ([
     [16731, 5575], [16911, 5790], [17090, 6005], [17270, 6220], [17449, 6435], [17629, 6650],
@@ -909,6 +922,7 @@ export const SUZUKA: CircuitLayout = {
 export const DUNE_COAST: CircuitLayout = {
   id: 'dune-coast',
   name: 'Dune Coast',
+  country: 'NL',
   about: 'clockwise · over the dunes, two banked bends',
   kerb: ['#f4f4f8', '#f08a24'],
   points: ([
@@ -1001,6 +1015,7 @@ export const DUNE_COAST: CircuitLayout = {
 export const VEGAS: CircuitLayout = {
   id: 'vegas',
   name: 'Neon Strip',
+  country: 'US',
   about: 'anticlockwise · at night, down the Strip under the neon',
   kerbSuits: true,
   points: ([
@@ -1299,6 +1314,7 @@ export const VOLCANO_ISLE: CircuitLayout = {
 export const SOUTHERN_LAKE: CircuitLayout = {
   id: 'southern-lake',
   name: 'Southern Lake',
+  country: 'AU',
   about: 'clockwise · round the lake, fast sweeps, hard stops',
   points: ([
     [923, 52], [959, 52], [995, 52], [1031, 52], [1067, 52], [1103, 52],
@@ -1362,6 +1378,7 @@ export const SOUTHERN_LAKE: CircuitLayout = {
 export const JADE_SPIRAL: CircuitLayout = {
   id: 'jade-spiral',
   name: 'Jade Spiral',
+  country: 'CN',
   about: 'clockwise · the snail, the long back straight',
   points: ([
     [917, 347], [953, 347], [989, 346], [1025, 348], [1060, 356], [1089, 376],
@@ -1415,6 +1432,7 @@ export const JADE_SPIRAL: CircuitLayout = {
 export const MAPLE_ISLAND: CircuitLayout = {
   id: 'maple-island',
   name: 'Maple Island',
+  country: 'CA',
   about: 'a stop-and-go island · the long straights, the final chicane',
   points: ([
     [907, 51], [937, 51], [967, 51], [997, 52], [1027, 52], [1057, 52],
