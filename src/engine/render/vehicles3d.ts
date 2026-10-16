@@ -27,8 +27,6 @@ export interface CarLook {
   tcam?: string;
   /** the driver's helmet: plain white unless set; 'gold' is shiny metallic gold, 'led' a ball of swirling lights (as the Neon City's sphere) */
   helmet?: string | 'gold' | 'led';
-  /** the driver's race number, on a white plate filling the engine cover (none when unset) */
-  number?: number;
 }
 
 /**
@@ -90,54 +88,11 @@ function canvasTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
 }
 
 /**
- * The engine-cover texture (`w` x `h` world px): the pattern, 8 texels to a world px, and the race number on the part
- * of it seen from above (`seen`: left, top, width, height, as fractions; the rear wheels hide its sides, and the air
- * intake its front).
+ * The engine-cover texture (`w` x `h` world px): the pattern, 8 texels to a world px.
  */
-function deckTexture(look: CarLook, second: string, w: number, h: number, seen?: [number, number, number, number]): THREE.CanvasTexture {
+function deckTexture(look: CarLook, second: string, w: number, h: number): THREE.CanvasTexture {
   const c = paintPattern(Math.round(w * 8), Math.round(h * 8), look.pattern ?? 'plain', look.body, second);
-  if (look.number !== undefined) paintNumber(c, look.number, seen);
   return canvasTexture(c);
-}
-
-/** The digits as 3×5 pixel figures (rows top to bottom, 1 = lit): blocky, so they still read when the car is small. */
-const DIGITS: Record<string, string[]> = {
-  '0': ['111', '101', '101', '101', '111'],
-  '1': ['010', '110', '010', '010', '111'],
-  '2': ['111', '001', '111', '100', '111'],
-  '3': ['111', '001', '011', '001', '111'],
-  '4': ['101', '101', '111', '001', '001'],
-  '5': ['111', '100', '111', '001', '111'],
-  '6': ['111', '100', '111', '101', '111'],
-  '7': ['111', '001', '010', '010', '010'],
-  '8': ['111', '101', '111', '101', '111'],
-  '9': ['111', '101', '111', '001', '111'],
-};
-
-/**
- * The race number on `c`, as big as it fits in `area` (the part of the canvas seen from above, as fractions of it:
- * left, top, width, height): dark pixel figures on a white plate edged in dark, so it reads on any livery. Upright
- * with the canvas's top (the car's front) at the top.
- */
-function paintNumber(c: HTMLCanvasElement, n: number, area: [number, number, number, number] = [0, 0, 1, 1]): void {
-  const x = c.getContext('2d')!;
-  const text = String(n);
-  const [ax, ay, aw, ah] = [area[0] * c.width, area[1] * c.height, area[2] * c.width, area[3] * c.height];
-  // (figures 3 wide, a pixel apart, 5 tall; the plate a little margin round them)
-  const wide = text.length * 4 - 1;
-  const cell = Math.floor(Math.min(aw / (wide + 0.6), ah / 5.6));
-  const [pw, ph] = [(wide + 0.6) * cell, 5.6 * cell];
-  const [px, py] = [Math.round(ax + (aw - pw) / 2), Math.round(ay + (ah - ph) / 2)];
-  x.fillStyle = '#f4f4f8';
-  x.fillRect(px, py, pw, ph);
-  x.lineWidth = Math.max(2, cell * 0.25);
-  x.strokeStyle = '#1b1b26';
-  x.strokeRect(px, py, pw, ph);
-  x.fillStyle = '#1b1b26';
-  const [left, top] = [px + cell * 0.3, py + cell * 0.3];
-  [...text].forEach((d, k) =>
-    DIGITS[d]?.forEach((row, ry) => [...row].forEach((on, rx) => on === '1' && x.fillRect(left + (k * 4 + rx) * cell, top + ry * cell, cell, cell))),
-  );
 }
 
 /** Off-road tyres: px more radius and width than the tarmac's, and their tread blocks (how many round, how proud) */
@@ -231,7 +186,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   box(3.5, 1.5, 5, 5.8, 0, [carbon, carbon, carbon, dark, carbon, carbon]); // cockpit
   // the engine cover, spanning the sidepods behind the cockpit: the biggest surface seen from above,
   // carrying the team's pattern
-  if (look.pattern || look.number !== undefined) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8, [1.6 / 11, 1.2 / 8, 7.8 / 11, 6.6 / 8])), dark, pods, pods]);
+  if (look.pattern) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8)), dark, pods, pods]);
   // the air intake above the driver's head, and the T-camera on it: dark, or bright green to mark the
   // team's second car (unlit, so it stays bright in shade and from afar)
   box(2.6, 2.4, 3, 7.6, 2.6, [body, body, body, dark, body, carbon]);
