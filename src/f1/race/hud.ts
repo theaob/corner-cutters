@@ -100,9 +100,11 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   });
   // the pause screen: resume, restart or back to the circuits, by tap or with the deck (A, START, SELECT)
   const pauseScreen = document.createElement('div');
+  // (blurred race behind it: index.html .pause-screen)
+  pauseScreen.className = 'pause-screen';
   style(pauseScreen, {
     position: 'absolute', inset: '0', zIndex: '4', display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    gap: '10px', background: 'rgba(14,13,22,.72)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
+    gap: '10px', background: 'rgba(14,13,22,.55)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
   });
   const pauseTitle = document.createElement('div');
   pauseTitle.textContent = 'PAUSED';
