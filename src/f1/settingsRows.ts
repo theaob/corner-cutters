@@ -16,9 +16,6 @@ import { INITIALS, initials, setInitials, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
-import { carStyle, setCarStyle, stylesFor, type CarStyle } from './carStyle';
-import { loadStreak, nextReward } from './streak';
-import { loadDaily } from './daily';
 import { REMINDER_HOURS, reminderSetting, remindersHere, setReminder, type ReminderSetting } from './reminder';
 
 /** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
@@ -78,11 +75,6 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
     full: { name: 'FULL', about: 'all the movement, whatever the phone says' },
   };
   const motionRow = optionRow('MOTION', MOTION_SETTINGS, motionSetting(), (m) => MOTION_ABOUT[m], setMotionSetting);
-  // CAR STYLE: the looks a daily streak has earned your car (carStyle.ts), and what earns the next
-  const best = loadStreak(loadDaily()).best;
-  const next = nextReward(best);
-  const styleAbout = (st: CarStyle) =>
-    st.days === 0 ? (next ? `${next.days} days running earns the ${next.name.toLowerCase()}` : "your team's colours") : `earned with a ${st.days}-day streak`;
   // NAME: your three letters on the timing screens and the boards, typed (the phone's keyboard comes up), as on an arcade board
   const nameRow = (() => {
     const el = document.createElement('div');
@@ -106,7 +98,6 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
     el.append(label, right);
     return { el, step: () => {}, value: () => initials(), refresh: () => { field.value = initials() ?? ''; } };
   })();
-  const styleRow = optionRow('CAR STYLE', stylesFor(best), carStyle(best), (st) => ({ name: st.name, about: styleAbout(st) }), setCarStyle);
   // DAILY REMINDER (the app): a notification at that hour on a day not yet played (reminder.ts)
   const reminderRow = remindersHere()
     ? optionRow<ReminderSetting>('DAILY REMINDER', ['off', ...REMINDER_HOURS], reminderSetting() ?? 'off', (v) => ({
@@ -115,10 +106,10 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
     }), (v) => void setReminder(v))
     : undefined;
   // (STATS only where the build has a backend to send them to)
-  // (the page for what doesn't clearly fit: the daily reminder, the car style, STATS and the screen are about the game)
+  // (the page for what doesn't clearly fit: the daily reminder, STATS and the screen are about the game)
   return {
     controls: [stickRow, drivingRow, vibrationRow],
-    game: [nameRow, styleRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
+    game: [nameRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
     sound: [soundRow, musicRow],
     access: [textRow, coloursRow, motionRow, shakeRow],
   } as Record<SettingsSection, SettingsRow[]>;

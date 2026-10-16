@@ -1,5 +1,5 @@
 // Your car's look: your team's livery as it is (STANDARD, with a white helmet), or a look a streak has earned (streak.ts): a silver or
-// neon helmet, gold wings, black and gold all over, or a whole-car livery (night racer, retro racer, chequered). Picked in the settings (CAR STYLE), kept on the device; one
+// neon helmet, gold wings, black and gold all over, or a whole-car livery (night racer, retro racer, chequered). Picked in the shop, kept on the device; one
 // not earned (yet) can't be picked. Engine-free but for the save.
 
 import { save, saved } from '../engine/save';
@@ -18,7 +18,7 @@ export interface CarStyle {
 const GOLD = '#f2c14e';
 
 export const CAR_STYLES: CarStyle[] = [
-  { id: 'standard', name: 'STANDARD', days: 0, look: {} },
+  { id: 'standard', name: 'NO CUSTOMIZATION', days: 0, look: {} },
   ...REWARDS.map((r): CarStyle => ({
     id: r.id,
     name: r.name,
