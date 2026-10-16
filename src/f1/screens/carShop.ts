@@ -120,7 +120,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     Object.assign(canvas.style, { width: `${PREVIEW}px`, height: `${PREVIEW}px` });
     const flat = carPreview(team, style);
     const look = styled({ body: team.body, stripe: team.trim, accent: team.accent ?? team.body, pattern: team.pattern } as Partial<CarLook>, style);
-    previews.push({ canvas, look, closeUp: !isPaint(style) });
+    previews.push({ canvas, look, helmetOnly: !isPaint(style) });
     const name = document.createElement('strong');
     Object.assign(name.style, { font: '10px var(--pixel)', lineHeight: '1.2' });
     name.textContent = style.days === 0 ? 'STANDARD' : style.name;

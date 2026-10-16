@@ -117,6 +117,41 @@ export const CAR_LOOKS: Record<CarClassId, CarLook> = {
   f1: { body: '#d8323c', stripe: '#f4f4f8' },
 };
 
+/** A helmet's sphere: plain `colour` (white when unset); 'gold' is shiny metallic gold, 'led' a ball of swirling lights (as the Neon City's sphere). `paint` makes a plain colour's material (the car's chars as it burns). */
+function helmetBall(colour: string | undefined, paint: (c: THREE.ColorRepresentation) => THREE.Material = (c) => lambert({ color: c })): THREE.Mesh {
+  // (the gold one shines: a bright highlight where the sun catches it, and a warm glow of its own)
+  const material =
+    colour === 'gold'
+      ? new THREE.MeshPhongMaterial({ color: 0xf5b82e, specular: 0xfff4c8, shininess: 90, emissive: 0x4a3000 })
+      : colour === 'led'
+        ? new THREE.MeshBasicMaterial({ map: lightsTexture(), toneMapped: false })
+        : paint(colour ?? '#e8e8ee');
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 12, 10), material);
+  // (the LED one's lights swirl, as the Neon City's sphere)
+  if (colour === 'led') {
+    const lights = (material as THREE.MeshBasicMaterial).map!;
+    helmet.onBeforeRender = () => {
+      const t = performance.now() / 1000;
+      lights.offset.x = t * 0.15;
+      lights.offset.y = Math.sin(t) * 0.1;
+    };
+  }
+  return helmet;
+}
+
+/** A helmet on its own, facing north (−z) like the car, with a dark visor on its front: for the shop's previews. */
+export function createHelmetMesh(colour?: string | 'gold' | 'led'): THREE.Group {
+  const group = new THREE.Group();
+  group.add(helmetBall(colour));
+  // (a band of the sphere's front, a touch proud of it)
+  const visor = new THREE.Mesh(
+    new THREE.SphereGeometry(1.76, 12, 8, Math.PI * 1.12, Math.PI * 0.76, Math.PI * 0.35, Math.PI * 0.26),
+    new THREE.MeshPhongMaterial({ color: 0x15151c, specular: 0xaab4ff, shininess: 80 }),
+  );
+  group.add(visor);
+  return group;
+}
+
 export interface CarMesh extends THREE.Group {
   userData: {
     /** materials whose colour darkens as the car burns */
@@ -192,23 +227,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   box(2.6, 2.4, 3, 7.6, 2.6, [body, body, body, dark, body, carbon]);
   const tcam = look.tcam ? new THREE.MeshBasicMaterial({ color: look.tcam, toneMapped: false }) : carbon;
   box(4.2, 1, 1.6, 9.3, 2.4, [tcam, tcam, tcam, dark, tcam, tcam]);
-  // (the gold one shines: a bright highlight where the sun catches it, and a warm glow of its own)
-  const helmetMat =
-    look.helmet === 'gold'
-      ? new THREE.MeshPhongMaterial({ color: 0xf5b82e, specular: 0xfff4c8, shininess: 90, emissive: 0x4a3000 })
-      : look.helmet === 'led'
-        ? new THREE.MeshBasicMaterial({ map: lightsTexture(), toneMapped: false })
-        : mat(look.helmet ?? '#e8e8ee');
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 12, 10), helmetMat);
-  // (the LED one's lights swirl, as the Neon City's sphere)
-  if (look.helmet === 'led') {
-    const lights = (helmetMat as THREE.MeshBasicMaterial).map!;
-    helmet.onBeforeRender = () => {
-      const t = performance.now() / 1000;
-      lights.offset.x = t * 0.15;
-      lights.offset.y = Math.sin(t) * 0.1;
-    };
-  }
+  const helmet = helmetBall(look.helmet, mat);
   helmet.position.set(0, 7.2, 0.5);
   helmet.castShadow = true;
   car.add(helmet);
