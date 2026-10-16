@@ -39,6 +39,7 @@ import { TEAMS, driverSeats, teamGrid, type Seat, type Team } from './teams';
 import { formatTime as fmt, loadRecords, recordAttack, recordLap, recordQualifying, recordRace, saveRecords } from './records';
 import { distance, newAttack, shortDistance, stepAttack, type Attack } from './timeAttack';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
+import { drawWhole } from '../engine/render/warm';
 import { disposeDeep } from '../engine/render/dispose';
 import { NIGHT } from './night';
 import { buildFireworks } from './fireworks3d';
@@ -2336,12 +2337,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const around = Math.round((me.progress.idx / race.track.samples.length) * 100);
     return [`${session}${race.phase === 'lights' ? ' (lights)' : ''}`, `lap ${lap}/${race.laps}`, `sector ${Math.min(me.progress.sector + 1, SECTORS)}`, `${around}% round the lap`, place ? `P${place} of ${race.entrants.length}` : '', `${Math.round(speedOf(me.car))} px/s`].filter(Boolean).join(' · ');
   });
-  // one frame drawn now, behind the loading card: the first draw of a scene compiles its shaders and sends its meshes and
+  // one frame drawn now, behind the loading card, of the whole scene: the first draw of a scene compiles its shaders and sends its meshes and
   // textures to the graphics chip, seconds on a slow phone, which fell after the curtain lifted (a freeze reported on
   // the first frames of a race, the car still on the grid)
   try {
     const q = QUALITY_LEVELS[governor.level];
-    post.render(0, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur });
+    // (all of it shown, not only what the camera sees on the grid: the pit lane, the flag, the ceremony, the safety car)
+    drawWhole(world.scene, () => post.render(0, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur }), [safetyCar.group]);
   } catch {
     // (a frame that fails here fails in the loop too, which reports it)
   }
