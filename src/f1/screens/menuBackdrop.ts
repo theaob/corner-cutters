@@ -49,6 +49,24 @@ export const BACKDROP = {
 
 const deg = THREE.MathUtils.degToRad;
 
+/** ms a backdrop handed over (parkBackdrop) waits to be picked up by the next screen before it stops */
+export const PARK_MS = 1000;
+
+/** The backdrop racing now, and the one handed over from the screen going to the one opening (still racing, unless nobody takes it). */
+let racing: { canvas: HTMLCanvasElement; stop: () => void; layoutId: string } | undefined;
+let parked: { stop: () => void; layoutId: string; canvas: HTMLCanvasElement; timer: ReturnType<typeof setTimeout> } | undefined;
+
+/**
+ * Let the next backdrop started on the same circuit carry on this one's race instead of beginning another (the title
+ * splash into the menu: the same cars, the same camera, no new fade-in). Stopped all the same if nothing takes it
+ * (the next screen is a race, say) or it hadn't faded in yet. `stop` is what startBackdrop gave back.
+ */
+export function parkBackdrop(stop: () => void): void {
+  if (!racing || racing.stop !== stop || !racing.canvas.classList.contains('on')) return stop();
+  const { canvas, layoutId } = racing;
+  parked = { stop, layoutId, canvas, timer: setTimeout(() => { parked = undefined; stop(); }, PARK_MS) };
+}
+
 /**
  * Start the backdrop behind `host`'s contents, racing on `layout`, fading in
  * over `still` (the still it's in place of, taken away once it's covered).
@@ -56,6 +74,18 @@ const deg = THREE.MathUtils.degToRad;
  */
 export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: HTMLElement): () => void {
   if (motionReduced()) return () => {};
+  // (a backdrop handed over from the screen before, on this circuit and in this host: it goes on, over the still)
+  if (parked) {
+    const p = parked;
+    parked = undefined;
+    clearTimeout(p.timer);
+    if (p.layoutId === layout.id && p.canvas.parentElement === host) {
+      if (still?.parentElement === host) still.after(p.canvas);
+      still?.remove();
+      return p.stop;
+    }
+    p.stop();
+  }
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
@@ -179,11 +209,18 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   };
   requestAnimationFrame(frame);
 
-  return () => {
+  const stop = () => {
+    if (racing?.stop === stop) racing = undefined;
+    if (parked?.stop === stop) {
+      clearTimeout(parked.timer);
+      parked = undefined;
+    }
     stopped = true;
     post.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
     canvas.remove();
   };
+  racing = { canvas, stop, layoutId: layout.id };
+  return stop;
 }
