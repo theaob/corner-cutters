@@ -51,17 +51,21 @@ function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement
   if (!ctx) return c;
   const m = trackModel(layout);
   const view = fitModel(m, c.width, c.height);
-  const still = motionReduced();
-  const yawAt = (now: number) => (still ? -0.35 : -0.35 + ((now / 1000) * 2 * Math.PI) / TRACK_MODEL.turn);
+  const yawAt = (now: number) => (motionReduced() ? -0.35 : -0.35 + ((now / 1000) * 2 * Math.PI) / TRACK_MODEL.turn);
   drawModel(ctx, m, view, c.width, c.height, yawAt(performance.now()));
-  if (still) return c;
   let last = 0;
   let waited = 0;
+  let stilled = motionReduced();
   const frame = (now: number) => {
     // (it isn't on the page until the card is put together: wait a moment for it, and stop once it's gone)
     if (!c.isConnected && (last || ++waited > 60)) return;
     requestAnimationFrame(frame);
     if (!c.isConnected || gameHidden() || now - last < 1000 / 30) return;
+    // (MOTION changed to reduced: one still frame, then nothing until it turns again)
+    if (motionReduced()) {
+      if (stilled) return;
+      stilled = true;
+    } else stilled = false;
     last = now;
     drawModel(ctx, m, view, c.width, c.height, yawAt(now));
   };
