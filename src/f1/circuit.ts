@@ -140,6 +140,8 @@ export interface Circuit {
   bank: Float32Array;
   /** px the layout was moved by to put the map at (0, 0): a point of the layout (scaled) is here at its own minus this */
   offset: { x: number; y: number };
+  /** the tiles (by index in `cells`, which are walls too) of the layout's Wall of Champions, flush with the track's edge */
+  champions: number[];
 }
 
 export interface CircuitOptions {
@@ -251,6 +253,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   }
   const kerbs = kerbed(track);
   const cells: CircuitCell[] = [];
+  const champions: number[] = [];
+  const cw = layout.championsWall;
   for (let ty = 0; ty < H; ty++) {
     for (let tx = 0; tx < W; tx++) {
       const x = (tx + 0.5) * TILE;
@@ -276,6 +280,12 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         }
       }
       if (i < 0 || d > HALF_WIDTH + runoff) {
+        cells.push('wall');
+        continue;
+      }
+      // the Wall of Champions: a tile's depth of wall just past the kerb, on its side of the track
+      if (cw && d > HALF_WIDTH + 4 && d <= HALF_WIDTH + 4 + TILE && p.s >= cw.from && p.s <= cw.to && ((x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir)) * cw.side > 0) {
+        champions.push(cells.length);
         cells.push('wall');
         continue;
       }
@@ -426,5 +436,5 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   // a bridge, where the track crosses itself: the deck's own grid
   if (layout.bridge) track.levels = buildLevels(track, grid, layout.bridge);
 
-  return { layout, width: W, height: H, cells, grid, track, pit, slots, bank, offset: { x: ox, y: oy } };
+  return { layout, width: W, height: H, cells, grid, track, pit, slots, bank, offset: { x: ox, y: oy }, champions };
 }

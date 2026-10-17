@@ -51,3 +51,23 @@ describe('the garage roofs', () => {
     expect(LAYOUTS.find((l) => l.id === 'baku')!.pitRoof).toBe('AZERBAIJAN');
   });
 });
+
+describe("Maple Island's Wall of Champions", () => {
+  const c = buildCircuit(LAYOUTS.find((l) => l.id === 'maple-island')!, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+  it('is a hard wall, apart from the tyre barriers, close beside the track on the outside of the last chicane', () => {
+    const { champions, walls } = barrierTiles(c);
+    expect(champions.length).toBeGreaterThan(10);
+    const tyre = new Set(walls.map(([i, j]) => j * c.width + i));
+    for (const [i, j] of champions) {
+      expect(c.cells[j * c.width + i]).toBe('wall');
+      expect(tyre.has(j * c.width + i)).toBe(false);
+      const x = (i + 0.5) * T;
+      const y = (j + 0.5) * T;
+      const d = Math.min(...c.track.samples.map((p) => Math.hypot(p.x - x, p.y - y)));
+      expect(d).toBeLessThan(70);
+    }
+  });
+  it('is only at Maple Island', () => {
+    for (const l of LAYOUTS.filter((l) => l.id !== 'maple-island')) expect(l.championsWall).toBeUndefined();
+  });
+});
