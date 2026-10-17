@@ -363,8 +363,9 @@ async function showMenu(id: number): Promise<void> {
   // (the app, after a first day's play: a daily reminder offered, once)
   if (shouldAsk()) askReminder(screen, closed.signal);
   const picked = await picking;
-  stopBackdrop();
-  if (id !== routeId) return;
+  if (id !== routeId) return stopBackdrop();
+  // (a race needs the GPU: the backdrop stops; the Championship, Daily Challenge and SHOP screens carry it on)
+  if (picked.resume || !(picked.shop || picked.mode === 'championship' || picked.mode === 'daily')) stopBackdrop();
   // RESUME RACE: back to the kept race (its own set-up, not the menu's)
   if (picked.resume && kept) {
     resumeNext = kept;
@@ -400,6 +401,8 @@ const backdropCircuit = (): CircuitLayout => {
 function raceBehind(signal: AbortSignal): () => void {
   let still = showStill(screen);
   let stop = () => {};
+  // (when the screen closes the race is handed on rather than stopped: the next menu screen carries it on; a race has it stopped)
+  let park = (s: () => void) => s();
   const unwatch = onMotionChange(() => {
     if (signal.aborted) return;
     // (MOTION changed: less motion takes the live race away for its still; full brings it back)
@@ -411,12 +414,13 @@ function raceBehind(signal: AbortSignal): () => void {
   });
   signal.addEventListener('abort', () => {
     unwatch();
-    stop();
+    park(stop);
     still.remove();
   });
   const start = () => {
-    void import('./f1/screens/menuBackdrop').then(({ startBackdrop }) => {
-      if (!signal.aborted) stop = startBackdrop(screen, backdropCircuit(), still);
+    void import('./f1/screens/menuBackdrop').then((m) => {
+      park = m.parkBackdrop;
+      if (!signal.aborted) stop = m.startBackdrop(screen, backdropCircuit(), still);
     });
   };
   start();

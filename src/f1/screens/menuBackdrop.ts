@@ -57,7 +57,7 @@ let racing: { canvas: HTMLCanvasElement; stop: () => void; layoutId: string } | 
 let parked: { stop: () => void; layoutId: string; canvas: HTMLCanvasElement; timer: ReturnType<typeof setTimeout> } | undefined;
 
 /**
- * Let the next backdrop started on the same circuit carry on this one's race instead of beginning another (the title
+ * Let the next backdrop started carry on this one's race instead of beginning another (the title
  * splash into the menu: the same cars, the same camera, no new fade-in). Stopped all the same if nothing takes it
  * (the next screen is a race, say) or it hadn't faded in yet. `stop` is what startBackdrop gave back.
  */
@@ -74,12 +74,12 @@ export function parkBackdrop(stop: () => void): void {
  */
 export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: HTMLElement): () => void {
   if (motionReduced()) return () => {};
-  // (a backdrop handed over from the screen before, on this circuit and in this host: it goes on, over the still)
+  // (a backdrop handed over from the screen before, in this host (whatever circuit the menu has since picked: the race behind carries on): it goes on, over the still)
   if (parked) {
     const p = parked;
     parked = undefined;
     clearTimeout(p.timer);
-    if (p.layoutId === layout.id && p.canvas.parentElement === host) {
+    if (p.canvas.parentElement === host) {
       if (still?.parentElement === host) still.after(p.canvas);
       still?.remove();
       return p.stop;
