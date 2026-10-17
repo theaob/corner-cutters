@@ -28,6 +28,14 @@ describe('a championship season', () => {
     const { seat: _, ...old } = first;
     expect(parseSeason(old)?.seat ?? 0).toBe(0);
   });
+  it('gives a season saved with two cars a team one car each', () => {
+    const s = season();
+    const old = { ...s, drivers: s.drivers.map((d, k) => (k === 0 || k === 3 ? { ...d, team: s.drivers[s.you].team } : d)) };
+    const fixed = parseSeason(JSON.parse(JSON.stringify(old)))!;
+    expect(new Set(fixed.drivers.map((d) => d.team)).size).toBe(fixed.drivers.length);
+    expect(fixed.drivers[fixed.you].team).toBe(s.drivers[s.you].team);
+    expect(fixed.places).toEqual(old.places);
+  });
   it('scores F1 points for the top ten, none for a DNF', () => {
     expect(POINTS.reduce((a, b) => a + b)).toBe(101);
     expect(pointsFor(0)).toBe(25);

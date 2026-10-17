@@ -124,7 +124,23 @@ export function parseSeason(v: unknown): Season | undefined {
   // (a length that isn't one: a SPRINT)
   if (s.laps !== undefined && seasonLength(s.laps).laps !== s.laps) return parseSeason({ ...s, laps: undefined });
   if (s.seat !== undefined && s.seat !== 0 && s.seat !== 1) return { ...(s as Season), seat: 0 };
-  return s as Season;
+  return oneCarPerTeam(s as Season);
+}
+
+/** A season saved when teams ran two cars: each repeat takes a team not yet in the field (its place in the standings stays). */
+function oneCarPerTeam(s: Season): Season {
+  const used = new Set<string>([s.drivers[s.you].team]);
+  const spare = TEAMS.filter((t) => !s.drivers.some((d) => d.team === t.id));
+  let changed = false;
+  const drivers = s.drivers.map((d, k) => {
+    if (k === s.you || !used.has(d.team)) { used.add(d.team); return d; }
+    const t = spare.shift();
+    if (!t) return d;
+    changed = true;
+    used.add(t.id);
+    return { ...d, team: t.id, name: t.drivers[0] };
+  });
+  return changed ? { ...s, drivers } : s;
 }
 
 /** The season in progress (or just finished), kept on the device. */
