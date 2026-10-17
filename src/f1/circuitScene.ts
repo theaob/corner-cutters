@@ -34,6 +34,9 @@ import { createPodiumDeck } from './podium3d';
 import { buildForest, type Tree } from './forest3d';
 import { buildCamels } from './camels';
 import { buildBirds } from './birds';
+import { buildMoose } from './moose';
+import { buildGeese } from './geese';
+import { motionReduced } from './access';
 import { buildKangaroos } from './kangaroos';
 import { buildLakes, inLake, lakesOf } from './lakes';
 import { BRIDGE, liftAt } from './bridge';
@@ -935,6 +938,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const kangaroos = circuit.layout.kangaroos ? buildKangaroos(scene, circuit) : undefined;
   // (and its flocks of birds)
   const birds = circuit.layout.birds ? buildBirds(scene, circuit) : undefined;
+  // (and moose on the grass, and geese in the sky)
+  const moose = circuit.layout.moose ? buildMoose(scene, circuit) : undefined;
+  const geese = circuit.layout.geese ? buildGeese(scene, circuit) : undefined;
 
   return {
     scene,
@@ -947,6 +953,9 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       camels?.animate(t);
       kangaroos?.animate(t);
       birds?.animate(t);
+      // (moose stand still and the geese stay away under reduced motion)
+      moose?.animate(motionReduced() ? 0 : t);
+      geese?.animate(motionReduced() ? undefined : t);
       // the flags flap in the wind
       for (const f of flags) f.flag.rotation.y = Math.sin(t * 3 + f.phase) * 0.5 + Math.sin(t * 7.3 + f.phase) * 0.15;
     },

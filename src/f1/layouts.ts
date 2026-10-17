@@ -71,6 +71,10 @@ export interface CircuitLayout {
   kangaroos?: boolean;
   /** flocks of budgerigars and cockatoos wheeling over the middle of the park (birds.ts) */
   birds?: boolean;
+  /** moose ambling about on the grass beside the track (moose.ts) */
+  moose?: boolean;
+  /** a V of geese now and then crossing the sky (geese.ts) */
+  geese?: boolean;
   /** a gopher now and then popping up out of its hole by the track near the camera and scurrying across (gopher.ts) */
   gophers?: boolean;
   /** under snow (a winter's circuit in the mountains): snow over the run-off and beyond, the spruces laden with it */
@@ -1427,7 +1431,7 @@ export const JADE_SPIRAL: CircuitLayout = {
  * corners eased a little for the arcade handling): the short run to the hairpin at the end of the main
  * straight, the quick esses, the long straight along the rowing basin, the chicane at its end and the
  * long straight down to the chicane by the wall of champions, where the cars run flat out onto the main straight. A
- * lap of about 9,600 px, about 30 s. A gopher now and then crosses the road.
+ * lap of about 9,600 px, about 30 s. A gopher now and then crosses the road; moose amble on the grass and a V of geese crosses the sky.
  */
 export const MAPLE_ISLAND: CircuitLayout = {
   id: 'maple-island',
@@ -1479,6 +1483,8 @@ export const MAPLE_ISLAND: CircuitLayout = {
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
   ],
   gophers: true,
+  moose: true,
+  geese: true,
 };
 
 export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SOUTHERN_LAKE, JADE_SPIRAL, SILVER_HEATH, HARBOUR, MAPLE_ISLAND, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, PEARL_SANDS, BAKU, SUZUKA, DUNE_COAST, VEGAS, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];
