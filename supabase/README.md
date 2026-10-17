@@ -83,7 +83,7 @@ platforms, versions and screens, and the latest stack. (`errors_list` in `schema
 
 **The dashboard** (`stats.html`, `src/stats/main.ts`) shows them, live:
 - the totals: players (all time, today, last 7 days), launches, races finished and started (and per player), km driven, time per visit (the median, and the mean), hours played, players who came back another day, results shared, and today's Daily Challenge players;
-- who players pick: the most and least picked team and driver (ties named together, the never-picked ones at 0), and every team and driver by sessions started;
+- who players pick: the most and least picked team (ties named together, the never-picked ones at 0), and every team by sessions started;
 - players, launches and time played per day over the last 30 days (time in minutes, or in hours once a day's had three or more);
 - players by platform, and finished sessions by mode and by circuit;
 - each circuit: the times it's been played (sessions started), the races finished, the km driven and the minutes on it, and each of those by mode (every circuit listed, the unplayed ones faint);
