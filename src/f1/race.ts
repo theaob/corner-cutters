@@ -2099,7 +2099,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (session === 'race' && !done && p.lap !== keptAtLap && race.phase === 'racing') keepNow();
     hudState.lastPos = pos;
     hudState.lastOrder = order;
-    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT LAP' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT LAP' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT LAP' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // box, box: on the radio once a lap, as the pit wall's call goes up
     if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {
