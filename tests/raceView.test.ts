@@ -30,7 +30,8 @@ describe('the deck labels', () => {
   });
   it('skips the grid pan, a replay, qualifying and the wait after the flag; NEXT, RACE and AGAIN once they are over', () => {
     expect(deckLabels(deck({ watching: true })).a).toBe('SKIP');
-    expect(deckLabels(deck({ session: 'qualifying' })).a).toBe('SKIP');
+    expect(deckLabels(deck({ session: 'qualifying' })).a).toBe('');
+    expect(deckLabels(deck({ session: 'qualifying' })).select).toBe('PAUSE');
     expect(deckLabels(deck({ done: true })).a).toBe('SKIP');
     expect(deckLabels(deck({ done: true, resultsUp: true, roundOver: true }))).toEqual({ a: 'NEXT', b: '', start: '', select: 'EXIT' });
     expect(deckLabels(deck({ qualifyingOver: true })).a).toBe('RACE');
