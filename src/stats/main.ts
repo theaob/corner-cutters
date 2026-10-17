@@ -30,7 +30,6 @@ interface Stats {
   returning_players?: number;
   races_per_player?: number;
   by_team?: Record<string, number>;
-  by_driver?: Record<string, number>;
   daily_players_today: number;
   by_platform: Record<string, number>;
   by_mode: Record<string, number>;
@@ -231,13 +230,11 @@ function chart(id: string, days: { day: string; n: number }[], m: Measure) {
   box.replaceChildren(svg, tip);
 }
 
-/** The teams and drivers picked: the most and least of each (ties named together), then every one of them. */
+/** The teams picked: the most and least (ties named together), then every one of them. */
 const teamName = (id: string) => TEAMS.find((t) => t.id === id)?.name ?? id;
 const teamColor = (id: string) => TEAMS.find((t) => t.id === id)?.body;
-const driverTeam = (code: string) => TEAMS.find((t) => t.drivers.includes(code));
 function picks(s: Stats) {
   const teams = { ...Object.fromEntries(TEAMS.map((t) => [t.id, 0])), ...(s.by_team ?? {}) };
-  const drivers = { ...Object.fromEntries(TEAMS.flatMap((t) => t.drivers.map((d) => [d, 0]))), ...(s.by_driver ?? {}) };
   const total = Object.values(teams).reduce((a, b) => a + b, 0);
   const ends = (counts: Record<string, number>, name: (k: string) => string) => {
     const vals = Object.values(counts);
@@ -249,7 +246,6 @@ function picks(s: Stats) {
     return { most: [list(at(most)), share(most)], least: [list(at(least)), share(least)] };
   };
   const t = ends(teams, teamName);
-  const d = ends(drivers, (k) => `${k} (${driverTeam(k)?.code ?? '?'})`);
   const callout = (k: string, [v, sub]: string[]) => {
     const el = document.createElement('div');
     el.className = 'callout';
@@ -259,9 +255,8 @@ function picks(s: Stats) {
     (el.children[2] as HTMLElement).textContent = sub;
     return el;
   };
-  $('callouts').replaceChildren(callout('MOST PICKED TEAM', t.most), callout('LEAST PICKED TEAM', t.least), callout('MOST PICKED DRIVER', d.most), callout('LEAST PICKED DRIVER', d.least));
+  $('callouts').replaceChildren(callout('MOST PICKED TEAM', t.most), callout('LEAST PICKED TEAM', t.least));
   bars('teams', s.by_team ?? {}, teamName, TEAMS.map((x) => x.id), teamColor);
-  bars('drivers', s.by_driver ?? {}, (k) => `${k} · ${driverTeam(k)?.code ?? ''}`, TEAMS.flatMap((x) => x.drivers), (k) => driverTeam(k)?.body);
 }
 
 /** Each circuit: times played (sessions started), races finished, km and minutes on it; under it, the same by mode. Every circuit listed, the unplayed faint. */
