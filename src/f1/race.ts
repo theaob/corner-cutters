@@ -468,6 +468,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     resumeLeft = !on && count && !replay && !done ? RESUME_COUNT : 0;
     if (on || !resumeLeft) setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
+    if (on) showSkipQualifying();
     if (!on) openPauseSettings(false);
     askExit(false);
     if (!on) {
@@ -1207,8 +1208,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pausePages.reset();
   };
   // the pause screen's buttons, and in their place once EXIT is pressed, the question: leave? (STAY first)
+  // qualifying's SKIP lives here (not on the deck): straight to the race, from mid-grid
+  const skipQualifying = pauseButton('SKIP QUALIFYING', () => {
+    setPaused(false, false);
+    startRace();
+  });
+  const showSkipQualifying = () => {
+    skipQualifying.style.display = session === 'qualifying' && !quali?.over && !asking ? '' : 'none';
+  };
   const pauseMain = [
     pauseButton('RESUME', () => setPaused(false)),
+    skipQualifying,
     pauseButton('RESTART', () => restart()),
     pauseButton('SETTINGS', () => openPauseSettings(true)),
     // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened (not on
@@ -1247,11 +1257,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseTitle.textContent = !on ? 'PAUSED' : session === 'race' || session === 'qualifying' ? 'LEAVE THE RACE?' : 'LEAVE THE SESSION?';
     exitLine.textContent = exitCost();
     for (const el of pauseMain) el.style.display = on ? 'none' : '';
+    showSkipQualifying();
     showExitParts(on);
     exitFocus = 0;
     showExitFocus();
   };
   pauseScreen.append(pauseTitle, ...pauseMain, ...exitParts);
+  showSkipQualifying();
   showExitParts(false);
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
