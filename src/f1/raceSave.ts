@@ -141,3 +141,43 @@ export function keptLap(k: KeptRace): string {
   const p = k.state.entrants[k.you]?.progress;
   return `LAP ${Math.min(k.state.laps, (p?.lap ?? 0) + 1)}/${k.state.laps}`;
 }
+
+/**
+ * A Championship round's grid, kept once qualifying's over: leaving after your flying lap (or the app being closed)
+ * doesn't throw it away, and the round's race goes from that grid when you come back, without qualifying again.
+ * It's the round's own (its season's round, circuit and seed) and goes when the race is over.
+ */
+export interface KeptGrid {
+  v: number;
+  /** when it was kept (ms) */
+  at: number;
+  circuit: string;
+  round: number;
+  seed: number;
+  /** the grid (drivers by slot, pole first) */
+  grid: number[];
+  /** your qualifying time (none if you wrecked) */
+  time?: number;
+}
+
+/** The kept grid, if there's one and it's sound (this version, not too old). */
+export function keptGrid(now = Date.now()): KeptGrid | undefined {
+  const k = saved('race', 'grid') as Partial<KeptGrid> | undefined;
+  if (!k || typeof k !== 'object' || k.v !== RACE_SAVE_VERSION || typeof k.at !== 'number' || now - k.at > RACE_SAVE_MAX_AGE) return undefined;
+  if (typeof k.circuit !== 'string' || typeof k.round !== 'number' || typeof k.seed !== 'number' || !Array.isArray(k.grid) || !k.grid.every((d) => Number.isInteger(d))) return undefined;
+  return k as KeptGrid;
+}
+
+/** Keep a round's grid (instead of any kept before). */
+export const keepGrid = (grid: KeptGrid): void => save('race', 'grid', grid);
+
+/** Throw the kept grid away. */
+export const dropKeptGrid = (): void => {
+  if (saved('race', 'grid') !== undefined) save('race', 'grid', undefined);
+};
+
+/** The kept grid for this round of this circuit (its seed too), or none: another round's isn't this one's. */
+export function keptGridFor(circuit: string, round: number, seed: number, now = Date.now()): KeptGrid | undefined {
+  const k = keptGrid(now);
+  return k && k.circuit === circuit && k.round === round && k.seed === seed ? k : undefined;
+}
