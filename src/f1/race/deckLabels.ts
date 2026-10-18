@@ -35,7 +35,6 @@ export function deckLabels(s: DeckState): Record<DeckButton, string> {
   if (s.roundOver && s.resultsUp) a = 'NEXT';
   else if (s.qualifyingOver) a = 'RACE';
   else if (s.attackOver) a = 'AGAIN';
-  else if (s.session === 'qualifying') a = 'SKIP';
   else if (s.session === 'tutorial') a = s.learnt ? 'MENU' : 'SKIP';
   else if (s.watching) a = 'SKIP';
   // (paused: no A on the deck, the pause screen's own RESUME does it; A, Esc and P still resume on the keys and a gamepad)
