@@ -191,7 +191,7 @@ export function offsetLine(samples: { x: number; y: number; dir: number }[], nor
  * (along the pit lane's entry and exit roads past them, the barriers carry on); beside the banking, its concrete
  * wall instead; and the pit wall's.
  */
-export function barrierTiles(circuit: Circuit): { walls: [number, number][]; pitWall: [number, number][]; bankWall: [number, number][] } {
+export function barrierTiles(circuit: Circuit): { walls: [number, number][]; pitWall: [number, number][]; bankWall: [number, number][]; champions: [number, number][] } {
   const { width: W, height: H, cells } = circuit;
   const cell = (i: number, j: number) => (i >= 0 && j >= 0 && i < W && j < H ? cells[j * W + i] : 'wall');
   const garageAt = garageSpots(circuit);
@@ -200,8 +200,15 @@ export function barrierTiles(circuit: Circuit): { walls: [number, number][]; pit
   const pitWall: [number, number][] = [];
   /** the banking's: a concrete wall with a catch fence on top */
   const bankWall: [number, number][] = [];
+  /** the Wall of Champions' */
+  const champions: [number, number][] = [];
+  const isChampion = new Set(circuit.champions);
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
+      if (isChampion.has(j * W + i)) {
+        champions.push([i, j]);
+        continue;
+      }
       if (cells[j * W + i] === 'pitwall') pitWall.push([i, j]);
       if (cells[j * W + i] !== 'wall') continue;
       let near = false;
@@ -218,7 +225,7 @@ export function barrierTiles(circuit: Circuit): { walls: [number, number][]; pit
       if (near && !(byPits && byGarage(i, j))) (byApron ? bankWall : walls).push([i, j]);
     }
   }
-  return { walls, pitWall, bankWall };
+  return { walls, pitWall, bankWall, champions };
 }
 
 /** px across the garages' roofs (the lane's way) and deep, and how high they stand */
@@ -767,7 +774,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   // tyre walls: on every wall tile that touches the run-off, stacked red and white (the garages
   // stand behind the pit lane instead, where they are: along the lane's entry and exit roads, past them, the walls
   // carry on); concrete blocks along the pit wall
-  const { walls, bankWall } = barrierTiles(circuit);
+  const { walls, bankWall, champions } = barrierTiles(circuit);
   // (a street circuit: steel barriers, grey with red and white bands, in place of tyre stacks)
   const tyres = new THREE.InstancedMesh(street ? new THREE.BoxGeometry(T, 9, T) : new THREE.CylinderGeometry(7, 7, 7, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }), walls.length);
   const m = new THREE.Matrix4();
@@ -796,6 +803,20 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
     });
     concrete.castShadow = concrete.receiveShadow = true;
     scene.add(concrete, fence);
+  }
+  // the Wall of Champions: concrete blocks painted bright green and white, flush with the track's edge
+  if (champions.length) {
+    const wallBlocks = new THREE.InstancedMesh(new THREE.BoxGeometry(T, 12, T), new THREE.MeshLambertMaterial({ color: 0xffffff }), champions.length);
+    const green = new THREE.Color('#2fbf3f');
+    const paleWhite = new THREE.Color('#f4f6f2');
+    champions.forEach(([i, j], k) => {
+      const h = groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h;
+      m.makeTranslation((i + 0.5) * T, h + 6, (j + 0.5) * T);
+      wallBlocks.setMatrixAt(k, m);
+      wallBlocks.setColorAt(k, (i + j) % 4 < 2 ? green : paleWhite);
+    });
+    wallBlocks.castShadow = wallBlocks.receiveShadow = true;
+    scene.add(wallBlocks);
   }
   // the pit wall: a run of blocks along the lane (not a square tile each, which stairs up and down a lane that runs
   // across the map's grid), turned to the lane's direction, its outer face on the garages' side of the lane
