@@ -491,7 +491,7 @@ async function showSeason(id: number): Promise<void> {
     save('choices', 'season-laps', String(laps));
     // (a round of the season before, kept mid-race, isn't this season's to come back to)
     dropKeptRace();
-    saveSeason(newSeason({ seed: newSeed(), team, seat, difficulty: savedDifficulty().id, qualifying, rounds: CHAMPIONSHIP_LAYOUTS.map((l) => l.id), total: 10, laps }));
+    saveSeason(newSeason({ seed: newSeed(), team, seat, difficulty: savedDifficulty().id, qualifying, rounds: CHAMPIONSHIP_LAYOUTS.map((l) => l.id), total: 11, laps }));
     void route();
   } else navigate(withCircuit(null));
 }
