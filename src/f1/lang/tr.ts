@@ -5,7 +5,6 @@ export const tr: Language = {
   code: 'tr',
   name: 'Türkçe',
   words: {
-  '◀ BACK': '◀ GERİ',
   'BACK': 'GERİ',
   'PICK': 'SEÇ',
   'DONE': 'TAMAM',

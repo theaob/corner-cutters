@@ -5,7 +5,6 @@ export const ja: Language = {
   code: 'ja',
   name: '日本語',
   words: {
-  '◀ BACK': '◀ 戻る',
   'BACK': '戻る',
   'PICK': '選ぶ',
   'DONE': '完了',

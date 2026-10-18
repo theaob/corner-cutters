@@ -40,7 +40,7 @@ import { reportOpen } from './report';
 import { gameHidden } from '../engine/host';
 import { COMPOUNDS, type DryCompound } from './tyres';
 import { motionReduced } from './access';
-import { t } from '../engine/i18n';
+import { t, backLabel } from '../engine/i18n';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -510,7 +510,7 @@ export function chooseCircuit(
   const shopButton = menuButton('SHOP', openShop);
   makeTile(shopButton, 'shop', t('SHOP'), t('helmets and looks for your car'));
   makeTile(trophiesButton, 'trophies', t('TROPHIES'), t('your titles, medals and achievements'));
-  const cabinetDone = menuButton('◀ BACK', closeCabinet);
+  const cabinetDone = menuButton(backLabel(), closeCabinet);
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
   // dots under it for where it is in the list
@@ -673,7 +673,7 @@ export function chooseCircuit(
     if (locked) b.classList.add('locked');
     return b;
   });
-  const backButton = menuButton('◀ BACK', toModes);
+  const backButton = menuButton(backLabel(), toModes);
   const tab = framed() ? ownTabButton() : undefined;
   /** the circuit screen's places for up/down: the circuit, the rows, the race button, BACK */
   const raceAt = () => 1 + rows.length;

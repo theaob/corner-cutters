@@ -5,7 +5,6 @@ export const it: Language = {
   code: 'it',
   name: 'Italiano',
   words: {
-  '◀ BACK': '◀ INDIETRO',
   'BACK': 'INDIETRO',
   'PICK': 'SCEGLI',
   'DONE': 'FATTO',

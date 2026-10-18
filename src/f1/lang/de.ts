@@ -5,7 +5,6 @@ export const de: Language = {
   code: 'de',
   name: 'Deutsch',
   words: {
-  '◀ BACK': '◀ ZURÜCK',
   'BACK': 'ZURÜCK',
   'PICK': 'WÄHLEN',
   'DONE': 'FERTIG',

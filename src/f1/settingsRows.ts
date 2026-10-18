@@ -16,7 +16,7 @@ import { INITIALS, initials, setInitials, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
-import { availableLanguages, language, setLanguage, t } from '../engine/i18n';
+import { availableLanguages, language, setLanguage, t, backLabel } from '../engine/i18n';
 import { REMINDER_HOURS, reminderSetting, remindersHere, setReminder, type ReminderSetting } from './reminder';
 
 /** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
@@ -144,7 +144,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
     } else onDone();
   };
   const links = SETTINGS_SECTIONS.map((s) => menuButton(sectionName(s), () => open(s)));
-  const end = menuButton(t('◀ BACK'), back);
+  const end = menuButton(backLabel(), back);
   end.classList.add('settings-done');
   const version = versionLine();
   const els: HTMLElement[] = [title, ...links, ...SETTINGS_SECTIONS.flatMap((s) => rows[s].map((r) => r.el)), end, version];
@@ -163,7 +163,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
       r.el.style.display = s === page ? '' : 'none';
       r.el.classList.toggle('focused', s === page && focus === k);
     });
-    end.textContent = t('◀ BACK');
+    end.textContent = backLabel();
     end.classList.toggle('focused', focus === shown().length);
     version.style.display = page ? 'none' : '';
   };

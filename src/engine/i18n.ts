@@ -70,3 +70,6 @@ export function t(english: string, vars?: Record<string, string | number>): stri
   const text = current.words[english] ?? english;
   return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
 }
+
+/** The back button's label: the arrow is the button's, the word is translated. */
+export const backLabel = (): string => `◀ ${t('BACK')}`;

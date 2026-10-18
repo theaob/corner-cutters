@@ -5,7 +5,7 @@
 // SELECT goes back.
 
 import { flagSvg } from '../flags';
-import { t } from '../../engine/i18n';
+import { t, backLabel } from '../../engine/i18n';
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -161,7 +161,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     };
     const playButton = menuButton('PLAY ▶', () => finish('play'));
     playButton.classList.add('race-button');
-    const backButton = menuButton('◀ BACK', () => finish('back'));
+    const backButton = menuButton(backLabel(), () => finish('back'));
     screen.append(nameButton, playButton, backButton);
     let places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
     let focus = 0;

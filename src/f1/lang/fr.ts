@@ -5,7 +5,6 @@ export const fr: Language = {
   code: 'fr',
   name: 'Français',
   words: {
-  '◀ BACK': '◀ RETOUR',
   'BACK': 'RETOUR',
   'PICK': 'CHOISIR',
   'DONE': 'OK',

@@ -4,6 +4,7 @@
 // picks, SELECT (or the phone's back button) goes back.
 
 import type { Button } from '../../engine/controls';
+import { backLabel } from '../../engine/i18n';
 import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -38,7 +39,7 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   );
   const buyButton = menuButton('', () => void buy());
   const restoreButton = menuButton('RESTORE PURCHASE', () => void restore());
-  const backButton = menuButton('◀ BACK', () => finish('back'));
+  const backButton = menuButton(backLabel(), () => finish('back'));
   const buttons = [buyButton, restoreButton, backButton];
   screen.append(...buttons);
   let busy = false;

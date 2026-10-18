@@ -3,7 +3,7 @@
 // moves, A or START equips, SELECT (or the phone's back button) goes back.
 
 import type { CarLook, LiveryPattern } from '../../engine/render/vehicles3d';
-import { t } from '../../engine/i18n';
+import { t, backLabel } from '../../engine/i18n';
 import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -140,7 +140,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     return [heading, grid];
   }).flat();
   let finish = () => {};
-  const backButton = menuButton('◀ BACK', () => finish());
+  const backButton = menuButton(backLabel(), () => finish());
   // (the status line and BACK held at the bottom of the screen, set a little apart from the looks above them: a phone
   // can't scroll this list with the browser's own scrolling (holdTouches), and with the looks and cars it holds BACK
   // was below the fold)

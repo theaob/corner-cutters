@@ -5,7 +5,7 @@
 // START picks, SELECT goes back.
 
 import { flagSvg } from '../flags';
-import { t } from '../../engine/i18n';
+import { t, backLabel } from '../../engine/i18n';
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -218,7 +218,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     const choices: { el: HTMLButtonElement; pick: () => void }[] = [
       ...(season && !over ? [{ el: menuButton(`RACE ROUND ${season.round + 1} · ${nameOf(season.rounds[season.round])}`, () => finish('race')), pick: () => finish('race') }] : []),
       { el: newButton, pick: pickNew },
-      { el: menuButton('◀ BACK', () => finish('back')), pick: () => finish('back') },
+      { el: menuButton(backLabel(), () => finish('back')), pick: () => finish('back') },
     ];
     const buttons = choices.map((c) => c.el);
     if (roundRow) screen.append(roundOptions);

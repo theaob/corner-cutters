@@ -5,7 +5,6 @@ export const pt: Language = {
   code: 'pt',
   name: 'Português (BR)',
   words: {
-  '◀ BACK': '◀ VOLTAR',
   'BACK': 'VOLTAR',
   'PICK': 'ESCOLHER',
   'DONE': 'PRONTO',
