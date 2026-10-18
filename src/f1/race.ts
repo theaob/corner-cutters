@@ -100,7 +100,7 @@ import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
-import { RACE_SAVE_VERSION, dropKeptRace, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
+import { RACE_SAVE_VERSION, dropKeptGrid, dropKeptRace, keptGridFor, keepGrid, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
 import { DESIGNER_DRAFT_ID } from './designerDraft';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
@@ -812,6 +812,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       saveRecords(records);
     }
     quali.over = { grid: gridOrder(times), times };
+    // (a Championship round's grid kept: leaving now, the race goes from it when you come back)
+    if (championship && mode === 'race' && !options.daily) {
+      try {
+        keepGrid({ v: RACE_SAVE_VERSION, at: Date.now(), circuit: layout.id, round: championship.season.round, seed, grid: quali.over.grid, time });
+      } catch {
+        // (the device's storage full or off: just not kept)
+      }
+    }
     // (the session's held from here, on the times: the car falls quiet)
     sounds.quiet();
     showQualifying();
@@ -869,6 +877,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseOnStart = 3;
     announce('RACE RESUMED', '#5fe0d0', 2.5);
   };
+  /** this Championship round's grid, kept from qualifying before (if it's still the same round, and fits this field) */
+  const qualified = () => {
+    const k = championship && mode === 'race' && !options.daily ? keptGridFor(layout.id, championship.season.round, seed) : undefined;
+    return k && k.grid.length === drawWeekend().drivers.length && new Set(k.grid).size === k.grid.length && k.grid.every((d) => d >= 0 && d < k.grid.length) ? k : undefined;
+  };
   /** A new weekend: a new seed (unless ?seed= gave one), then qualifying if it's on, or straight to the race. */
   const newWeekend = () => {
     seed = resuming ? resuming.seed : championship ? roundSeed(championship.season, championship.season.round) : Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
@@ -880,7 +893,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (mode === 'timetrial') startTimeTrial();
     else if (mode === 'timeattack') startTimeAttack();
     else if (resuming) resumeRace(resuming);
-    else if (qualifying) startQualifying();
+    else if (qualifying && qualified()) {
+      // (this round's qualifying already done, then left: the race from the grid it set)
+      startRace(qualified()!.grid);
+      announce('GRID KEPT FROM QUALIFYING', '#f2c14e', 3);
+    } else if (qualifying) startQualifying();
     else startRace();
   };
   newWeekend();
@@ -896,7 +913,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
    * need to qualify again); without qualifying, a new weekend (new rivals), as ever.
    */
-  const restart = () => (cancelResumeCount(), dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
+  const restart = () => (cancelResumeCount(), dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'qualifying' ? (dropKeptGrid(), startQualifying()) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
@@ -2036,6 +2053,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       done = true;
       // (your flag: nothing to come back to)
       dropOurs();
+      dropKeptGrid();
       noteStat('race_finish', { circuit: layout.id, mode: statsMode(), data: { place: p.retired ? null : pos, field: race.entrants.length, laps: race.laps } });
       noteDriven();
     }

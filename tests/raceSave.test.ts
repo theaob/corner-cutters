@@ -7,7 +7,7 @@ import { NORMAL, handlingFor } from '../src/f1/difficulty';
 import { LAYOUTS } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, stepRace } from '../src/f1/raceControl';
-import { RACE_SAVE_MAX_AGE, dropKeptRace, keepRace, keptLap, keptRace, restoreRace, snapshotRace, type KeptRace } from '../src/f1/raceSave';
+import { RACE_SAVE_MAX_AGE, RACE_SAVE_VERSION, dropKeptGrid, dropKeptRace, keptGridFor, keepGrid, keepRace, keptGrid, keptLap, keptRace, restoreRace, snapshotRace, type KeptGrid, type KeptRace } from '../src/f1/raceSave';
 import { CC_SAVE } from '../src/f1/save';
 
 const f1 = carClass('f1');
@@ -96,5 +96,31 @@ describe('a race kept to come back to', () => {
     keepRace(k);
     dropKeptRace();
     expect(keptRace()).toBeUndefined();
+  });
+});
+
+describe('a Championship round\'s grid kept after qualifying', () => {
+  beforeEach(() => {
+    const items = new Map<string, string>();
+    useSave(CC_SAVE, { getItem: (k) => items.get(k) ?? null, setItem: (k, v) => void items.set(k, v), removeItem: (k) => void items.delete(k) } satisfies SaveStore);
+  });
+  const kept = (over: Partial<KeptGrid> = {}): KeptGrid => ({ v: RACE_SAVE_VERSION, at: 1000, circuit: 'twin-lakes', round: 2, seed: 7, grid: [3, 0, 1, 2], time: 81.2, ...over });
+
+  it('comes back for its own round, circuit and seed', () => {
+    keepGrid(kept());
+    expect(keptGridFor('twin-lakes', 2, 7, 2000)?.grid).toEqual([3, 0, 1, 2]);
+    expect(keptGridFor('twin-lakes', 3, 7, 2000)).toBeUndefined();
+    expect(keptGridFor('twin-lakes', 2, 8, 2000)).toBeUndefined();
+    expect(keptGridFor('other', 2, 7, 2000)).toBeUndefined();
+  });
+
+  it('is thrown away when dropped, too old, or another version', () => {
+    keepGrid(kept());
+    expect(keptGrid(1000 + RACE_SAVE_MAX_AGE + 1)).toBeUndefined();
+    keepGrid(kept({ v: RACE_SAVE_VERSION + 1 }));
+    expect(keptGrid(2000)).toBeUndefined();
+    keepGrid(kept());
+    dropKeptGrid();
+    expect(keptGrid(2000)).toBeUndefined();
   });
 });
