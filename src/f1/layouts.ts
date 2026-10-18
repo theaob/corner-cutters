@@ -95,6 +95,8 @@ export interface CircuitLayout {
   mountain?: boolean;
   /** the podium hangs over the main straight on a deck from the pit side, this many px up (else it stands on the run-off) */
   podiumDeck?: number;
+  /** a concrete wall painted green and white, flush with the track's edge on its `side` (+1: the right, going round) from `from` to `to` px along the lap: a hard wall the cars hit (Maple Island's Wall of Champions) */
+  championsWall?: { from: number; to: number; side: 1 | -1 };
   /** a word painted across the garages' roofs, a few letters on each, read from the camera (AZERBAIJAN) */
   pitRoof?: string;
 }
@@ -1479,12 +1481,14 @@ export const MAPLE_ISLAND: CircuitLayout = {
   // the rowing basin in the middle of the island
   lakes: [
     ([
-      [654, 190], [1209, 190], [1629, 220], [1674, 235], [1689, 250], [1644, 280], [1434, 370], [1194, 430], [1179, 430], [1074, 415], [954, 385], [864, 340],
+      [654, 190], [1209, 190], [1629, 220], [1674, 235], [1689, 250], [1644, 275], [1434, 335], [1300, 355], [1194, 375], [1179, 375], [1074, 395], [954, 380], [864, 340],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
   ],
   gophers: true,
   moose: true,
   geese: true,
+  // on the outside (the left) of the final chicane's exit, onto the main straight
+  championsWall: { from: 7560, to: 7800, side: -1 },
 };
 
 export const LAYOUTS: CircuitLayout[] = [CRESCENT_PARK, SOUTHERN_LAKE, JADE_SPIRAL, SILVER_HEATH, HARBOUR, MAPLE_ISLAND, ROYAL_PARK, ARDENNES, ALPINE_RING, TWIN_LAKES, OASIS, PEARL_SANDS, BAKU, SUZUKA, DUNE_COAST, VEGAS, GLACIER_PASS, DUST_BOWL, VOLCANO_ISLE];

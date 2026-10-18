@@ -100,7 +100,7 @@ import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
-import { RACE_SAVE_VERSION, dropKeptRace, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
+import { RACE_SAVE_VERSION, dropKeptGrid, dropKeptRace, keptGridFor, keepGrid, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
 import { DESIGNER_DRAFT_ID } from './designerDraft';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
@@ -468,6 +468,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     resumeLeft = !on && count && !replay && !done ? RESUME_COUNT : 0;
     if (on || !resumeLeft) setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
+    if (on) showSkipQualifying();
     if (!on) openPauseSettings(false);
     askExit(false);
     if (!on) {
@@ -811,6 +812,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       saveRecords(records);
     }
     quali.over = { grid: gridOrder(times), times };
+    // (a Championship round's grid kept: leaving now, the race goes from it when you come back)
+    if (championship && mode === 'race' && !options.daily) {
+      try {
+        keepGrid({ v: RACE_SAVE_VERSION, at: Date.now(), circuit: layout.id, round: championship.season.round, seed, grid: quali.over.grid, time });
+      } catch {
+        // (the device's storage full or off: just not kept)
+      }
+    }
     // (the session's held from here, on the times: the car falls quiet)
     sounds.quiet();
     showQualifying();
@@ -868,6 +877,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseOnStart = 3;
     announce('RACE RESUMED', '#5fe0d0', 2.5);
   };
+  /** this Championship round's grid, kept from qualifying before (if it's still the same round, and fits this field) */
+  const qualified = () => {
+    const k = championship && mode === 'race' && !options.daily ? keptGridFor(layout.id, championship.season.round, seed) : undefined;
+    return k && k.grid.length === drawWeekend().drivers.length && new Set(k.grid).size === k.grid.length && k.grid.every((d) => d >= 0 && d < k.grid.length) ? k : undefined;
+  };
   /** A new weekend: a new seed (unless ?seed= gave one), then qualifying if it's on, or straight to the race. */
   const newWeekend = () => {
     seed = resuming ? resuming.seed : championship ? roundSeed(championship.season, championship.season.round) : Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
@@ -879,7 +893,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     else if (mode === 'timetrial') startTimeTrial();
     else if (mode === 'timeattack') startTimeAttack();
     else if (resuming) resumeRace(resuming);
-    else if (qualifying) startQualifying();
+    else if (qualifying && qualified()) {
+      // (this round's qualifying already done, then left: the race from the grid it set)
+      startRace(qualified()!.grid);
+      announce('GRID KEPT FROM QUALIFYING', '#f2c14e', 3);
+    } else if (qualifying) startQualifying();
     else startRace();
   };
   newWeekend();
@@ -895,7 +913,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
    * need to qualify again); without qualifying, a new weekend (new rivals), as ever.
    */
-  const restart = () => (cancelResumeCount(), dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
+  const restart = () => (cancelResumeCount(), dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'qualifying' ? (dropKeptGrid(), startQualifying()) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
@@ -1207,8 +1225,17 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pausePages.reset();
   };
   // the pause screen's buttons, and in their place once EXIT is pressed, the question: leave? (STAY first)
+  // qualifying's SKIP lives here (not on the deck): straight to the race, from mid-grid
+  const skipQualifying = pauseButton('SKIP QUALIFYING', () => {
+    setPaused(false, false);
+    startRace();
+  });
+  const showSkipQualifying = () => {
+    skipQualifying.style.display = session === 'qualifying' && !quali?.over && !asking ? '' : 'none';
+  };
   const pauseMain = [
     pauseButton('RESUME', () => setPaused(false)),
+    skipQualifying,
     pauseButton('RESTART', () => restart()),
     pauseButton('SETTINGS', () => openPauseSettings(true)),
     // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened (not on
@@ -1247,11 +1274,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseTitle.textContent = !on ? 'PAUSED' : session === 'race' || session === 'qualifying' ? 'LEAVE THE RACE?' : 'LEAVE THE SESSION?';
     exitLine.textContent = exitCost();
     for (const el of pauseMain) el.style.display = on ? 'none' : '';
+    showSkipQualifying();
     showExitParts(on);
     exitFocus = 0;
     showExitFocus();
   };
   pauseScreen.append(pauseTitle, ...pauseMain, ...exitParts);
+  showSkipQualifying();
   showExitParts(false);
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
@@ -2024,6 +2053,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       done = true;
       // (your flag: nothing to come back to)
       dropOurs();
+      dropKeptGrid();
       noteStat('race_finish', { circuit: layout.id, mode: statsMode(), data: { place: p.retired ? null : pos, field: race.entrants.length, laps: race.laps } });
       noteDriven();
     }
@@ -2099,7 +2129,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (session === 'race' && !done && p.lap !== keptAtLap && race.phase === 'racing') keepNow();
     hudState.lastPos = pos;
     hudState.lastOrder = order;
-    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT LAP' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT LAP' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT LAP' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // box, box: on the radio once a lap, as the pit wall's call goes up
     if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {

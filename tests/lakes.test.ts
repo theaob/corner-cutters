@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { carClass } from '../src/engine/driving';
-import { HALF_WIDTH, RUNOFF, buildCircuit } from '../src/f1/circuit';
+import { HALF_WIDTH, RUNOFF, TILE, buildCircuit } from '../src/f1/circuit';
+import { barrierTiles } from '../src/f1/circuitScene';
 import { inLake, lakesOf } from '../src/f1/lakes';
 import { DUNE_COAST, LAYOUTS, MAPLE_ISLAND, SOUTHERN_LAKE, TWIN_LAKES, VOLCANO_ISLE } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
@@ -62,5 +63,14 @@ describe('the lake at Southern Lake', () => {
 
   it('keeps the grandstands out of the water', () => {
     for (const s of standsOf(c)) expect(inLake(lakes, s.x, s.y, 20)).toBe(false);
+  });
+});
+
+describe('the barriers at the circuits with water', () => {
+  it.each(LAYOUTS.filter((l) => l.lakes?.length).map((l) => [l.id, l] as const))('stand on land, none out over the water at %s', (_, layout) => {
+    const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const lakes = lakesOf(c);
+    const { walls, pitWall, bankWall } = barrierTiles(c);
+    for (const [i, j] of [...walls, ...pitWall, ...bankWall]) expect(inLake(lakes, (i + 0.5) * TILE, (j + 0.5) * TILE)).toBe(false);
   });
 });
