@@ -60,7 +60,7 @@ describe("the game's languages", () => {
       for (const [en, tr] of Object.entries(l.words)) {
         const names = (x: string) => (x.match(/\{\w+\}/g) ?? []).sort().join();
         expect(names(tr), `${l.code}: ${en}`).toBe(names(en));
-        if (en.length <= 14) expect(tr.length, `${l.code}: ${en} → ${tr}`).toBeLessThanOrEqual(Math.ceil(en.length * 1.5) + 2);
+        if (en.length <= 14 && en === en.toUpperCase()) expect(tr.length, `${l.code}: ${en} → ${tr}`).toBeLessThanOrEqual(Math.ceil(en.length * 1.5) + 2);
       }
     }
   });

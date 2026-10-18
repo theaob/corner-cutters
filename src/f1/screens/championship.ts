@@ -5,6 +5,7 @@
 // START picks, SELECT goes back.
 
 import { flagSvg } from '../flags';
+import { t } from '../../engine/i18n';
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -79,7 +80,7 @@ function standingsTable(s: Season): HTMLTableElement {
   Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
   const head = document.createElement('tr');
   head.style.color = 'var(--muted)';
-  head.append(cell('th', '', true), cell('th', 'DRIVER'), cell('th', 'TEAM'), cell('th', 'PTS', true), cell('th', ''), cell('th', 'WINS', true), cell('th', 'LAST', true));
+  head.append(cell('th', '', true), cell('th', t('DRIVER')), cell('th', t('TEAM')), cell('th', t('PTS'), true), cell('th', ''), cell('th', t('WINS'), true), cell('th', t('LAST'), true));
   table.append(head);
   standings(s).forEach((r, pos) => {
     const d = s.drivers[r.driver];
@@ -112,7 +113,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'CHAMPIONSHIP';
+  title.textContent = t('CHAMPIONSHIP');
   screen.append(title);
   const line = (text: string, color = 'var(--muted)') => {
     const p = document.createElement('p');
@@ -206,7 +207,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
     const pickNew = () => {
       if (!setUp) {
         setUp = true;
-        newButton.textContent = 'NEW SEASON? THIS ONE ENDS · PRESS AGAIN';
+        newButton.textContent = t('NEW SEASON? THIS ONE ENDS · PRESS AGAIN');
         menuTick();
         layOut();
         return;

@@ -3,6 +3,7 @@
 // moves, A or START equips, SELECT (or the phone's back button) goes back.
 
 import type { CarLook, LiveryPattern } from '../../engine/render/vehicles3d';
+import { t } from '../../engine/i18n';
 import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -90,7 +91,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'SHOP';
+  title.textContent = t('SHOP');
   const best = loadStreak(loadDaily()).best;
   const line = (text: string, color = 'var(--muted)') => {
     const p = document.createElement('p');
@@ -104,8 +105,8 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
   // (helmets, and whole-car paint, apart: a look that sets only the helmet is a helmet, NO CUSTOMIZATION leading them)
   const isPaint = (s: CarStyle) => !('helmet' in s.look) && Object.keys(s.look).length > 0;
   const sections = [
-    { name: 'HELMETS', entries: entries.filter((e) => !isPaint(e.style)) },
-    { name: 'CAR PAINT', entries: entries.filter((e) => isPaint(e.style)) },
+    { name: t('HELMETS'), entries: entries.filter((e) => !isPaint(e.style)) },
+    { name: t('CAR PAINT'), entries: entries.filter((e) => isPaint(e.style)) },
   ];
   const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
   const previews: Preview3d[] = [];
@@ -123,7 +124,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     previews.push({ canvas, look, helmetOnly: !isPaint(style) });
     const name = document.createElement('strong');
     Object.assign(name.style, { font: '10px var(--pixel)', lineHeight: '1.2' });
-    name.textContent = style.days === 0 ? 'STANDARD' : style.name;
+    name.textContent = style.days === 0 ? t('STANDARD') : t(style.name);
     const state = document.createElement('span');
     Object.assign(state.style, { font: '9px var(--pixel)' });
     b.append(canvas, name, state);
@@ -152,7 +153,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
   const render = () => {
     const mine = carStyle(best).id;
     for (const [k, r] of rows.entries()) {
-      r.state.textContent = !r.owned ? `🔒 ${r.style.days} DAYS` : r.style.id === mine ? 'EQUIPPED' : 'EQUIP';
+      r.state.textContent = !r.owned ? `🔒 ${t('{n} DAYS', { n: r.style.days })}` : r.style.id === mine ? t('EQUIPPED') : t('EQUIP');
       r.state.style.color = r.style.id === mine ? 'var(--gold)' : 'var(--muted)';
       r.b.classList.toggle('focused', k === focus);
     }

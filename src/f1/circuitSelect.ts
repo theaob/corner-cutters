@@ -88,7 +88,7 @@ function framed(): boolean {
 function ownTabButton(): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'own-tab';
-  b.textContent = 'SLOW HERE? PLAY IN ITS OWN TAB ↗';
+  b.textContent = t('SLOW HERE? PLAY IN ITS OWN TAB ↗');
   // on the press's release, not 'click' (in a cross-origin frame on a phone a tap's click can go astray)
   let armed = false;
   b.addEventListener('pointerdown', () => (armed = true));
@@ -98,7 +98,7 @@ function ownTabButton(): HTMLButtonElement {
     armed = false;
     const tab = window.open(window.location.href, '_blank');
     if (tab) tab.opener = null;
-    else b.textContent = 'THE PAGE BLOCKED A NEW TAB';
+    else b.textContent = t('THE PAGE BLOCKED A NEW TAB');
   });
   return b;
 }
@@ -210,13 +210,13 @@ export function optionRow<T>(
     el.innerHTML = '';
     // one line: the label on the left; on the right the value (with its colours) and a line about it
     const name = document.createElement('b');
-    name.textContent = label;
+    name.textContent = t(label);
     const right = document.createElement('div');
     right.className = 'value';
     // (its arrows either side; a name too long for the row wraps between them)
     const top = document.createElement('strong');
     const arrow = (a: string) => Object.assign(document.createElement('em'), { textContent: a });
-    const text = Object.assign(document.createElement('em'), { className: 'name', textContent: v.name });
+    const text = Object.assign(document.createElement('em'), { className: 'name', textContent: t(v.name) });
     top.append(arrow('◀'), text, arrow('▶'));
     fitName = () => hugLines(text);
     const line = document.createElement('div');
@@ -234,7 +234,7 @@ export function optionRow<T>(
     }
     line.append(top);
     const about = document.createElement('span');
-    about.textContent = v.about;
+    about.textContent = t(v.about);
     right.append(line, about);
     el.append(name, right);
   };
@@ -267,7 +267,7 @@ export function optionRow<T>(
 export function menuButton(text: string, onPick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'menu-button';
-  b.textContent = text;
+  b.textContent = t(text);
   let armed = false;
   b.addEventListener('pointerdown', () => (armed = true));
   b.addEventListener('pointerleave', () => (armed = false));
@@ -310,7 +310,7 @@ export function chooseCircuit(
   const menu = document.createElement('div');
   menu.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'CORNER CUTTERS';
+  title.textContent = t('CORNER CUTTERS');
   const hint = document.createElement('p');
   menu.append(title, hint);
 
@@ -445,7 +445,7 @@ export function chooseCircuit(
       return row;
     }));
     const how = document.createElement('p');
-    how.textContent = 'A LAP OR A RUN AS QUICK AS THE QUICKEST AI ON EASY: BRONZE · NORMAL: SILVER · HARD: GOLD';
+    how.textContent = t('A LAP OR A RUN AS QUICK AS THE QUICKEST AI ON EASY: BRONZE · NORMAL: SILVER · HARD: GOLD');
     medalsPanel.append(how);
     // the achievements: those unlocked in gold (any already earned by medals and titles from before achievements were
     // kept are filled in quietly), the rest dimmed with what they take
