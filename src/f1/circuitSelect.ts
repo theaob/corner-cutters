@@ -40,6 +40,7 @@ import { reportOpen } from './report';
 import { gameHidden } from '../engine/host';
 import { COMPOUNDS, type DryCompound } from './tyres';
 import { motionReduced } from './access';
+import { t } from '../engine/i18n';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -366,15 +367,15 @@ export function chooseCircuit(
     focus = -1;
     show();
   };
-  const settingsButton = menuButton('SETTINGS', openSettings);
-  makeTile(settingsButton, 'settings', 'SETTINGS', 'sound, controls, accessibility and the game');
+  const settingsButton = menuButton(t('SETTINGS'), openSettings);
+  makeTile(settingsButton, 'settings', t('SETTINGS'), t('sound, controls, accessibility and the game'));
   // the trophy cabinet: the Championships won, then each circuit's medals in a Time Trial and a Time Attack
   const trophies = loadTrophies();
   /** the cabinet's tab up, and a way to switch (set once it's built) */
   let cabinetTab: 'medals' | 'achievements' = 'medals';
   let showTab: (tab: 'medals' | 'achievements') => void = () => {};
   const cabinetTitle = document.createElement('h2');
-  cabinetTitle.textContent = 'TROPHIES';
+  cabinetTitle.textContent = t('TROPHIES');
   const cabinet = document.createElement('div');
   cabinet.className = 'cabinet';
   /** the medals won so far, each popping in a beat after the one before when the cabinet opens */
@@ -499,7 +500,7 @@ export function chooseCircuit(
     focus = -1;
     show();
   };
-  const trophiesButton = menuButton('TROPHIES', openCabinet);
+  const trophiesButton = menuButton(t('TROPHIES'), openCabinet);
   // SHOP: the looks your streak has earned for your car, to pick from (screens/carShop.ts)
   let shopPicked = false;
   const openShop = () => {
@@ -507,8 +508,8 @@ export function chooseCircuit(
     finish(layouts[selected]);
   };
   const shopButton = menuButton('SHOP', openShop);
-  makeTile(shopButton, 'shop', 'SHOP', 'helmets and looks for your car');
-  makeTile(trophiesButton, 'trophies', 'TROPHIES', 'your titles, medals and achievements');
+  makeTile(shopButton, 'shop', t('SHOP'), t('helmets and looks for your car'));
+  makeTile(trophiesButton, 'trophies', t('TROPHIES'), t('your titles, medals and achievements'));
   const cabinetDone = menuButton('◀ BACK', closeCabinet);
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
@@ -668,7 +669,7 @@ export function chooseCircuit(
     // (the Daily Challenge: today's circuit and weather)
     const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
     const about = locked ? 'unlock: a full season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · race the world` : m.about;
-    makeTile(b, m.id, m.name, about);
+    makeTile(b, m.id, t(m.name), t(about));
     if (locked) b.classList.add('locked');
     return b;
   });

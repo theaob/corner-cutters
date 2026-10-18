@@ -16,6 +16,7 @@ import { INITIALS, initials, setInitials, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
+import { availableLanguages, language, setLanguage, t } from '../engine/i18n';
 import { REMINDER_HOURS, reminderSetting, remindersHere, setReminder, type ReminderSetting } from './reminder';
 
 /** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
@@ -40,6 +41,7 @@ export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
 export type SettingsSection = 'controls' | 'game' | 'sound' | 'access';
 export const SETTINGS_SECTIONS: SettingsSection[] = ['controls', 'game', 'sound', 'access'];
 const SECTION_ABOUT: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY' };
+const sectionName = (s: SettingsSection) => t(SECTION_ABOUT[s]);
 
 /** The rows, read from the save as they are now, by page. */
 export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
@@ -105,11 +107,16 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
       about: v === 'off' ? 'no notifications' : "on a day you haven't played: the Daily Challenge and your streak",
     }), (v) => void setReminder(v))
     : undefined;
+  // LANGUAGE: only once the game has another language besides English (a change reloads the page)
+  const languages = availableLanguages();
+  const languageRow = languages.length > 1
+    ? optionRow('LANGUAGE', languages.map((l) => l.code), language().code, (c) => ({ name: languages.find((l) => l.code === c)!.name.toUpperCase(), about: 'the language of the menus' }), setLanguage)
+    : undefined;
   // (STATS only where the build has a backend to send them to)
   // (the page for what doesn't clearly fit: the daily reminder, STATS and the screen are about the game)
   return {
     controls: [stickRow, drivingRow, vibrationRow],
-    game: [nameRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
+    game: [...(languageRow ? [languageRow] : []), nameRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
     sound: [soundRow, musicRow],
     access: [textRow, coloursRow, motionRow, shakeRow],
   } as Record<SettingsSection, SettingsRow[]>;
@@ -136,8 +143,8 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
       render();
     } else onDone();
   };
-  const links = SETTINGS_SECTIONS.map((s) => menuButton(SECTION_ABOUT[s], () => open(s)));
-  const end = menuButton('◀ BACK', back);
+  const links = SETTINGS_SECTIONS.map((s) => menuButton(sectionName(s), () => open(s)));
+  const end = menuButton(t('◀ BACK'), back);
   end.classList.add('settings-done');
   const version = versionLine();
   const els: HTMLElement[] = [title, ...links, ...SETTINGS_SECTIONS.flatMap((s) => rows[s].map((r) => r.el)), end, version];
@@ -145,7 +152,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
   /** how many places up/down moves between: the page's rows (or the list) and the button at the end */
   const places = () => shown().length + 1;
   const render = () => {
-    title.textContent = page ? SECTION_ABOUT[page] : 'SETTINGS';
+    title.textContent = page ? sectionName(page) : t('SETTINGS');
     title.style.display = '';
     end.style.display = '';
     links.forEach((b, k) => {
@@ -156,7 +163,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
       r.el.style.display = s === page ? '' : 'none';
       r.el.classList.toggle('focused', s === page && focus === k);
     });
-    end.textContent = '◀ BACK';
+    end.textContent = t('◀ BACK');
     end.classList.toggle('focused', focus === shown().length);
     version.style.display = page ? 'none' : '';
   };
