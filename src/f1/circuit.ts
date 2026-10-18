@@ -426,7 +426,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   };
 
   // starting grid: two staggered columns behind the line
-  const slots = Array.from({ length: 10 }, (_, k) => {
+  const slots = Array.from({ length: 11 }, (_, k) => {
     const back = 24 + k * 30;
     const p = track.samples[(n - Math.round(back / track.spacing)) % n];
     const lane = k % 2 === 0 ? -16 : 16;
