@@ -729,6 +729,17 @@ export function chooseCircuit(
   if (tab) menu.append(tab);
   show();
   holdTouches(menu);
+  // (holdTouches takes the browser's own scrolling, so a finger dragging the trophy cabinet scrolls it here, as in the
+  // shop; BACK stays held at the bottom, so a long list of achievements never leaves it below the fold)
+  Object.assign(cabinetDone.style, { position: 'sticky', bottom: '-20px', zIndex: '1', flex: 'none', margin: '0 -16px -20px', padding: '8px 16px 20px', background: '#111118' });
+  let dragFrom: number | undefined;
+  menu.addEventListener('touchstart', (e) => (dragFrom = e.touches[0]?.clientY), { passive: true });
+  menu.addEventListener('touchmove', (e) => {
+    const y = e.touches[0]?.clientY;
+    if (y === undefined || dragFrom === undefined) return;
+    if (view === 'trophies') menu.scrollTop += dragFrom - y;
+    dragFrom = y;
+  }, { passive: true });
   host.append(menu);
   hud.setPosition('');
   hud.setLap('');
