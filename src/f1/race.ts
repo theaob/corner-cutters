@@ -5,6 +5,7 @@
 // SELECT goes back to choose a circuit.
 
 import { gridFor } from './bridge';
+import { t as tr } from '../engine/i18n';
 import { carOutline, type CarOutline } from './outline3d';
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
@@ -1276,8 +1277,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (on === asking) return;
     if (on) menuPick();
     asking = on;
-    pauseTitle.textContent = !on ? 'PAUSED' : session === 'race' || session === 'qualifying' ? 'LEAVE THE RACE?' : 'LEAVE THE SESSION?';
-    exitLine.textContent = exitCost();
+    pauseTitle.textContent = tr(!on ? 'PAUSED' : session === 'race' || session === 'qualifying' ? 'LEAVE THE RACE?' : 'LEAVE THE SESSION?');
+    exitLine.textContent = tr(exitCost());
     for (const el of pauseMain) el.style.display = on ? 'none' : '';
     showSkipQualifying();
     showExitParts(on);

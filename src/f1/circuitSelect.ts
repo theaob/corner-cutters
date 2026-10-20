@@ -40,6 +40,7 @@ import { reportOpen } from './report';
 import { gameHidden } from '../engine/host';
 import { COMPOUNDS, type DryCompound } from './tyres';
 import { motionReduced } from './access';
+import { t, backLabel } from '../engine/i18n';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -87,7 +88,7 @@ function framed(): boolean {
 function ownTabButton(): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'own-tab';
-  b.textContent = 'SLOW HERE? PLAY IN ITS OWN TAB ↗';
+  b.textContent = t('SLOW HERE? PLAY IN ITS OWN TAB ↗');
   // on the press's release, not 'click' (in a cross-origin frame on a phone a tap's click can go astray)
   let armed = false;
   b.addEventListener('pointerdown', () => (armed = true));
@@ -97,7 +98,7 @@ function ownTabButton(): HTMLButtonElement {
     armed = false;
     const tab = window.open(window.location.href, '_blank');
     if (tab) tab.opener = null;
-    else b.textContent = 'THE PAGE BLOCKED A NEW TAB';
+    else b.textContent = t('THE PAGE BLOCKED A NEW TAB');
   });
   return b;
 }
@@ -209,13 +210,13 @@ export function optionRow<T>(
     el.innerHTML = '';
     // one line: the label on the left; on the right the value (with its colours) and a line about it
     const name = document.createElement('b');
-    name.textContent = label;
+    name.textContent = t(label);
     const right = document.createElement('div');
     right.className = 'value';
     // (its arrows either side; a name too long for the row wraps between them)
     const top = document.createElement('strong');
     const arrow = (a: string) => Object.assign(document.createElement('em'), { textContent: a });
-    const text = Object.assign(document.createElement('em'), { className: 'name', textContent: v.name });
+    const text = Object.assign(document.createElement('em'), { className: 'name', textContent: t(v.name) });
     top.append(arrow('◀'), text, arrow('▶'));
     fitName = () => hugLines(text);
     const line = document.createElement('div');
@@ -233,7 +234,7 @@ export function optionRow<T>(
     }
     line.append(top);
     const about = document.createElement('span');
-    about.textContent = v.about;
+    about.textContent = t(v.about);
     right.append(line, about);
     el.append(name, right);
   };
@@ -266,7 +267,7 @@ export function optionRow<T>(
 export function menuButton(text: string, onPick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'menu-button';
-  b.textContent = text;
+  b.textContent = t(text);
   let armed = false;
   b.addEventListener('pointerdown', () => (armed = true));
   b.addEventListener('pointerleave', () => (armed = false));
@@ -309,7 +310,7 @@ export function chooseCircuit(
   const menu = document.createElement('div');
   menu.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'CORNER CUTTERS';
+  title.textContent = t('CORNER CUTTERS');
   const hint = document.createElement('p');
   menu.append(title, hint);
 
@@ -366,15 +367,15 @@ export function chooseCircuit(
     focus = -1;
     show();
   };
-  const settingsButton = menuButton('SETTINGS', openSettings);
-  makeTile(settingsButton, 'settings', 'SETTINGS', 'sound, controls, accessibility and the game');
+  const settingsButton = menuButton(t('SETTINGS'), openSettings);
+  makeTile(settingsButton, 'settings', t('SETTINGS'), t('sound, controls, accessibility and the game'));
   // the trophy cabinet: the Championships won, then each circuit's medals in a Time Trial and a Time Attack
   const trophies = loadTrophies();
   /** the cabinet's tab up, and a way to switch (set once it's built) */
   let cabinetTab: 'medals' | 'achievements' = 'medals';
   let showTab: (tab: 'medals' | 'achievements') => void = () => {};
   const cabinetTitle = document.createElement('h2');
-  cabinetTitle.textContent = 'TROPHIES';
+  cabinetTitle.textContent = t('TROPHIES');
   const cabinet = document.createElement('div');
   cabinet.className = 'cabinet';
   /** the medals won so far, each popping in a beat after the one before when the cabinet opens */
@@ -444,7 +445,7 @@ export function chooseCircuit(
       return row;
     }));
     const how = document.createElement('p');
-    how.textContent = 'A LAP OR A RUN AS QUICK AS THE QUICKEST AI ON EASY: BRONZE · NORMAL: SILVER · HARD: GOLD';
+    how.textContent = t('A LAP OR A RUN AS QUICK AS THE QUICKEST AI ON EASY: BRONZE · NORMAL: SILVER · HARD: GOLD');
     medalsPanel.append(how);
     // the achievements: those unlocked in gold (any already earned by medals and titles from before achievements were
     // kept are filled in quietly), the rest dimmed with what they take
@@ -499,7 +500,7 @@ export function chooseCircuit(
     focus = -1;
     show();
   };
-  const trophiesButton = menuButton('TROPHIES', openCabinet);
+  const trophiesButton = menuButton(t('TROPHIES'), openCabinet);
   // SHOP: the looks your streak has earned for your car, to pick from (screens/carShop.ts)
   let shopPicked = false;
   const openShop = () => {
@@ -507,9 +508,9 @@ export function chooseCircuit(
     finish(layouts[selected]);
   };
   const shopButton = menuButton('SHOP', openShop);
-  makeTile(shopButton, 'shop', 'SHOP', 'helmets and looks for your car');
-  makeTile(trophiesButton, 'trophies', 'TROPHIES', 'your titles, medals and achievements');
-  const cabinetDone = menuButton('◀ BACK', closeCabinet);
+  makeTile(shopButton, 'shop', t('SHOP'), t('helmets and looks for your car'));
+  makeTile(trophiesButton, 'trophies', t('TROPHIES'), t('your titles, medals and achievements'));
+  const cabinetDone = menuButton(backLabel(), closeCabinet);
 
   // the circuits: one card at a time, swiped (or its sides tapped) to the next, tapped in the middle to race;
   // dots under it for where it is in the list
@@ -668,11 +669,11 @@ export function chooseCircuit(
     // (the Daily Challenge: today's circuit and weather)
     const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
     const about = locked ? 'unlock: a full season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · race the world` : m.about;
-    makeTile(b, m.id, m.name, about);
+    makeTile(b, m.id, t(m.name), t(about));
     if (locked) b.classList.add('locked');
     return b;
   });
-  const backButton = menuButton('◀ BACK', toModes);
+  const backButton = menuButton(backLabel(), toModes);
   const tab = framed() ? ownTabButton() : undefined;
   /** the circuit screen's places for up/down: the circuit, the rows, the race button, BACK */
   const raceAt = () => 1 + rows.length;

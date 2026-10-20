@@ -5,6 +5,7 @@
 // SELECT goes back.
 
 import { flagSvg } from '../flags';
+import { t, backLabel } from '../../engine/i18n';
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
@@ -37,7 +38,7 @@ function boardTable(b: Board): HTMLTableElement {
   Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
   const head = document.createElement('tr');
   head.style.color = 'var(--muted)';
-  head.append(cell('th', '', true), cell('th', 'NAME'), cell('th', 'REACHED'), cell('th', 'TIME', true));
+  head.append(cell('th', '', true), cell('th', t('NAME')), cell('th', t('REACHED')), cell('th', t('TIME'), true));
   table.append(head);
   const row = (e: Board['top'][number], k: number) => {
     const r = document.createElement('tr');
@@ -62,7 +63,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'DAILY CHALLENGE';
+  title.textContent = t('DAILY CHALLENGE');
   const line = (text: string, color = 'var(--muted)') => {
     const p = document.createElement('p');
     p.textContent = text;
@@ -110,7 +111,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   const naming$ = document.createElement('label');
   naming$.className = 'initials';
   const nameLabel = document.createElement('span');
-  nameLabel.textContent = 'YOUR NAME ON THE BOARD';
+  nameLabel.textContent = t('YOUR NAME ON THE BOARD');
   const field = document.createElement('input');
   Object.assign(field, { id: 'daily-initials', type: 'text', maxLength: 3, autocomplete: 'off', spellcheck: false, value: initials() ?? '' });
   field.setAttribute('autocapitalize', 'characters');
@@ -118,7 +119,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   field.setAttribute('aria-label', 'Your three initials');
   field.placeholder = 'ABC';
   const nameHint = document.createElement('span');
-  nameHint.textContent = 'THREE LETTERS OR DIGITS';
+  nameHint.textContent = t('THREE LETTERS OR DIGITS');
   naming$.append(nameLabel, field, nameHint);
   // (capitals, letters and digits only, three at most)
   field.addEventListener('input', () => {
@@ -160,7 +161,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     };
     const playButton = menuButton('PLAY ▶', () => finish('play'));
     playButton.classList.add('race-button');
-    const backButton = menuButton('◀ BACK', () => finish('back'));
+    const backButton = menuButton(backLabel(), () => finish('back'));
     screen.append(nameButton, playButton, backButton);
     let places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
     let focus = 0;

@@ -1,5 +1,6 @@
 // The main menu's tiles: each mode (and SETTINGS, TROPHIES, RESUME RACE) a square button, an icon over its name.
 // The icons are line drawings on a 24 grid, in the text's colour (so a focused tile's cyan colours its icon too).
+import { t } from '../engine/i18n';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -44,6 +45,8 @@ export function tileIcon(icon: TileIcon): SVGSVGElement {
 /** Makes `b` a tile: its icon over `name`, `about` for a screen reader and a long press. */
 export function makeTile(b: HTMLButtonElement, icon: TileIcon, name: string, about: string): void {
   b.classList.add('menu-tile');
+  name = t(name);
+  about = t(about);
   b.title = about;
   b.setAttribute('aria-label', `${name}: ${about}`);
   const label = document.createElement('strong');

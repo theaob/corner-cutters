@@ -7,6 +7,7 @@
 import { thumbstick, type Button, type Controls } from './controls';
 import { vibrate } from './haptics';
 import { save, saved } from './save';
+import { t } from './i18n';
 
 export type StickSide = 'left' | 'right';
 
@@ -314,12 +315,13 @@ export class Hud {
   /** What `button` does now ('' for nothing: it's hidden), named under it and drawn on it. */
   setLabel(button: DeckButton, text: string): void {
     const label = this.el(`label-${button}`);
-    if (!label || label.textContent === text) return;
-    label.textContent = text;
+    const shown = t(text);
+    if (!label || label.textContent === shown) return;
+    label.textContent = shown;
     const key = this.deck.querySelector<HTMLElement>(`[data-button="${button}"]`);
     const icon = this.el(`icon-${button}`);
     if (icon) icon.innerHTML = DECK_ICONS[text] ? `<svg viewBox="0 0 24 24" aria-hidden="true">${DECK_ICONS[text]}</svg>` : '';
-    key?.setAttribute('aria-label', text || button);
+    key?.setAttribute('aria-label', shown || button);
     // (the button, and on the face its column with the name under it)
     (key?.closest('.col') ?? key)?.classList.toggle('idle', !text);
   }

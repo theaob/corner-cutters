@@ -5,6 +5,7 @@
 // wide screen and on the phone (the layout drawn in the HUD Lab).
 
 import { logoSvg } from '../logos';
+import { t } from '../../engine/i18n';
 import type { Difficulty } from '../difficulty';
 import type { Team } from '../teams';
 import { style } from './dom';
@@ -107,11 +108,11 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
     gap: '10px', background: 'rgba(14,13,22,.55)', color: '#f4f2fa', font: '12px Silkscreen, monospace',
   });
   const pauseTitle = document.createElement('div');
-  pauseTitle.textContent = 'PAUSED';
+  pauseTitle.textContent = t('PAUSED');
   style(pauseTitle, { font: 'calc(22px * var(--ts, 1)) Silkscreen, monospace', color: '#f2c14e', textShadow: '0 2px 0 #1b1b26', marginBottom: '6px' });
   const pauseButton = (label: string, action: () => void) => {
     const b = document.createElement('button');
-    b.textContent = label;
+    b.textContent = t(label);
     style(b, {
       width: '60%', padding: '10px 0', borderRadius: '10px', border: '1px solid #3a3858', background: '#25233a',
       color: '#f4f2fa', font: 'calc(14px * var(--ts, 1)) Silkscreen, monospace', cursor: 'pointer', touchAction: 'none',

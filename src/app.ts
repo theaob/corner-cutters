@@ -1,4 +1,6 @@
 import { type StandaloneView } from './engine/view';
+import { applyLanguage, onLanguageChange, useLanguages } from './engine/i18n';
+import { LANGUAGES } from './f1/lang';
 import { mountTuning } from './engine/tuning';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
@@ -59,6 +61,10 @@ const app = document.getElementById('app')!;
 // this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
 useStore('cc:');
 useSave(CC_SAVE);
+// (LANGUAGE in the settings: the menus are built once, so a change reloads the page)
+useLanguages(LANGUAGES);
+applyLanguage();
+onLanguageChange(() => globalThis.location?.reload());
 // (TEXT: LARGE in the settings, from the start)
 applyText();
 applyMotion();
