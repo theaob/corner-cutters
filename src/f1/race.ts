@@ -43,7 +43,7 @@ import { drawWhole } from '../engine/render/warm';
 import { disposeDeep } from '../engine/render/dispose';
 import { NIGHT } from './night';
 import { buildFireworks } from './fireworks3d';
-import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
+import { CarFx, DebrisLayer, makeFireLights, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
 import { QUALITY_LEVELS, QualityGovernor } from '../engine/render/quality';
@@ -328,6 +328,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     gaps: newGapTimer(0), lastPos: 0, flashUntil: 0, lapsSeen: [],
   };
   let looks: Look[] = [];
+  // (a fire light for each car the grid holds, in the scene from the start whatever the session: see makeFireLights)
+  const fireLights = makeFireLights(world.scene, circuit.slots.length);
+  let fireLight = 0;
   /** your race is over (finished, or out) and the results are coming */
   let done = false;
   /** the champagne ceremony: the top three, and seconds the camera has been on them (the results follow) */
@@ -578,7 +581,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // (under a bridge, the deck hides it: its outline drawn through the deck, yours in gold)
     const outline = track.levels ? carOutline(mesh, mine ? 0xf2c14e : 0xf4f4f8) : undefined;
     if (outline) world.scene.add(outline.group);
-    return { name: mine ? driverName() : livery.drivers[seat], outline, team: livery, livery: look, mesh, fx: new CarFx(mesh), color: livery.body };
+    return { name: mine ? driverName() : livery.drivers[seat], outline, team: livery, livery: look, mesh, fx: new CarFx(mesh, fireLights[fireLight++]), color: livery.body };
   };
   /** Clear the track and the screen for a new session. */
   /** px you've driven since the last 'drive' event, and where your car was last frame; and s on the circuit since then, not paused (for the play stats) */
@@ -635,6 +638,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     radioQ = newRadio();
     radioPanel.style.display = 'none';
     playMusic(RACE_MUSIC);
+    fireLight = 0;
+    for (const light of fireLights) light.intensity = 0;
     for (const l of looks) {
       world.scene.remove(l.mesh, ...(l.outline ? [l.outline.group] : []));
       disposeDeep(l.mesh);
