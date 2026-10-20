@@ -69,7 +69,10 @@ export function drawCars(f: CarsFrame): void {
         l.mesh.position.set(then.x, then.z, then.y);
         l.mesh.rotation.set(0, -then.heading, 0, 'YXZ');
         l.outline?.update(l.mesh, !!track.levels && underDeck(track.levels, grid, then.x, then.y, then.z));
-      } else l.outline?.update(l.mesh, false);
+      } else {
+        l.outline?.update(l.mesh, false);
+        l.fx.off();
+      }
       return;
     }
     const ev = f.events[i];

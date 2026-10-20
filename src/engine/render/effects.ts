@@ -245,21 +245,35 @@ export class Particles {
   }
 }
 
+/**
+ * The fire lights: one per car the scene will ever hold, made once and always in the scene (intensity 0 when off).
+ * Three counts the lights that are shown when it builds a shader, and makes every shader again when the count
+ * changes, so a light that came and went with its car (a session with more cars, a car retiring and its mesh hidden)
+ * was a hitch of a few hundred ms on a phone.
+ */
+export function makeFireLights(scene: THREE.Scene, count: number): THREE.PointLight[] {
+  return Array.from({ length: count }, () => {
+    const light = new THREE.PointLight(0xff8a2a, 0, 70, 1.5);
+    scene.add(light);
+    return light;
+  });
+}
+
 /** Per-car visual state: remembers the original paint so wrecks can be charred and repaired. */
 export class CarFx {
-  readonly light = new THREE.PointLight(0xff8a2a, 0, 70, 1.5);
   private readonly original: THREE.Color[];
   private emit = 0;
   private dustEmit = 0;
 
-  /**
-   * `fireLight: false` skips the flickering fire light: for cars that
-   * come and go, since adding or removing a light recompiles every shader.
-   */
-  constructor(readonly mesh: CarMesh, fireLight = true) {
+  /** `light`: its fire light, one of `makeFireLights`' (left out for cars that have none). */
+  constructor(readonly mesh: CarMesh, private readonly light?: THREE.PointLight) {
     this.original = mesh.userData.paint.map((m) => m.color.clone());
-    this.light.position.set(0, 12, 0);
-    if (fireLight) mesh.add(this.light);
+    if (light) light.intensity = 0;
+  }
+
+  /** Its fire light out (a car that's gone from the track: its light stays in the scene, so the shaders stay as they are). */
+  off(): void {
+    if (this.light) this.light.intensity = 0;
   }
 
   /**
@@ -289,7 +303,10 @@ export class CarFx {
         this.emit = 0.35;
       }
     }
-    this.light.intensity = condition === 'burning' ? 120 + Math.random() * 80 : 0;
+    if (this.light) {
+      this.light.position.set(x, y + 12, z);
+      this.light.intensity = condition === 'burning' ? 120 + Math.random() * 80 : 0;
+    }
 
     const char = condition === 'wrecked' ? 0.22 : condition === 'burning' ? 0.6 : 1;
     this.mesh.userData.paint.forEach((m, i) => m.color.copy(this.original[i]).multiplyScalar(char));
