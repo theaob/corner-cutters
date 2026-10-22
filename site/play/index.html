@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corner Cutters: play free</title>
+<meta name="description" content="An arcade Grand Prix racer in a crisp pixel-3D look. One thumb steers, you cut the corners. Play in your browser or get it on Android.">
+<meta property="og:title" content="Corner Cutters">
+<meta property="og:description" content="Arcade Grand Prix racing, pixel-3D. Can you beat my result?">
+<meta property="og:image" content="https://theaob.github.io/corner-cutters/play/hero.png">
+<meta property="og:url" content="https://theaob.github.io/corner-cutters/play/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="icon.png">
+<style>
+  :root { --bg: #0e0d16; --fg: #ecebf3; --dim: #a7a5b8; --accent: #ff3fa8; --card: #1b1a2a; --rule: #2a2838; }
+  @media (prefers-color-scheme: light) { :root { --bg: #fbfaff; --fg: #1b1a24; --dim: #5d5b6c; --accent: #c4166f; --card: #fff; --rule: #dedbe8; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 56px; text-align: center; }
+  .hero { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--rule); }
+  h1 { font-size: 32px; margin: 24px 0 4px; letter-spacing: 0.02em; }
+  .tag { color: var(--dim); margin: 0 0 24px; }
+  .stores { display: grid; gap: 12px; margin: 24px 0; }
+  .btn { display: flex; flex-direction: column; align-items: center; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--rule); background: var(--card); color: var(--fg); text-decoration: none; font-weight: 600; }
+  .btn small { font-weight: 400; color: var(--dim); font-size: 13px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary small { color: #fff; opacity: 0.85; }
+  .btn:hover:not(.soon) { filter: brightness(1.1); }
+  .btn.soon { opacity: 0.55; cursor: default; }
+  footer { margin-top: 40px; font-size: 14px; color: var(--dim); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<img class="hero" src="hero.png" alt="Corner Cutters: pixel-3D arcade racing" width="1024" height="500">
+<h1>Corner Cutters</h1>
+<p class="tag">Pixel-3D arcade Grand Prix. One thumb steers, you cut the corners.</p>
+
+<div class="stores">
+  <a class="btn primary" href="https://theaob.itch.io/corner-cutters">Play in your browser<small>Free on itch.io, nothing to install</small></a>
+  <a class="btn" href="https://play.google.com/store/apps/details?id=io.github.theaob.cornercutters">Get it on Google Play<small>Android</small></a>
+  <span class="btn soon" aria-disabled="true">App Store<small>iPhone: coming soon</small></span>
+</div>
+
+<footer>
+  <a href="../privacy.html">Privacy policy</a> · <a href="https://github.com/theaob/corner-cutters">GitHub</a>
+</footer>
+</main>
+</body>
+</html>

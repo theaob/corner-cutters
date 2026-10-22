@@ -1,6 +1,6 @@
 # GitHub Pages: the play-stats dashboard (stats.html, src/stats/) at the site's root, the track designer
 # (designer.html, src/designer/, with the game beside it to drive a draft in) under designer/, and the plain pages in
-# site/ (the privacy policy, privacy.html). Built on a push to the
+# site/ (the privacy policy, privacy.html, and the landing page, play/). Built on a push to the
 # default branch that changes either (the designer has the game in it, so most of the source), or by hand (Actions →
 # pages → Run workflow).
 #

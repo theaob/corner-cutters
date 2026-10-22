@@ -8,7 +8,7 @@
 import { MEDAL_COLOR, MEDAL_NAME, type Medal } from './medals';
 
 /** Where the game is played (on the card and in the text). */
-export const SHARE_URL = (import.meta.env?.VITE_SHARE_URL as string | undefined) || 'theaob.itch.io/corner-cutters';
+export const SHARE_URL = (import.meta.env?.VITE_SHARE_URL as string | undefined) || 'theaob.github.io/corner-cutters/play/';
 
 export interface ShareCard {
   circuit: string;
