@@ -13,7 +13,7 @@ describe('the result card to share', () => {
     expect(c.color).toBe('#f2c14e');
     expect(c.sub).toBe('WINNER');
     expect(c.stats).toEqual([['GRID', 'P6'], ['PLACES', '▲5'], ['FASTEST LAP', '0:29.81']]);
-    expect(shareText(c)).toBe('I finished P1 at Crescent Park in Corner Cutters 🏁 🏆 Can you beat it? https://theaob.itch.io/corner-cutters');
+    expect(shareText(c)).toBe('I finished P1 at Crescent Park in Corner Cutters 🏁 🏆 Can you beat it? https://theaob.github.io/corner-cutters/play/');
     expect(cardFile(c)).toBe('corner-cutters-crescent-park-2026-10-04.png');
   });
 
