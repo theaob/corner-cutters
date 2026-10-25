@@ -14,6 +14,7 @@
 // would have. Engine-free, unit-tested.
 
 import { save, saved } from '../engine/save';
+import { t } from '../engine/i18n';
 import { seededRandom } from '../engine/rng';
 import type { Car } from '../engine/driving';
 import type { Forecast } from './forecast';
@@ -139,7 +140,7 @@ export const dropKeptRace = (): void => {
 /** Your lap in a kept race, for the button that comes back to it: LAP 4/10 (the lap you're on). */
 export function keptLap(k: KeptRace): string {
   const p = k.state.entrants[k.you]?.progress;
-  return `LAP ${Math.min(k.state.laps, (p?.lap ?? 0) + 1)}/${k.state.laps}`;
+  return t('LAP {lap}/{laps}', { lap: Math.min(k.state.laps, (p?.lap ?? 0) + 1), laps: k.state.laps });
 }
 
 /**

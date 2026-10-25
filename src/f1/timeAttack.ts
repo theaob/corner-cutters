@@ -9,6 +9,7 @@
 
 import type { Difficulty } from './difficulty';
 import { SECTORS } from './racing';
+import { t } from '../engine/i18n';
 
 export const ATTACK = {
   /** pars on the clock at the line (to reach the first checkpoint, with a little to spare) */
@@ -106,7 +107,8 @@ export function shortDistance(passed: number): string {
 export function distance(passed: number): string {
   const laps = Math.floor(passed / SECTORS);
   const sectors = passed % SECTORS;
-  const part = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 'S'}`;
-  if (!laps) return sectors ? part(sectors, 'SECTOR') : 'NO SECTORS';
-  return sectors ? `${part(laps, 'LAP')} + ${part(sectors, 'SECTOR')}` : part(laps, 'LAP');
+  const lapsText = (n: number) => t(n === 1 ? '{n} LAP' : '{n} LAPS', { n });
+  const sectorsText = (n: number) => t(n === 1 ? '{n} SECTOR' : '{n} SECTORS', { n });
+  if (!laps) return sectors ? sectorsText(sectors) : t('NO SECTORS');
+  return sectors ? `${lapsText(laps)} + ${sectorsText(sectors)}` : lapsText(laps);
 }

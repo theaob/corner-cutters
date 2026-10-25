@@ -2,6 +2,7 @@
 // same three: one easy, one harder, and one off the beaten track (another mode, a circuit, a win). Played towards in
 // any mode; the progress kept for the day, a fresh three the next. Engine-free but for the save.
 
+import { t } from '../engine/i18n';
 import { save, saved } from '../engine/save';
 import { FREE_LAYOUTS, LAYOUTS } from './layouts';
 
@@ -29,7 +30,12 @@ export interface Mission {
   /** what an event counts towards it (0: nothing); `max`: the best in one go counts, not the total */
   count(e: PlayEvent): number;
   max?: boolean;
+  /** the circuit a mission names (its text has it filled in) */
+  circuit?: string;
 }
+
+/** A mission's text, in the chosen language. */
+export const missionText = (m: Mission): string => (m.circuit ? t('FINISH A RACE AT {circuit}', { circuit: m.circuit }) : t(m.text));
 
 /** The circuits a mission can send you to: the ones open to everyone (the first, and the free ones). */
 export const MISSION_CIRCUITS: { id: string; name: string }[] = [...new Set([LAYOUTS[0], ...FREE_LAYOUTS])].map((l) => ({ id: l.id, name: l.name.toUpperCase() }));
@@ -59,7 +65,7 @@ const FAR: Mission[] = [
   { id: 'attack', text: 'CLEAR 8 SECTORS IN A TIME ATTACK', goal: 8, max: true, count: (e) => (e.kind === 'attack' ? e.passed : 0) },
   { id: 'win', text: 'WIN A RACE', goal: 1, count: (e) => (race(e)?.place === 1 ? 1 : 0) },
   { id: 'record', text: 'BEAT YOUR TIME TRIAL RECORD', goal: 1, count: (e) => (e.kind === 'trial-lap' && e.record ? 1 : 0) },
-  ...MISSION_CIRCUITS.map((c): Mission => ({ id: `at-${c.id}`, text: `FINISH A RACE AT ${c.name}`, goal: 1, count: (e) => (race(e)?.circuit === c.id ? 1 : 0) })),
+  ...MISSION_CIRCUITS.map((c): Mission => ({ id: `at-${c.id}`, text: `FINISH A RACE AT ${c.name}`, goal: 1, circuit: c.name, count: (e) => (race(e)?.circuit === c.id ? 1 : 0) })),
 ];
 
 /** Every mission there is (by its id). */

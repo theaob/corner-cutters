@@ -4,7 +4,8 @@
 // whatever's showing; each goes away by itself. With reduced motion asked for,
 // the medal and trophy just appear and there's no confetti.
 
-import { MEDAL_COLOR, MEDAL_NAME, type Medal } from '../medals';
+import { t } from '../../engine/i18n';
+import { MEDAL_COLOR, medalLabel, type Medal } from '../medals';
 import { motionReduced } from '../access';
 
 /** ms the medal stays up (dropping in, held, fading). */
@@ -33,7 +34,7 @@ export function stampMedal(host: HTMLElement, medal: Medal, line: string): void 
   const wrap = document.createElement('div');
   wrap.className = `medal-stamp${reduced() ? ' still' : ''}`;
   const name = document.createElement('strong');
-  name.textContent = `${MEDAL_NAME[medal]} MEDAL`;
+  name.textContent = medalLabel(medal);
   name.style.color = MEDAL_COLOR[medal];
   const sub = document.createElement('span');
   sub.textContent = line;
@@ -135,11 +136,11 @@ function nextToast(): void {
   star.textContent = a.mark ?? '★';
   const text = document.createElement('div');
   const head = document.createElement('small');
-  head.textContent = a.head ?? 'ACHIEVEMENT';
+  head.textContent = t(a.head ?? 'ACHIEVEMENT');
   const name = document.createElement('strong');
-  name.textContent = a.name;
+  name.textContent = t(a.name);
   const about = document.createElement('span');
-  about.textContent = a.about;
+  about.textContent = t(a.about);
   text.append(head, name, about);
   el.append(star, text);
   document.body.append(el);
@@ -160,7 +161,7 @@ export function hintToast(text: string, ms = 2000): void {
   document.querySelector('.hint-toast')?.remove();
   const el = document.createElement('div');
   el.className = 'hint-toast';
-  el.textContent = text;
+  el.textContent = t(text);
   document.body.append(el);
   setTimeout(() => el.remove(), ms);
 }

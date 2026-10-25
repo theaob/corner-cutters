@@ -94,6 +94,7 @@ import { ghostText, limitsText, readoutText, towText, tyreText } from './race/re
 import { paintRows } from './race/readoutView';
 import { bannerMessage, evenLines } from './race/banner';
 import { motionReduced, splitColor, splitWord } from './access';
+import { t as tl } from '../engine/i18n';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
 import { createFlagOverlay, createRain } from './race/screenFx';
@@ -370,7 +371,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   host.append(...plates);
   /** a message over the race for a few seconds (safety car, penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
-  const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
+  const announce = (text: string, color: string, seconds = 3) => (notice = { text: tl(text), color, until: race.clock + seconds });
   /** an announcement waiting for the one up now to be over (news from the boards: never over a record's) */
   let nextNotice: { text: string; color: string; seconds: number } | undefined;
   const announceNext = (text: string, color: string, seconds = 3) => {
@@ -412,7 +413,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const reached = kind === 'attack' && attack ? attackMedal(attack.a.passed, attack.a.generous) : undefined;
     const next = nextMedal(reached && (!held || MEDALS.indexOf(reached) > MEDALS.indexOf(held)) ? reached : held);
     const target = !next ? undefined : kind === 'trial' ? fmt(lapTargets(reference)[next]) : attack ? shortDistance(attackTargets(attack.a.generous)[next]) : undefined;
-    paintRows(medalLine, !next ? 'GOLD ●\n' : target ? `${MEDAL_NAME[next]} ${target}\n` : '');
+    paintRows(medalLine, !next ? `${tl('GOLD')} ●\n` : target ? `${tl(MEDAL_NAME[next])} ${target}\n` : '');
     medalLine.style.color = MEDAL_COLOR[next ?? 'gold'];
   };
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
@@ -751,7 +752,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     reference ??= referenceLap(track, grid, HANDLING, sessionWeather());
     showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
-    announce(trial.record ? `TIME TRIAL · BEAT ${fmt(trial.record.time)}` : 'TIME TRIAL', '#f2c14e', 3);
+    announce(trial.record ? tl('TIME TRIAL · BEAT {time}', { time: fmt(trial.record.time) }) : 'TIME TRIAL', '#f2c14e', 3);
   };
 
   /** A Time Attack: you on your own, on the run-up; at the line the clock starts, and each checkpoint adds time. */
@@ -778,12 +779,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       void fetchDailyGhost(daily.day).then((rival) => {
         if (!rival || attack !== run) return;
         run.rival = rival;
-        announceNext(`CHASING ${rival.name} · ${distance(rival.score)}`, '#f2c14e', 3);
+        announceNext(tl('CHASING {name} · {distance}', { name: rival.name, distance: distance(rival.score) }), '#f2c14e', 3);
       });
     }
     showMedal();
     hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
-    announce(best ? `TIME ATTACK · BEAT ${distance(best)}` : 'TIME ATTACK · THE CLOCK STARTS AT THE LINE', '#f2c14e', 3);
+    announce(best ? tl('TIME ATTACK · BEAT {distance}', { distance: distance(best) }) : 'TIME ATTACK · THE CLOCK STARTS AT THE LINE', '#f2c14e', 3);
   };
 
   /** The controls lap: you on your own on the run-up, a prompt at a time for the controls. */
@@ -1119,18 +1120,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       results.style.animation = 'row-in 0.25s ease-out both';
       resultsShown = '';
     }
-    const title = championship ? `ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length} · ${layout.name.toUpperCase()}` : `CHEQUERED FLAG · ${difficulty.name} · ${weather.name}`;
+    const title = championship ? `${tl('ROUND {n} OF {total}', { n: championship.season.round + 1, total: championship.season.rounds.length })} · ${layout.name.toUpperCase()}` : `${tl('CHEQUERED FLAG')} · ${tl(difficulty.name)} · ${tl(weather.name)}`;
     const rows = resultRows(race, order, looks, you, hudState.fastest?.who);
     const notes = [
-      { text: `LAP RECORD ${fmt(rec()?.bestLap)}`, isNew: saved.newLap },
-      { text: `BEST ${race.laps}-LAP RACE ${fmt(rec()?.bestRace[race.laps])}`, isNew: saved.newRace },
+      { text: tl('LAP RECORD {time}', { time: fmt(rec()?.bestLap) }), isNew: saved.newLap },
+      { text: tl('BEST {laps}-LAP RACE {time}', { laps: race.laps, time: fmt(rec()?.bestRace[race.laps]) }), isNew: saved.newRace },
     ];
     const key = JSON.stringify([title, rows, notes]);
     if (key === resultsShown) return;
     resultsShown = key;
     shareButton.reset();
     // (no SHARE on YouTube: its card links out of it)
-    renderResults(results, title, rows, notes, championship ? 'NEXT: on to the standings' : undefined, (performance.now() - resultsUpAt) / 1000, YOUTUBE ? undefined : shareButton.el);
+    renderResults(results, title, rows, notes, championship ? tl('NEXT: on to the standings') : undefined, (performance.now() - resultsUpAt) / 1000, YOUTUBE ? undefined : shareButton.el);
   };
 
   /** Your result as a card to share (race/shareButton.ts, shareCard.ts): a race's, or a Time Attack's. */
@@ -1201,8 +1202,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (!quali?.over) return;
     const w = quali.weekend;
     const named = w.drivers.map((d, k) => ({ name: k === w.youDriver ? driverName() : d.livery.drivers[d.seat], team: d.livery }));
-    renderQualifying(results, `QUALIFYING · ${difficulty.name} · ${weather.name}`, qualifyingRows(quali.over.grid, quali.over.times, named, w.youDriver), {
-      text: `QUALIFYING RECORD ${fmt(rec()?.bestQualifying)}`, isNew: saved.newQualifying,
+    renderQualifying(results, `${tl('QUALIFYING')} · ${tl(difficulty.name)} · ${tl(weather.name)}`, qualifyingRows(quali.over.grid, quali.over.times, named, w.youDriver), {
+      text: tl('QUALIFYING RECORD {time}', { time: fmt(rec()?.bestQualifying) }), isNew: saved.newQualifying,
     });
   };
 
@@ -1346,7 +1347,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (!sent) return;
       const board = await fetchLapBoard(layout.id, weatherNow, player, 1);
       if (board?.you && session === 'timetrial') {
-        announceNext(board.you.place === 1 ? `WORLD RECORD · #1 OF ${board.entries}` : `WORLD BOARD · #${board.you.place} OF ${board.entries}`, board.you.place === 1 ? '#f2c14e' : '#5fe0d0', 3);
+        announceNext(board.you.place === 1 ? tl('WORLD RECORD · #1 OF {total}', { total: board.entries }) : tl('WORLD BOARD · #{place} OF {total}', { place: board.you.place, total: board.entries }), board.you.place === 1 ? '#f2c14e' : '#5fe0d0', 3);
       }
     });
   };
@@ -1361,10 +1362,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       trial.record = g;
       saveGhost(recordId, g);
       boardLap(g.time);
-      announce(`NEW RECORD ${fmt(g.time)}${record ? ` · ${signed(g.time - record.time)}` : ''}`, splitColor('record'), 3);
+      announce(`${tl('NEW RECORD')} ${fmt(g.time)}${record ? ` · ${signed(g.time - record.time)}` : ''}`, splitColor('record'), 3);
       sounds.record();
-    } else if (!best || g.time < best.time) announce(`BEST LAP ${fmt(g.time)} · ${signed(g.time - record.time)}`, splitColor('better'), 3);
-    else announce(`LAP ${fmt(g.time)} · ${signed(g.time - best.time)}`, splitColor('worse'), 3);
+    } else if (!best || g.time < best.time) announce(`${tl('BEST LAP')} ${fmt(g.time)} · ${signed(g.time - record.time)}`, splitColor('better'), 3);
+    else announce(`${tl('LAP')} ${fmt(g.time)} · ${signed(g.time - best.time)}`, splitColor('worse'), 3);
     if (!best || g.time < best.time) trial.best = g;
     // a medal here, better than the one you had: said over the rest
     const medal = reference === undefined || layout.id === DESIGNER_DRAFT_ID ? undefined : lapMedal(g.time, reference);
@@ -1430,7 +1431,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (step.started) announce('THE CLOCK IS RUNNING', '#5fe0d0', 1.5);
     if (step.added) announce(`+${step.added.toFixed(1)} S`, '#5fe0d0', 1.2);
     if (step.lost) {
-      announce(`CUT · −${step.lost} S`, '#d8323c', 2);
+      announce(tl('CUT · −{n} S', { n: step.lost }), '#d8323c', 2);
       sounds.trackLimits(true);
     }
     if (step.timeUp) {
@@ -1636,9 +1637,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // (the Daily Challenge: your best today, and your place on the board once it's back)
       banner.style.whiteSpace = 'pre-line';
       banner.textContent = daily
-        ? `TIME UP · ${distance(passed)}\n${daily.best ? 'NEW BEST TODAY' : `TODAY'S BEST ${distance(daily.dayBest.score)}`}${daily.place ? ` · #${daily.place} OF ${daily.entries}` : ''}`
+        ? `${tl('TIME UP')} · ${distance(passed)}\n${daily.best ? tl('NEW BEST TODAY') : tl("TODAY'S BEST {distance}", { distance: distance(daily.dayBest.score) })}${daily.place ? ` · ${tl('#{place} OF {total}', { place: daily.place, total: daily.entries ?? 0 })}` : ''}`
         // (the result, then on a line of its own the medal and the record, or your best: never broken mid-phrase)
-        : [`TIME UP · ${distance(passed)}`, [medal ? `${MEDAL_NAME[medal]}${newMedal ? ' MEDAL!' : ''}` : '', record ? 'NEW RECORD' : attack.best ? `BEST ${distance(attack.best)}` : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
+        : [`${tl('TIME UP')} · ${distance(passed)}`, [medal ? (newMedal ? tl('{medal} MEDAL!', { medal: tl(MEDAL_NAME[medal]) }) : tl(MEDAL_NAME[medal])) : '', record ? tl('NEW RECORD') : attack.best ? tl('BEST {distance}', { distance: distance(attack.best) }) : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
       banner.style.color = medal && newMedal ? MEDAL_COLOR[medal] : record || daily?.best ? splitColor('record') : '#f2c14e';
     } else banner.style.whiteSpace = '';
     // (SHARE under a Time Attack's result)
@@ -1656,7 +1657,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         // (under the banner, and under the radio if it's on: never over either)
         const radioOn = radioPanel.style.display !== 'none';
         tyrePick.style.top = `${Math.max(banner.offsetTop + banner.offsetHeight, radioOn ? radioPanel.offsetTop + radioPanel.offsetHeight : 0) + 10}px`;
-        tyrePickName.textContent = `NEXT: ${COMPOUNDS[call].name}`;
+        tyrePickName.textContent = tl('NEXT: {tyre}', { tyre: tl(COMPOUNDS[call].name) });
         tyrePickName.style.color = COMPOUNDS[call].color;
       } else tyrePick.style.display = 'none';
     }
@@ -1664,7 +1665,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (session === 'race' && !strategySaid && race.phase === 'racing' && race.clock > 1.4) {
       strategySaid = true;
       const mine = race.entrants[you].plan;
-      if (mine && race.laps >= 3) announceNext(`STRATEGY: ${planText(mine.plan)}${mine.stopAt !== undefined ? ` · BOX LAP ${mine.stopAt}` : ''}`, '#5fe0d0', 4);
+      if (mine && race.laps >= 3) announceNext(`${tl('STRATEGY: {plan}', { plan: planText(mine.plan) })}${mine.stopAt !== undefined ? ` · ${tl('BOX LAP {n}', { n: mine.stopAt })}` : ''}`, '#5fe0d0', 4);
     }
     if (paused || resumeLeft > 0 || quali?.over || attack?.result) {
       // (the count back into the race: 3, 2, 1, over the still picture)
@@ -1708,7 +1709,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (verdict === 'jump') {
         race.entrants[you].progress.penalty += LAUNCH.jumpPenalty;
         achieve(['too-keen']);
-        announce(`JUMP START · +${LAUNCH.jumpPenalty} S`, '#d8323c', 3);
+        announce(tl('JUMP START · +{n} S', { n: LAUNCH.jumpPenalty }), '#d8323c', 3);
         sayRadio('jump-start');
       } else if (verdict && verdict !== 'slow') {
         const kick = kickOf(verdict);
@@ -1888,7 +1889,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (e.kind === 'track-limits' && e.who === you && session === 'tutorial') announce("THAT'S A CUT: IN A RACE, A WARNING, THEN +5 S", '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'race') {
         sayRadio(e.seconds ? 'penalty' : 'warning');
-        announce(e.seconds ? `TRACK LIMITS · +${e.seconds} S` : `TRACK LIMITS · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
+        announce(e.seconds ? tl('TRACK LIMITS · +{n} S', { n: e.seconds }) : tl('TRACK LIMITS · WARNING {strike}/{total}', { strike: e.strike, total: LIMITS.warnings }), e.seconds ? '#d8323c' : '#f2c14e', 2.5);
         sounds.trackLimits(e.seconds > 0);
       }
       // (cleared off the track: hidden, though the replay may show it again)
@@ -1931,7 +1932,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
       // blue flags: yours (let the leader by), or one shown to a car you're coming up to lap
       else if (e.kind === 'blue' && e.who === you) {
-        announce(`BLUE FLAG · LET ${looks[e.by].name} BY`, BLUE_COLOR, 3);
+        announce(tl('BLUE FLAG · LET {name} BY', { name: looks[e.by].name }), BLUE_COLOR, 3);
         sayRadio('blue');
       } else if (e.kind === 'blue' && e.by === you && race.clock >= notice.until) announce(`BLUE FLAG · ${looks[e.who].name}`, BLUE_COLOR, 1.5);
       // a mistake by a car near you (on the screen, more or less): called out
@@ -1948,7 +1949,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const first = !hudState.fastest;
       hudState.fastest = { time: lap, who: i };
       // (not for the first lap anyone completes: that's always the fastest so far)
-      if (!first && race.clock >= notice.until) announce(`FASTEST LAP · ${looks[i].name} ${fmt(lap)}`, '#b36bff', 2.5);
+      if (!first && race.clock >= notice.until) announce(tl('FASTEST LAP · {name} {time}', { name: looks[i].name, time: fmt(lap) }), '#b36bff', 2.5);
       if (!first && i === you) {
         sounds.record();
         sayRadio('fastest-lap');
@@ -1964,7 +1965,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         if (recordLap(records, recordId, lap)) {
           saved.newLap = true;
           if (had) {
-            announce(`NEW LAP RECORD ${fmt(lap)}`, '#f2c14e', 3);
+            announce(tl('NEW LAP RECORD {time}', { time: fmt(lap) }), '#f2c14e', 3);
             sounds.record();
           }
         }

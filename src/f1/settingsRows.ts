@@ -209,7 +209,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */
 export function versionText(version: string = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'): string {
   const [release, build] = version.split('+');
-  return `VERSION ${release.toUpperCase()}${build ? ` · BUILD ${build.toUpperCase()}` : ''}`;
+  return `${t('VERSION')} ${release.toUpperCase()}${build ? ` · ${t('BUILD')} ${build.toUpperCase()}` : ''}`;
 }
 
 /** The version line under the settings, centred and quiet. */

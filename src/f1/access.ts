@@ -8,6 +8,7 @@
 
 import { save, saved } from '../engine/save';
 import type { SplitMark } from './timeTrial';
+import { t } from '../engine/i18n';
 
 /** MOTION in the settings: follow the phone's reduced-motion setting, or override it either way (the phone's unless set). */
 export type MotionSetting = 'auto' | 'reduced' | 'full';
@@ -74,5 +75,5 @@ export function splitColor(mark: SplitMark, safe = colourSafe()): string {
 }
 /** What a sector's split says after its time when colour-safe (in words, not colour alone); nothing otherwise. */
 export function splitWord(mark: SplitMark, safe = colourSafe()): string {
-  return safe ? { record: ' · RECORD', better: ' · BEST', worse: '' }[mark] : '';
+  return safe ? { record: ` · ${t('RECORD')}`, better: ` · ${t('BEST')}`, worse: '' }[mark] : '';
 }

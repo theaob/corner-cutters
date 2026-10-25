@@ -11,6 +11,7 @@ import { onBack } from '../engine/backButton';
 import { device, latestFrames, lines, note, type Device, type FrameStats } from '../engine/logbook';
 import { nextFrame } from '../engine/render/capture';
 import { playerId } from './profile';
+import { t } from '../engine/i18n';
 
 /** What a report is about: the circuit and the mode, when it's made in a race. */
 export interface ReportAbout {
@@ -100,7 +101,7 @@ async function screenshot(hide: HTMLElement[]): Promise<HTMLCanvasElement> {
   const note = document.createElement('div');
   note.className = 'report-taking';
   note.dataset.report = '';
-  note.textContent = 'TAKING A PICTURE…';
+  note.textContent = t('TAKING A PICTURE…');
   document.body.append(note);
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
   const was = hide.map((el) => el.style.visibility);
@@ -210,10 +211,10 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
   overlay.dataset.report = '';
   overlay.className = 'report';
   const title = document.createElement('h2');
-  title.textContent = 'REPORT';
+  title.textContent = t('REPORT');
   const hint = document.createElement('p');
   hint.className = 'report-hint';
-  hint.textContent = 'DRAW ON THE PICTURE TO SHOW WHERE';
+  hint.textContent = t('DRAW ON THE PICTURE TO SHOW WHERE');
 
   // the picture, drawn on with the pointer (a finger, a mouse, a pen)
   const canvas = document.createElement('canvas');
@@ -264,11 +265,11 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     return s;
   });
   swatches[0].classList.add('on');
-  const undo = button('UNDO', () => {
+  const undo = button(t('UNDO'), () => {
     strokes.pop();
     redraw();
   }, 'menu-button report-small');
-  const clear = button('CLEAR', () => {
+  const clear = button(t('CLEAR'), () => {
     strokes.length = 0;
     redraw();
   }, 'menu-button report-small');
@@ -278,7 +279,7 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
   text.className = 'report-text';
   text.maxLength = REPORT_TEXT_MAX;
   text.rows = 3;
-  text.placeholder = 'WHAT HAPPENED?';
+  text.placeholder = t('WHAT HAPPENED?');
 
   const status = document.createElement('p');
   status.className = 'report-status';
@@ -292,8 +293,8 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     busy = false;
     done?.();
   };
-  const cancel = button('CANCEL', close);
-  const send = button('SEND', () => void sendIt());
+  const cancel = button(t('CANCEL'), close);
+  const send = button(t('SEND'), () => void sendIt());
   actions.append(cancel, send);
   overlay.append(title, hint, canvas, tools, text, actions, status);
   document.body.append(overlay);
@@ -304,11 +305,11 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
 
   const sendIt = async () => {
     if (!online()) {
-      status.textContent = "REPORTS AREN'T SET UP IN THIS BUILD";
+      status.textContent = t("REPORTS AREN'T SET UP IN THIS BUILD");
       return;
     }
     send.disabled = true;
-    status.textContent = 'SENDING…';
+    status.textContent = t('SENDING…');
     const picture = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
     const path = reportPath(new Date(), randomId());
     // (the picture first; the words go even if it doesn't)
@@ -323,10 +324,10 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     if (sent === 'refused') sent = await insert('reports', [{ ...row, log: undefined }]);
     if (sent === 'refused' && row.picture) sent = await insert('reports', [{ ...row, log: undefined, picture: undefined }]);
     if (sent === 'ok') {
-      status.textContent = 'SENT · THANK YOU!';
+      status.textContent = t('SENT · THANK YOU!');
       setTimeout(close, 1200);
     } else {
-      status.textContent = sent === 'offline' ? "COULDN'T SEND: NO CONNECTION. TRY AGAIN" : "COULDN'T SEND. TRY AGAIN";
+      status.textContent = t(sent === 'offline' ? "COULDN'T SEND: NO CONNECTION. TRY AGAIN" : "COULDN'T SEND. TRY AGAIN");
       send.disabled = false;
     }
   };

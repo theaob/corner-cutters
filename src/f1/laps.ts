@@ -1,3 +1,5 @@
+import { t } from '../engine/i18n';
+
 // How long a race is. A Championship round is its season's length (a SPRINT
 // season's RACE_LAPS, a GRAND PRIX season's GRAND_PRIX_LAPS: long enough for
 // a two-stop), so a season's rounds are alike; a Quick Race is as many laps as the menu's LAPS row says
@@ -26,9 +28,9 @@ export function lapsFrom(saved: unknown): number {
 
 /** A short line about a race of `n` laps, for the menu. */
 export function lapsAbout(n: number): string {
-  if (n === 1) return 'a sprint, flat out';
-  if (n <= 3) return 'short: no tyre stop';
-  if (n <= 5) return 'a tyre stop pays';
-  if (n <= 10) return 'one or two tyre stops';
-  return 'endurance: stops, strategy';
+  if (n === 1) return t('a sprint, flat out');
+  if (n <= 3) return t('short: no tyre stop');
+  if (n <= 5) return t('a tyre stop pays');
+  if (n <= 10) return t('one or two tyre stops');
+  return t('endurance: stops, strategy');
 }

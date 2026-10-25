@@ -9,6 +9,7 @@ import { beep } from '../../engine/audio';
 import { vibrate } from '../../engine/haptics';
 import { confetti, trophy } from './celebrate';
 import { motionReduced } from '../access';
+import { t, upper } from '../../engine/i18n';
 
 /** What the card says about your season. */
 export interface TitleWin {
@@ -30,7 +31,7 @@ const reduced = motionReduced;
 
 /** The numbers under the team: points, wins and the margin (the WINS and CLEAR singular as they must be). */
 export function titleLine(w: Pick<TitleWin, 'points' | 'wins' | 'clear'>): string {
-  return `${w.points} POINTS · ${w.wins} WIN${w.wins === 1 ? '' : 'S'} · ${w.clear > 0 ? `${w.clear} CLEAR` : 'ON COUNTBACK'}`;
+  return `${t('{n} POINTS', { n: w.points })} · ${t(w.wins === 1 ? '{n} WIN' : '{n} WINS', { n: w.wins })} · ${w.clear > 0 ? t('{n} CLEAR', { n: w.clear }) : t('ON COUNTBACK')}`;
 }
 
 /** The fanfare: a rising call, then the held chord (square waves, as the game's other sounds). */
@@ -53,7 +54,7 @@ export function celebrateTitle(host: HTMLElement, w: TitleWin): { done: Promise<
   const cup = trophy(168);
   const head = document.createElement('h1');
   // (each letter stamped in after the last)
-  [...'WORLD CHAMPION'].forEach((ch, k) => {
+  [...t('WORLD CHAMPION')].forEach((ch, k) => {
     const s = document.createElement('span');
     s.textContent = ch === ' ' ? ' ' : ch;
     s.style.animationDelay = `${0.5 + k * 0.05}s`;
@@ -61,7 +62,7 @@ export function celebrateTitle(host: HTMLElement, w: TitleWin): { done: Promise<
   });
   const band = document.createElement('div');
   band.className = 'team-band';
-  band.textContent = w.team.name.toUpperCase();
+  band.textContent = upper(w.team.name);
   band.style.background = w.team.body;
   band.style.borderColor = w.team.trim;
   const line = document.createElement('p');
@@ -71,7 +72,7 @@ export function celebrateTitle(host: HTMLElement, w: TitleWin): { done: Promise<
   how.textContent = w.how;
   const tap = document.createElement('p');
   tap.className = 'tap';
-  tap.textContent = 'TAP TO CONTINUE';
+  tap.textContent = t('TAP TO CONTINUE');
   const fx = document.createElement('canvas');
   fx.className = 'fireworks';
   el.append(rays, fx, cup, head, band, line, how, tap);

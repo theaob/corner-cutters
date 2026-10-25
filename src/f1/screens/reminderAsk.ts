@@ -3,6 +3,7 @@
 // DAILY REMINDER changes it later.
 
 import { SUGGESTED_HOUR, setReminder } from '../reminder';
+import { t } from '../../engine/i18n';
 
 /** Ask, over `host`; gone once answered, or when `signal` aborts (the menu left). */
 export function askReminder(host: HTMLElement, signal?: AbortSignal): void {
@@ -10,9 +11,9 @@ export function askReminder(host: HTMLElement, signal?: AbortSignal): void {
   box.className = 'reminder-ask';
   box.setAttribute('role', 'dialog');
   const title = document.createElement('strong');
-  title.textContent = 'A DAILY REMINDER?';
+  title.textContent = t('A DAILY REMINDER?');
   const about = document.createElement('p');
-  about.textContent = `A note at ${SUGGESTED_HOUR}:00 on a day you haven't played: the day's challenge, and your streak. Change it in the settings.`;
+  about.textContent = t("A note at {hour}:00 on a day you haven't played: the day's challenge, and your streak. Change it in the settings.", { hour: SUGGESTED_HOUR });
   const row = document.createElement('div');
   row.className = 'reminder-ask-row';
   const button = (label: string, cls: string, answer: () => void) => {
@@ -33,8 +34,8 @@ export function askReminder(host: HTMLElement, signal?: AbortSignal): void {
     return b;
   };
   row.append(
-    button('NO THANKS', 'reminder-no', () => void setReminder('off')),
-    button(`YES, AT ${SUGGESTED_HOUR}:00`, 'reminder-yes', () => void setReminder(SUGGESTED_HOUR)),
+    button(t('NO THANKS'), 'reminder-no', () => void setReminder('off')),
+    button(t('YES, AT {hour}:00', { hour: SUGGESTED_HOUR }), 'reminder-yes', () => void setReminder(SUGGESTED_HOUR)),
   );
   box.append(title, about, row);
   host.append(box);

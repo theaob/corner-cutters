@@ -73,3 +73,7 @@ export function t(english: string, vars?: Record<string, string | number>): stri
 
 /** The back button's label: the arrow is the button's, the word is translated. */
 export const backLabel = (): string => `◀ ${t('BACK')}`;
+
+/** Capitals / lower case by the chosen language's rules (Turkish: i ↔ İ, ı ↔ I). */
+export const upper = (text: string): string => text.toLocaleUpperCase(current.code);
+export const lower = (text: string): string => text.toLocaleLowerCase(current.code);
