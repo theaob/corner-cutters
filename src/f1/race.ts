@@ -47,7 +47,8 @@ import { buildFireworks } from './fireworks3d';
 import { CarFx, DebrisLayer, makeFireLights, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
-import { QUALITY_LEVELS, QualityGovernor } from '../engine/render/quality';
+import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality } from '../engine/render/quality';
+import { save as saveValue, saved as savedValue } from '../engine/save';
 import type { ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
@@ -240,7 +241,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const camera = new THREE.PerspectiveCamera(LOOK.fov, fit.width / fit.height, 1, 4000);
   camera.up.set(0, 0, -1);
   const post = new Hd2dPipeline(renderer, world.scene, camera);
-  const governor = new QualityGovernor();
+  // (the picture's quality where the last race settled, so this one doesn't step down again mid-race: quality.ts)
+  const gameVersion = (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev').split('+')[0];
+  const governor = new QualityGovernor(DEFAULT_GOVERNOR, keptQuality(savedValue('device', 'quality'), Date.now(), gameVersion));
+  /** the level kept last, and whether it was locked (a change from it is kept again) */
+  let keptLevel = { level: governor.level, locked: governor.locked };
+  /** the level set by hand (__cc.quality): not kept */
+  let qualityHeld = false;
   let viewW = fit.width;
   let viewH = fit.height;
   let sizeKey = '';
@@ -957,6 +964,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         quality: (level: number) => {
           governor.level = level;
           governor.locked = true;
+          qualityHeld = true;
         },
         /** what the scene's made of: meshes drawn (and those casting shadows), instanced or not, by geometry */
         census: () => {
@@ -2330,6 +2338,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (settle > 0) settle--;
     // (the frame's real length, not the simulation's capped one: at 5 fps the capped time ran the governor's waits four times too long, a step down every 20 s)
     else governor.sample(Math.min(real, 0.25));
+    if (!qualityHeld && (governor.level !== keptLevel.level || governor.locked !== keptLevel.locked)) {
+      keptLevel = { level: governor.level, locked: governor.locked };
+      saveValue('device', 'quality', { ...keptLevel, at: Date.now(), version: gameVersion });
+    }
     setQuality(QUALITY_LEVELS[governor.level].name);
     const q = QUALITY_LEVELS[governor.level];
     // (the pause menus' blur is a cost on a phone already at the lowest level: they go darker instead, index.html)
