@@ -17,7 +17,7 @@ Everything to put into App Store Connect for Corner Cutters, ready to paste or u
 
 **Promotional text** (170 max, changeable without a review, this is 154):
 
-> Fifteen pixel-3D circuits, rain and pit stops, a Daily Challenge with a global board. One thumb steers: cut the corners!
+> Nineteen pixel-3D circuits, rain and pit stops, a Daily Challenge with a global board. One thumb steers: cut the corners!
 
 **Keywords** (100 max, comma-separated, no spaces, this is 97):
 
@@ -27,8 +27,8 @@ Everything to put into App Store Connect for Corner Cutters, ready to paste or u
 
 > Lights out. Corner Cutters is an arcade Grand Prix racer in a crisp pixel-3D look, built for a phone held upright: one thumb steers, the car does the rest, and a race is over in a few minutes.
 >
-> RACE ON 15 CIRCUITS
-> Fast parkland, tight city streets, a figure-of-eight with a bridge, Alpine passes deep in snow, a dirt bowl with monster trucks, a coast of dunes and kites, a volcano with a lava river under the jump, and a neon street circuit at night.
+> RACE ON 19 CIRCUITS
+> Fast parkland, tight city streets, a figure-of-eight with a bridge, Alpine passes deep in snow, a dirt bowl with monster trucks, a coast of dunes and kites, a volcano with a lava river under the jump, a Canadian island with moose on the road verges, lakeside and jade-green tracks, and a neon street circuit at night.
 >
 > WIN THE CHAMPIONSHIP
 > A season of rounds across the circuits, points and standings, and fireworks for the champion.
