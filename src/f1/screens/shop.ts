@@ -14,6 +14,7 @@ import { STORE_NAME, bought, type Shop } from '../purchase';
 import { menuPick, menuTick } from '../sounds';
 import { trophy } from './celebrate';
 import { reportOpen } from '../report';
+import { t } from '../../engine/i18n';
 
 /** The Championship's shop in `host` until it's bought ('owned') or the player goes back. */
 export function showShop(host: HTMLElement, services: Services, shop: Shop, closed?: AbortSignal): Promise<'owned' | 'back'> {
@@ -21,7 +22,7 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'CHAMPIONSHIP';
+  title.textContent = t('CHAMPIONSHIP');
   const line = (text: string, color = 'var(--muted)') => {
     const p = document.createElement('p');
     p.textContent = text;
@@ -32,20 +33,20 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   screen.append(
     title,
     trophy(72),
-    line(`A SEASON OF ${CHAMPIONSHIP_LAYOUTS.length} ROUNDS: F1 POINTS, STANDINGS, A TITLE TO WIN`, 'var(--text)'),
-    line(`AND EVERY CIRCUIT (${CHAMPIONSHIP_LAYOUTS.length - 1} MORE), OPEN FOR QUICK RACE, TIME ATTACK AND TIME TRIAL AS THE SEASON REACHES THEM`),
-    line('ONE PURCHASE, YOURS FOR GOOD'),
+    line(t('A SEASON OF {n} ROUNDS: F1 POINTS, STANDINGS, A TITLE TO WIN', { n: CHAMPIONSHIP_LAYOUTS.length }), 'var(--text)'),
+    line(t('AND EVERY CIRCUIT ({n} MORE), OPEN FOR QUICK RACE, TIME ATTACK AND TIME TRIAL AS THE SEASON REACHES THEM', { n: CHAMPIONSHIP_LAYOUTS.length - 1 })),
+    line(t('ONE PURCHASE, YOURS FOR GOOD')),
     status,
   );
   const buyButton = menuButton('', () => void buy());
-  const restoreButton = menuButton('RESTORE PURCHASE', () => void restore());
+  const restoreButton = menuButton(t('RESTORE PURCHASE'), () => void restore());
   const backButton = menuButton(backLabel(), () => finish('back'));
   const buttons = [buyButton, restoreButton, backButton];
   screen.append(...buttons);
   let busy = false;
   const render = () => {
     const st = shop.state();
-    buyButton.textContent = busy ? `WITH ${STORE_NAME}…` : st.price ? `UNLOCK · ${st.price}` : st.error ? 'UNLOCK' : `CONNECTING TO ${STORE_NAME}…`;
+    buyButton.textContent = busy ? t('WITH {store}…', { store: STORE_NAME }) : st.price ? t('UNLOCK · {price}', { price: st.price }) : st.error ? t('UNLOCK') : t('CONNECTING TO {store}…', { store: STORE_NAME });
     buyButton.disabled = busy || !st.ready;
     status.textContent = st.error ?? '';
   };
@@ -86,14 +87,14 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   async function restore() {
     if (busy) return;
     busy = true;
-    status.textContent = 'LOOKING FOR YOUR PURCHASE…';
+    status.textContent = t('LOOKING FOR YOUR PURCHASE…');
     render();
     const ok = await shop.restore();
     busy = false;
     if (ok) finish('owned');
     else {
       render();
-      status.textContent = shop.state().error ?? `NO PURCHASE FOUND ON THIS ${STORE_NAME === 'GOOGLE PLAY' ? 'GOOGLE' : 'APPLE'} ACCOUNT`;
+      status.textContent = shop.state().error ?? t('NO PURCHASE FOUND ON THIS {account} ACCOUNT', { account: STORE_NAME === 'GOOGLE PLAY' ? 'GOOGLE' : 'APPLE' });
     }
   }
 

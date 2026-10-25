@@ -10,6 +10,7 @@ import type { Button, Controls } from '../../engine/controls';
 import type { CircuitLayout } from '../layouts';
 import { versionLine } from '../settingsRows';
 import { showStill } from './backdropStill';
+import { t } from '../../engine/i18n';
 
 /** ms from the start being pressed to the game going on (the prompt flashes) */
 export const SPLASH_GO_MS = 360;
@@ -20,7 +21,7 @@ const NOT_START = new Set(['Shift', 'Control', 'Alt', 'Meta', 'Tab', 'CapsLock',
 
 /** What the prompt says: a tap on a touch screen, a key otherwise. */
 export function startPrompt(touch: boolean): string {
-  return touch ? 'TAP TO START' : 'PRESS ANY KEY';
+  return t(touch ? 'TAP TO START' : 'PRESS ANY KEY');
 }
 
 export interface Splash {
@@ -59,7 +60,7 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
   logo.append(word('CORNER'), kerb, word('CUTTERS'));
   const tag = document.createElement('p');
   tag.className = 'splash-tag';
-  tag.textContent = 'ARCADE GRAND PRIX';
+  tag.textContent = t('ARCADE GRAND PRIX');
   const prompt = document.createElement('p');
   prompt.className = 'splash-start';
   const touch = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;

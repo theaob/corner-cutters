@@ -3,6 +3,8 @@
 // way, GO!, an announcement, the controls lap's prompt, the safety car, a Time
 // Attack's clock). Engine-free.
 
+import { t } from '../../engine/i18n';
+
 export interface BannerState {
   /** a replay is on, and the blink of its dot */
   replay: boolean;
@@ -40,23 +42,23 @@ export interface BannerState {
 
 /** The banner's text and colour. */
 export function bannerMessage(s: BannerState): [string, string] {
-  return s.replay ? [`${s.blink ? '●' : '○'} REPLAY`, '#d8323c']
+  return s.replay ? [`${s.blink ? '●' : '○'} ${t('REPLAY')}`, '#d8323c']
     : s.ceremony && !s.resultsUp ? ['', '']
-    : s.out ? [s.championship ? 'DNF' : 'DNF · RESTART to go again', '#d8323c']
-    : s.done && s.finishedPlace !== undefined && !s.resultsUp ? [`FINISHED · P${s.finishedPlace}`, s.finishedPlace <= 3 ? '#f2c14e' : '#f4f4f8']
+    : s.out ? [t(s.championship ? 'DNF' : 'DNF · RESTART to go again'), '#d8323c']
+    : s.done && s.finishedPlace !== undefined && !s.resultsUp ? [t('FINISHED · P{place}', { place: s.finishedPlace }), s.finishedPlace <= 3 ? '#f2c14e' : '#f4f4f8']
     : s.done ? ['', '']
-    : s.pit?.stopped ? [`PIT STOP ${Math.max(0, s.pit.left).toFixed(1)}`, '#f2c14e']
-    : s.pit ? [s.pit.limiter ? 'PIT LIMITER' : 'PIT LANE', '#f2c14e']
-    : s.boxBox ? [`BOX, BOX · PITS ${s.pitSide}`, '#f2c14e']
-    : s.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
-    : s.clock < 1.2 && s.session === 'race' ? ['GO!', '#5fe0d0']
+    : s.pit?.stopped ? [t('PIT STOP {time}', { time: Math.max(0, s.pit.left).toFixed(1) }), '#f2c14e']
+    : s.pit ? [t(s.pit.limiter ? 'PIT LIMITER' : 'PIT LANE'), '#f2c14e']
+    : s.boxBox ? [t('BOX, BOX · PITS {side}', { side: t(s.pitSide) }), '#f2c14e']
+    : s.wrongWay > 1 ? [t('WRONG WAY'), '#d8323c']
+    : s.clock < 1.2 && s.session === 'race' ? [t('GO!'), '#5fe0d0']
     : s.clock < s.notice.until ? [s.notice.text, s.notice.color]
-    : s.learn ? [s.learn.text, s.learn.last ? '#f2c14e' : '#f4f4f8']
-    : s.session !== 'race' && s.session !== 'tutorial' && s.beforeLine ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
-    : s.safetyCar ? ['SAFETY CAR', '#f2c14e']
-    : s.vsc ? ['VIRTUAL SAFETY CAR', '#f2c14e']
+    : s.learn ? [t(s.learn.text), s.learn.last ? '#f2c14e' : '#f4f4f8']
+    : s.session !== 'race' && s.session !== 'tutorial' && s.beforeLine ? [t('TIMING STARTS AT THE LINE'), '#9d9ab8']
+    : s.safetyCar ? [t('SAFETY CAR'), '#f2c14e']
+    : s.vsc ? [t('VIRTUAL SAFETY CAR'), '#f2c14e']
     // (a Time Attack's clock, red in its last seconds)
-    : s.attackLeft !== undefined ? [`${s.attackLeft.toFixed(1)} S`, s.attackLeft < 5 ? '#d8323c' : '#f4f4f8']
+    : s.attackLeft !== undefined ? [`${s.attackLeft.toFixed(1)} ${t('S')}`, s.attackLeft < 5 ? '#d8323c' : '#f4f4f8']
     : ['', ''];
 }
 

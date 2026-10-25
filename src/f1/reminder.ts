@@ -8,6 +8,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { save, saved } from '../engine/save';
 import { challengeOn, dayOf, loadDaily } from './daily';
 import { addDays, loadStreak, localDay, streakNow } from './streak';
+import { lower, t } from '../engine/i18n';
 
 /** The hours it can come at (local time); off is OFF. */
 export const REMINDER_HOURS = [9, 12, 18, 20] as const;
@@ -31,10 +32,10 @@ export function reminderSetting(): ReminderSetting | undefined {
 /** A reminder's words for `day` (your streak as it would stand then, the day's challenge). */
 export function reminderText(day: string, streakDays: number): { title: string; body: string } {
   const c = challengeOn(day);
-  const what = `${c.layout.name} · ${c.weather.name.toLowerCase()}`;
+  const what = `${c.layout.name} · ${lower(t(c.weather.name))}`;
   return streakDays > 0
-    ? { title: `Keep your ${streakDays}-day streak going`, body: `Today's Daily Challenge: ${what}. Three new missions too.` }
-    : { title: "Today's Daily Challenge", body: `${what}. Three new missions, and a streak to start.` };
+    ? { title: t('Keep your {n}-day streak going', { n: streakDays }), body: t("Today's Daily Challenge: {what}. Three new missions too.", { what }) }
+    : { title: t("Today's Daily Challenge"), body: t('{what}. Three new missions, and a streak to start.', { what }) };
 }
 
 /** The reminders due from `now`: one a day at `hour` for PLAN_DAYS days, from tomorrow if you've played today. */

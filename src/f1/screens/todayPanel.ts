@@ -2,8 +2,9 @@
 // along each is, and how you placed on yesterday's Daily Challenge (looked up on its board, when you ran it). What
 // brings a player back: the day's things to do, and the streak not to lose.
 
+import { lower, t } from '../../engine/i18n';
 import { dayBefore, dayOf, fetchBoard, loadDaily } from '../daily';
-import { isDone, loadProgress, missionsOn, progressOf } from '../missions';
+import { isDone, loadProgress, missionText, missionsOn, progressOf } from '../missions';
 import { playerId } from '../profile';
 import { loadStreak, localDay, nextReward, streakDue, streakNow } from '../streak';
 
@@ -32,28 +33,28 @@ export function todayPanel(signal?: AbortSignal): HTMLElement {
   const due = streakDue(s, day);
   panel.append(line(
     'today-streak',
-    span('today-days', days ? `▲ ${days}-DAY STREAK` : '▲ START A STREAK'),
-    span('today-next', due ? 'play today to keep it' : next ? `${next.days - days} more: ${next.name.toLowerCase()}` : 'every look earned'),
+    span('today-days', days ? t('▲ {n}-DAY STREAK', { n: days }) : t('▲ START A STREAK')),
+    span('today-next', due ? t('play today to keep it') : next ? t('{n} more: {name}', { n: next.days - days, name: lower(t(next.name)) }) : t('every look earned')),
   ));
 
   // the day's missions
   const progress = loadProgress(day);
   const missions = missionsOn(day);
   const doneCount = missions.filter((m) => isDone(progress, m)).length;
-  panel.append(line('today-head', span('', "TODAY'S MISSIONS"), span('today-count', `${doneCount}/3`)));
+  panel.append(line('today-head', span('', t("TODAY'S MISSIONS")), span('today-count', `${doneCount}/3`)));
   for (const m of missions) {
     const done = isDone(progress, m);
-    panel.append(line(`today-mission${done ? ' done' : ''}`, span('today-mark', done ? '✓' : '○'), span('today-text', m.text), span('today-of', `${progressOf(progress, m)}/${m.goal}`)));
+    panel.append(line(`today-mission${done ? ' done' : ''}`, span('today-mark', done ? '✓' : '○'), span('today-text', missionText(m)), span('today-of', `${progressOf(progress, m)}/${m.goal}`)));
   }
 
   // yesterday's Daily Challenge, if you ran it: your place on its board
   const yesterday = dayBefore(dayOf());
   if (loadDaily().best[yesterday]) {
-    const result = line('today-yesterday', "YESTERDAY'S DAILY: …");
+    const result = line('today-yesterday', t("YESTERDAY'S DAILY: …"));
     panel.append(result);
     void fetchBoard(yesterday, playerId(), 1).then((board) => {
       if (signal?.aborted) return;
-      if (board?.you) result.textContent = `YESTERDAY'S DAILY: P${board.you.place} OF ${board.entries}`;
+      if (board?.you) result.textContent = t("YESTERDAY'S DAILY: P{place} OF {total}", { place: board.you.place, total: board.entries });
       else result.remove();
     }, () => result.remove());
   }

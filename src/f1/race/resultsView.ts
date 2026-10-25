@@ -9,6 +9,7 @@ import { formatTime as fmt } from '../records';
 import type { Race } from '../raceControl';
 import { line } from './dom';
 import { icon, type IconName } from './icons';
+import { t as tl } from '../../engine/i18n';
 
 /** A driver as the results name them. */
 export interface Named {
@@ -48,12 +49,12 @@ export function resultRows(race: Race, order: number[], named: Named[], you: num
     const e = race.entrants[i];
     const p = e.progress;
     const time = p.retired
-      ? 'DNF'
+      ? tl('DNF')
       : p.finished !== undefined
         ? pos === 0
           ? fmt(p.finished + p.penalty)
           : `+${(p.finished + p.penalty - winner).toFixed(2)}`
-        : `${p.lap}/${race.laps} LAPS`;
+        : tl('{lap}/{laps} LAPS', { lap: p.lap, laps: race.laps });
     return {
       place: pos + 1, moved: i - pos, name: named[i].name, team: named[i].team.code, time,
       best: p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : '–', fastest: fastestWho === i,
@@ -86,14 +87,14 @@ export function raceSummary(rows: ResultRow[]): SummaryBox[] {
   const moved = r.moved > 0 ? ` ▲${r.moved}` : r.moved < 0 ? ` ▼${-r.moved}` : '';
   return [
     r.out
-      ? { icon: 'flag', label: 'FINISH', value: 'OUT', color: '#d8323c' }
-      : { icon: 'flag', label: r.finished ? 'FINISH' : 'PLACE', value: `P${r.place}`, color: PODIUM[r.place - 1] },
-    { icon: 'car', label: 'GRID', value: `P${grid}${r.out ? '' : moved}`, color: r.out ? undefined : r.moved > 0 ? '#5fe0d0' : r.moved < 0 ? '#d8323c' : undefined },
-    r.place === 1 && !r.out ? { icon: 'watch', label: 'TIME', value: r.time } : { icon: 'watch', label: 'GAP', value: r.time },
-    { icon: 'star', label: r.fastest ? 'FASTEST' : 'BEST', value: r.best, color: r.fastest ? '#b36bff' : undefined },
+      ? { icon: 'flag', label: tl('FINISH'), value: tl('OUT'), color: '#d8323c' }
+      : { icon: 'flag', label: tl(r.finished ? 'FINISH' : 'PLACE'), value: `P${r.place}`, color: PODIUM[r.place - 1] },
+    { icon: 'car', label: tl('GRID'), value: `P${grid}${r.out ? '' : moved}`, color: r.out ? undefined : r.moved > 0 ? '#5fe0d0' : r.moved < 0 ? '#d8323c' : undefined },
+    r.place === 1 && !r.out ? { icon: 'watch', label: tl('TIME'), value: r.time } : { icon: 'watch', label: tl('GAP'), value: r.time },
+    { icon: 'star', label: tl(r.fastest ? 'FASTEST' : 'BEST'), value: r.best, color: r.fastest ? '#b36bff' : undefined },
     r.penalty
-      ? { icon: 'warn', label: 'STOPS', value: `${r.stops} +${r.penalty}S`, color: '#d8323c' }
-      : { icon: 'wrench', label: 'STOPS', value: `${r.stops}` },
+      ? { icon: 'warn', label: tl('STOPS'), value: `${r.stops} +${r.penalty}S`, color: '#d8323c' }
+      : { icon: 'wrench', label: tl('STOPS'), value: `${r.stops}` },
   ];
 }
 
@@ -113,7 +114,7 @@ export function qualifyingRows(grid: number[], times: (number | undefined)[], na
   return grid.map((k, pos) => {
     const time = times[k];
     return {
-      place: pos + 1, name: named[k].name, team: named[k].team.code, time: time === undefined ? 'NO TIME' : fmt(time),
+      place: pos + 1, name: named[k].name, team: named[k].team.code, time: time === undefined ? tl('NO TIME') : fmt(time),
       gap: time === undefined || pole === undefined || pos === 0 ? '' : `+${(time - pole).toFixed(3)}`, you: k === you,
     };
   });
@@ -147,7 +148,7 @@ const iconLine = (parts: (string | IconName | HTMLElement)[], css: Partial<CSSSt
   return d;
 };
 const ICON_NAMES = new Set<string>(['watch', 'lap', 'star', 'cup', 'car', 'tyre', 'tow', 'warn', 'ghost', 'wrench', 'sand', 'flag', 'medal']);
-const noteLine = (n: Note, first: boolean) => iconLine(['cup', `${n.text}${n.isNew ? ' · NEW!' : ''}`], { color: n.isNew ? '#f2c14e' : '#f4f2fa', ...(first ? { marginTop: '8px' } : {}) });
+const noteLine = (n: Note, first: boolean) => iconLine(['cup', `${n.text}${n.isNew ? ` · ${tl('NEW!')}` : ''}`], { color: n.isNew ? '#f2c14e' : '#f4f2fa', ...(first ? { marginTop: '8px' } : {}) });
 
 /** Your race at a glance: its boxes side by side in one row, all the same width, centred. */
 function summaryBoxes(boxes: SummaryBox[]): HTMLElement {
@@ -190,7 +191,7 @@ function notesCell(r: ResultRow): HTMLElement {
  * in where they were.
  */
 export function renderResults(el: HTMLElement, title: string, rows: ResultRow[], notes: Note[], next: string | undefined, since: number, footer?: HTMLElement): void {
-  const t = table([['', true], ['', false], ['NAME', false], ['TEAM', false], ['TIME', true], ['BEST', true], ['', false]]);
+  const t = table([['', true], ['', false], [tl('NAME'), false], [tl('TEAM'), false], [tl('TIME'), true], [tl('BEST'), true], ['', false]]);
   for (const r of rows) {
     const row = document.createElement('tr');
     if (r.you) row.style.color = '#f2c14e';
@@ -207,7 +208,7 @@ export function renderResults(el: HTMLElement, title: string, rows: ResultRow[],
     line(title, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px', textAlign: 'center' }),
     ...(summary.length ? [summaryBoxes(summary)] : []),
     t,
-    iconLine(['▲▼ FROM THE GRID ·', 'wrench', 'STOPS ·', 'warn', 'PENALTY'], { color: '#9d9ab8', marginTop: '8px' }),
+    iconLine([`▲▼ ${tl('FROM THE GRID')} ·`, 'wrench', `${tl('STOPS')} ·`, 'warn', tl('PENALTY')], { color: '#9d9ab8', marginTop: '8px' }),
     ...notes.map((n, k) => noteLine(n, k === 0)),
     // (RESTART and EXIT are buttons under the table: no lines for them here)
     ...(next ? [line(next, { marginTop: '8px', textAlign: 'center' })] : []),
@@ -218,7 +219,7 @@ export function renderResults(el: HTMLElement, title: string, rows: ResultRow[],
 
 /** Qualifying's times into `el`: `title`, the table (your row in gold), where you start, the record `note`, and on to the race. */
 export function renderQualifying(el: HTMLElement, title: string, rows: QualifyingRow[], note: Note): void {
-  const t = table([['', true], ['NAME', false], ['TEAM', false], ['TIME', true], ['GAP', true]], '1px 3px');
+  const t = table([['', true], [tl('NAME'), false], [tl('TEAM'), false], [tl('TIME'), true], [tl('GAP'), true]], '1px 3px');
   for (const r of rows) {
     const row = document.createElement('tr');
     if (r.you) row.style.color = '#f2c14e';
@@ -230,9 +231,9 @@ export function renderQualifying(el: HTMLElement, title: string, rows: Qualifyin
   el.replaceChildren(
     line(title, { fontSize: '15px', color: '#f2c14e', marginBottom: '8px' }),
     t,
-    line(place === 1 ? 'POLE POSITION!' : `YOU START P${place}`, { color: '#f2c14e', marginTop: '8px' }),
+    line(place === 1 ? tl('POLE POSITION!') : tl('YOU START P{place}', { place }), { color: '#f2c14e', marginTop: '8px' }),
     noteLine(note, true),
-    line('RACE: on to the grid', { marginTop: '8px' }),
+    line(tl('RACE: on to the grid'), { marginTop: '8px' }),
   );
   el.style.animation = 'row-in 0.25s ease-out both';
   el.style.display = 'block';

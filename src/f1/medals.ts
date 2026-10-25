@@ -8,6 +8,7 @@
 // for the save; the thresholds are unit-tested.
 
 import { save, saved } from '../engine/save';
+import { t } from '../engine/i18n';
 import { ATTACK, bonus, newAttack } from './timeAttack';
 import { DIFFICULTIES } from './difficulty';
 import { SECTORS } from './racing';
@@ -15,6 +16,8 @@ import { SECTORS } from './racing';
 export type Medal = 'bronze' | 'silver' | 'gold';
 export const MEDALS: Medal[] = ['bronze', 'silver', 'gold'];
 export const MEDAL_NAME: Record<Medal, string> = { bronze: 'BRONZE', silver: 'SILVER', gold: 'GOLD' };
+/** "GOLD MEDAL", in the chosen language. */
+export const medalLabel = (m: Medal): string => t('{medal} MEDAL', { medal: t(MEDAL_NAME[m]) });
 export const MEDAL_COLOR: Record<Medal, string> = { bronze: '#d08a4e', silver: '#c9cfdc', gold: '#f2c14e' };
 
 /** The pace (a share of the reference lap's speed) each medal asks for: the quickest AI's on EASY, NORMAL and HARD. */

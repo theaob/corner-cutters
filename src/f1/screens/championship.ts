@@ -97,7 +97,7 @@ function standingsTable(s: Season): HTMLTableElement {
     Object.assign(plus.style, { color: 'var(--gold)', fontSize: '10px', animation: scored ? `score-in 1.6s ease-out ${(0.5 + pos * 0.06).toFixed(2)}s both` : '' });
     row.append(
       cell('td', `${pos + 1}`, true), cell('td', d.name === 'YOU' ? driverName() : d.name), cell('td', teamOf(d).code), pts, plus, cell('td', `${r.wins}`, true),
-      cell('td', lastPlace === undefined ? '' : lastPlace < 0 ? 'DNF' : `P${lastPlace + 1}`, true),
+      cell('td', lastPlace === undefined ? '' : lastPlace < 0 ? t('DNF') : `P${lastPlace + 1}`, true),
     );
     table.append(row);
   });
@@ -126,7 +126,7 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
   let celebrating: ReturnType<typeof celebrateTitle> | undefined;
   if (season) {
     const table = standings(season);
-    const settings = `${difficultyById(season.difficulty)?.name ?? ''} · ${seasonLength(season.laps).name} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
+    const settings = `${t(difficultyById(season.difficulty)?.name ?? '')} · ${t(seasonLength(season.laps).name)} · ${teamOf(season.drivers[season.you]).name.toUpperCase()}`;
     if (over) {
       const champ = season.drivers[table[0].driver];
       // yours: the trophy (and, as the title's just been won, confetti)
@@ -138,24 +138,24 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
           celebrating = celebrateTitle(host, {
             team: { name: teamOf(champ).name, body: teamOf(champ).body, trim: teamOf(champ).trim },
             points: table[0].points, wins: table[0].wins, clear: table[0].points - runnerUp,
-            how: `${difficultyById(season.difficulty)?.name ?? ''} · ${seasonLength(season.laps).name} · ${season.rounds.length} ROUNDS`,
+            how: `${t(difficultyById(season.difficulty)?.name ?? '')} · ${t(seasonLength(season.laps).name)} · ${t('{n} ROUNDS', { n: season.rounds.length })}`,
           });
           void celebrating.done.then(() => (celebrating = undefined));
         }
       }
-      screen.append(line(champ.name === 'YOU' ? 'YOU ARE THE CHAMPION!' : `CHAMPION: ${champ.name} (${teamOf(champ).code})`, 'var(--gold)'));
+      screen.append(line(champ.name === 'YOU' ? t('YOU ARE THE CHAMPION!') : t('CHAMPION: {name} ({team})', { name: champ.name, team: teamOf(champ).code }), 'var(--gold)'));
     } else {
-      const roundLine = line(`ROUND ${season.round + 1} OF ${season.rounds.length} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)');
+      const roundLine = line(`${t('ROUND {n} OF {total}', { n: season.round + 1, total: season.rounds.length })} · ${nameOf(season.rounds[season.round])}`, 'var(--gold)');
       roundLine.prepend(flagSvg(layoutById(season.rounds[season.round])?.country, 20) ?? '');
       screen.append(roundLine);
       // the round's weather: its own, drawn from the season (its name doesn't hang on the race's length)
-      screen.append(line(`FORECAST: ${roundForecast(roundSeed(season, season.round), 1).name}`, 'var(--accent-b)'));
+      screen.append(line(t('FORECAST: {name}', { name: t(roundForecast(roundSeed(season, season.round), 1).name) }), 'var(--accent-b)'));
     }
     screen.append(line(settings));
     // the rounds: raced (your place), next, to come (each kept on one line as the list wraps)
-    screen.append(line(season.rounds.map((id, k) => `${k < season.round ? (season.places[k][season.you] < 0 ? 'DNF' : `P${season.places[k][season.you] + 1}`) : k === season.round ? '▶' : '·'}\u00a0${nameOf(id).replace(/ /g, '\u00a0')}`).join('   ')));
+    screen.append(line(season.rounds.map((id, k) => `${k < season.round ? (season.places[k][season.you] < 0 ? t('DNF') : `P${season.places[k][season.you] + 1}`) : k === season.round ? '▶' : '·'}\u00a0${nameOf(id).replace(/ /g, '\u00a0')}`).join('   ')));
     // a circuit just unlocked: said once
-    if (unlocked) screen.append(line(`${nameOf(unlocked)} UNLOCKED FOR QUICK RACE, TIME ATTACK AND TIME TRIAL`, 'var(--accent-b)'));
+    if (unlocked) screen.append(line(t('{circuit} UNLOCKED FOR QUICK RACE, TIME ATTACK AND TIME TRIAL', { circuit: nameOf(unlocked) }), 'var(--accent-b)'));
     screen.append(standingsTable(season));
     // SHARE: the season so far (or its result) as a card, once a round's been raced (not on YouTube: no sharing there)
     if (season.round > 0 && !YOUTUBE) {
@@ -166,11 +166,11 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       share.style.color = 'var(--gold)';
       screen.append(share);
     }
-  } else screen.append(line('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN'), line('PICK YOUR TEAM, CAR, QUALIFYING AND LENGTH (DIFFICULTY IN SETTINGS)'), line('EACH ROUND HAS ITS OWN WEATHER: RAIN MAY COME OR GO, BOX FOR THE RIGHT TYRES'));
+  } else screen.append(line(t('A SEASON: A ROUND ON EACH CIRCUIT, F1 POINTS FOR THE TOP TEN')), line(t('PICK YOUR TEAM, CAR, QUALIFYING AND LENGTH (DIFFICULTY IN SETTINGS)')), line(t('EACH ROUND HAS ITS OWN WEATHER: RAIN MAY COME OR GO, BOX FOR THE RIGHT TYRES')));
   // a new season's team and qualifying: shown when one can be started (mid-season, once NEW SEASON is pressed)
   const teamRow = optionRow('TEAM', TEAMS, picked.team, (t) => ({ name: t.name.toUpperCase(), about: t.code, colors: [t.body, t.trim, ...(t.accent ? [t.accent] : [])], icon: logoSvg(t.id, 20) }));
   const qualifyingRow = optionRow('QUALIFYING', [false, true], picked.qualifying, (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'one flying lap sets your grid slot' : 'start mid-grid' }));
-  const lengthRow = optionRow('LENGTH', SEASON_LENGTHS.map((l) => l.laps), seasonLength(picked.laps).laps, (n) => ({ name: seasonLength(n).name, about: n > RACE_LAPS ? `${n} laps a round: a strategy race, one stop or two` : `${n} laps a round: one stop` }));
+  const lengthRow = optionRow('LENGTH', SEASON_LENGTHS.map((l) => l.laps), seasonLength(picked.laps).laps, (n) => ({ name: seasonLength(n).name, about: t(n > RACE_LAPS ? '{n} laps a round: a strategy race, one stop or two' : '{n} laps a round: one stop', { n }) }));
   const rows = [teamRow, qualifyingRow, lengthRow];
   // mid-season: qualifying or not, picked before each round (kept with the season, so the round races as picked;
   // and remembered for the next one), above the button that races it
@@ -214,9 +214,9 @@ export function showChampionship(host: HTMLElement, services: Services, season: 
       }
       finish({ new: { team: teamRow.value(), seat: 0, qualifying: qualifyingRow.value(), laps: lengthRow.value() } });
     };
-    const newButton = menuButton(season && !over ? 'NEW SEASON' : 'START A SEASON', pickNew);
+    const newButton = menuButton(t(season && !over ? 'NEW SEASON' : 'START A SEASON'), pickNew);
     const choices: { el: HTMLButtonElement; pick: () => void }[] = [
-      ...(season && !over ? [{ el: menuButton(`RACE ROUND ${season.round + 1} · ${nameOf(season.rounds[season.round])}`, () => finish('race')), pick: () => finish('race') }] : []),
+      ...(season && !over ? [{ el: menuButton(t('RACE ROUND {n} · {circuit}', { n: season.round + 1, circuit: nameOf(season.rounds[season.round]) }), () => finish('race')), pick: () => finish('race') }] : []),
       { el: newButton, pick: pickNew },
       { el: menuButton(backLabel(), () => finish('back')), pick: () => finish('back') },
     ];

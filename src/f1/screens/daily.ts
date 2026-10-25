@@ -21,10 +21,10 @@ import { reportOpen } from '../report';
 import { sendLaps } from '../boards';
 
 /** `ms` as hours and minutes: 5H 12M. */
-const hm = (ms: number) => `${Math.floor(ms / 3600000)}H ${Math.floor((ms % 3600000) / 60000)}M`;
+const hm = (ms: number) => t('{h}H {m}M', { h: Math.floor(ms / 3600000), m: Math.floor((ms % 3600000) / 60000) });
 
 /** A run's distance, and its time to the last checkpoint. */
-export const runText = (score: number, time: number) => `${distance(score)} · ${time.toFixed(1)} S`;
+export const runText = (score: number, time: number) => `${distance(score)} · ${time.toFixed(1)} ${t('S')}`;
 
 /** The board as a table: place, initials, how far, how soon; you in gold, after a ··· if you're further down. */
 function boardTable(b: Board): HTMLTableElement {
@@ -75,14 +75,15 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   // (your streak of days played, any mode: streak.ts)
   const streak = streakNow(loadStreak(log), localDay());
   const withFlag = (p: HTMLElement, country?: string) => (p.prepend(flagSvg(country, 20) ?? ''), p);
-  const when = line(`${c.day} · THE NEXT ONE IN ${hm(untilNext())}`);
+  const nextIn = () => t('{day} · THE NEXT ONE IN {time}', { day: c.day, time: hm(untilNext()) });
+  const when = line(nextIn());
   screen.append(
     title,
     withFlag(line(c.layout.name.toUpperCase(), 'var(--gold)'), c.layout.country),
-    line(`TIME ATTACK · NORMAL · ${c.weather.name} · THE SAME FOR EVERYONE TODAY`, 'var(--accent-b)'),
+    line(t('TIME ATTACK · NORMAL · {weather} · THE SAME FOR EVERYONE TODAY', { weather: t(c.weather.name) }), 'var(--accent-b)'),
     when,
-    line(best ? `YOUR BEST TODAY: ${runText(best.score, best.time)}` : 'NO RUN YET TODAY: AS MANY AS YOU LIKE, YOUR BEST COUNTS', best ? 'var(--text)' : 'var(--muted)'),
-    ...(streak ? [line(`STREAK: ${streak} DAY${streak === 1 ? '' : 'S'} ▲`, 'var(--gold)')] : []),
+    line(best ? t('YOUR BEST TODAY: {run}', { run: runText(best.score, best.time) }) : t('NO RUN YET TODAY: AS MANY AS YOU LIKE, YOUR BEST COUNTS'), best ? 'var(--text)' : 'var(--muted)'),
+    ...(streak ? [line(t(streak === 1 ? 'STREAK: {n} DAY ▲' : 'STREAK: {n} DAYS ▲', { n: streak }), 'var(--gold)')] : []),
   );
   // the board: loading, then the day's (or why there isn't one)
   const board = document.createElement('div');
@@ -92,7 +93,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   const boards = online();
   if (boards) screen.append(board);
   if (boards) {
-    say('LOADING THE BOARD…');
+    say(t('LOADING THE BOARD…'));
     const player = playerId();
     void (async () => {
       const name = initials();
@@ -101,9 +102,9 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
       if (name) void sendLaps(player, name, typeof __APP_VERSION__ === 'string' ? __APP_VERSION__.slice(0, 40) : undefined);
       const b = await fetchBoard(c.day, player, 10);
       if (closed?.aborted) return;
-      if (!b) say("OFFLINE · YOUR BEST GOES ON THE BOARD WHEN YOU'RE BACK");
-      else if (!b.entries) say('NO ONE ON THE BOARD YET TODAY: BE THE FIRST');
-      else board.replaceChildren(line(`${b.entries} DRIVER${b.entries === 1 ? '' : 'S'} TODAY${b.you ? ` · YOU: #${b.you.place}` : ''}`, 'var(--gold)'), boardTable(b));
+      if (!b) say(t("OFFLINE · YOUR BEST GOES ON THE BOARD WHEN YOU'RE BACK"));
+      else if (!b.entries) say(t('NO ONE ON THE BOARD YET TODAY: BE THE FIRST'));
+      else board.replaceChildren(line(t(b.entries === 1 ? '{n} DRIVER TODAY' : '{n} DRIVERS TODAY', { n: b.entries }) + (b.you ? ` · ${t('YOU: #{place}', { place: b.you.place })}` : ''), 'var(--gold)'), boardTable(b));
     })();
   }
   // your initials for the board: three letters or digits, typed (the phone's keyboard comes up), as on an arcade
@@ -116,7 +117,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
   Object.assign(field, { id: 'daily-initials', type: 'text', maxLength: 3, autocomplete: 'off', spellcheck: false, value: initials() ?? '' });
   field.setAttribute('autocapitalize', 'characters');
   field.setAttribute('enterkeyhint', 'done');
-  field.setAttribute('aria-label', 'Your three initials');
+  field.setAttribute('aria-label', t('Your three initials'));
   field.placeholder = 'ABC';
   const nameHint = document.createElement('span');
   nameHint.textContent = t('THREE LETTERS OR DIGITS');
@@ -159,7 +160,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
       screen.remove();
       resolve(a);
     };
-    const playButton = menuButton('PLAY ▶', () => finish('play'));
+    const playButton = menuButton(`${t('PLAY')} ▶`, () => finish('play'));
     playButton.classList.add('race-button');
     const backButton = menuButton(backLabel(), () => finish('back'));
     screen.append(nameButton, playButton, backButton);
@@ -169,7 +170,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     layOut = () => {
       options.style.display = naming ? '' : 'none';
       nameButton.style.display = naming || !boards ? 'none' : '';
-      nameButton.textContent = `ON THE BOARD AS ${initials() ?? nameNow()} · CHANGE`;
+      nameButton.textContent = t('ON THE BOARD AS {name} · CHANGE', { name: initials() ?? nameNow() });
       places = [
         ...(naming ? [{ el: options as HTMLElement, pick: () => field.focus() }] : boards ? [{ el: nameButton as HTMLElement, pick: () => nameButton.click() }] : []),
         { el: playButton, pick: () => finish('play') },
@@ -194,7 +195,7 @@ export function showDaily(host: HTMLElement, services: Services, c: Challenge, c
     hud.setLabel('a', 'OK');
     hud.setLabel('b', '');
     // (the countdown to the next challenge, by the minute)
-    const clock = setInterval(() => (when.textContent = `${c.day} · THE NEXT ONE IN ${hm(untilNext())}`), 30000);
+    const clock = setInterval(() => (when.textContent = nextIn()), 30000);
     closed?.addEventListener('abort', () => {
       done = true;
       offBack();

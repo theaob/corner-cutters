@@ -1,5 +1,5 @@
 import { type StandaloneView } from './engine/view';
-import { applyLanguage, onLanguageChange, useLanguages } from './engine/i18n';
+import { applyLanguage, lower, onLanguageChange, t, useLanguages } from './engine/i18n';
 import { LANGUAGES } from './f1/lang';
 import { mountTuning } from './engine/tuning';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
@@ -270,14 +270,14 @@ function reportLater(e: unknown): void {
 
 /** The line under a race's name on its loading card: the mode (a Championship's round) and the weather. */
 function raceLine(mode: string | null): string {
-  if (mode === 'tutorial') return 'CONTROLS LAP';
-  if (mode === 'daily') return `DAILY CHALLENGE · ${challengeOn(dayOf()).weather.name}`;
+  if (mode === 'tutorial') return t('CONTROLS LAP');
+  if (mode === 'daily') return `${t('DAILY CHALLENGE')} · ${t(challengeOn(dayOf()).weather.name)}`;
   const season = mode === 'championship' ? loadSeason() : undefined;
-  const what = season ? `CHAMPIONSHIP · ROUND ${season.round + 1} OF ${season.rounds.length}` : mode === 'timetrial' ? 'TIME TRIAL' : mode === 'timeattack' ? 'TIME ATTACK' : 'QUICK RACE';
-  if (season) return `${what} · FORECAST: ${roundForecast(roundSeed(season, season.round), 1).name}`;
+  const what = season ? `${t('CHAMPIONSHIP')} · ${t('ROUND {n} OF {total}', { n: season.round + 1, total: season.rounds.length })}` : t(mode === 'timetrial' ? 'TIME TRIAL' : mode === 'timeattack' ? 'TIME ATTACK' : 'QUICK RACE');
+  if (season) return `${what} · ${t('FORECAST: {name}', { name: t(roundForecast(roundSeed(season, season.round), 1).name) })}`;
   // (against the clock, the weather's the same all session: a Quick Race's changeable is dry there)
   const weather = mode === 'timetrial' || mode === 'timeattack' ? clockWeather() : savedWeather();
-  return `${what} · ${weather.name}`;
+  return `${what} · ${t(weather.name)}`;
 }
 
 /** which menu screen is up, for a report made from it (the dashboard says where it came from) */
@@ -363,7 +363,7 @@ async function showMenu(id: number): Promise<void> {
   let stopBackdrop = () => {};
   current = { close: () => closed.abort() };
   const kept = keptToOffer();
-  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal, savedTyres(), kept && { about: `${kept.name} · ${keptLap(kept)}${kept.mode === 'championship' ? ` · round ${(kept.round ?? 0) + 1}` : ''}`.toLowerCase() });
+  const picking = chooseCircuit(screen, services, LAYOUTS, layoutById(choice('circuit')), savedTeam(), savedDifficulty(), savedWeather(), savedQualifying(), savedMode(), savedLaps(), openNow(), closed.signal, savedTyres(), kept && { about: lower(`${kept.name} · ${keptLap(kept)}${kept.mode === 'championship' ? ` · ${t('ROUND {n}', { n: (kept.round ?? 0) + 1 })}` : ''}`) });
   curtainUp();
   stopBackdrop = raceBehind(closed.signal);
   // (the app, after a first day's play: a daily reminder offered, once)

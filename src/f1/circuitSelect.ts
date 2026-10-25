@@ -30,7 +30,7 @@ import { ownsChampionship } from './purchase';
 import { distance } from './timeAttack';
 import { settingsPages, settingsRows as settingsRowsNow } from './settingsRows';
 import { worldBoard } from './screens/worldBoard';
-import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, type Medal } from './medals';
+import { MEDAL_COLOR, MEDAL_NAME, loadTrophies, medalLabel, type Medal } from './medals';
 import { medalBadge, trophy } from './screens/celebrate';
 import { ACHIEVEMENTS, medalAchievements, unlock, unlockedAchievements } from './achievements';
 import { sharedPlayAchievements } from './playAchievements';
@@ -40,7 +40,7 @@ import { reportOpen } from './report';
 import { gameHidden } from '../engine/host';
 import { COMPOUNDS, type DryCompound } from './tyres';
 import { motionReduced } from './access';
-import { t, backLabel } from '../engine/i18n';
+import { t, backLabel, lower, upper } from '../engine/i18n';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -155,6 +155,8 @@ const SWIPE = 28;
 const TAP_SLOP = 12;
 
 const HINT = 'SWIPE TO CHANGE · TAP THE CIRCUIT TO RACE';
+/** the hint under the circuit, in the chosen language */
+const hintText = (): string => t(HINT);
 
 /**
  * What a gesture on the circuit card does: a swipe left is the next circuit and
@@ -387,7 +389,7 @@ export function chooseCircuit(
       cell.classList.add('won');
       cell.style.setProperty('--delay', `${0.15 + popped++ * 0.08}s`);
       const name = document.createElement('span');
-      name.textContent = MEDAL_NAME[m];
+      name.textContent = t(MEDAL_NAME[m]);
       name.style.color = MEDAL_COLOR[m];
       cell.append(medalBadge(m, 14), name);
     } else cell.textContent = '–';
@@ -397,15 +399,15 @@ export function chooseCircuit(
     const titles = document.createElement('div');
     titles.className = 'titles';
     const titleText = document.createElement('span');
-    titleText.textContent = trophies.titles ? `× ${trophies.titles} CHAMPIONSHIP${trophies.titles === 1 ? '' : 'S'} WON` : 'NO CHAMPIONSHIPS WON YET';
+    titleText.textContent = trophies.titles ? t(trophies.titles === 1 ? '× {n} CHAMPIONSHIP WON' : '× {n} CHAMPIONSHIPS WON', { n: trophies.titles }) : t('NO CHAMPIONSHIPS WON YET');
     titleText.style.color = 'inherit';
     if (trophies.titles) titles.append(trophy(28));
     titles.append(titleText);
     const head = document.createElement('div');
     head.className = 'cabinet-row head';
-    for (const t of ['CIRCUIT', 'TIME TRIAL', 'TIME ATTACK']) {
+    for (const word of ['CIRCUIT', 'TIME TRIAL', 'TIME ATTACK']) {
       const c = document.createElement('span');
-      c.textContent = t;
+      c.textContent = t(word);
       head.append(c);
     }
     const all = calendar.flatMap((l) => [trophies.medals[l.id]?.trial, trophies.medals[l.id]?.attack]);
@@ -451,8 +453,8 @@ export function chooseCircuit(
     // kept are filled in quietly), the rest dimmed with what they take
     unlock(medalAchievements(trophies, calendar.map((l) => l.id)));
     const got = new Set(unlockedAchievements());
-    const medalsTab = tabButton('MEDALS', 'medals');
-    const achievementsTab = tabButton(`ACHIEVEMENTS ${got.size}/${ACHIEVEMENTS.length}`, 'achievements');
+    const medalsTab = tabButton(t('MEDALS'), 'medals');
+    const achievementsTab = tabButton(`${t('ACHIEVEMENTS')} ${got.size}/${ACHIEVEMENTS.length}`, 'achievements');
     tabs.append(medalsTab, achievementsTab);
     showTab = (tab) => {
       cabinetTab = tab;
@@ -465,11 +467,11 @@ export function chooseCircuit(
     // (the Google Play build, with Play Games: Google's own achievements screen, signing in first if need be)
     const play = sharedPlayAchievements();
     if (play?.available()) {
-      const playButton = menuButton('GOOGLE PLAY GAMES ▸', () => {
+      const playButton = menuButton(`${t('GOOGLE PLAY GAMES')} ▸`, () => {
         menuPick();
         // (said on the button when Google's screen won't open: not signed in, or Play Games not set up for this build)
         void play.show(unlockedAchievements()).then((shown) => {
-          playButton.textContent = shown ? 'GOOGLE PLAY GAMES ▸' : "COULDN'T SIGN IN · TRY AGAIN ▸";
+          playButton.textContent = shown ? `${t('GOOGLE PLAY GAMES')} ▸` : `${t("COULDN'T SIGN IN · TRY AGAIN")} ▸`;
         });
       });
       playButton.classList.add('cabinet-play');
@@ -482,9 +484,9 @@ export function chooseCircuit(
       const star = document.createElement('b');
       star.textContent = got.has(a.id) ? '★' : '☆';
       const name = document.createElement('strong');
-      name.textContent = a.name;
+      name.textContent = t(a.name);
       const about = document.createElement('span');
-      about.textContent = a.about.toUpperCase();
+      about.textContent = upper(t(a.about));
       row.append(star, name, about);
       return row;
     }));
@@ -507,7 +509,7 @@ export function chooseCircuit(
     shopPicked = true;
     finish(layouts[selected]);
   };
-  const shopButton = menuButton('SHOP', openShop);
+  const shopButton = menuButton(t('SHOP'), openShop);
   makeTile(shopButton, 'shop', t('SHOP'), t('helmets and looks for your car'));
   makeTile(trophiesButton, 'trophies', t('TROPHIES'), t('your titles, medals and achievements'));
   const cabinetDone = menuButton(backLabel(), closeCabinet);
@@ -538,12 +540,12 @@ export function chooseCircuit(
     name.textContent = layout.name;
     name.prepend(flagSvg(layout.country, 24) ?? '');
     const about = document.createElement('span');
-    about.textContent = locked ? (ownsChampionship() ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : 'LOCKED · COMES WITH THE CHAMPIONSHIP') : layout.about;
+    about.textContent = t(locked ? (ownsChampionship() ? 'LOCKED · REACH IT IN A CHAMPIONSHIP' : 'LOCKED · COMES WITH THE CHAMPIONSHIP') : layout.about);
     const text = document.createElement('div');
     text.append(name, about);
     // your record here, once you have one: in a Time Attack the furthest you've got, else your fastest lap
     const here = records.circuits[layout.id];
-    const best = current.id === 'timeattack' ? (here?.bestAttack ? `BEST ${distance(here.bestAttack)}` : undefined) : here?.bestLap !== undefined ? `LAP RECORD ${formatTime(here.bestLap)}` : undefined;
+    const best = current.id === 'timeattack' ? (here?.bestAttack ? t('BEST {distance}', { distance: distance(here.bestAttack) }) : undefined) : here?.bestLap !== undefined ? t('LAP RECORD {time}', { time: formatTime(here.bestLap) }) : undefined;
     if (best) {
       const record = document.createElement('span');
       record.className = 'record';
@@ -555,7 +557,7 @@ export function chooseCircuit(
     if (medal) {
       const m = document.createElement('span');
       m.className = 'record';
-      m.textContent = `● ${MEDAL_NAME[medal]} MEDAL`;
+      m.textContent = `● ${medalLabel(medal)}`;
       m.style.color = MEDAL_COLOR[medal];
       text.append(m);
     }
@@ -573,7 +575,7 @@ export function chooseCircuit(
     selected = (selected + by + layouts.length) % layouts.length;
     // (the rows for the circuit: on dirt, no TYRES)
     if (view === 'circuit') setRows();
-    hint.textContent = HINT;
+    hint.textContent = hintText();
     menuTick();
     renderCard();
   };
@@ -607,7 +609,7 @@ export function chooseCircuit(
   // the big button that races, named for the mode
   const raceButton = menuButton('', () => finish(layouts[selected]));
   raceButton.classList.add('race-button');
-  const renderRace = () => (raceButton.textContent = `${current.name} ▶`);
+  const renderRace = () => (raceButton.textContent = `${t(current.name)} ▶`);
   const options = document.createElement('div');
   options.className = 'options';
   /** the circuit screen's rows: the mode's, for the circuit picked */
@@ -627,7 +629,7 @@ export function chooseCircuit(
     menuPick();
     view = 'circuit';
     setRows();
-    hint.textContent = HINT;
+    hint.textContent = hintText();
     focus = 0;
     renderCard();
     renderRace();
@@ -648,7 +650,7 @@ export function chooseCircuit(
   }) : undefined;
   if (resumeButton) {
     resumeButton.classList.add('mode-button', 'resume-button');
-    makeTile(resumeButton, 'resume', 'RESUME RACE', kept!.about);
+    makeTile(resumeButton, 'resume', t('RESUME RACE'), kept!.about);
     resumeButton.classList.add('wide');
     // (its circuit and lap beside the icon, under the name: where the race is to be come back to)
     const label = resumeButton.querySelector('strong')!;
@@ -668,7 +670,7 @@ export function chooseCircuit(
     const locked = m.id === 'championship' && !ownsChampionship();
     // (the Daily Challenge: today's circuit and weather)
     const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
-    const about = locked ? 'unlock: a full season, and every circuit' : today ? `today: ${today.layout.name} · ${today.weather.name.toLowerCase()} · race the world` : m.about;
+    const about = locked ? 'unlock: a full season, and every circuit' : today ? t('today: {circuit} · {weather} · race the world', { circuit: today.layout.name, weather: lower(t(today.weather.name)) }) : m.about;
     makeTile(b, m.id, t(m.name), t(about));
     if (locked) b.classList.add('locked');
     return b;
@@ -768,7 +770,7 @@ export function chooseCircuit(
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
       if (!resumePicked && !shopPicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
         menuTick();
-        hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
+        hint.textContent = t('{circuit}: REACH IT IN A CHAMPIONSHIP TO UNLOCK', { circuit: upper(layout.name) });
         return;
       }
       done = true;

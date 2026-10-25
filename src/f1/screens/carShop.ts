@@ -100,7 +100,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     return p;
   };
   const status = line(' ');
-  screen.append(title, line('LOOKS FOR YOUR CAR: A STREAK OF DAYS PLAYED EARNS THEM, YOURS FOR GOOD', 'var(--text)'));
+  screen.append(title, line(t('LOOKS FOR YOUR CAR: A STREAK OF DAYS PLAYED EARNS THEM, YOURS FOR GOOD'), 'var(--text)'));
   const entries = shopStyles(best);
   // (helmets, and whole-car paint, apart: a look that sets only the helmet is a helmet, NO CUSTOMIZATION leading them)
   const isPaint = (s: CarStyle) => !('helmet' in s.look) && Object.keys(s.look).length > 0;

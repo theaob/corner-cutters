@@ -4,6 +4,7 @@
 // minute). Without initials yet, a field for them: three letters or digits,
 // and your record laps go on the boards (boards.ts).
 
+import { t } from '../../engine/i18n';
 import { online } from '../../engine/backend';
 import { fetchLapBoard, isBoardWeather, sendLaps, type LapBoard, type LapEntry } from '../boards';
 import { INITIALS, initials, playerId, setInitials } from '../profile';
@@ -53,12 +54,12 @@ export function worldBoard(): WorldBoard {
     const label = document.createElement('label');
     label.className = 'world-name';
     const say = document.createElement('span');
-    say.textContent = 'YOUR NAME ON THE BOARDS';
+    say.textContent = t('YOUR NAME ON THE BOARDS');
     const field = document.createElement('input');
     Object.assign(field, { type: 'text', maxLength: 3, autocomplete: 'off', spellcheck: false, placeholder: 'ABC' });
     field.setAttribute('autocapitalize', 'characters');
     field.setAttribute('enterkeyhint', 'done');
-    field.setAttribute('aria-label', 'Your three initials for the boards');
+    field.setAttribute('aria-label', t('Your three initials for the boards'));
     field.addEventListener('input', () => {
       const clean = field.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
       if (clean !== field.value) field.value = clean;
@@ -83,13 +84,13 @@ export function worldBoard(): WorldBoard {
   const render = (key: string, title: string, board: LapBoard | undefined | 'loading') => {
     if (key !== showing) return;
     const parts: HTMLElement[] = [line(title, 'world-title')];
-    if (board === 'loading') parts.push(line('READING THE BOARD…'));
-    else if (!board) parts.push(line("OFFLINE · YOUR RECORDS GO ON WHEN YOU'RE BACK"));
-    else if (!board.entries) parts.push(line('NO LAPS HERE YET: SET THE FIRST'));
+    if (board === 'loading') parts.push(line(t('READING THE BOARD…')));
+    else if (!board) parts.push(line(t("OFFLINE · YOUR RECORDS GO ON WHEN YOU'RE BACK")));
+    else if (!board.entries) parts.push(line(t('NO LAPS HERE YET: SET THE FIRST')));
     else {
       const rows = board.top.map(entryRow);
       if (board.you && !board.top.some((e) => e.you)) rows.push(line('···', 'world-gap'), entryRow({ ...board.you, you: true }));
-      parts.push(...rows, line(`${board.entries} DRIVER${board.entries === 1 ? '' : 'S'}${board.you ? ` · YOU #${board.you.place}` : ''}`, 'world-count'));
+      parts.push(...rows, line(t(board.entries === 1 ? '{n} DRIVER' : '{n} DRIVERS', { n: board.entries }) + (board.you ? ` · ${t('YOU #{place}', { place: board.you.place })}` : ''), 'world-count'));
     }
     if (!initials()) parts.push(nameField());
     el.replaceChildren(...parts);
@@ -101,7 +102,7 @@ export function worldBoard(): WorldBoard {
     const key = `${circuit}|${weather}`;
     if (key === showing) return;
     showing = key;
-    const title = `WORLD BOARD · ${weather.toUpperCase()}`;
+    const title = t('WORLD BOARD · {weather}', { weather: t(weather.toUpperCase()) });
     const kept = reads.get(key);
     if (kept && Date.now() - kept.at < FRESH_MS) {
       render(key, title, kept.board);
