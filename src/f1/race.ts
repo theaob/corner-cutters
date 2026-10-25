@@ -420,7 +420,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const reached = kind === 'attack' && attack ? attackMedal(attack.a.passed, attack.a.generous) : undefined;
     const next = nextMedal(reached && (!held || MEDALS.indexOf(reached) > MEDALS.indexOf(held)) ? reached : held);
     const target = !next ? undefined : kind === 'trial' ? fmt(lapTargets(reference)[next]) : attack ? shortDistance(attackTargets(attack.a.generous)[next]) : undefined;
-    paintRows(medalLine, !next ? `${tl('GOLD')} ●\n` : target ? `${tl(MEDAL_NAME[next])} ${target}\n` : '');
+    paintRows(medalLine, !next ? 'GOLD ●\n' : target ? `${MEDAL_NAME[next]} ${target}\n` : '');
     medalLine.style.color = MEDAL_COLOR[next ?? 'gold'];
   };
   // your records here, kept between races: each lap is saved as soon as it's done, the race at your flag
@@ -1150,7 +1150,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (attack?.result) {
       const { passed, medal, record, daily } = attack.result;
       return attackCard({
-        circuit: layout.name.toUpperCase(), mode: options.daily ? `DAILY CHALLENGE · ${weather.name}` : `TIME ATTACK · ${difficulty.name} · ${weather.name}`,
+        circuit: layout.name.toUpperCase(), mode: options.daily ? `${tl('DAILY CHALLENGE')} · ${tl(weather.name)}` : `${tl('TIME ATTACK')} · ${tl(difficulty.name)} · ${tl(weather.name)}`,
         distance: distance(passed), medal, record, best: distance(daily ? daily.dayBest.score : Math.max(passed, attack.best ?? 0)), team: yours, date,
         place: daily?.place !== undefined ? `#${daily.place} OF ${daily.entries}` : undefined,
       });
@@ -1161,7 +1161,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const winner = race.entrants[order[0]].progress;
     return raceCard({
       circuit: layout.name.toUpperCase(),
-      mode: championship ? `CHAMPIONSHIP · ROUND ${championship.season.round + 1} OF ${championship.season.rounds.length}` : `QUICK RACE · ${difficulty.name} · ${weather.name}`,
+      mode: championship ? `${tl('CHAMPIONSHIP')} · ${tl('ROUND {n} OF {total}', { n: championship.season.round + 1, total: championship.season.rounds.length })}` : `${tl('QUICK RACE')} · ${tl(difficulty.name)} · ${tl(weather.name)}`,
       place: p.retired || p.finished === undefined ? undefined : order.indexOf(you) + 1, field: race.entrants.length, grid: you + 1,
       gap: p.finished !== undefined ? p.finished + p.penalty - ((winner.finished ?? 0) + winner.penalty) : undefined,
       best: p.lapTimes.length ? fmt(Math.min(...p.lapTimes)) : undefined, fastest: hudState.fastest?.who === you, team: yours, date,
@@ -2144,7 +2144,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (session === 'race' && !done && p.lap !== keptAtLap && race.phase === 'racing') keepNow();
     hudState.lastPos = pos;
     hudState.lastOrder = order;
-    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT LAP' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT LAP' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT LAP' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? tl('OUT LAP') : trial?.lap.deleted ? tl('LAP DELETED') : tl('LAP {n}', { n: p.lapTimes.length + 1 })) : session === 'timeattack' ? (p.lapStart === undefined ? tl('OUT LAP') : tl('LAP {n}', { n: p.lapTimes.length + 1 })) : session === 'qualifying' ? (p.lapStart === undefined ? tl('OUT LAP') : quali?.lap.deleted ? tl('LAP DELETED') : tl('FLYING LAP')) : p.retired ? tl('OUT') : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? tl('FINAL LAP') : tl('LAP {lap}/{laps}', { lap: Math.min(laps, p.lap + 1), laps }));
 
     // box, box: on the radio once a lap, as the pit wall's call goes up
     if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {

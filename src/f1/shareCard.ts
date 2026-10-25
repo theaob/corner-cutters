@@ -5,7 +5,8 @@
 // worked out engine-free (`raceCard`, `attackCard`, `shareText`); `drawCard`
 // paints it.
 
-import { MEDAL_COLOR, MEDAL_NAME, type Medal } from './medals';
+import { MEDAL_COLOR, medalLabel, type Medal } from './medals';
+import { t } from '../engine/i18n';
 
 /** Where the game is played (on the card and in the text). */
 export const SHARE_URL = (import.meta.env?.VITE_SHARE_URL as string | undefined) || 'theaob.github.io/corner-cutters/play/';
@@ -41,13 +42,13 @@ export function raceCard(r: {
   const moved = p === undefined ? 0 : r.grid - p;
   return {
     circuit: r.circuit, mode: r.mode, team: r.team, date: r.date,
-    headline: p === undefined ? 'DNF' : `P${p}`,
+    headline: p === undefined ? t('DNF') : `P${p}`,
     color: p === undefined ? '#d8323c' : PLACE_COLOR[p - 1] ?? '#f4f4f8',
-    sub: p === undefined ? 'OUT OF THE RACE' : p === 1 ? 'WINNER' : p <= 3 ? `PODIUM · +${(r.gap ?? 0).toFixed(2)} S` : `+${(r.gap ?? 0).toFixed(2)} S`,
+    sub: p === undefined ? t('OUT OF THE RACE') : p === 1 ? t('WINNER') : p <= 3 ? `${t('PODIUM')} · +${(r.gap ?? 0).toFixed(2)} ${t('S')}` : `+${(r.gap ?? 0).toFixed(2)} ${t('S')}`,
     stats: [
-      ['GRID', `P${r.grid}`],
-      ['PLACES', p === undefined ? '–' : moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '–'],
-      [r.fastest ? 'FASTEST LAP' : 'BEST LAP', r.best ?? '–'],
+      [t('GRID'), `P${r.grid}`],
+      [t('PLACES'), p === undefined ? '–' : moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '–'],
+      [t(r.fastest ? 'FASTEST LAP' : 'BEST LAP'), r.best ?? '–'],
     ],
   };
 }
@@ -59,8 +60,8 @@ export function attackCard(a: {
   return {
     circuit: a.circuit, mode: a.mode, team: a.team, date: a.date, medal: a.medal,
     headline: a.distance, color: a.medal ? MEDAL_COLOR[a.medal] : '#f4f4f8',
-    sub: a.medal ? `${MEDAL_NAME[a.medal]} MEDAL${a.record ? ' · NEW RECORD' : ''}` : a.record ? 'NEW RECORD' : 'TIME UP',
-    stats: [['REACHED', a.distance], ['BEST', a.best ?? a.distance], ...(a.place ? [['TODAY', a.place] as [string, string]] : [])],
+    sub: a.medal ? `${medalLabel(a.medal)}${a.record ? ` · ${t('NEW RECORD')}` : ''}` : a.record ? t('NEW RECORD') : t('TIME UP'),
+    stats: [[t('REACHED'), a.distance], [t('BEST'), a.best ?? a.distance], ...(a.place ? [[t('TODAY'), a.place] as [string, string]] : [])],
   };
 }
 
@@ -74,10 +75,10 @@ export function seasonCard(s: {
 }): ShareCard {
   const medal: Medal | undefined = s.over ? (['gold', 'silver', 'bronze'] as const)[s.place - 1] : undefined;
   return {
-    circuit: 'CHAMPIONSHIP', mode: s.mode, team: s.team, date: s.date, medal, season: { over: s.over, round: s.round, rounds: s.rounds },
+    circuit: t('CHAMPIONSHIP'), mode: s.mode, team: s.team, date: s.date, medal, season: { over: s.over, round: s.round, rounds: s.rounds },
     headline: `P${s.place}`, color: PLACE_COLOR[s.place - 1] ?? '#f4f4f8',
-    sub: s.over ? (s.place === 1 ? 'CHAMPION' : `P${s.place} OF ${s.field} IN THE STANDINGS`) : `AFTER ROUND ${s.round} OF ${s.rounds}`,
-    stats: [['POINTS', String(s.points)], ['WINS', String(s.wins)], ['PODIUMS', String(s.podiums)]],
+    sub: s.over ? (s.place === 1 ? t('CHAMPION') : t('P{place} OF {field} IN THE STANDINGS', { place: s.place, field: s.field })) : t('AFTER ROUND {n} OF {total}', { n: s.round, total: s.rounds }),
+    stats: [[t('POINTS'), String(s.points)], [t('WINS'), String(s.wins)], [t('PODIUMS'), String(s.podiums)]],
   };
 }
 
@@ -85,17 +86,17 @@ export function seasonCard(s: {
 export function shareText(c: ShareCard): string {
   if (c.season) {
     const how = c.season.over
-      ? c.sub === 'CHAMPION' ? 'won the championship 🏆' : `finished the championship ${c.headline}`
+      ? c.sub === t('CHAMPION') ? 'won the championship 🏆' : `finished the championship ${c.headline}`
       : `am ${c.headline} in the championship after round ${c.season.round} of ${c.season.rounds}`;
     return `I ${how} in Corner Cutters 🏁 Can you beat it? https://${SHARE_URL}`;
   }
-  const how = c.headline === 'DNF' ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${c.headline.toLowerCase()}`;
-  return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters 🏁 ${c.sub === 'WINNER' ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
+  const how = c.headline === t('DNF') ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${c.headline.toLowerCase()}`;
+  return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters 🏁 ${c.sub === t('WINNER') ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
 }
 const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
 
 /** The card's file name. */
-export const cardFile = (c: ShareCard) => `corner-cutters-${c.circuit.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${c.date}.png`;
+export const cardFile = (c: ShareCard) => `corner-cutters-${c.circuit.toLowerCase().replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-')}-${c.date}.png`;
 
 /** px: the card's size (square, for any feed) */
 export const CARD = 1080;

@@ -316,8 +316,8 @@ watchFrames((stats, extra) => {
 const menuReport = document.createElement('button');
 menuReport.className = 'menu-report';
 menuReport.type = 'button';
-menuReport.setAttribute('aria-label', 'Report a problem with this screen');
-menuReport.innerHTML = '<span aria-hidden="true">⚑</span> REPORT';
+menuReport.setAttribute('aria-label', t('Report a problem with this screen'));
+menuReport.innerHTML = `<span aria-hidden="true">⚑</span> ${t('REPORT')}`;
 // (on the press's release: in a cross-origin frame on a phone a tap's click can go astray)
 {
   let armed = false;

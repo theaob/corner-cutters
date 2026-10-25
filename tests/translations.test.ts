@@ -16,6 +16,7 @@ import { REWARDS } from '../src/f1/streak';
 import { MEDAL_NAME } from '../src/f1/medals';
 import { MODES } from '../src/f1/circuitSelect';
 import { CAR_STYLES } from '../src/f1/carStyle';
+import { LABEL_ICON } from '../src/f1/race/readout';
 import { prompt } from '../src/f1/onboarding';
 
 /** Texts that stay as they are in Turkish: names, codes and things that read the same. */
@@ -78,7 +79,7 @@ describe('Turkish', () => {
     ...Object.values(MEDAL_NAME),
     ...MODES.flatMap((m) => [m.name, m.about]),
     ...CAR_STYLES.map((c) => c.name),
-    'SHOWERS', 'DRYING', 'LIGHT RAIN', 'MISSION', 'STREAK', 'REWARD', 'ACHIEVEMENT',
+    'SHOWERS', 'DRYING', 'LIGHT RAIN', ...Object.keys(LABEL_ICON), 'WRECKED', 'WORN', 'FOR', 'MISSION', 'STREAK', 'REWARD', 'ACHIEVEMENT',
     ...literals(readFileSync('src/f1/race/deckLabels.ts', 'utf8')).filter((s) => /^[A-Z]+$/.test(s)),
   ];
   const prompts = (['go', 'faster', 'bend', 'drift', 'limits', 'lap', 'done'] as const).flatMap((step) =>
