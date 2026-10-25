@@ -15,6 +15,15 @@ interface SkidChunk {
   dirty: boolean;
 }
 
+/** A skid chunk's material, over `tex` (its canvas). */
+function skidMaterial(tex: THREE.Texture): THREE.MeshLambertMaterial {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  return new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false });
+}
+
 /**
  * Dark marks left by sliding tyres, drawn into canvases laid over the ground.
  * The ground is split into 256 px chunks, made on first use, so a skid only
@@ -26,8 +35,21 @@ export class SkidLayer {
   private readonly last = new Map<number, { x: number; y: number }[]>();
   private sinceUpload = 0;
 
-  /** `heightAt` (world px → px): lay the marks over sloped ground; flat when omitted. */
-  constructor(private readonly heightAt?: (x: number, y: number) => number) {}
+  /**
+   * `heightAt` (world px → px): lay the marks over sloped ground; flat when omitted.
+   *
+   * A chunk's material (see the chunk) is a shader no other mesh in the scene uses, and the chunks only come with the
+   * first skid, so its shader was compiled then: a hitch of several hundred ms on a phone on the first lap's first
+   * corner. A tiny chunk's twin, hidden, is in the group from the start, so the race's warm-up draw (warm.ts)
+   * compiles the shader behind the loading card and the real chunks find it made.
+   */
+  constructor(private readonly heightAt?: (x: number, y: number) => number) {
+    const [c] = canvas(1, 1);
+    const warm = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), skidMaterial(new THREE.CanvasTexture(c)));
+    warm.receiveShadow = true;
+    warm.visible = false;
+    this.group.add(warm);
+  }
 
   private chunk(cx: number, cy: number): SkidChunk {
     const key = `${cx},${cy}`;
@@ -35,10 +57,6 @@ export class SkidLayer {
     if (ch) return ch;
     const [c, ctx] = canvas(SKID_CHUNK, SKID_CHUNK);
     const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
     // on sloped ground the chunk bends to follow it, one segment per 16 px
     const segs = this.heightAt ? SKID_CHUNK / 16 : 1;
     const geo = new THREE.PlaneGeometry(SKID_CHUNK, SKID_CHUNK, segs, segs).rotateX(-Math.PI / 2);
@@ -49,7 +67,7 @@ export class SkidLayer {
       }
       geo.computeVertexNormals();
     }
-    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false }));
+    const mesh = new THREE.Mesh(geo, skidMaterial(tex));
     mesh.position.set((cx + 0.5) * SKID_CHUNK, 0.05, (cy + 0.5) * SKID_CHUNK);
     mesh.receiveShadow = true;
     this.group.add(mesh);
