@@ -81,6 +81,9 @@ export function startPreviews3d(previews: Preview3d[], size: number, still: bool
       m.geometry?.dispose();
     });
     renderer.dispose();
+    // (and its context let go now, not whenever the canvas is collected: a phone holds only so many, and the menu's
+    // backdrop and the race each want one of their own)
+    renderer.forceContextLoss();
   };
   requestAnimationFrame(draw);
   return stop;
