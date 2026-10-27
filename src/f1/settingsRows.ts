@@ -81,16 +81,16 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
   const nameRow = (() => {
     const el = document.createElement('div');
     el.className = 'option-row';
-    const label = Object.assign(document.createElement('b'), { textContent: 'NAME' });
+    const label = Object.assign(document.createElement('b'), { textContent: t('NAME') });
     const right = document.createElement('div');
     right.className = 'value';
     const field = document.createElement('input');
     Object.assign(field, { type: 'text', maxLength: 3, autocomplete: 'off', spellcheck: false, value: initials() ?? '', placeholder: 'YOU' });
     field.setAttribute('autocapitalize', 'characters');
     field.setAttribute('enterkeyhint', 'done');
-    field.setAttribute('aria-label', 'Your three letters');
+    field.setAttribute('aria-label', t('Your three letters'));
     Object.assign(field.style, { width: '4.5em', textAlign: 'center', font: 'inherit', textTransform: 'uppercase' });
-    const about = Object.assign(document.createElement('span'), { textContent: 'three letters or digits, for races and boards' });
+    const about = Object.assign(document.createElement('span'), { textContent: t('three letters or digits, for races and boards') });
     field.addEventListener('input', () => {
       const clean = field.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
       if (clean !== field.value) field.value = clean;

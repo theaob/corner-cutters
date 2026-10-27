@@ -163,7 +163,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     focus = rows.findIndex((r) => r.style === style);
     if (!owned) {
       menuTick();
-      status.textContent = `${style.name}: ${style.days} DAYS RUNNING EARNS IT${best ? ` · BEST SO FAR ${best}` : ''}`;
+      status.textContent = t('{name}: {n} DAYS RUNNING EARNS IT', { name: t(style.name), n: style.days }) + (best ? ` · ${t('BEST SO FAR {n}', { n: best })}` : '');
       status.style.color = 'var(--gold)';
     } else {
       menuPick();
