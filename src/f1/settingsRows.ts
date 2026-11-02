@@ -181,6 +181,12 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
       focus = 0;
       render();
     },
+    /** straight to a page with a row focused (the settings opened again after a reload) */
+    restore(section: SettingsSection, row: number) {
+      page = section;
+      focus = row;
+      render();
+    },
     /** up (-1) or down (1) */
     move(d: number) {
       focus = (focus + d + places()) % places();

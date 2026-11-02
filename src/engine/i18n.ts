@@ -59,6 +59,22 @@ export function onLanguageChange(fn: () => void): () => void {
   return () => void listeners.delete(fn);
 }
 
+const RESUME = 'cc:language-resume';
+/** A language change reloads the page; this notes that the settings were open, so the reloaded page opens them again. */
+export function markSettingsResume(): void {
+  try { globalThis.sessionStorage?.setItem(RESUME, '1'); } catch { /* no storage: back at the menu, as before */ }
+}
+/** Whether the page was just reloaded by a language change (left as it is, for the splash to skip). */
+export function settingsResumePending(): boolean {
+  try { return globalThis.sessionStorage?.getItem(RESUME) === '1'; } catch { return false; }
+}
+/** True once, if the page was reloaded by a language change: the settings are to open again at LANGUAGE. */
+export function takeSettingsResume(): boolean {
+  const on = settingsResumePending();
+  if (on) try { globalThis.sessionStorage?.removeItem(RESUME); } catch { /* ignore */ }
+  return on;
+}
+
 /** Mark the page's language (for screen readers and the browser) as chosen. */
 export function applyLanguage(): void {
   current = pick();

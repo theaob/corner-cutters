@@ -1,5 +1,5 @@
 import { type StandaloneView } from './engine/view';
-import { applyLanguage, lower, onLanguageChange, t, useLanguages } from './engine/i18n';
+import { applyLanguage, lower, markSettingsResume, onLanguageChange, settingsResumePending, t, useLanguages } from './engine/i18n';
 import { LANGUAGES } from './f1/lang';
 import { mountTuning } from './engine/tuning';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
@@ -64,7 +64,10 @@ useSave(CC_SAVE);
 // (LANGUAGE in the settings: the menus are built once, so a change reloads the page)
 useLanguages(LANGUAGES);
 applyLanguage();
-onLanguageChange(() => globalThis.location?.reload());
+onLanguageChange(() => {
+  markSettingsResume();
+  globalThis.location?.reload();
+});
 // (TEXT: LARGE in the settings, from the start)
 applyText();
 applyMotion();
@@ -658,7 +661,7 @@ async function opening(): Promise<void> {
     void route();
     return;
   }
-  if (!params.has('circuit') && !params.has('mode')) {
+  if (!params.has('circuit') && !params.has('mode') && !settingsResumePending()) {
     menuScreen();
     document.documentElement.classList.add('splash-up');
     // (the theme from the start: it sounds with the first tap)
