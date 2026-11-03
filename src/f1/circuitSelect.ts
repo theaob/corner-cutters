@@ -40,7 +40,7 @@ import { reportOpen } from './report';
 import { gameHidden } from '../engine/host';
 import { COMPOUNDS, type DryCompound } from './tyres';
 import { motionReduced } from './access';
-import { t, backLabel, lower, upper } from '../engine/i18n';
+import { t, backLabel, lower, upper, availableLanguages, takeSettingsResume } from '../engine/i18n';
 
 /** The circuit as a line in 3D, w×h px, its hills and dips drawn up and down, turning slowly (still, for a device asking for reduced motion); it stops once taken off the page. */
 function outline(layout: CircuitLayout, w: number, h: number): HTMLCanvasElement {
@@ -730,6 +730,11 @@ export function chooseCircuit(
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
+  // (a language change reloads the page: the settings open again on GAME, at LANGUAGE)
+  if (takeSettingsResume()) {
+    view = 'settings';
+    settings.restore('game', availableLanguages().length > 1 ? 1 : 0);  // (DIFFICULTY is first, LANGUAGE next)
+  }
   show();
   holdTouches(menu);
   // (holdTouches takes the browser's own scrolling, so a finger dragging the trophy cabinet scrolls it here, as in the
