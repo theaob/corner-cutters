@@ -46,7 +46,7 @@ export function seasonShareCard(season: Season, now = new Date()): ShareCard {
   const team = teamOf(season.drivers[season.you]);
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   return seasonCard({
-    mode: `${difficultyById(season.difficulty)?.name ?? ''} · ${seasonLength(season.laps).name}`,
+    mode: `${t(difficultyById(season.difficulty)?.name ?? '')} · ${t(seasonLength(season.laps).name)}`,
     place: mine + 1, field: season.drivers.length, points: table[mine].points, wins: table[mine].wins,
     podiums: season.places.filter((r) => r[season.you] >= 0 && r[season.you] < 3).length,
     round: season.round, rounds: season.rounds.length, over: seasonOver(season), team: { name: team.name, body: team.body, trim: team.trim }, date,

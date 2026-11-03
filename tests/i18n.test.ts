@@ -65,3 +65,23 @@ describe("the game's languages", () => {
     }
   });
 });
+
+describe('a language change keeps the settings open', () => {
+  it('notes the settings were open across the reload, once', async () => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal('sessionStorage', { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) });
+    const { markSettingsResume, settingsResumePending, takeSettingsResume } = await import('../src/engine/i18n');
+    expect(settingsResumePending()).toBe(false);
+    markSettingsResume();
+    expect(settingsResumePending()).toBe(true);
+    expect(takeSettingsResume()).toBe(true);
+    expect(takeSettingsResume()).toBe(false);
+  });
+
+  it('works without storage', async () => {
+    vi.stubGlobal('sessionStorage', { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); }, removeItem: () => {} });
+    const { markSettingsResume, takeSettingsResume } = await import('../src/engine/i18n');
+    expect(() => markSettingsResume()).not.toThrow();
+    expect(takeSettingsResume()).toBe(false);
+  });
+});

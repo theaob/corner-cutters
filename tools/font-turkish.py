@@ -20,7 +20,7 @@ def rects(name, boxes):
     hmtx[name] = (0, 0)
 
 rects('uni0306', [(125, 875, 250, 1000), (500, 875, 625, 1000), (250, 750, 500, 875)])
-rects('uni0307', [(125, 875, 250, 1000)])
+rects('uni0307', [(125, 750, 250, 875)])
 
 def compose(name, base, mark, dx=0, dy=0):
     pen = TTGlyphPen(f.getGlyphSet())

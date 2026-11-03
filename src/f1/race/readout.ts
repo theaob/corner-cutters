@@ -9,6 +9,7 @@ import { formatTime as fmt } from '../records';
 import { shortDistance } from '../timeAttack';
 import { LIMITS } from '../trackLimits';
 import type { IconName } from './icons';
+import { t } from '../../engine/i18n';
 
 /** Five blocks, `share` (0…1) of them filled. */
 export const blocks = (share: number) => {
@@ -30,7 +31,7 @@ export function readoutText(r: {
   wrecked: boolean;
   attack?: { left?: number; passed: number; best?: number };
 }): string {
-  const car = r.wrecked ? 'WRECKED' : blocks(r.health);
+  const car = r.wrecked ? t('WRECKED') : blocks(r.health);
   if (r.attack) {
     const a = r.attack;
     // (the distances short, so they fit the panel: 5L 1S)
@@ -49,7 +50,7 @@ export function readoutText(r: {
  */
 export function tyreText(short: string, wear: number, showShare: boolean, boxFor?: string): string {
   const left = 1 - wear;
-  return `TYRE ${short} ${blocks(left)}${showShare ? ` ${Math.round(left * 100)}%` : ''}\n${wear >= 0.7 ? 'WORN\n' : ''}${boxFor ? `BOX  FOR ${boxFor}\n` : ''}`;
+  return `TYRE ${short} ${blocks(left)}${showShare ? ` ${Math.round(left * 100)}%` : ''}\n${wear >= 0.7 ? `${t('WORN')}\n` : ''}${boxFor ? `BOX  ${t('FOR')} ${boxFor}\n` : ''}`;
 }
 
 /** The tow line: TOW and a bar that fills as it builds (0…1). */
@@ -71,7 +72,7 @@ export interface ReadoutRow {
 }
 
 /** Each label's icon. */
-const LABEL_ICON: Record<string, IconName> = {
+export const LABEL_ICON: Record<string, IconName> = {
   LAP: 'watch', LAST: 'lap', BEST: 'star', REC: 'cup', CAR: 'car', TYRE: 'tyre', TOW: 'tow', LIMITS: 'warn', GAP: 'ghost', BOX: 'wrench',
   TIME: 'sand', GOT: 'flag', BRONZE: 'medal', SILVER: 'medal', GOLD: 'medal',
 };
@@ -90,6 +91,6 @@ export function readoutRows(text: string): ReadoutRow[] {
     .map((l) => {
       const [, label, value = ''] = l.match(/^(\S+)\s*(.*)$/) ?? [];
       if (!value && !LABEL_ICON[label]) return { label: '', value: label };
-      return { ...(LABEL_ICON[label] ? { icon: LABEL_ICON[label] } : {}), label, value, ...(SPANS.has(label) ? { span: true } : {}) };
+      return { ...(LABEL_ICON[label] ? { icon: LABEL_ICON[label] } : {}), label: t(label), value, ...(SPANS.has(label) ? { span: true } : {}) };
     });
 }
