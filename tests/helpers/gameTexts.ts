@@ -63,7 +63,7 @@ export function gameTexts(): string[] {
     const src = readFileSync(file, 'utf8');
     if (!/engine\/i18n'|\.\/i18n'/.test(src)) continue;
     const alias = /\bt as (\w+)/.exec(src)?.[1];
-    for (const arg of firstArgs(src, ['t', ...(alias ? [alias] : []), 'optionRow', 'menuButton', 'hintToast']))
+    for (const arg of firstArgs(src, ['t', ...(alias ? [alias] : []), 'announce', 'announceNext', 'optionRow', 'menuButton', 'hintToast']))
       for (const s of literals(arg.replace(/[=!]==\s*(?:'[^']*'|"[^"]*")/g, ''))) if (translatable(s) && !arg.includes('${')) calls.set(s, file);
   }
 

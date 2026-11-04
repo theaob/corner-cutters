@@ -1725,7 +1725,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         car.vy -= Math.cos(car.heading) * kick;
         if (verdict === 'great') achieve(['rocket']);
         play({ kind: 'launch', great: verdict === 'great' });
-        announce(`${verdict === 'great' ? 'GREAT' : 'GOOD'} LAUNCH · ${launch.reaction!.toFixed(2)} S`, verdict === 'great' ? '#b36bff' : '#5fe0d0', 2);
+        announce(tl(verdict === 'great' ? 'GREAT LAUNCH · {n} S' : 'GOOD LAUNCH · {n} S', { n: launch.reaction!.toFixed(2) }), verdict === 'great' ? '#b36bff' : '#5fe0d0', 2);
       }
     }
     const healthBefore = race.entrants[you].car.health;
@@ -1893,7 +1893,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         announce('GREEN FLAG', '#5fe0d0', 2);
         sayRadio('green');
       }
-      else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER ${race.vsc ? 'VSC' : 'SC'} · +${e.seconds} S`, '#d8323c', 3);
+      else if (e.kind === 'penalty' && e.who === you) announce(tl(race.vsc ? 'NO PASSING UNDER VSC · +{n} S' : 'NO PASSING UNDER SC · +{n} S', { n: e.seconds }), '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'tutorial') announce("THAT'S A CUT: IN A RACE, A WARNING, THEN +5 S", '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'race') {
         sayRadio(e.seconds ? 'penalty' : 'warning');
@@ -1929,7 +1929,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       else if (e.kind === 'rain') {
         announce(e.on ? 'RAIN · THE TRACK IS GETTING WET' : 'THE RAIN HAS STOPPED · THE TRACK WILL DRY', '#8fb8e8', 2.5);
         sayRadio(e.on ? 'rain' : 'rain-stops');
-      } else if (e.kind === 'track' && race.clock >= notice.until) announce(`TRACK ${e.condition.toUpperCase()} · ${COMPOUNDS[tyreFor(e.condition, race.track.dirt)].name.toUpperCase()} TYRES`, '#8fb8e8', 2);
+      } else if (e.kind === 'track' && race.clock >= notice.until) announce(tl('TRACK {condition} · {tyre} TYRES', { condition: tl(e.condition.toUpperCase()), tyre: tl(COMPOUNDS[tyreFor(e.condition, race.track.dirt)].name).toUpperCase() }), '#8fb8e8', 2);
       else if (e.kind === 'pit-repaired') debris.refit(looks[e.who].mesh, race.clock);
       else if (e.kind === 'pit-out') {
         if (e.who === you) {
@@ -1937,14 +1937,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
           sayRadio('pit-out');
         }
       }
-      else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(`${looks[e.who].name} PITS`, '#9d9ab8', 1.5);
+      else if (e.kind === 'pit-stop' && e.who !== you && race.clock >= notice.until) announce(tl('{name} PITS', { name: looks[e.who].name }), '#9d9ab8', 1.5);
       // blue flags: yours (let the leader by), or one shown to a car you're coming up to lap
       else if (e.kind === 'blue' && e.who === you) {
         announce(tl('BLUE FLAG · LET {name} BY', { name: looks[e.by].name }), BLUE_COLOR, 3);
         sayRadio('blue');
-      } else if (e.kind === 'blue' && e.by === you && race.clock >= notice.until) announce(`BLUE FLAG · ${looks[e.who].name}`, BLUE_COLOR, 1.5);
+      } else if (e.kind === 'blue' && e.by === you && race.clock >= notice.until) announce(tl('BLUE FLAG · {name}', { name: looks[e.who].name }), BLUE_COLOR, 1.5);
       // a mistake by a car near you (on the screen, more or less): called out
-      else if (e.kind === 'mistake' && !done && race.clock >= notice.until && near(e.who)) announce(e.what === 'late' ? `LOCK-UP · ${looks[e.who].name}` : `${looks[e.who].name} RUNS WIDE`, '#9d9ab8', 1.5);
+      else if (e.kind === 'mistake' && !done && race.clock >= notice.until && near(e.who)) announce(tl(e.what === 'late' ? 'LOCK-UP · {name}' : '{name} RUNS WIDE', { name: looks[e.who].name }), '#9d9ab8', 1.5);
     }
     // the race's fastest lap (announced; purple in the results)
     race.entrants.forEach((e, i) => {
@@ -2133,7 +2133,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const other = move && race.entrants[move.other];
       if (move && other && !other.pit && !race.entrants[you].pit && running(other) && (race.clock >= notice.until || / PASS/.test(notice.text))) {
         const name = looks[move.other].name;
-        announce(move.kind === 'passed' ? `PASSED ${name} · P${move.place}` : `${name} PASSES · P${move.place}`, move.kind === 'passed' ? '#5fe0d0' : '#f08a24', 1.8);
+        announce(tl(move.kind === 'passed' ? 'PASSED {name} · P{place}' : '{name} PASSES · P{place}', { name, place: move.place }), move.kind === 'passed' ? '#5fe0d0' : '#f08a24', 1.8);
       }
       // (an overtake of yours: the crowd's with you)
       if (pos < hudState.lastPos) sounds.cheer(0.35);
