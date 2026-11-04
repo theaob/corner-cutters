@@ -113,13 +113,13 @@ describe('Caspian Shores (Baku)', () => {
       expect(Math.hypot(l.x - (want.x * BAKU.scale - c.offset.x), l.y - (want.y * BAKU.scale - c.offset.y)), l.kind).toBeLessThan(200);
     }
   });
-  it('has its pits on the town side of the straight, and the Caspian right up to the barriers on the other, no house between', () => {
+  it('has its pits on the town side of the straight, and the Caspian beyond the grandstands on the other, no house between', () => {
     const pit = c.pit;
     expect(pit.side).toBe(-1);
-    // (along the straight, just beyond the barriers on the side away from the pits: the sea)
+    // (along the straight, on the side away from the pits: a strip of land for the grandstands beyond the barriers, then the sea)
     for (const q of pit.points.filter((p) => p.s >= pit.boxes[0] && p.s <= pit.boxes[pit.boxes.length - 1])) {
       const p = samples[q.idx];
-      const out = reach + 50;
+      const out = reach + 230;
       expect(inside(sea, p.x - Math.cos(p.dir) * out * pit.side, p.y - Math.sin(p.dir) * out * pit.side)).toBe(true);
       expect(inside(sea, q.x + Math.cos(q.dir) * (GARAGE_ACROSS + 14) * pit.side, q.y + Math.sin(q.dir) * (GARAGE_ACROSS + 14) * pit.side)).toBe(false);
     }
