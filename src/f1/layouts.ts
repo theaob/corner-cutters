@@ -817,7 +817,7 @@ export const BAKU: CircuitLayout = {
     // the Caspian, right up to the barriers along the sea front (a quay between) as far as the line; past it the shore
     // turns away south-east, and the land round the hairpin is the Crescent's
     sea: ([
-      [677, 1114], [708, 1078], [989, 861], [1055, 797], [1850, 456], [1990, 590], [2500, 1100], [4307, 2635],
+      [677, 1114], [708, 1078], [1009, 903], [1075, 839], [1870, 498], [2010, 632], [2520, 1142], [4307, 2635],
       [2144, 3787],
     ] as [number, number][]).map(([x, y]) => ({ x, y })),
     // Qız Qalası, the Maiden Tower, in the old town inside the walls, by the stretch out of the castle section onto the
