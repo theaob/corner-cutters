@@ -22,7 +22,7 @@ GOLD = (242, 193, 78)
 WHITE = (244, 242, 250)
 
 SHOTS = [
-    ('01-crescent-park', 'RACE 15 PIXEL-3D CIRCUITS'),
+    ('01-crescent-park', 'RACE 19 PIXEL-3D CIRCUITS'),
     ('02-vegas', 'NEON NIGHTS, CITY STREETS'),
     ('03-glacier-pass', 'RAIN, SNOW AND PIT STOPS'),
     ('04-suzuka', 'FIGURE-OF-EIGHT, OVER THE BRIDGE'),
