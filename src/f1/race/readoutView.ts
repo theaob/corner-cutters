@@ -36,6 +36,30 @@ export function paintRows(el: HTMLElement, text: string): void {
     cells.push(label, value);
   }
   el.replaceChildren(...cells);
+  if (el.parentElement) fitReadout(el.parentElement);
+}
+
+/**
+ * On the phone the readout is a fixed width (as wide as the timing tower opposite); a longer word in another language
+ * (LASTİK, MEILLEUR, NEUM. and a long value beside it) spilt out of its panel. Shrink the type, down to a floor,
+ * until its widest row fits; the wide screen's panel (width auto) just grows, and is left alone. Its base size is
+ * `data-base`, set by the layout.
+ */
+export function fitReadout(box: HTMLElement): void {
+  const base = parseFloat(box.dataset.base ?? '');
+  if (!base || !box.clientWidth) return;
+  const room = box.clientWidth - 12;
+  box.style.fontSize = `${base}px`;
+  for (let i = 0; i < 4; i++) {
+    const left = box.getBoundingClientRect().left + 6;
+    let right = 0;
+    for (const c of box.querySelectorAll('span')) right = Math.max(right, c.getBoundingClientRect().right);
+    const used = right - left;
+    if (used <= room + 0.5) return;
+    const next = Math.max(6, Math.floor(parseFloat(box.style.fontSize) * (room / used) * 10) / 10);
+    if (next >= parseFloat(box.style.fontSize)) return;
+    box.style.fontSize = `${next}px`;
+  }
 }
 
 /** A run of the readout's rows (its own colour, if any), laid out in the readout's grid. */

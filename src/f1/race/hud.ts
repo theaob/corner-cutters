@@ -9,7 +9,7 @@ import { t } from '../../engine/i18n';
 import type { Difficulty } from '../difficulty';
 import type { Team } from '../teams';
 import { style } from './dom';
-import { READOUT_GRID, readoutRun } from './readoutView';
+import { READOUT_GRID, fitReadout, readoutRun } from './readoutView';
 
 /** The HUD for `team` at `difficulty`, its minimap fitted to a circuit `width` × `height` (in tiles). */
 export function createHud(team: Team, difficulty: Difficulty, circuit: { width: number; height: number }) {
@@ -134,6 +134,7 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   /** Lay the HUD out for the wide screen or the phone, in `host`. */
   const place = (desktop: boolean, host: HTMLElement) => {
     if (desktop) {
+      delete readout.dataset.base;
       style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
       style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none', width: `${MINI_W}px`, height: `${MINI_H}px` });
       style(tower, { right: '6px', top: `${46 + MINI_H}px`, minWidth: `${Math.max(96, MINI_W)}px`, width: 'auto' });
@@ -145,6 +146,8 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
       // (the timing tower's size: its type, and a line to each of its rows, so the two read as a pair either side)
       // (as wide as the timing tower on the other side, so the two mirror each other about the middle)
       style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px', width: '116px', boxSizing: 'border-box' });
+      readout.dataset.base = '10';
+      fitReadout(readout);
       // the readout and the timing tower the same width either side, and the minimap in the middle of the screen
       // between them (as big as fits, with a gap to each), your lap centred under it; on your own (no tower) the
       // minimap's still in the middle, the same size
