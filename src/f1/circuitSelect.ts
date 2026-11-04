@@ -26,7 +26,7 @@ import { formatTime, loadRecords } from './records';
 import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 import { DRY, RACE_WEATHERS, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
-import { ownsChampionship } from './purchase';
+import { SALE, ownsChampionship, saleOn } from './purchase';
 import { distance } from './timeAttack';
 import { settingsPages, settingsRows as settingsRowsNow } from './settingsRows';
 import { worldBoard } from './screens/worldBoard';
@@ -670,7 +670,7 @@ export function chooseCircuit(
     const locked = m.id === 'championship' && !ownsChampionship();
     // (the Daily Challenge: today's circuit and weather)
     const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
-    const about = locked ? 'unlock: a full season, and every circuit' : today ? t('today: {circuit} · {weather} · race the world', { circuit: today.layout.name, weather: lower(t(today.weather.name)) }) : m.about;
+    const about = locked ? (saleOn() ? t('-{off}% this week · crown the 2026 champion', { off: SALE.off }) : 'unlock: a full season, and every circuit') : today ? t('today: {circuit} · {weather} · race the world', { circuit: today.layout.name, weather: lower(t(today.weather.name)) }) : m.about;
     makeTile(b, m.id, t(m.name), t(about));
     if (locked) b.classList.add('locked');
     return b;

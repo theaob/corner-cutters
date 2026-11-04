@@ -10,7 +10,7 @@ import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton } from '../circuitSelect';
 import { CHAMPIONSHIP_LAYOUTS } from '../layouts';
-import { STORE_NAME, bought, type Shop } from '../purchase';
+import { SALE, STORE_NAME, bought, saleOn, type Shop } from '../purchase';
 import { menuPick, menuTick } from '../sounds';
 import { trophy } from './celebrate';
 import { reportOpen } from '../report';
@@ -30,8 +30,10 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
     return p;
   };
   const status = line('', 'var(--accent-b)');
+  const sale = saleOn() ? line(t('-{off}% · ONE WEEK · CROWN THE 2026 CHAMPION', { off: SALE.off }), 'var(--accent-b)') : undefined;
   screen.append(
     title,
+    ...(sale ? [sale] : []),
     trophy(72),
     line(t('A SEASON OF {n} ROUNDS: F1 POINTS, STANDINGS, A TITLE TO WIN', { n: CHAMPIONSHIP_LAYOUTS.length }), 'var(--text)'),
     line(t('AND EVERY CIRCUIT ({n} MORE), OPEN FOR QUICK RACE, TIME ATTACK AND TIME TRIAL AS THE SEASON REACHES THEM', { n: CHAMPIONSHIP_LAYOUTS.length - 1 })),

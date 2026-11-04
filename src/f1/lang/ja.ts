@@ -266,6 +266,8 @@ export const ja: Language = {
   'A SEASON OF {n} ROUNDS: F1 POINTS, STANDINGS, A TITLE TO WIN': '{n}ラウンドのシーズン：F1ポイント、順位表、勝ち取るタイトル',
   'AND EVERY CIRCUIT ({n} MORE), OPEN FOR QUICK RACE, TIME ATTACK AND TIME TRIAL AS THE SEASON REACHES THEM': 'さらに全サーキット（あと{n}）が、シーズンの進行に合わせてクイックレース、タイムアタック、タイムトライアルで解放',
   'ONE PURCHASE, YOURS FOR GOOD': '一度の購入、ずっとあなたのもの',
+  '-{off}% · ONE WEEK · CROWN THE 2026 CHAMPION': '-{off}% · 1週間 · 2026年のチャンピオンを決めよう',
+  '-{off}% this week · crown the 2026 champion': '-{off}% 今週限り · 2026年のチャンピオンを決めよう',
   'RESTORE PURCHASE': '購入を復元',
   'WITH {store}…': '{store}で…',
   'UNLOCK · {price}': '解除 · {price}',

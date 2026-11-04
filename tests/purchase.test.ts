@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
-import { CHAMPIONSHIP_PRODUCT, PAYWALL, bought, championshipOpen, circuitsOpen, openShop, ownsChampionship, resetShop } from '../src/f1/purchase';
+import { CHAMPIONSHIP_PRODUCT, PAYWALL, SALE, bought, championshipOpen, circuitsOpen, openShop, ownsChampionship, resetShop, saleOn } from '../src/f1/purchase';
 
 beforeEach(() => {
   const items = new Map<string, string>();
@@ -117,5 +117,16 @@ describe('the shop (Google Play)', () => {
     const shop = openShop();
     expect(await shop.restore()).toBe(false);
     expect(bought()).toBe(false);
+  });
+});
+
+describe('the one-week sale', () => {
+  it('is on only in a store build, from the start to the end of its week', () => {
+    expect(saleOn(SALE.from - 1, true)).toBe(false);
+    expect(saleOn(SALE.from, true)).toBe(true);
+    expect(saleOn(SALE.until - 1, true)).toBe(true);
+    expect(saleOn(SALE.until, true)).toBe(false);
+    expect(saleOn(SALE.from, false)).toBe(false);
+    expect(SALE.until - SALE.from).toBe(7 * 24 * 3600 * 1000);
   });
 });
