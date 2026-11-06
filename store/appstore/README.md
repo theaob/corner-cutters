@@ -4,7 +4,7 @@ Everything to put into App Store Connect for Corner Cutters, ready to paste or u
 `store/README.md`.
 
 - Privacy policy: **https://theaob.github.io/corner-cutters/privacy.html**
-- Terms of service: **https://theaob.github.io/corner-cutters/terms.html** (from `site/terms.html`; a template, fill in its `[GOVERNING LAW]` and `[CONTACT]` placeholders first)
+- Terms of service: **https://theaob.github.io/corner-cutters/terms.html** (from `site/terms.html`; a template, not legal advice: governed by Turkish law, contact is the developer via GitHub issues)
 - Bundle id: `io.github.theaob.cornercutters`
 - In-app purchase: `championship` (non-consumable), as `src/f1/purchase.ts` asks for it. Build the App Store app with
   `npm run ios:appstore` (`VITE_STORE=appstore`: Crescent Park free, the Championship a purchase); plain `ios:sync` builds
