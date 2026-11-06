@@ -5,6 +5,7 @@ are at the bottom, in order.
 
 - Privacy policy: **https://theaob.github.io/corner-cutters/privacy.html** (from `site/privacy.html`, deployed by the
   pages workflow)
+- Terms of service: **https://theaob.github.io/corner-cutters/terms.html** (from `site/terms.html`; a template, fill in its `[GOVERNING LAW]` and `[CONTACT]` placeholders first)
 - App id: `io.github.theaob.cornercutters`
 - In-app product: `championship` (one-time, "managed"), as `src/f1/purchase.ts` asks for it
 
