@@ -1036,6 +1036,93 @@
         padding-top: 6px;
         border-top: 1px solid var(--key-edge);
       }
+      /* the Championship sale: a red strip over the menu, and a modal once (src/f1/screens/saleNotice.ts) */
+      .circuit-menu .sale-strip {
+        display: block;
+        width: 100%;
+        min-height: 0;
+        flex: none;
+        margin-bottom: 8px;
+        padding: 10px 12px;
+        border: 0;
+        border-radius: 8px;
+        text-align: center;
+        background: #d62828;
+        color: #fff;
+        font: calc(12px * var(--ts, 1)) var(--pixel);
+        text-align: center;
+        cursor: pointer;
+        animation: sale-pulse 2.4s ease-in-out infinite;
+      }
+      @keyframes sale-pulse {
+        50% {
+          background: #b81e1e;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .circuit-menu .sale-strip {
+          animation: none;
+        }
+      }
+      .sale-modal {
+        position: absolute;
+        inset: 0;
+        z-index: 8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.72);
+      }
+      .sale-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+        max-width: 340px;
+        padding: 20px 16px;
+        border: 2px solid #d62828;
+        border-radius: 12px;
+        background: var(--deck);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        color: var(--text);
+        font-family: var(--pixel);
+        text-align: center;
+      }
+      .sale-big {
+        font-size: calc(48px * var(--ts, 1));
+        color: #ff4d4d;
+      }
+      .sale-card strong {
+        font-size: calc(15px * var(--ts, 1));
+        font-weight: 400;
+        color: var(--gold);
+      }
+      .sale-card p {
+        margin: 0;
+        font-size: calc(11px * var(--ts, 1));
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      .sale-row {
+        display: flex;
+        gap: 10px;
+      }
+      .sale-row button {
+        flex: 1 1 0;
+        padding: 10px 6px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font: calc(12px * var(--ts, 1)) var(--pixel);
+        cursor: pointer;
+      }
+      .sale-row .sale-yes {
+        border-color: #d62828;
+        background: #d62828;
+        color: #fff;
+      }
       /* the daily reminder, asked once over the menu (src/f1/screens/reminderAsk.ts) */
       .reminder-ask {
         position: absolute;

@@ -26,7 +26,8 @@ import { formatTime, loadRecords } from './records';
 import { DIFFICULTIES, NORMAL, type Difficulty } from './difficulty';
 import { DRY, RACE_WEATHERS, WEATHERS, type Weather } from './weather';
 import { LAP_CHOICES, RACE_LAPS, lapsAbout } from './laps';
-import { ownsChampionship } from './purchase';
+import { ownsChampionship, saleOffered, saleSeen } from './purchase';
+import { saleModal, saleStrip } from './screens/saleNotice';
 import { distance } from './timeAttack';
 import { settingsPages, settingsRows as settingsRowsNow } from './settingsRows';
 import { worldBoard } from './screens/worldBoard';
@@ -670,7 +671,7 @@ export function chooseCircuit(
     const locked = m.id === 'championship' && !ownsChampionship();
     // (the Daily Challenge: today's circuit and weather)
     const today = m.id === 'daily' ? challengeOn(dayOf()) : undefined;
-    const about = locked ? 'unlock: a full season, and every circuit' : today ? t('today: {circuit} · {weather} · race the world', { circuit: today.layout.name, weather: lower(t(today.weather.name)) }) : m.about;
+    const about = locked ? (saleOffered() ? t('-90% until the new year · crown the 2026 champion') : 'unlock: a full season, and every circuit') : today ? t('today: {circuit} · {weather} · race the world', { circuit: today.layout.name, weather: lower(t(today.weather.name)) }) : m.about;
     makeTile(b, m.id, t(m.name), t(about));
     if (locked) b.classList.add('locked');
     return b;
@@ -690,7 +691,11 @@ export function chooseCircuit(
   grid.append(...(resumeButton ? [resumeButton] : []), ...modeButtons);
   // TODAY over the modes: your streak, the day's missions, yesterday's Daily (screens/todayPanel.ts)
   const today = todayPanel(closed);
-  const modesParts: HTMLElement[] = [today, grid, utilityRow, ...(tab ? [tab] : [])];
+  // (the sale, to a player without the Championship: a red strip on top of the menu, and a modal once)
+  const goChampionship = () => pickMode(MODES.find((m) => m.id === 'championship')!);
+  const strip = saleOffered() ? saleStrip(goChampionship) : undefined;
+  if (strip) menu.prepend(strip);
+  const modesParts: HTMLElement[] = [...(strip ? [strip] : []), today, grid, utilityRow, ...(tab ? [tab] : [])];
   const cabinetParts: HTMLElement[] = [cabinetTitle, cabinet, cabinetDone];
   const circuitParts: HTMLElement[] = [card, dots, world.el, options, raceButton, backButton];
   // (a report is made from the REPORT in the column's top corner, as on every menu screen)
@@ -749,6 +754,7 @@ export function chooseCircuit(
     dragFrom = y;
   }, { passive: true });
   host.append(menu);
+  if (strip && !saleSeen()) saleModal(host, goChampionship, closed);
   hud.setPosition('');
   hud.setLap('');
 

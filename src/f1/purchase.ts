@@ -21,6 +21,22 @@ export const PAYWALL: boolean = import.meta.env.VITE_STORE === 'play' || APPLE;
 /** The store's name as the shop shows it. */
 export const STORE_NAME: string = APPLE ? 'THE APP STORE' : 'GOOGLE PLAY';
 
+/**
+ * The Championship's sale (-90%, to crown the 2026 champion): the price itself is set in App Store Connect and the
+ * Play Console; this window only decides when the game says so. Keep both in step with the dates set there.
+ */
+export const SALE = { off: 90, from: Date.UTC(2026, 10, 15), until: Date.UTC(2027, 0, 1) };
+
+/** Whether the sale is on at `now` (ms): only in a build with a store. */
+export const saleOn = (now: number = Date.now(), paywall: boolean = PAYWALL): boolean => paywall && now >= SALE.from && now < SALE.until;
+
+/** Whether the sale is to be shown to this player: it's on, and the Championship isn't theirs yet. */
+export const saleOffered = (): boolean => saleOn() && !bought();
+
+/** Whether the sale's one-time notice has been shown (kept in the save). */
+export const saleSeen = (): boolean => saved('progress', 'saleSeen') === true;
+export const markSaleSeen = (): void => save('progress', 'saleSeen', true);
+
 /** Whether the Championship is open: in a build without a store, always; else once bought. */
 export const championshipOpen = (paywall: boolean, bought: boolean): boolean => !paywall || bought;
 
