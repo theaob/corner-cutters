@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
-import { CHAMPIONSHIP_PRODUCT, PAYWALL, bought, championshipOpen, circuitsOpen, openShop, ownsChampionship, resetShop } from '../src/f1/purchase';
+import { CHAMPIONSHIP_PRODUCT, PAYWALL, SALE, bought, saleOffered, championshipOpen, circuitsOpen, openShop, ownsChampionship, resetShop, saleOn } from '../src/f1/purchase';
 
 beforeEach(() => {
   const items = new Map<string, string>();
@@ -117,5 +117,20 @@ describe('the shop (Google Play)', () => {
     const shop = openShop();
     expect(await shop.restore()).toBe(false);
     expect(bought()).toBe(false);
+  });
+});
+
+describe('the sale', () => {
+  it('runs from 15 November 2026 to the new year, in a store build only', () => {
+    expect(saleOn(SALE.from - 1, true)).toBe(false);
+    expect(saleOn(SALE.from, true)).toBe(true);
+    expect(saleOn(Date.UTC(2026, 11, 31, 23, 59), true)).toBe(true);
+    expect(saleOn(SALE.until, true)).toBe(false);
+    expect(saleOn(SALE.from, false)).toBe(false);
+    expect(new Date(SALE.from).toISOString()).toBe('2026-11-15T00:00:00.000Z');
+    expect(new Date(SALE.until).toISOString()).toBe('2027-01-01T00:00:00.000Z');
+  });
+  it('is not offered in a build without a store', () => {
+    expect(saleOffered()).toBe(false);
   });
 });
