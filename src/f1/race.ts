@@ -65,7 +65,7 @@ import { settingsPages, settingsRows } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
 import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
-import { musicPlaying, playMusic } from '../engine/music';
+import { musicHeld, musicPlaying, playMusic } from '../engine/music';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC } from './music';
 import { gapBetween, newGapTimer, stepGaps, type GapTimer } from './gaps';
 import { overtakeOf, towerGap, towerRows } from './tower';
@@ -1071,6 +1071,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         seed: () => seed,
         /** the music track playing (or loading) */
         music: () => musicPlaying(),
+        /** the tracks held in memory, decoded (only the one playing, and a short placeholder left) */
+        musicHeld: () => musicHeld(),
         /** wave the chequered flag for everyone now, in race order (you in `place`, 1 = the winner, if given), for watching the cool-down lap */
         flag: (place?: number) => {
           const ranked = raceOrder(race).filter((i) => i !== you);
