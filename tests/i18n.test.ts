@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
 import { LANGUAGES } from '../src/f1/lang';
-import { ENGLISH, applyLanguage, availableLanguages, language, setLanguage, t, useLanguages, type Language } from '../src/engine/i18n';
+import { LANGUAGE_SOURCES } from '../src/f1/lang/sources';
+import { ENGLISH, applyLanguage, availableLanguages, language, loadLanguages, setLanguage, t, upper, useLanguages, type Language, type LanguageSource } from '../src/engine/i18n';
 
 const xx: Language = { code: 'xx', name: 'Xxish', words: { SETTINGS: 'XSET', 'lap {n} of {total}': 'x{total}/{n}' } };
 
@@ -51,6 +52,65 @@ describe('language', () => {
   it('ignores a language the game does not have', () => {
     setLanguage('zz');
     expect(language().code).toBe('en');
+  });
+});
+
+describe('only the chosen language is loaded', () => {
+  const yy: Language = { code: 'yy', name: 'Yyish', words: { SETTINGS: 'YSET' } };
+  let loads: string[];
+  const source = (l: Language, fail = false): LanguageSource => ({
+    code: l.code,
+    name: l.name,
+    load: () => (loads.push(l.code), fail ? Promise.reject(new Error('offline')) : Promise.resolve(l)),
+  });
+
+  beforeEach(() => {
+    const items = new Map<string, string>();
+    useSave(CC_SAVE, { getItem: (k) => items.get(k) ?? null, setItem: (k, v) => void items.set(k, v), removeItem: (k) => void items.delete(k) });
+    vi.stubGlobal('navigator', { languages: ['en-GB'] });
+    loads = [];
+  });
+
+  it('English fetches nothing, and every language is still there to choose by name', async () => {
+    await loadLanguages([source(xx), source(yy)]);
+    expect(loads).toEqual([]);
+    expect(availableLanguages().map((l) => l.name)).toEqual(['English', 'Xxish', 'Yyish']);
+    expect(t('SETTINGS')).toBe('SETTINGS');
+  });
+
+  it("the device's language is fetched, alone", async () => {
+    vi.stubGlobal('navigator', { languages: ['yy-ZZ', 'xx'] });
+    await loadLanguages([source(xx), source(yy)]);
+    expect(loads).toEqual(['yy']);
+    expect(language().code).toBe('yy');
+    expect(t('SETTINGS')).toBe('YSET');
+  });
+
+  it('a choice is remembered, and its words come with the next start (the page reloads)', async () => {
+    await loadLanguages([source(xx), source(yy)]);
+    setLanguage('xx');
+    expect(loads).toEqual([]);
+    await loadLanguages([source(xx), source(yy)]);
+    expect(loads).toEqual(['xx']);
+    expect(t('SETTINGS')).toBe('XSET');
+  });
+
+  it('words that fail to arrive leave the game in English, the choice kept for next time', async () => {
+    vi.stubGlobal('navigator', { languages: ['tr-TR', 'xx'] });
+    const tr: Language = { code: 'tr', name: 'Türkçe', words: {} };
+    await loadLanguages([source(tr, true), source(xx)]);
+    expect(language().code).toBe('en');
+    expect(upper('pit')).toBe('PIT');
+    applyLanguage();
+    expect(language().code).toBe('en');
+    setLanguage('tr');
+    await loadLanguages([source(tr), source(xx)]);
+    expect(language().code).toBe('tr');
+  });
+
+  it("the game's list names every dictionary, each loading its own", async () => {
+    expect(LANGUAGE_SOURCES.map(({ code, name }) => ({ code, name }))).toEqual(LANGUAGES.map(({ code, name }) => ({ code, name })));
+    for (const [i, s] of LANGUAGE_SOURCES.entries()) expect(await s.load()).toBe(LANGUAGES[i]);
   });
 });
 
