@@ -12,7 +12,8 @@ import { bodyTilt, carClass, newCar, type Car } from '../../engine/driving';
 import { SIM_DT, lerp, lerpAngle } from '../../engine/fixedStep';
 import { HD2D_VIEW } from '../../engine/look';
 import { NIGHT } from '../night';
-import { Hd2dPipeline } from '../../engine/render/hd2d';
+import { borrowView, returnView, type SharedView } from '../../engine/render/sharedView';
+import { disposeDeep } from '../../engine/render/dispose';
 import { createCarMesh } from '../../engine/render/vehicles3d';
 import { gridFor } from '../bridge';
 import { buildCircuit } from '../circuit';
@@ -86,12 +87,6 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     }
     p.stop();
   }
-  let renderer: THREE.WebGLRenderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
-  } catch {
-    return () => {};
-  }
   const f1 = carClass('f1');
   const handling = handlingFor(NORMAL);
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, handling), decel: lineDecel(f1) });
@@ -110,17 +105,22 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   });
   for (let t = 0; t < BACKDROP.preRoll + 4; t += SIM_DT) stepRace(race, SIM_DT);
 
-  renderer.setPixelRatio(1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NeutralToneMapping;
+  const camera = new THREE.PerspectiveCamera(HD2D_VIEW.fov, 1, 1, 4000);
+  camera.up.set(0, 0, -1);
+  // (the game's one renderer, shared with the races: sharedView.ts. A race opening while this is still going stops it)
+  let view: SharedView;
+  try {
+    view = borrowView(world.scene, camera, () => stop());
+  } catch {
+    disposeDeep(world.scene);
+    return () => {};
+  }
+  const { renderer, post } = view;
   const canvas = renderer.domElement;
   canvas.className = 'live-backdrop';
   // (over the still, under the menu)
   if (still?.parentElement === host) still.after(canvas);
   else host.prepend(canvas);
-  const camera = new THREE.PerspectiveCamera(HD2D_VIEW.fov, 1, 1, 4000);
-  camera.up.set(0, 0, -1);
-  const post = new Hd2dPipeline(renderer, world.scene, camera);
   let size = '';
   const fit = () => {
     const w = Math.max(1, host.clientWidth);
@@ -215,11 +215,11 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
       clearTimeout(parked.timer);
       parked = undefined;
     }
+    if (stopped) return;
     stopped = true;
-    post.dispose();
-    renderer.dispose();
-    renderer.forceContextLoss();
-    canvas.remove();
+    // (the renderer given back, its canvas out of the page; then the circuit and cars this drew)
+    returnView(view);
+    disposeDeep(world.scene);
   };
   racing = { canvas, stop, layoutId: layout.id };
   return stop;

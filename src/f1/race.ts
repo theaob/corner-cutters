@@ -45,7 +45,7 @@ import { disposeDeep } from '../engine/render/dispose';
 import { NIGHT } from './night';
 import { buildFireworks } from './fireworks3d';
 import { CarFx, DebrisLayer, makeFireLights, Particles, SkidLayer } from '../engine/render/effects';
-import { Hd2dPipeline } from '../engine/render/hd2d';
+import { borrowView, returnView } from '../engine/render/sharedView';
 import { HD2D_VIEW } from '../engine/look';
 import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality } from '../engine/render/quality';
 import { save as saveValue, saved as savedValue } from '../engine/save';
@@ -219,28 +219,25 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const onItsSide = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
 
   // ---------------------------------------------------------------- renderer
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(1);
+  const camera = new THREE.PerspectiveCamera(LOOK.fov, fit.width / fit.height, 1, 4000);
+  camera.up.set(0, 0, -1);
+  // (the game's one renderer, the menu's backdrop done with it: the shaders the last race compiled are still there)
+  const view = borrowView(world.scene, camera, () => dispose());
+  const { renderer, post } = view;
   renderer.info.autoReset = false;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   // (for the logbook: the graphics chip; and the context lost, a phone's way of taking the graphics away, reported)
   setGpu(renderer.getContext());
-  /** the race letting its context go itself, as it closes (no loss to report) */
-  let lettingGo = false;
+  /** the canvas outlives the race: what the race listens for on it stops with the race */
+  const canvasEvents = new AbortController();
   renderer.domElement.addEventListener('webglcontextlost', () => {
-    if (lettingGo) return;
     note('webgl context lost');
     reportProblem('WebGL context lost (in a race)');
-  });
-  renderer.domElement.addEventListener('webglcontextrestored', () => note('webgl context restored'));
+  }, { signal: canvasEvents.signal });
+  renderer.domElement.addEventListener('webglcontextrestored', () => note('webgl context restored'), { signal: canvasEvents.signal });
   Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block' });
   host.prepend(renderer.domElement);
-  const camera = new THREE.PerspectiveCamera(LOOK.fov, fit.width / fit.height, 1, 4000);
-  camera.up.set(0, 0, -1);
-  const post = new Hd2dPipeline(renderer, world.scene, camera);
   // (the picture's quality where the last race settled, so this one doesn't step down again mid-race: quality.ts)
   const gameVersion = (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev').split('+')[0];
   const governor = new QualityGovernor(DEFAULT_GOVERNOR, keptQuality(savedValue('device', 'quality'), Date.now(), gameVersion));
@@ -2390,7 +2387,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   try {
     const q = QUALITY_LEVELS[governor.level];
     // (all of it shown, not only what the camera sees on the grid: the pit lane, the flag, the ceremony, the safety car)
+    const had = renderer.info.programs?.length ?? 0;
+    const from = performance.now();
     drawWhole(world.scene, () => post.render(0, { bloom: world.night ? NIGHT.bloom : LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur }), [safetyCar.group]);
+    // (for the logbook: how long the first draw took, and how many of its shaders were new to the renderer)
+    note(`first draw ${Math.round(performance.now() - from)} ms, ${(renderer.info.programs?.length ?? 0) - had} shaders compiled, ${had} kept`);
   } catch {
     // (a frame that fails here fails in the loop too, which reports it)
   }
@@ -2425,15 +2426,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       document.documentElement.classList.remove('results-up', 'ceremony', 'paused', 'dirt', 'no-pause-blur');
     });
     delete (window as { __cc?: unknown }).__cc;
-    // everything on the GPU: the scene's meshes, materials and textures, the post passes, the context itself
+    // the renderer given back for the next screen (its canvas out of the page, its compiled shaders kept), then
+    // everything of this race's on the GPU: the scene's meshes, materials and textures
+    step(() => canvasEvents.abort());
+    step(() => returnView(view));
     step(() => disposeDeep(world.scene));
-    step(() => post.dispose());
-    step(() => renderer.dispose());
-    step(() => {
-      lettingGo = true;
-      renderer.forceContextLoss();
-    });
-    step(() => renderer.domElement.remove());
+    // (and the safety car, out of the scene unless it's out on track)
+    step(() => disposeDeep(safetyCar.group));
     if (failed !== undefined) throw failed;
   };
   return { resize, dispose };
