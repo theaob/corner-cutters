@@ -10,6 +10,7 @@
 // the weather decides the tyres (tyres.ts), and the plan waits for the dry.
 // Engine-free and unit-tested.
 
+import { t } from '../engine/i18n';
 import { COMPOUNDS, DRY_COMPOUNDS, tyreSpeed, type DryCompound } from './tyres';
 
 /** What a plan is made from. */
@@ -142,5 +143,5 @@ export function pickFor(options: Plan[], k: number): Plan {
 /** How a plan reads on the screen: SFT → HRD, 1 STOP (or NO STOP). */
 export function planText(p: Plan): string {
   const stops = p.stints.length - 1;
-  return `${p.stints.map((s) => COMPOUNDS[s.compound].short).join(' → ')} · ${stops ? `${stops} STOP${stops > 1 ? 'S' : ''}` : 'NO STOP'}`;
+  return `${p.stints.map((s) => COMPOUNDS[s.compound].short).join(' → ')} · ${stops ? t(stops > 1 ? '{n} STOPS' : '{n} STOP', { n: stops }) : t('NO STOP')}`;
 }

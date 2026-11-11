@@ -28,7 +28,7 @@ export function createShareButton(card: () => ShareCard | undefined, map: () => 
       if (how === 'shared' || how === 'saved') onShared?.();
       el.textContent = t(how === 'shared' ? 'SHARED ✓' : how === 'saved' ? 'SAVED · TEXT COPIED' : how === 'failed' ? "COULDN'T SHARE" : LABEL);
     } catch {
-      el.textContent = "COULDN'T SHARE";
+      el.textContent = t("COULDN'T SHARE");
     }
     busy = false;
   };

@@ -8,6 +8,7 @@
 // no store: everything is open, as before.
 
 import { save, saved } from '../engine/save';
+import { t } from '../engine/i18n';
 
 /** The product in the Play Console and App Store Connect: a one-time ("managed" / non-consumable) product with this id. */
 export const CHAMPIONSHIP_PRODUCT = 'championship';
@@ -105,7 +106,7 @@ let shop: Shop | undefined;
 /** Why the store can't be reached, with its own reason under it (so a player's report says which it is). */
 export const unavailable = (why: unknown): string => {
   const reason = String(why ?? '').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 120);
-  return reason ? `${STORE_NAME} ISN’T AVAILABLE HERE (${reason})` : `${STORE_NAME} ISN’T AVAILABLE HERE`;
+  return reason ? t('{store} ISN’T AVAILABLE HERE ({reason})', { store: STORE_NAME, reason }) : t('{store} ISN’T AVAILABLE HERE', { store: STORE_NAME });
 };
 
 /** The shop (set up once): the platform's store, with the Championship registered and its purchase listened for. */
@@ -124,7 +125,7 @@ export function openShop(): Shop {
   };
   const ready = waitForStore().then(async (C) => {
     if (!C) {
-      st.error = unavailable('NO STORE IN THIS BUILD');
+      st.error = unavailable(t('NO STORE IN THIS BUILD'));
       changed();
       return undefined;
     }
@@ -145,7 +146,7 @@ export function openShop(): Shop {
       });
     store.error((e: Cdv) => {
       // (a purchase the player backed out of is no error to show)
-      if (e?.code !== C.ErrorCode?.PAYMENT_CANCELLED) st.error = `${STORE_NAME}: ` + String(e?.message ?? 'ERROR').toUpperCase();
+      if (e?.code !== C.ErrorCode?.PAYMENT_CANCELLED) st.error = `${STORE_NAME}: ` + String(e?.message ?? t('ERROR')).toUpperCase();
       waiting?.(false);
       waiting = undefined;
       changed();
@@ -154,7 +155,7 @@ export function openShop(): Shop {
     if (errors?.length) st.error = unavailable(errors.map((e) => e?.message ?? e?.code).join(' · '));
     if (store.owned(CHAMPIONSHIP_PRODUCT)) owned();
     // (the store reached, but no Championship there to sell: the product's not made, or not active, in its console)
-    else if (!st.error && !st.price) st.error = `THE CHAMPIONSHIP ISN’T ON SALE ON ${STORE_NAME} YET`;
+    else if (!st.error && !st.price) st.error = t('THE CHAMPIONSHIP ISN’T ON SALE ON {store} YET', { store: STORE_NAME });
     changed();
     return store;
   });

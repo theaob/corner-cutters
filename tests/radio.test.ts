@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { LANGUAGES } from '../src/f1/lang';
+import { setLanguage, useLanguages } from '../src/engine/i18n';
 import { RADIO, RADIO_LINES, finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from '../src/f1/radio';
 
 describe('the team radio', () => {
@@ -43,5 +45,20 @@ describe('the team radio', () => {
     for (let t = 0; t < 10; t += 0.1) if (stepRadio(q, 0.1) === 'LATE.') heard = true;
     expect(radioFor('A VERY LONG LINE ABOUT SOMETHING THAT GOES ON AND ON')).toBeGreaterThan(RADIO.stale);
     expect(heard).toBe(false);
+  });
+});
+
+describe('the radio in another language', () => {
+  afterEach(() => useLanguages([]));
+
+  it('says every line in the chosen language, with the place filled in', () => {
+    useLanguages(LANGUAGES);
+    setLanguage('tr');
+    expect(radioLine('box', () => 0)).toBe('PİTE, PİTE. BU TURDA PİTE GEL.');
+    expect(finishLine(2, 10, () => 0)).toBe('P2! PODYUM! HARİKA İŞ.');
+    for (const l of LANGUAGES) {
+      setLanguage(l.code);
+      for (const lines of Object.values(RADIO_LINES)) for (const en of lines) expect(l.words[en], `${l.code}: ${en}`).toBeTruthy();
+    }
   });
 });

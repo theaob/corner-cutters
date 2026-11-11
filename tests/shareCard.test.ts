@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { LANGUAGES } from '../src/f1/lang';
+import { setLanguage, t, useLanguages } from '../src/engine/i18n';
 import { attackCard, cardFile, raceCard, seasonCard, shareText, splitDistance } from '../src/f1/shareCard';
 import { seasonShareCard } from '../src/f1/screens/championship';
 import { newSeason, recordRound } from '../src/f1/championship';
@@ -70,5 +72,30 @@ describe("a Championship's card", () => {
     const c = seasonShareCard(s, new Date(2026, 9, 5));
     expect(c).toMatchObject({ headline: 'P1', sub: 'AFTER ROUND 1 OF 2', date: '2026-10-05' });
     expect(c.stats).toEqual([['POINTS', '25'], ['WINS', '1'], ['PODIUMS', '1']]);
+  });
+});
+
+describe('the share text in another language', () => {
+  afterEach(() => useLanguages([]));
+
+  it('is said in the chosen language, with the circuit and place filled in', () => {
+    useLanguages(LANGUAGES);
+    setLanguage('tr');
+    // (a card is made when it's shared: in the language then)
+    const win = () => raceCard({ circuit: 'CRESCENT PARK', mode: 'QUICK RACE', place: 1, field: 10, grid: 6, gap: 0, fastest: true, team, date: '2026-10-04' });
+    expect(shareText(win())).toBe("Corner Cutters'ta Crescent Park pistinde P1 bitirdim 🏁 🏆 Sen geçebilir misin? https://theaob.github.io/corner-cutters/play/");
+    setLanguage('de');
+    expect(shareText(win())).toBe('Ich bin in Corner Cutters in Crescent Park P1 geworden 🏁 🏆 Kannst du das schlagen? https://theaob.github.io/corner-cutters/play/');
+    const out = raceCard({ circuit: 'NIPPON', mode: 'QUICK RACE', field: 10, grid: 2, fastest: false, team, date: '2026-10-04' });
+    expect(shareText(out)).toMatch(/^Ich bin in Corner Cutters in Nippon ausgeschieden/);
+  });
+
+  it("a Time Attack's distance and a Championship say it in the language too", () => {
+    useLanguages(LANGUAGES);
+    setLanguage('tr');
+    const attack = attackCard({ circuit: 'OASIS', mode: 'TIME ATTACK', distance: t('{n} LAPS', { n: 2 }), medal: 'gold', record: true, team, date: '2026-10-04' });
+    expect(shareText(attack)).toMatch(/^Corner Cutters'ta Oasis pistinde 2 tur gittim/);
+    const won = seasonCard({ mode: 'NORMAL', place: 1, field: 10, points: 90, wins: 5, podiums: 7, round: 10, rounds: 10, over: true, team, date: '2026-10-05' });
+    expect(shareText(won)).toMatch(/^Corner Cutters'ta şampiyonayı kazandım 🏆 🏁/);
   });
 });

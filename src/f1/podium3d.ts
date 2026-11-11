@@ -12,6 +12,7 @@
 // (A circuit's podium deck over its main straight stays as scenery.)
 
 import * as THREE from 'three';
+import { t } from '../engine/i18n';
 import { groundAt } from '../engine/sim';
 import { disposeDeep } from '../engine/render/dispose';
 import { HALF_WIDTH, type Circuit } from './circuit';
@@ -381,7 +382,7 @@ export function createCeremony(title = ''): Ceremony {
           x.fillStyle = hsl.l > 0.55 ? '#1b1b26' : '#f4f4f8';
           x.textAlign = 'center';
           x.textBaseline = 'middle';
-          const lines = [title, 'GRAND PRIX'].filter(Boolean);
+          const lines = [title, t('GRAND PRIX')].filter(Boolean);
           let size = 40;
           x.font = `bold ${size}px monospace`;
           while (size > 20 && Math.max(...lines.map((l) => x.measureText(l).width)) > 470) x.font = `bold ${(size -= 2)}px monospace`;

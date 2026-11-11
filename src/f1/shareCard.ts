@@ -6,7 +6,7 @@
 // paints it.
 
 import { MEDAL_COLOR, medalLabel, type Medal } from './medals';
-import { t } from '../engine/i18n';
+import { lower, t } from '../engine/i18n';
 
 /** Where the game is played (on the card and in the text). */
 export const SHARE_URL = (import.meta.env?.VITE_SHARE_URL as string | undefined) || 'theaob.github.io/corner-cutters/play/';
@@ -82,18 +82,26 @@ export function seasonCard(s: {
   };
 }
 
-/** The text that goes with the card. */
+/** The text that goes with the card, in the chosen language. */
 export function shareText(c: ShareCard): string {
+  const url = `https://${SHARE_URL}`;
+  const ask = t('Can you beat it?');
   if (c.season) {
     const how = c.season.over
-      ? c.sub === t('CHAMPION') ? 'won the championship 🏆' : `finished the championship ${c.headline}`
-      : `am ${c.headline} in the championship after round ${c.season.round} of ${c.season.rounds}`;
-    return `I ${how} in Corner Cutters 🏁 Can you beat it? https://${SHARE_URL}`;
+      ? c.sub === t('CHAMPION') ? t('I won the championship 🏆 in Corner Cutters') : t('I finished the championship {place} in Corner Cutters', { place: c.headline })
+      : t('I am {place} in the championship after round {n} of {total} in Corner Cutters', { place: c.headline, n: c.season.round, total: c.season.rounds });
+    return `${how} 🏁 ${ask} ${url}`;
   }
-  const how = c.headline === t('DNF') ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${c.headline.toLowerCase()}`;
-  return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters 🏁 ${c.sub === t('WINNER') ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
+  const circuit = titleCase(c.circuit);
+  const how = c.headline === t('DNF')
+    ? t('I crashed out at {circuit} in Corner Cutters', { circuit })
+    : /^P\d+$/.test(c.headline)
+      ? t('I finished {place} at {circuit} in Corner Cutters', { place: c.headline, circuit })
+      : t('I reached {distance} at {circuit} in Corner Cutters', { distance: lower(c.headline), circuit });
+  return `${how} 🏁 ${c.sub === t('WINNER') ? '🏆 ' : ''}${ask} ${url}`;
 }
-const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
+/** A circuit's name as a name (Crescent Park): its own, not the language's, rules for capitals (Turkish would make Oasıs). */
+const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s\-'’])(\p{L})/gu, (_m, gap: string, letter: string) => gap + letter.toUpperCase());
 
 /** The card's file name. */
 export const cardFile = (c: ShareCard) => `corner-cutters-${c.circuit.toLowerCase().replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-')}-${c.date}.png`;
