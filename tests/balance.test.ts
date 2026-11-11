@@ -58,7 +58,11 @@ const good = { device: 'touch', skill: 0.95 } as const;
 const steady = { device: 'touch', skill: 0.9 } as const;
 const veryGood = { device: 'touch', skill: 1 } as const;
 
-describe.each(LAYOUTS)('the balance at $name: a flying lap', (layout) => {
+// BALANCE_PART=k/n runs only the k-th of n parts of the circuits (CI splits this file's two minutes-a-circuit across jobs)
+const [partK, partN] = (process.env.BALANCE_PART ?? '1/1').split('/').map(Number);
+const CIRCUITS = LAYOUTS.filter((_, i) => i % partN === partK - 1);
+
+describe.each(CIRCUITS)('the balance at $name: a flying lap', (layout) => {
   const c = build(layout, byId('normal'));
   const ai = referenceLap(c.track, c.grid, handlingFor(byId('normal')), 'dry');
   /** the quickest AI car's lap at difficulty `id` (the pace of the car at the front of the pace order) */
@@ -86,7 +90,7 @@ describe.each(LAYOUTS)('the balance at $name: a flying lap', (layout) => {
   });
 });
 
-describe.each(LAYOUTS)('the balance at $name: a race from mid-grid', (layout) => {
+describe.each(CIRCUITS)('the balance at $name: a race from mid-grid', (layout) => {
   it('EASY: a good player wins, by 3 s or more', () => {
     const c = build(layout, byId('easy'));
     for (const seed of [1, 2]) expect(race(c, byId('easy'), good, seed)).toMatchObject({ place: 1, finished: true, gap: expect.toSatisfy((g: number) => g <= -3) });
