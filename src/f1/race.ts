@@ -47,6 +47,7 @@ import { buildFireworks } from './fireworks3d';
 import { CarFx, DebrisLayer, makeFireLights, Particles, SkidLayer } from '../engine/render/effects';
 import { borrowView, returnView } from '../engine/render/sharedView';
 import { HD2D_VIEW } from '../engine/look';
+import { frameCap, graphicsSetting, heldLevel, skipFrame } from './graphics';
 import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality } from '../engine/render/quality';
 import { save as saveValue, saved as savedValue } from '../engine/save';
 import type { ScreenFit } from '../engine/layout';
@@ -245,6 +246,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let keptLevel = { level: governor.level, locked: governor.locked };
   /** the level set by hand (__cc.quality): not kept */
   let qualityHeld = false;
+  /** GRAPHICS held the level this frame (not AUTO) */
+  let wasHeld = false;
   let viewW = fit.width;
   let viewH = fit.height;
   let sizeKey = '';
@@ -1540,6 +1543,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let notedPhase = '';
   const frame = (now: number) => {
     if (closed) return;
+    // (GRAPHICS: SAVER draws 30 frames a second: a frame too soon after the last is left for the next; `last` stays, so the time adds up)
+    if (skipFrame(frameCap(graphicsSetting()), now - last)) {
+      requestAnimationFrame(tick);
+      return;
+    }
     {
       const phase = `${session} ${done ? 'done' : race.phase}${replay ? ' replay' : ''}`;
       if (phase !== notedPhase) note((notedPhase = phase));
@@ -2334,10 +2342,23 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
 
 
-    if (settle > 0) settle--;
+    // (GRAPHICS: HIGH and LOW hold their level, whatever the frame rate: the governor's watch is over and nothing is kept)
+    const held = heldLevel(graphicsSetting());
+    if (held !== undefined) {
+      governor.level = held;
+      governor.locked = true;
+    } else if (wasHeld && !qualityHeld) {
+      // (back to AUTO: the governor watches again, from full quality)
+      governor.level = 0;
+      governor.locked = false;
+    }
+    wasHeld = held !== undefined;
+    if (held !== undefined) {
+      // nothing to sample
+    } else if (settle > 0) settle--;
     // (the frame's real length, not the simulation's capped one: at 5 fps the capped time ran the governor's waits four times too long, a step down every 20 s)
     else governor.sample(Math.min(real, 0.25));
-    if (!qualityHeld && (governor.level !== keptLevel.level || governor.locked !== keptLevel.locked)) {
+    if (!qualityHeld && !wasHeld && (governor.level !== keptLevel.level || governor.locked !== keptLevel.locked)) {
       keptLevel = { level: governor.level, locked: governor.locked };
       saveValue('device', 'quality', { ...keptLevel, at: Date.now(), version: gameVersion });
     }
