@@ -1,15 +1,12 @@
 import { type StandaloneView } from './engine/view';
-import { applyLanguage, lower, markSettingsResume, onLanguageChange, settingsResumePending, t, useLanguages } from './engine/i18n';
-import { LANGUAGES } from './f1/lang';
+import { applyLanguage, lower, markSettingsResume, onLanguageChange, settingsResumePending, t } from './engine/i18n';
 import { mountTuning } from './engine/tuning';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
 import { Hud, bindDeck, releaseDeck, setStickSide, stickSide } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
-import { useStore } from './engine/storage';
-import { save, saved, useSave } from './engine/save';
-import { CC_SAVE } from './f1/save';
+import { save, saved } from './engine/save';
 import { playMusic } from './engine/music';
 import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
@@ -58,11 +55,8 @@ const deck = document.getElementById('deck')!;
 
 const app = document.getElementById('app')!;
 
-// this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
-useStore('cc:');
-useSave(CC_SAVE);
+// (the save and the chosen language's words are ready by now: f1/boot.ts)
 // (LANGUAGE in the settings: the menus are built once, so a change reloads the page)
-useLanguages(LANGUAGES);
 applyLanguage();
 onLanguageChange(() => {
   markSettingsResume();
