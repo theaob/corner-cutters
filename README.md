@@ -125,6 +125,8 @@ npm run dev        # http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run build` | Typecheck + production build to `dist/` |
 | `npm test` | Unit tests (Vitest) |
+| `npm run test:fast` | The same without the four race-simulation files (balance, racecraft, pits, tyres): about a minute, for working on something; CI runs both sets side by side (`BALANCE_PART=1/2` runs half the circuits of the balance file) |
+| `npm run lint` | ESLint (the bug-catching rules; CI runs it) |
 | `npm run typecheck` | TypeScript only |
 
 **Controls:** each device drives the way it suits, and the game follows whichever you used last:

@@ -1,4 +1,4 @@
-# The checks every change has to pass: dependency advisories, lint, types, the tests and a build. Runs on every pull
+# The checks every change has to pass: dependency advisories, lint, types, a build and the tests. Runs on every pull
 # request and on a push to the default branch. It reads no secret and builds without the Supabase keys, so a pull
 # request's code never sees a key. (The itch.io, Android and Pages workflows publish and run on the default branch.)
 name: ci
@@ -30,7 +30,32 @@ jobs:
       # a new advisory in a dependency fails the run; npm audit fix (or a Dependabot pull request) clears it
       - run: npm audit --audit-level=high
       - run: npm run lint
-      - run: npm test
-      # the web build (tsc and vite), and the Play and App Store variants the stores ship
+      # the web build (tsc and vite), and the Play variant the store ships
       - run: npm run build
       - run: VITE_STORE=play npm run build
+
+  # The tests in four jobs side by side: the quick ones, the three race-simulation files, and the balance file
+  # (a reference player racing every circuit) in two halves. Together they are `npm test`.
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: quick
+            run: npm run test:fast
+          - name: simulations
+            run: npm run test:sims
+          - name: balance 1/2
+            run: BALANCE_PART=1/2 npx vitest run tests/balance.test.ts
+          - name: balance 2/2
+            run: BALANCE_PART=2/2 npx vitest run tests/balance.test.ts
+    name: tests (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: ${{ matrix.run }}

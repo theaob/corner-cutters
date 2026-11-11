@@ -15,6 +15,8 @@
     "typecheck": "tsc",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:fast": "vitest run --exclude tests/balance.test.ts --exclude tests/racecraft.test.ts --exclude tests/pits.test.ts --exclude tests/tyres.test.ts",
+    "test:sims": "vitest run tests/racecraft.test.ts tests/pits.test.ts tests/tyres.test.ts",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
     "android:play": "VITE_STORE=play npm run android:sync && cd android && ./gradlew bundleRelease",
