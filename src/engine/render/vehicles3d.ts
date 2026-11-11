@@ -113,6 +113,32 @@ function knobs(wr: number, ww: number): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
+/** A tyre `wr` px in radius and `ww` wide, its axle along x, with its compound band round the outer edge (`side`: −1 or 1), the band's vertices marked (attribute `mark`: 1). */
+function tyreGeometry(wr: number, ww: number, side: number): THREE.BufferGeometry {
+  const tread = new THREE.CylinderGeometry(wr, wr, ww, 12).rotateZ(Math.PI / 2);
+  const band = new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.8, 12, 1, true).rotateZ(Math.PI / 2).translate(side * (ww / 2 - 0.4), 0, 0);
+  for (const [g, mark] of [[tread, 0], [band, 1]] as const) {
+    g.setAttribute('mark', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count).fill(mark), 1));
+  }
+  return mergeGeometries([tread, band])!;
+}
+
+/** The tyre's material: dark rubber (lit), its marked vertices in `mark`'s colour instead (unlit: a lamp's glow doesn't dim it). */
+function tyreMaterial(mark: THREE.Color): THREE.MeshLambertMaterial {
+  const m = lambert({ color: 0x151515 });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uMark = { value: mark };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float mark; varying float vMark;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMark = mark;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uMark; varying float vMark;')
+      .replace('#include <opaque_fragment>', 'outgoingLight = mix(outgoingLight, uMark, vMark);\n#include <opaque_fragment>');
+  };
+  m.customProgramCacheKey = () => 'tyre-mark';
+  return m;
+}
+
 export const CAR_LOOKS: Record<CarClassId, CarLook> = {
   f1: { body: '#d8323c', stripe: '#f4f4f8' },
 };
@@ -157,7 +183,7 @@ export interface CarMesh extends THREE.Group {
     /** materials whose colour darkens as the car burns */
     paint: THREE.MeshLambertMaterial[];
     /** the coloured band round each tyre's outer edge, marking its compound: set its colour */
-    tyreMark: THREE.MeshBasicMaterial;
+    tyreMark: { color: THREE.Color };
     /** the red rain light at the back, for wet races: off (hidden) until shown */
     rainLight: THREE.Mesh;
     /** the parts a big crash can tear off: the nose (with the front wing) and each wheel (front left, front right, rear left, rear right) */
@@ -247,21 +273,16 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   ].map(([z, wr, ww, half]) => (offRoad ? [z, wr + OFF_ROAD.radius, ww + OFF_ROAD.width, half + OFF_ROAD.width / 2] : [z, wr, ww, half]));
   // (the tread blocks caked in earth, so the knobbly tread shows against the tyre)
   const tread = offRoad ? lambert({ color: 0x6a5038 }) : undefined;
-  const wheelMat = lambert({ color: 0x151515 });
-  // the compound's colour round the outer edge of each tread (unlit, so it reads from afar and in shade)
-  const tyreMark = new THREE.MeshBasicMaterial({ color: 0xffd21f, toneMapped: false });
+  // a tyre and its compound band are one mesh in one draw call (where they were two): the band's vertices are marked, and
+  // the marked ones are drawn in the band's colour, unlit, so it still reads from afar and in shade
+  const tyreMark = { color: new THREE.Color(0xffd21f) };
+  const wheelMat = tyreMaterial(tyreMark.color);
   const wheels: THREE.Group[] = [];
   for (const [z, wr, ww, half] of axles) {
     for (const x of [-half, half]) {
       // (each wheel a part of its own, centred on its hub)
       const hub = part(z, x, wr);
-      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, ww, 12), wheelMat);
-      wheel.rotation.z = Math.PI / 2;
-      hub.add(wheel);
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.8, 12, 1, true), tyreMark);
-      band.rotation.z = Math.PI / 2;
-      band.position.x = Math.sign(x) * (ww / 2 - 0.4);
-      hub.add(band);
+      hub.add(new THREE.Mesh(tyreGeometry(wr, ww, Math.sign(x)), wheelMat));
       // (off-road: the knobbly tread, its blocks staggered side to side round the tyre)
       if (tread) hub.add(new THREE.Mesh(knobs(wr, ww), tread));
       wheels.push(hub);
