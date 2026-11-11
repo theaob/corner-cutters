@@ -90,6 +90,12 @@ export class Hd2dPipeline {
     this.scenePass.scene = scene;
   }
 
+  /** Draw a different scene, through a different camera, from now on (the next screen to use the shared view: sharedView.ts). */
+  setView(scene: THREE.Scene, camera: THREE.Camera): void {
+    this.scenePass.scene = scene;
+    this.scenePass.camera = camera;
+  }
+
   /** Free the render targets and passes (the view is closing). */
   dispose(): void {
     this.bloom.dispose();
