@@ -1,0 +1,36 @@
+# The checks every change has to pass: dependency advisories, lint, types, the tests and a build. Runs on every pull
+# request and on a push to the default branch. It reads no secret and builds without the Supabase keys, so a pull
+# request's code never sees a key. (The itch.io, Android and Pages workflows publish and run on the default branch.)
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      # dependency install scripts stay off: nothing here needs them
+      - run: npm ci --ignore-scripts
+      # a new advisory in a dependency fails the run; npm audit fix (or a Dependabot pull request) clears it
+      - run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm test
+      # the web build (tsc and vite), and the Play and App Store variants the stores ship
+      - run: npm run build
+      - run: VITE_STORE=play npm run build

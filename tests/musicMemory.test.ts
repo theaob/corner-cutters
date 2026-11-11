@@ -56,6 +56,7 @@ class FakeContext {
   destination = node();
   watchers: (() => void)[] = [];
   constructor() {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- the test reaches the one context the code made
     context = this;
   }
   addEventListener(_type: string, f: () => void) {

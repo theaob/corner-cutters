@@ -134,9 +134,9 @@ describe('watching the frames', () => {
     const at = frames();
     const seen: number[] = [];
     watchFrames((s) => seen.push(s.fps), () => false);
-    let t = run(at, 800_000, 50, 3);
+    const t = run(at, 800_000, 50, 3);
     sightChanged();
-    t = run(at, t, 50, 3);
+    run(at, t, 50, 3);
     expect(seen).toEqual([]);
   });
 });

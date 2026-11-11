@@ -307,7 +307,7 @@ describe('the start', () => {
     // pole bogs down; the rest react in a spread
     race.entrants.forEach((e, i) => (e.ai!.reaction = i === 0 ? 1.1 : 0.16 + ((i * 37) % 10) * 0.026));
     const crashes: RaceEvent[] = [];
-    let movedAt: (number | undefined)[] = race.entrants.map(() => undefined);
+    const movedAt: (number | undefined)[] = race.entrants.map(() => undefined);
     for (let t = 0; t < 30 && !(race.phase === 'racing' && race.clock > 5); t += dt) {
       for (const e of stepRace(race, dt).race) if (e.kind === 'crash') crashes.push(e);
       if (race.phase === 'racing') race.entrants.forEach((e, i) => { if (movedAt[i] === undefined && speedOf(e.car) > 5) movedAt[i] = race.clock; });

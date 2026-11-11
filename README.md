@@ -178,7 +178,7 @@ A message across the race (the banner: the controls lap's prompts, BOX BOX, the 
 
 ## Publishing to itch.io
 
-`.github/workflows/itch.yml` tests and builds every push and pull request. A push to the default branch (or **Run workflow** in the Actions tab on it) also uploads `dist/` to itch.io with [butler](https://itch.io/docs/butler/) as the `html5` channel, versioned `<package version>+<commit>`.
+`.github/workflows/ci.yml` checks every pull request and every push to the default branch (`npm audit`, ESLint, the tests, the web build) without reading any secret. `.github/workflows/itch.yml` builds a push to the default branch (or **Run workflow** in the Actions tab on it) and uploads `dist/` to itch.io with [butler](https://itch.io/docs/butler/) as the `html5` channel, versioned `<package version>+<commit>`.
 
 Setup (once):
 1. On itch.io, create the project with kind **HTML**. Under the embed options, tick **Mobile friendly** (portrait) and **Fullscreen button**, and set a viewport of about 390×844.

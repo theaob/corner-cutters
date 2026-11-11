@@ -69,7 +69,10 @@ export function actionRow(label: string, value: () => string, about: () => strin
   el.addEventListener('pointerdown', () => (armed = true));
   el.addEventListener('pointerleave', () => (armed = false));
   el.addEventListener('pointerup', () => {
-    if (armed) run(), render();
+    if (armed) {
+      run();
+      render();
+    }
     armed = false;
   });
   render();

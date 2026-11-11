@@ -1,7 +1,7 @@
 {
   "name": "corner-cutters",
   "private": true,
-  "version": "0.2.21",
+  "version": "0.2.22",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "stats": "vite --config vite.stats.config.ts --open /stats.html",
     "stats:build": "vite build --config vite.stats.config.ts",
     "typecheck": "tsc",
+    "lint": "eslint .",
     "test": "vitest run",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
@@ -41,7 +42,9 @@
     "@capacitor/cli": "^8.5.2",
     "@types/node": "^22.20.4",
     "@types/three": "^0.186.0",
+    "eslint": "^10.14.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.2",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
   }
