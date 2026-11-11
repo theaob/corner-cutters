@@ -56,7 +56,7 @@ export function createHud(team: Team, difficulty: Difficulty, circuit: { width: 
   const radioColor = [team.body, team.trim, ...(team.accent ? [team.accent] : [])].reduce((a, c) => (lightness(c) > lightness(a) ? c : a));
   radioPanel.style.borderLeftColor = radioColor;
   style(radioLabel, { color: radioColor, fontSize: 'calc(9px * var(--ts, 1))', marginBottom: '2px' });
-  radioLabel.textContent = '◉ RADIO';
+  radioLabel.textContent = `◉ ${t('RADIO')}`;
   const radioText = document.createElement('div');
   radioPanel.append(radioLabel, radioText);
   const results = document.createElement('div');

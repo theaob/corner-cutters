@@ -4,6 +4,7 @@
 // the text copied, ready to paste.
 
 import { Capacitor } from '@capacitor/core';
+import { t } from './i18n';
 
 export type Shared = 'shared' | 'saved' | 'cancelled' | 'failed';
 
@@ -22,7 +23,7 @@ export async function shareImage(png: Blob, filename: string, text: string): Pro
     try {
       const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
       const { uri } = await Filesystem.writeFile({ path: filename, data: await base64(png), directory: Directory.Cache });
-      await Share.share({ title: 'Corner Cutters', text, files: [uri], dialogTitle: 'Share your result' });
+      await Share.share({ title: 'Corner Cutters', text, files: [uri], dialogTitle: t('Share your result') });
       return 'shared';
     } catch (e) {
       // (closing the share sheet rejects too)

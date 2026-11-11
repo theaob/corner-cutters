@@ -168,7 +168,7 @@ export function showCarShop(host: HTMLElement, services: Services, team: Team, c
     } else {
       menuPick();
       setCarStyle(style);
-      status.textContent = `${style.name} EQUIPPED`;
+      status.textContent = t('{name} EQUIPPED', { name: t(style.name) });
       status.style.color = 'var(--accent-b)';
     }
     render();

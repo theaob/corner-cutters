@@ -404,7 +404,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (i === 'gap') return 'gap';
       const e = race.entrants[i];
       const place = order.indexOf(i) + 1;
-      const gap = e.progress.retired ? 'OUT' : e.pit ? 'PIT' : e.blue !== undefined ? '▮ BLUE' : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
+      const gap = e.progress.retired ? tl('OUT') : e.pit ? tl('PIT') : e.blue !== undefined ? `▮ ${tl('BLUE')}` : race.phase === 'lights' ? '' : towerGap(place, gapBetween(hudState.gaps, lead, i), Math.max(0, Math.floor((along(lead) - along(i)) / n)));
       return { place, color: looks[i].color, trim: looks[i].team.trim, name: looks[i].name, gap, you: i === you, out: !!e.progress.retired, blue: e.blue !== undefined };
     }));
   };
@@ -1154,7 +1154,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       return attackCard({
         circuit: layout.name.toUpperCase(), mode: options.daily ? `${tl('DAILY CHALLENGE')} · ${tl(weather.name)}` : `${tl('TIME ATTACK')} · ${tl(difficulty.name)} · ${tl(weather.name)}`,
         distance: distance(passed), medal, record, best: distance(daily ? daily.dayBest.score : Math.max(passed, attack.best ?? 0)), team: yours, date,
-        place: daily?.place !== undefined ? `#${daily.place} OF ${daily.entries}` : undefined,
+        place: daily?.place !== undefined ? tl('#{place} OF {total}', { place: daily.place, total: daily.entries ?? 0 }) : undefined,
       });
     }
     if (session !== 'race') return undefined;
@@ -2125,7 +2125,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (podium) playMusic(PODIUM_MUSIC, 1);
     const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished === undefined && others.every((e) => e.progress.finished !== undefined);
     if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
-    hud.setPosition(session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'timeattack' ? 'TIME ATTACK' : session === 'tutorial' ? 'CONTROLS' : `P${pos}/${race.entrants.length}`);
+    hud.setPosition(session === 'qualifying' ? tl('QUALI') : session === 'timetrial' ? tl('TIME TRIAL') : session === 'timeattack' ? tl('TIME ATTACK') : session === 'tutorial' ? tl('CONTROLS') : `P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
     // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {

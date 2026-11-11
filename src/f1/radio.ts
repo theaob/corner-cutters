@@ -6,6 +6,8 @@
 // line in a radio panel, keyed with a click and a squelch, and holds the next
 // until it's done (and drops a stale one). Engine-free and unit-tested.
 
+import { t } from '../engine/i18n';
+
 export type RadioCue = 'box' | 'box-slick' | 'box-hard' | 'box-inter' | 'box-wet' | 'rain' | 'rain-stops' | 'safety-car' | 'vsc' | 'green' | 'pit-out' | 'final-lap' | 'fastest-lap' | 'warning' | 'penalty' | 'wreck' | 'jump-start' | 'blue';
 
 export const RADIO_LINES: Record<RadioCue, string[]> = {
@@ -32,16 +34,16 @@ export const RADIO_LINES: Record<RadioCue, string[]> = {
 /** A line for `cue`, one of its ways round (picked by `rng`). */
 export function radioLine(cue: RadioCue, rng: () => number = Math.random): string {
   const lines = RADIO_LINES[cue];
-  return lines[Math.min(lines.length - 1, Math.floor(rng() * lines.length))];
+  return t(lines[Math.min(lines.length - 1, Math.floor(rng() * lines.length))]);
 }
 
 /** What your engineer says at your flag, finishing `place` (1 = the winner) of `of`. */
 export function finishLine(place: number, of: number, rng: () => number = Math.random): string {
-  const pick = (lines: string[]) => lines[Math.min(lines.length - 1, Math.floor(rng() * lines.length))];
+  const pick = (lines: string[], vars?: Record<string, number>) => t(lines[Math.min(lines.length - 1, Math.floor(rng() * lines.length))], vars);
   if (place === 1) return pick(['YES! GET IN THERE! P1!', 'P1! YOU WON IT! WHAT A RACE!', 'CHEQUERED FLAG, P1! FANTASTIC!']);
-  if (place <= 3) return pick([`P${place}! PODIUM! GREAT JOB.`, `PODIUM, P${place}. WELL DONE.`]);
-  if (place <= Math.min(10, of)) return pick([`P${place}. GOOD POINTS TODAY.`, `P${place}, IN THE POINTS. NICE WORK.`]);
-  return pick([`P${place}. WE'LL GO AGAIN.`, `P${place}. TOUGH ONE, WE'LL LEARN FROM IT.`]);
+  if (place <= 3) return pick(['P{place}! PODIUM! GREAT JOB.', 'PODIUM, P{place}. WELL DONE.'], { place });
+  if (place <= Math.min(10, of)) return pick(['P{place}. GOOD POINTS TODAY.', 'P{place}, IN THE POINTS. NICE WORK.'], { place });
+  return pick(["P{place}. WE'LL GO AGAIN.", "P{place}. TOUGH ONE, WE'LL LEARN FROM IT."], { place });
 }
 
 /** s a line stays up (longer lines a little longer), and the most a line may wait behind another before it's stale. */

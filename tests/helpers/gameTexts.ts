@@ -15,6 +15,8 @@ import { MODES } from '../../src/f1/circuitSelect';
 import { CAR_STYLES } from '../../src/f1/carStyle';
 import { LABEL_ICON } from '../../src/f1/race/readout';
 import { prompt } from '../../src/f1/onboarding';
+import { SEASON_LENGTHS } from '../../src/f1/laps';
+import { RADIO_LINES } from '../../src/f1/radio';
 
 /** Texts that stay as they are in a language: names, codes and things that read the same. */
 export const SAME = new Set(['OK', 'NORMAL', 'AUTO', 'ABC', 'YOU', 'CORNER CUTTERS']);
@@ -25,6 +27,21 @@ const sources = (dir: string): string[] =>
     if (f === 'lang' || f === 'designer' || f === 'stats') return [];
     return statSync(p).isDirectory() ? sources(p) : p.endsWith('.ts') ? [p] : [];
   });
+
+/** `src` without its comments (an apostrophe in a comment would pair up with the next quote and hide the texts between). */
+export const stripComments = (src: string): string =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => {
+      for (let i = line.indexOf('//'); i >= 0; i = line.indexOf('//', i + 1)) {
+        const before = line.slice(0, i).replace(/\\./g, '');
+        // (a // outside any quote starts a comment; one inside a string, a URL, doesn't)
+        if (['\'', '"', '`'].every((q) => before.split(q).length % 2 === 1)) return before;
+      }
+      return line;
+    })
+    .join('\n');
 
 /** The string literals in `text` (its quotes or backticks, with no ${} in them). */
 const literals = (text: string): string[] =>
@@ -60,7 +77,7 @@ const translatable = (s: string) => /[A-Za-z]{2}/.test(s.replace(/\{\w+\}/g, '')
 export function gameTexts(): string[] {
   const calls = new Map<string, string>();
   for (const file of sources('src')) {
-    const src = readFileSync(file, 'utf8');
+    const src = stripComments(readFileSync(file, 'utf8'));
     if (!/engine\/i18n'|\.\/i18n'/.test(src)) continue;
     const alias = /\bt as (\w+)/.exec(src)?.[1];
     for (const arg of firstArgs(src, ['t', ...(alias ? [alias] : []), 'announce', 'announceNext', 'optionRow', 'menuButton', 'hintToast']))
@@ -78,8 +95,13 @@ export function gameTexts(): string[] {
     ...Object.values(MEDAL_NAME),
     ...MODES.flatMap((m) => [m.name, m.about]),
     ...CAR_STYLES.map((c) => c.name),
+    ...SEASON_LENGTHS.map((l) => l.name),
+    ...Object.values(RADIO_LINES).flat(),
+    ...literals(stripComments(readFileSync('src/f1/radio.ts', 'utf8'))).filter((s) => /^(P\{place\}|PODIUM|YES|CHEQUERED)/.test(s)),
+    // (said through a constant, or looked up by a variable: the hint under the circuit, the tower's and the position's words)
+    'SWIPE TO CHANGE · TAP THE CIRCUIT TO RACE', 'CIRCUIT', 'QUALI', 'PIT', 'BLUE',
     'SHOWERS', 'DRYING', 'LIGHT RAIN', ...Object.keys(LABEL_ICON), 'WRECKED', 'WORN', 'FOR', 'MISSION', 'STREAK', 'REWARD', 'ACHIEVEMENT',
-    ...literals(readFileSync('src/f1/race/deckLabels.ts', 'utf8')).filter((s) => /^[A-Z]+$/.test(s)),
+    ...literals(stripComments(readFileSync('src/f1/race/deckLabels.ts', 'utf8'))).filter((s) => /^[A-Z]+$/.test(s)),
   ];
   const prompts = (['go', 'faster', 'bend', 'drift', 'limits', 'lap', 'done'] as const).flatMap((step) =>
     (['touch', 'keys', 'pad'] as const).flatMap((d) => [prompt(step, d, false), prompt(step, d, true)]));
