@@ -66,9 +66,9 @@ jobs:
       - run: mv dist-designer dist-stats/designer
       # the plain pages beside them (site/: the game's privacy policy and terms, privacy.html and terms.html, as the store listings link them)
       - run: cp -r site/. dist-stats/
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist-stats
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
