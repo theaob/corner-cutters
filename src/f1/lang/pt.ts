@@ -621,5 +621,10 @@ export const pt: Language = {
   'your progress as a code, to RESTORE on another device': 'seu progresso como código, para RESTAURAR em outro aparelho',
   'copied: keep it private, it holds your progress': 'copiado: mantenha em sigilo, ele contém seu progresso',
   'couldn’t copy it': 'não foi possível copiar',
+  '{colour} pen': 'caneta {colour}',
+  'red': 'vermelha',
+  'amber': 'âmbar',
+  'cyan': 'ciano',
+  'white': 'branca',
   },
 };

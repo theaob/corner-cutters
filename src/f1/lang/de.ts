@@ -621,5 +621,10 @@ export const de: Language = {
   'your progress as a code, to RESTORE on another device': 'dein Fortschritt als Code, zum WIEDERHERSTELLEN auf einem anderen Gerät',
   'copied: keep it private, it holds your progress': 'kopiert: privat halten, er enthält deinen Fortschritt',
   'couldn’t copy it': 'Kopieren nicht möglich',
+  '{colour} pen': 'Stift: {colour}',
+  'red': 'rot',
+  'amber': 'gelb',
+  'cyan': 'türkis',
+  'white': 'weiß',
   },
 };

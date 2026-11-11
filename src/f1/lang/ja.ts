@@ -621,5 +621,10 @@ export const ja: Language = {
   'your progress as a code, to RESTORE on another device': '進行状況をコードにします。別の端末で復元できます',
   'copied: keep it private, it holds your progress': 'コピーしました。進行状況が含まれるので他人に見せないでください',
   'couldn’t copy it': 'コピーできませんでした',
+  '{colour} pen': '{colour}のペン',
+  'red': '赤',
+  'amber': '琥珀色',
+  'cyan': 'シアン',
+  'white': '白',
   },
 };

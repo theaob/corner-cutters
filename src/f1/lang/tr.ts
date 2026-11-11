@@ -627,5 +627,10 @@ export const tr: Language = {
   'your progress as a code, to RESTORE on another device': 'ilerlemen bir kod olarak; başka cihazda GERİ YÜKLE ile kullan',
   'copied: keep it private, it holds your progress': 'kopyalandı: gizli tut, ilerlemeni içerir',
   'couldn’t copy it': 'kopyalanamadı',
+  '{colour} pen': '{colour} kalem',
+  'red': 'kırmızı',
+  'amber': 'kehribar',
+  'cyan': 'camgöbeği',
+  'white': 'beyaz',
   },
 };
