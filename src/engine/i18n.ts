@@ -3,6 +3,7 @@
 // A language is a dictionary from English text to its translation; `{name}` in the text is filled from `vars`.
 // The choice is remembered (settings.language); until one is made it follows the device's language where the
 // game has it, else English. Menus are built once, so a change takes a page reload (the app does that).
+// Only the chosen language's words are loaded: the rest are known by name until one of them is chosen.
 
 import { save, saved } from './save';
 
@@ -15,14 +16,42 @@ export interface Language {
   words: Record<string, string>;
 }
 
+/** A language by name, its words fetched when it's the one chosen (they are most of a language's size). */
+export interface LanguageSource {
+  code: string;
+  name: string;
+  load: () => Promise<Language>;
+}
+
 export const ENGLISH: Language = { code: 'en', name: 'English', words: {} };
 
 let languages: Language[] = [ENGLISH];
 let current: Language = ENGLISH;
+/** languages left out of the pick this time, their words not having arrived: the text and its capitals stay English */
+const missing = new Set<string>();
 
-/** The languages the game has, English first. Called once at boot (src/f1/lang). */
+/** The languages the game has, English first, words and all. */
 export function useLanguages(list: Language[]): void {
   languages = [ENGLISH, ...list.filter((l) => l.code !== ENGLISH.code)];
+  missing.clear();
+  current = pick();
+}
+
+/**
+ * The languages the game has, English first, with the words of the chosen one only: the others are names in the
+ * LANGUAGE row (choosing one reloads the page, which fetches it). Called once at boot (src/f1/boot.ts), before
+ * any text is read. If the words can't be fetched (offline on the web), the game is in English this time.
+ */
+export async function loadLanguages(sources: LanguageSource[]): Promise<void> {
+  useLanguages(sources.map(({ code, name }) => ({ code, name, words: {} })));
+  const chosen = sources.find((s) => s.code === current.code);
+  if (!chosen) return;
+  try {
+    const full = await chosen.load();
+    languages = languages.map((l) => (l.code === full.code ? full : l));
+  } catch {
+    for (const s of sources) missing.add(s.code);
+  }
   current = pick();
 }
 export const availableLanguages = (): Language[] => languages;
@@ -37,7 +66,7 @@ function deviceCodes(): string[] {
 /** The saved choice if it's a language we have, else the first of the device's we have, else English. */
 function pick(): Language {
   const code = saved('settings', 'language');
-  const have = (c: unknown) => languages.find((l) => l.code === c);
+  const have = (c: unknown) => languages.find((l) => l.code === c && !missing.has(l.code));
   return have(code) ?? deviceCodes().map(have).find(Boolean) ?? ENGLISH;
 }
 
