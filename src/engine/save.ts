@@ -181,3 +181,32 @@ export function save(section: string, name: string, value: unknown): void {
 
 /** The version of the save in use (for the debug readout and tests). */
 export const saveVersion = () => load().version;
+
+/** The sections that belong to the device, not the player (what it measured about itself): left out of a save moved to another. */
+const DEVICE_SECTIONS = ['device'];
+
+/** The whole save, as a document, for moving to another device (the device's own sections left out). */
+export function exportSaveDoc(): SaveDoc {
+  const d = load();
+  const data: SaveData = {};
+  for (const [k, v] of Object.entries(d.data)) if (!DEVICE_SECTIONS.includes(k)) data[k] = v;
+  return { version: d.version, data };
+}
+
+/**
+ * Replace the save with `incoming` (a save moved from another device): false if it's from a newer game than this one
+ * (it couldn't be read as it should be) or can't be written. The save it replaces is kept aside under 'save.bak',
+ * and this device's own sections stay.
+ */
+export function replaceSave(incoming: SaveDoc): boolean {
+  const d = load();
+  if (incoming.version > format.version) return false;
+  const migrated = migrateSave(incoming, format);
+  const keep: SaveData = {};
+  for (const k of DEVICE_SECTIONS) if (d.data[k]) keep[k] = d.data[k];
+  const before = get(KEY());
+  if (before !== null) set(storeKey('save.bak'), before);
+  doc = { version: migrated.version, data: { ...migrated.data, ...keep } };
+  readOnly = false;
+  return write();
+}

@@ -60,7 +60,7 @@ const MODE_NAMES: Record<string, string> = {
 };
 /** the menu screens a report can come from */
 const MENU_NAMES: Record<string, string> = { menu: 'the menu', championship: 'the Championship screen', daily: 'the Daily Challenge screen', shop: 'the Championship shop' };
-const PLATFORM_NAMES: Record<string, string> = { web: 'Web (itch.io)', android: 'Android app' };
+const PLATFORM_NAMES: Record<string, string> = { web: 'Web (itch.io)', android: 'Android app', ios: 'iOS app' };
 const circuitName = (id: string) => LAYOUTS.find((l) => l.id === id)?.name ?? id;
 
 function status(text: string, state: 'on' | 'off' | '') {

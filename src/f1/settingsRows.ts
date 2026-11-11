@@ -12,11 +12,15 @@ import { menuButton, optionRow } from './circuitSelect';
 import { setShake, shakeOn } from './shake';
 import { gridWalkOn, setGridWalk } from './gridPan';
 import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
-import { INITIALS, initials, setInitials, setStats, statsOn } from './profile';
+import { INITIALS, initials, playerId, setInitials, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
 import { availableLanguages, language, setLanguage, t, backLabel } from '../engine/i18n';
+import { GRAPHICS_SETTINGS, graphicsSetting, setGraphicsSetting, type GraphicsSetting } from './graphics';
+import { exportSaveDoc, replaceSave } from '../engine/save';
+import { decodeSave, encodeSave } from '../engine/saveCode';
+import { Share } from '@capacitor/share';
 import { REMINDER_HOURS, reminderSetting, remindersHere, setReminder, type ReminderSetting } from './reminder';
 
 /** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
@@ -35,7 +39,105 @@ export function useLayoutSwitch(s: LayoutSwitch): void {
 const nearest = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
 const volumeName = (v: number) => ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])];
 
-export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
+export type SettingsRow = Omit<ReturnType<typeof optionRow<unknown>>, 'el'> & {
+  el: HTMLElement;
+  /** A or START on the row (a link, a copy): what it does besides stepping */
+  activate?: () => void;
+};
+
+/** The game's pages (privacy, terms), where the site keeps them (the same site the share text points to). */
+export const SITE = 'https://theaob.github.io/corner-cutters/';
+export const PRIVACY_URL = `${SITE}privacy.html`;
+export const TERMS_URL = `${SITE}terms.html`;
+
+/** A row that does something when it's picked (a tap, or A): `label` on the left, `value` on the right, `about` under it. Nothing to step. */
+export function actionRow(label: string, value: () => string, about: () => string, run: () => void): SettingsRow {
+  const el = document.createElement('button');
+  el.className = 'option-row';
+  const render = () => {
+    el.innerHTML = '';
+    const name = Object.assign(document.createElement('b'), { textContent: t(label) });
+    const right = document.createElement('div');
+    right.className = 'value';
+    const line = document.createElement('div');
+    line.className = 'line';
+    line.append(Object.assign(document.createElement('strong'), { textContent: value() }));
+    right.append(line, Object.assign(document.createElement('span'), { textContent: about() }));
+    el.append(name, right);
+  };
+  let armed = false;
+  el.addEventListener('pointerdown', () => (armed = true));
+  el.addEventListener('pointerleave', () => (armed = false));
+  el.addEventListener('pointerup', () => {
+    if (armed) run(), render();
+    armed = false;
+  });
+  render();
+  return { el, step: () => {}, value: () => undefined, refresh: render, activate: () => (run(), render()) };
+}
+
+/** Copy `text` (or, where the page may not, hand it to the phone's share sheet): true if it went anywhere. */
+async function copyOrShare(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      await Share.share({ text });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * RESTORE: paste a code from BACK UP on another device. A whole, unchanged code asks to be tapped again (it replaces
+ * what's on this device, which is kept aside first); then the page reloads with it.
+ */
+function restoreRow(): SettingsRow {
+  const el = document.createElement('div');
+  el.className = 'option-row';
+  const label = Object.assign(document.createElement('b'), { textContent: t('RESTORE') });
+  const right = document.createElement('div');
+  right.className = 'value';
+  const field = document.createElement('input');
+  Object.assign(field, { type: 'text', autocomplete: 'off', spellcheck: false, placeholder: t('PASTE A CODE') });
+  field.setAttribute('aria-label', t('PASTE A CODE'));
+  Object.assign(field.style, { width: '9em', font: 'inherit' });
+  const about = document.createElement('span');
+  const idle = () => t('progress from a BACK UP on another device');
+  about.textContent = idle();
+  let ready: ReturnType<typeof decodeSave>;
+  let armed = false;
+  const check = () => {
+    ready = decodeSave(field.value);
+    armed = false;
+    about.textContent = !field.value.trim() ? idle() : ready ? t('a good code: tap here to replace this device’s progress') : t('not a whole code: copy it again');
+  };
+  field.addEventListener('input', check);
+  const run = () => {
+    if (!ready) return;
+    if (!armed) {
+      armed = true;
+      about.textContent = t('tap again: this replaces the progress on this device');
+      return;
+    }
+    about.textContent = replaceSave(ready) ? (location.reload(), t('restored')) : t('this code is from a newer game: update it first');
+    armed = false;
+  };
+  el.addEventListener('pointerup', (e) => {
+    if (e.target !== field) run();
+  });
+  right.append(field, about);
+  el.append(label, right);
+  return { el, step: () => {}, value: () => undefined, refresh: check, activate: run };
+}
+
+/** Open a page of the game's site (a new tab on the web; the phone's own browser in the app). */
+function openPage(url: string): void {
+  window.open(url, '_blank', 'noopener');
+}
 
 /** The settings' pages: CONTROLS (how you drive), GAME (how it plays), SOUND and ACCESSIBILITY (text size, colours, camera shake). */
 export type SettingsSection = 'controls' | 'game' | 'sound' | 'access';
@@ -77,6 +179,30 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
     full: { name: 'FULL', about: 'all the movement, whatever the phone says' },
   };
   const motionRow = optionRow('MOTION', MOTION_SETTINGS, motionSetting(), (m) => MOTION_ABOUT[m], setMotionSetting);
+  // GRAPHICS: the picture's quality: AUTO steps down by itself on a phone that can't keep up; the others hold one level, SAVER at 30 frames a second
+  const GRAPHICS_ABOUT: Record<GraphicsSetting, { name: string; about: string }> = {
+    auto: { name: 'AUTO', about: 'steps down by itself if the phone struggles' },
+    high: { name: 'HIGH', about: 'the best picture, however the phone copes' },
+    low: { name: 'LOW', about: 'a plainer picture, smoother on an older phone' },
+    saver: { name: 'BATTERY SAVER', about: 'a plainer picture at 30 frames a second, for a hot or low phone' },
+  };
+  const graphicsRow = optionRow('GRAPHICS', GRAPHICS_SETTINGS, graphicsSetting(), (g) => GRAPHICS_ABOUT[g], setGraphicsSetting);
+  // PRIVACY and TERMS: the pages, one tap away; YOUR ID: the number to quote when asking for a board entry or report to be removed (tap: copied)
+  const privacyRow = actionRow('PRIVACY', () => t('OPEN'), () => t('what the game keeps, and what it sends'), () => openPage(PRIVACY_URL));
+  const termsRow = actionRow('TERMS', () => t('OPEN'), () => t('the rules of playing and of the boards'), () => openPage(TERMS_URL));
+  let copied = false;
+  const idRow = actionRow('PLAYER ID', () => playerId().slice(0, 8).toUpperCase(), () => (copied ? t('copied: quote it to have your entries removed') : t('tap to copy it: quote it to have your entries removed')), () => {
+    copied = true;
+    void navigator.clipboard?.writeText(playerId()).catch(() => (copied = false));
+  });
+  // BACK UP and RESTORE: the whole save as a code to copy to another device (a new phone, the app and the web)
+  let backedUp: boolean | undefined;
+  const backupRow = actionRow('BACK UP', () => t('COPY'), () => (backedUp === undefined ? t('your progress as a code, to RESTORE on another device') : backedUp ? t('copied: keep it private, it holds your progress') : t('couldn’t copy it')), () => {
+    void copyOrShare(encodeSave(exportSaveDoc())).then((ok) => {
+      backedUp = ok;
+      backupRow.refresh();
+    });
+  });
   // NAME: your three letters on the timing screens and the boards, typed (the phone's keyboard comes up), as on an arcade board
   const nameRow = (() => {
     const el = document.createElement('div');
@@ -116,7 +242,7 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
   // (the page for what doesn't clearly fit: the daily reminder, STATS and the screen are about the game)
   return {
     controls: [stickRow, drivingRow, vibrationRow],
-    game: [...(languageRow ? [languageRow] : []), nameRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : [])],
+    game: [...(languageRow ? [languageRow] : []), nameRow, graphicsRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : []), backupRow, restoreRow(), privacyRow, termsRow, idRow],
     sound: [soundRow, musicRow],
     access: [textRow, coloursRow, motionRow, shakeRow],
   } as Record<SettingsSection, SettingsRow[]>;
@@ -199,6 +325,7 @@ export function settingsPages(rows: Record<SettingsSection, SettingsRow[]>, onDo
     /** A or START: opens a page from the list, or goes back */
     pick() {
       if (!page && focus < SETTINGS_SECTIONS.length) open(SETTINGS_SECTIONS[focus]);
+      else if (page && rows[page][focus]?.activate) rows[page][focus].activate!();
       else back();
     },
     /** B or the phone's back button: up a level, and out of the settings from the list */

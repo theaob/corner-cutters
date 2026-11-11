@@ -11,7 +11,7 @@ create table if not exists public.events (
   -- the random id the device made for itself
   player uuid not null,
   kind text not null,
-  platform text check (platform in ('web', 'android')),
+  platform text check (platform in ('web', 'android', 'ios')),
   version text check (char_length(version) <= 40),
   circuit text check (char_length(circuit) <= 40),
   mode text check (char_length(mode) <= 20),
@@ -26,6 +26,9 @@ alter table public.events add column if not exists seconds real check (seconds >
 alter table public.events drop constraint if exists events_kind_check;
 alter table public.events add constraint events_kind_check
   check (kind in ('launch', 'race_start', 'race_finish', 'drive', 'share', 'daily_submit', 'session', 'error'));
+-- (the iOS app reports as 'ios'; run again on a project made before, which only knew 'web' and 'android')
+alter table public.events drop constraint if exists events_platform_check;
+alter table public.events add constraint events_platform_check check (platform in ('web', 'android', 'ios'));
 create index if not exists events_at on public.events (at);
 create index if not exists events_kind on public.events (kind);
 alter table public.events enable row level security;
@@ -216,7 +219,7 @@ create table if not exists public.reports (
   id bigint generated always as identity primary key,
   at timestamptz not null default now(),
   player uuid not null,
-  platform text check (platform in ('web', 'android')),
+  platform text check (platform in ('web', 'android', 'ios')),
   version text check (char_length(version) <= 40),
   circuit text check (char_length(circuit) <= 40),
   mode text check (char_length(mode) <= 20),
@@ -233,6 +236,8 @@ alter table public.reports add column if not exists picture text check (char_len
 -- graphics chip, memory, screen, quality level) and the last notes (screens opened, the race's phases, buttons
 -- pressed, the app hidden and shown, warnings, errors, freezes)
 alter table public.reports add column if not exists log jsonb check (pg_column_size(log) <= 20000);
+alter table public.reports drop constraint if exists reports_platform_check;
+alter table public.reports add constraint reports_platform_check check (platform in ('web', 'android', 'ios'));
 create index if not exists reports_at on public.reports (at);
 alter table public.reports enable row level security;
 drop policy if exists "the game adds reports" on public.reports;

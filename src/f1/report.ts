@@ -5,7 +5,7 @@
 // the 3D picture (copied as it's drawn: engine/render/capture.ts) with the HUD
 // over it (html-to-image, loaded only when a report is made).
 
-import { Capacitor } from '@capacitor/core';
+import { platformName, type Platform } from '../engine/platform';
 import { insert, online, upload } from '../engine/backend';
 import { onBack } from '../engine/backButton';
 import { device, latestFrames, lines, note, type Device, type FrameStats } from '../engine/logbook';
@@ -28,6 +28,8 @@ export interface Stroke {
 
 /** The pens: red (the default), amber, cyan, white. */
 export const PENS = ['#d8323c', '#f2c14e', '#5fe0d0', '#f4f4f8'];
+/** What each pen is called, for a screen reader (the colour code means nothing read aloud). */
+export const PEN_NAMES = ['red', 'amber', 'cyan', 'white'];
 
 /** The most a report says, in characters (the database's limit too). */
 export const REPORT_TEXT_MAX = 1000;
@@ -47,7 +49,7 @@ export function reportPath(now: Date, id: string): string {
 }
 
 /** A report's row in the 'reports' table: who (the device's random id), on what, where, what they said, and the picture's path (if it went). */
-export function reportRow(r: { player: string; platform: 'web' | 'android'; version: string; about: ReportAbout; screen: string; text: string; image?: string; picture?: string; log?: ReportLog }) {
+export function reportRow(r: { player: string; platform: Platform; version: string; about: ReportAbout; screen: string; text: string; image?: string; picture?: string; log?: ReportLog }) {
   return {
     player: r.player, platform: r.platform, version: r.version, circuit: r.about.circuit ?? null, mode: r.about.mode ?? null,
     screen: r.screen.slice(0, 20), text: r.text.trim().slice(0, REPORT_TEXT_MAX), image: r.image ?? null,
@@ -255,13 +257,14 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
   // the pens, and undo and clear
   const tools = document.createElement('div');
   tools.className = 'report-tools';
-  const swatches = PENS.map((c) => {
+  const swatches = PENS.map((c, k) => {
     const s = button('', () => {
       pen = c;
       swatches.forEach((x) => x.classList.toggle('on', x === s));
     }, 'report-pen');
     s.style.background = c;
-    s.setAttribute('aria-label', `pen ${c}`);
+    s.setAttribute('aria-label', t('{colour} pen', { colour: t(PEN_NAMES[k]) }));
+    s.title = t(PEN_NAMES[k]);
     return s;
   });
   swatches[0].classList.add('on');
@@ -315,7 +318,7 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     // (the picture first; the words go even if it doesn't)
     const sentPicture = picture ? await upload('reports', path, picture) : 'refused';
     const row = reportRow({
-      player: playerId(), platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(), about,
+      player: playerId(), platform: platformName(), version: version(), about,
       screen: `${window.innerWidth}x${window.innerHeight}`, text: text.value, image: sentPicture === 'ok' ? path : undefined, picture: pictureOf(canvas),
       log: { device: device(), notes: shotNotes, frames: latestFrames() },
     });
