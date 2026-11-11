@@ -120,6 +120,28 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # the source maps of what was just built (same code, same file names: a crash stack from the play stats dashboard
+      # is turned back into the source's lines with `node tools/unminify.mjs`, tools/unminify.mjs says how); a download on
+      # the run, kept three months, and not fatal; they never go into the app or the upload
+      - name: Source maps of this version
+        run: |
+          VITE_SOURCEMAPS=1 npx vite build --outDir maps/web
+          VITE_STORE=play VITE_SOURCEMAPS=1 npx vite build --outDir maps/play
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        continue-on-error: true
+        with:
+          name: corner-cutters-sourcemaps
+          path: maps/web/assets/*.map
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        continue-on-error: true
+        with:
+          name: corner-cutters-sourcemaps-play
+          path: maps/play/assets/*.map
+          if-no-files-found: error
+          retention-days: 90
+
       # to Google Play's internal testing track, as a draft (promoting it, and every track past internal, stays by hand
       # in the Play Console); only with the service account's key and the release key (Play takes no debug-signed build),
       # and not fatal: a run whose version code Play has seen, or a Console not set up yet, keeps the itch.io upload

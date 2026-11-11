@@ -56,6 +56,9 @@ export default defineConfig({
     target: ['es2020', 'chrome80', 'safari14'],
     // three.js alone is ~560 kB minified; don't warn about it.
     chunkSizeWarningLimit: 2000,
+    // VITE_SOURCEMAPS=1 (the CI's separate build for the version's maps, tools/unminify.mjs): maps beside the code
+    // without the comment that points a browser at them, so a player's build never carries or loads one
+    sourcemap: process.env.VITE_SOURCEMAPS ? 'hidden' : false,
   },
   test: {
     include: ['tests/**/*.test.ts'],
