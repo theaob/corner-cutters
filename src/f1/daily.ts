@@ -7,6 +7,7 @@
 // board's calls.
 
 import { rpc } from '../engine/backend';
+import { debugSession } from '../engine/debugSession';
 import { save, saved } from '../engine/save';
 import { LAYOUTS, type CircuitLayout } from './layouts';
 import { DRY, WEATHERS, type Weather } from './weather';
@@ -116,7 +117,8 @@ export function logRun(log: DailyLog, day: string, run: Run, ghost?: Ghost): boo
   if (better) {
     log.best[day] = run;
     // (a run that passed no checkpoint isn't one for the board)
-    if (run.score > 0) log.pending = { day, score: run.score, time: run.time, ...(ghost ? { ghost } : {}) };
+    // (nor one from a ?debug session: src/engine/debugSession.ts)
+    if (run.score > 0 && !debugSession) log.pending = { day, score: run.score, time: run.time, ...(ghost ? { ghost } : {}) };
   }
   // (a fortnight's bests are plenty)
   for (const d of Object.keys(log.best).sort().slice(0, -14)) delete log.best[d];

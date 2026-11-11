@@ -6,6 +6,7 @@
 // connection if there isn't one). Engine-free but for the calls.
 
 import { rpc } from '../engine/backend';
+import { debugSession } from '../engine/debugSession';
 import { save, saved } from '../engine/save';
 import { parseGhost, type Ghost } from './timeTrial';
 
@@ -36,7 +37,8 @@ export function pendingLaps(): PendingLap[] {
 
 /** A new lap record of yours on `circuit` in `weather`: to send (the quicker, if one's waiting there already). */
 export function queueLap(lap: PendingLap): void {
-  if (!isBoardWeather(lap.weather)) return;
+  // (a ?debug session's laps aren't anyone's: src/engine/debugSession.ts)
+  if (debugSession || !isBoardWeather(lap.weather)) return;
   const all = Object.fromEntries(pendingLaps().map((l) => [keyOf(l.circuit, l.weather), l]));
   const key = keyOf(lap.circuit, lap.weather);
   if (all[key] && all[key].time <= lap.time) return;
