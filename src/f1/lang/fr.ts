@@ -600,7 +600,7 @@ export const fr: Language = {
   'the best picture, however the phone copes': 'la meilleure image, quoi qu\'il arrive',
   'a plainer picture, smoother on an older phone': 'une image plus simple, plus fluide sur un vieux téléphone',
   'a plainer picture at 30 frames a second, for a hot or low phone': 'image simple à 30 images par seconde, pour un téléphone chaud ou à court de batterie',
-  'PRIVACY': 'CONFIDENTIALITÉ',
+  'PRIVACY': 'VIE PRIVÉE',
   'TERMS': 'CONDITIONS',
   'OPEN': 'OUVRIR',
   'PLAYER ID': 'ID JOUEUR',
