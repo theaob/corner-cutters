@@ -7,6 +7,7 @@ import { LAYOUTS } from '../f1/layouts';
 import { TEAMS } from '../f1/teams';
 import { distance } from '../f1/timeAttack';
 import { MARKS, cohortRate, rate, type Retention } from './retention';
+import { SCHEMA_VERSION } from './schemaVersion';
 
 /** What game_stats() gives. */
 interface Stats {
@@ -369,7 +370,7 @@ async function load() {
     return;
   }
   status('READING…', '');
-  const [s, b, ret] = await Promise.all([rpc<Stats>('game_stats', {}), rpc<Board>('daily_board', { p_day: dayOf(), p_player: '00000000-0000-4000-8000-000000000000', p_top: 10 }), rpc<Retention>('retention_stats', {})]);
+  const [s, b, ret, version] = await Promise.all([rpc<Stats>('game_stats', {}), rpc<Board>('daily_board', { p_day: dayOf(), p_player: '00000000-0000-4000-8000-000000000000', p_top: 10 }), rpc<Retention>('retention_stats', {}), rpc<number>('schema_version', {})]);
   const n = $('notice');
   if (!s) {
     status('NO CONNECTION', 'off');
@@ -377,7 +378,10 @@ async function load() {
     n.textContent = "The stats could not be read. Check that supabase/schema.sql has been run in the project, then press Refresh.";
     return;
   }
-  n.hidden = true;
+  // (a project whose schema is older has no schema_version at all: it answers nothing)
+  const behind = typeof version !== 'number' || version < SCHEMA_VERSION;
+  n.hidden = !behind;
+  if (behind) n.textContent = `The Supabase project's schema is behind this dashboard (it has ${typeof version === 'number' ? `version ${version}` : 'no version'}, this expects ${SCHEMA_VERSION}). Paste supabase/schema.sql into the SQL Editor and run it again.`;
   tiles(s);
   chart('chart', (s.daily_players ?? []).map((d) => ({ day: d.day, n: d.players })), { what: 'Players', empty: 'No players in the last 30 days yet.' });
   chart('chart-launches', (s.daily_launches ?? []).map((d) => ({ day: d.day, n: d.launches })), { what: 'Launches', empty: 'No launches in the last 30 days yet.' });
@@ -451,7 +455,8 @@ let shown = 0;
 function reportCard(r: Report): HTMLElement {
   const card = document.createElement('article');
   card.className = 'report';
-  if (r.picture) {
+  // (only a JPEG the game made: anything else, such as a link, would be fetched by opening the report)
+  if (r.picture?.startsWith('data:image/jpeg;base64,')) {
     const img = document.createElement('img');
     img.className = 'shot';
     img.src = r.picture;
@@ -548,7 +553,9 @@ async function openReports(code: string, more = false) {
     keepCode(undefined);
     note.textContent = page.why === 'no code set'
       ? "No reports code is set yet. In Supabase's SQL Editor run: select public.set_reports_code('your code');"
-      : "That isn't the reports code.";
+      : page.why === 'too many attempts'
+        ? 'Too many wrong codes from this address. Wait 15 minutes and try again.'
+        : "That isn't the reports code.";
     $('reports-lock').hidden = false;
     return;
   }
