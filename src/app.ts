@@ -56,11 +56,13 @@ const deck = document.getElementById('deck')!;
 const app = document.getElementById('app')!;
 
 // (the save and the chosen language's words are ready by now: f1/boot.ts)
-// (LANGUAGE in the settings: the menus are built once, so a change reloads the page)
+// (LANGUAGE in the settings: the menus are built once, so a change builds the open one again, the settings still open;
+// in a race the new language shows from the next screen)
 applyLanguage();
 onLanguageChange(() => {
-  markSettingsResume();
-  globalThis.location?.reload();
+  if (racingOn || !MENU_SCREENS.has(menuName)) return;
+  if (menuName === 'menu') markSettingsResume();
+  void route();
 });
 // (TEXT: LARGE in the settings, from the start)
 applyText();
@@ -279,6 +281,8 @@ function raceLine(mode: string | null): string {
 
 /** which menu screen is up, for a report made from it (the dashboard says where it came from) */
 let menuName = 'menu';
+/** the menu screens a language change builds again (menuName's values) */
+const MENU_SCREENS = new Set(['menu', 'championship', 'daily', 'car-shop']);
 /** the race on now (its circuit and mode), if one is */
 let racingOn: { circuit: string; mode: string } | undefined;
 // (an error nothing caught: to the play stats, with the screen it happened on; src/f1/crashes.ts)

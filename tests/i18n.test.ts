@@ -3,7 +3,7 @@ import { useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
 import { LANGUAGES } from '../src/f1/lang';
 import { LANGUAGE_SOURCES } from '../src/f1/lang/sources';
-import { ENGLISH, applyLanguage, availableLanguages, language, loadLanguages, setLanguage, t, upper, useLanguages, type Language, type LanguageSource } from '../src/engine/i18n';
+import { ENGLISH, applyLanguage, availableLanguages, chooseLanguage, language, loadLanguages, setLanguage, t, upper, useLanguages, type Language, type LanguageSource } from '../src/engine/i18n';
 
 const xx: Language = { code: 'xx', name: 'Xxish', words: { SETTINGS: 'XSET', 'lap {n} of {total}': 'x{total}/{n}' } };
 
@@ -111,6 +111,37 @@ describe('only the chosen language is loaded', () => {
   it("the game's list names every dictionary, each loading its own", async () => {
     expect(LANGUAGE_SOURCES.map(({ code, name }) => ({ code, name }))).toEqual(LANGUAGES.map(({ code, name }) => ({ code, name })));
     for (const [i, s] of LANGUAGE_SOURCES.entries()) expect(await s.load()).toBe(LANGUAGES[i]);
+  });
+});
+
+describe('choosing a language while the game runs', () => {
+  const sources = (fail = false): LanguageSource[] => [
+    { code: 'tr', name: 'Türkçe', load: async () => { if (fail) throw new Error('offline'); return { code: 'tr', name: 'Türkçe', words: { PIT: 'BOX' } }; } },
+  ];
+  it('fetches its words then, sets it and tells the listeners', async () => {
+    const { onLanguageChange } = await import('../src/engine/i18n');
+    vi.stubGlobal('navigator', { languages: ['en'] });
+    await loadLanguages(sources());
+    expect(t('PIT')).toBe('PIT');
+    let told = 0;
+    const stop = onLanguageChange(() => told++);
+    expect(await chooseLanguage('tr')).toBe(true);
+    expect(language().code).toBe('tr');
+    expect(t('PIT')).toBe('BOX');
+    expect(told).toBe(1);
+    stop();
+    setLanguage('en');
+  });
+  it('stays as it was, and says so, when the words cannot be fetched', async () => {
+    const { onLanguageChange } = await import('../src/engine/i18n');
+    vi.stubGlobal('navigator', { languages: ['en'] });
+    await loadLanguages(sources(true));
+    let told = 0;
+    const stop = onLanguageChange(() => told++);
+    expect(await chooseLanguage('tr')).toBe(false);
+    expect(language().code).toBe('en');
+    expect(told).toBe(1);
+    stop();
   });
 });
 

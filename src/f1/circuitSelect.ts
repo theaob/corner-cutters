@@ -735,7 +735,7 @@ export function chooseCircuit(
   // embedded in another site's page (itch.io), the browser may hold the game to 30 fps (Safari
   // does, in a frame it doesn't count as played with): offer the game in a tab of its own
   if (tab) menu.append(tab);
-  // (a language change reloads the page: the settings open again on GAME, at LANGUAGE)
+  // (a language change builds the menu again: the settings open again on GAME, at LANGUAGE)
   if (takeSettingsResume()) {
     view = 'settings';
     settings.restore('game', availableLanguages().length > 1 ? 1 : 0);  // (DIFFICULTY is first, LANGUAGE next)
