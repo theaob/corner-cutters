@@ -47,9 +47,8 @@ import { buildFireworks } from './fireworks3d';
 import { CarFx, DebrisLayer, makeFireLights, Particles, SkidLayer } from '../engine/render/effects';
 import { borrowView, returnView } from '../engine/render/sharedView';
 import { HD2D_VIEW } from '../engine/look';
-import { frameCap, graphicsSetting, heldLevel, skipFrame } from './graphics';
-import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality } from '../engine/render/quality';
-import { save as saveValue, saved as savedValue } from '../engine/save';
+import { frameCap, graphicsSetting, skipFrame } from './graphics';
+import { QUALITY_LEVELS } from '../engine/render/quality';
 import type { ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
@@ -59,7 +58,7 @@ import { newRumble } from './rumble';
 import { newShake, timeScale } from './shake';
 import { RaceSounds, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
-import { note, setGpu, setQuality } from '../engine/logbook';
+import { note, setGpu } from '../engine/logbook';
 import { reportProblem, setRaceSpot } from './crashes';
 import { settingsPages, settingsRows } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
@@ -99,6 +98,7 @@ import { t as tl } from '../engine/i18n';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
 import { feelFrame } from './race/feel';
+import { QualityWatch } from './race/qualityWatch';
 import { createCameraRig } from './race/camera';
 import { createFlagOverlay, createRain } from './race/screenFx';
 import { F1_TUNING } from './tuning';
@@ -239,13 +239,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   host.prepend(renderer.domElement);
   // (the picture's quality where the last race settled, so this one doesn't step down again mid-race: quality.ts)
   const gameVersion = (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev').split('+')[0];
-  const governor = new QualityGovernor(DEFAULT_GOVERNOR, keptQuality(savedValue('device', 'quality'), Date.now(), gameVersion));
-  /** the level kept last, and whether it was locked (a change from it is kept again) */
-  let keptLevel = { level: governor.level, locked: governor.locked };
-  /** the level set by hand (__cc.quality): not kept */
-  let qualityHeld = false;
-  /** GRAPHICS held the level this frame (not AUTO) */
-  let wasHeld = false;
+  // (and watched frame by frame: race/qualityWatch.ts)
+  const quality = new QualityWatch(gameVersion);
+  const { governor } = quality;
   let viewW = fit.width;
   let viewH = fit.height;
   let sizeKey = '';
@@ -428,8 +424,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   let paused = false;
   /** s left of the countdown after RESUME (RESUME_COUNT at first): the race is still stopped until it's out */
   let resumeLeft = 0;
-  /** frames to leave out of the quality governor after a pause (the first frame back measures the pause) */
-  let settle = 0;
   let last = performance.now();
   // the race's sounds (silent until the first tap or key: browsers require one)
   const sounds = new RaceSounds(0);
@@ -476,7 +470,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     askExit(false);
     if (!on) {
       last = performance.now();
-      settle = 2;
+      quality.settle = 2;
     }
   };
 
@@ -912,7 +906,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     resumeLeft = 0;
     setAudioPaused(false);
     last = performance.now();
-    settle = 2;
+    quality.settle = 2;
   };
   /**
    * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
@@ -953,9 +947,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** what the picture costs: the quality level, and the last frame's draw calls and triangles */
         /** hold the picture at a quality level (0 high … 2 low), for measuring each */
         quality: (level: number) => {
-          governor.level = level;
-          governor.locked = true;
-          qualityHeld = true;
+          quality.set(level);
         },
         /** what the scene's made of: meshes drawn (and those casting shadows), instanced or not, by geometry */
         census: () => {
@@ -1557,7 +1549,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (!resumeLeft) {
         setAudioPaused(false);
         last = now;
-        settle = 2;
+        quality.settle = 2;
       }
     }
     showDeckLabels();
@@ -2256,27 +2248,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
 
 
-    // (GRAPHICS: HIGH and LOW hold their level, whatever the frame rate: the governor's watch is over and nothing is kept)
-    const held = heldLevel(graphicsSetting());
-    if (held !== undefined) {
-      governor.level = held;
-      governor.locked = true;
-    } else if (wasHeld && !qualityHeld) {
-      // (back to AUTO: the governor watches again, from full quality)
-      governor.level = 0;
-      governor.locked = false;
-    }
-    wasHeld = held !== undefined;
-    if (held !== undefined) {
-      // nothing to sample
-    } else if (settle > 0) settle--;
-    // (the frame's real length, not the simulation's capped one: at 5 fps the capped time ran the governor's waits four times too long, a step down every 20 s)
-    else governor.sample(Math.min(real, 0.25));
-    if (!qualityHeld && !wasHeld && (governor.level !== keptLevel.level || governor.locked !== keptLevel.locked)) {
-      keptLevel = { level: governor.level, locked: governor.locked };
-      saveValue('device', 'quality', { ...keptLevel, at: Date.now(), version: gameVersion });
-    }
-    setQuality(QUALITY_LEVELS[governor.level].name);
+    // (the quality watch: the governor's level, or the one GRAPHICS holds; race/qualityWatch.ts)
+    quality.step(real);
     const q = QUALITY_LEVELS[governor.level];
     // (the pause menus' blur is a cost on a phone already at the lowest level: they go darker instead, index.html)
     document.documentElement.classList.toggle('no-pause-blur', governor.level >= QUALITY_LEVELS.length - 1);
