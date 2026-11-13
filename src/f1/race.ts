@@ -5,7 +5,6 @@
 // SELECT goes back to choose a circuit.
 
 import { gridFor } from './bridge';
-import { t as tr } from '../engine/i18n';
 import { carOutline, type CarOutline } from './outline3d';
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
@@ -56,11 +55,10 @@ import { defaults } from '../engine/tuning';
 import { HALF_WIDTH, buildCircuit } from './circuit';
 import { newRumble } from './rumble';
 import { newShake, timeScale } from './shake';
-import { RaceSounds, menuPick, menuTick } from './sounds';
+import { RaceSounds, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { note, setGpu } from '../engine/logbook';
 import { reportProblem, setRaceSpot } from './crashes';
-import { settingsPages, settingsRows } from './settingsRows';
 import { LAUNCH, aiReaction, kickOf, newLaunch, stepLaunch } from './launch';
 import { finishLine, newRadio, radioFor, radioLine, say, stepRadio, type RadioCue } from './radio';
 import { setAudioPaused } from '../engine/audio';
@@ -99,10 +97,11 @@ import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
 import { feelFrame } from './race/feel';
 import { QualityWatch } from './race/qualityWatch';
+import { createPauseMenu } from './race/pauseMenu';
 import { createCameraRig } from './race/camera';
 import { createFlagOverlay, createRain } from './race/screenFx';
 import { F1_TUNING } from './tuning';
-import { openReport, reportOpen } from './report';
+import { reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
 import { RACE_SAVE_VERSION, dropKeptGrid, dropKeptRace, keptGridFor, keepGrid, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
@@ -1204,90 +1203,29 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const rumbleState = newRumble();
   /** the grandstands (where the crowd is heard) */
   const stands = standsOf(circuit);
-  // the settings, from the pause screen: the menu's (but difficulty, not changed mid-race), each remembered as it
-  // changes; tapped and swiped, or up/down and left/right on the deck, A, START or B back to the pause screen
-  const pauseSettings = document.createElement('div');
-  pauseSettings.className = 'circuit-menu pause-settings';
-  // (the race still shows through, blurred: index.html .pause-settings; dark enough to read the rows on)
-  style(pauseSettings, { zIndex: '5', display: 'none', justifyContent: 'center', background: 'rgba(8,8,14,.72)' });
-  const pausePages = settingsPages(settingsRows(), () => openPauseSettings(false));
-  pauseSettings.append(...pausePages.els);
-  host.append(pauseSettings);
-  /** the settings are up */
-  let pauseSettingsOn = false;
-  const openPauseSettings = (on: boolean) => {
-    if (on === pauseSettingsOn) return;
-    menuPick();
-    pauseSettingsOn = on;
-    pauseSettings.style.display = on ? 'flex' : 'none';
-    // (the pause screen's buttons out of the way under it)
-    pauseScreen.style.visibility = on ? 'hidden' : '';
-    pausePages.reset();
-  };
-  // the pause screen's buttons, and in their place once EXIT is pressed, the question: leave? (STAY first)
-  // qualifying's SKIP lives here (not on the deck): straight to the race, from mid-grid
-  const skipQualifying = pauseButton('SKIP QUALIFYING', () => {
-    setPaused(false, false);
-    startRace();
+  // the pause screen's buttons, its settings and the leave question (race/pauseMenu.ts)
+  const pauseMenu = createPauseMenu({
+    host, pauseScreen, pauseTitle, pauseButton,
+    resume: () => setPaused(false),
+    skipQualifying: () => {
+      setPaused(false, false);
+      startRace();
+    },
+    restart: () => restart(),
+    leave: () => leave(options.toMenu),
+    reportOf: () => ({ circuit: layout.id, mode: statsMode() }),
+    qualifying: () => !quali?.over,
+    session: () => session,
+    championship: () => !!championship,
+    daily: () => !!options.daily,
   });
-  const showSkipQualifying = () => {
-    skipQualifying.style.display = session === 'qualifying' && !quali?.over && !asking ? '' : 'none';
-  };
-  const pauseMain = [
-    pauseButton('RESUME', () => setPaused(false)),
-    skipQualifying,
-    pauseButton('RESTART', () => restart()),
-    pauseButton('SETTINGS', () => openPauseSettings(true)),
-    // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened (not on
-    // YouTube: it goes to the game's own backend)
-    ...(YOUTUBE ? [] : [pauseButton('REPORT', () => void openReport({ circuit: layout.id, mode: statsMode() }, [pauseScreen]))]),
-    pauseButton('EXIT', () => askExit(true)),
-  ];
-  const exitLine = document.createElement('div');
-  style(exitLine, { color: '#9d9ab8', font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace', textAlign: 'center', margin: '-4px 16px 6px', textWrap: 'balance' });
-  const stayButton = pauseButton('STAY', () => askExit(false));
-  const leaveButton = pauseButton('MAIN MENU', () => leave(options.toMenu));
-  style(leaveButton, { borderColor: '#d8323c', color: '#ff6b6b' });
-  // (side by side, STAY on the left, wide enough for MAIN MENU on one line in larger text)
-  const exitRow = document.createElement('div');
-  style(exitRow, { width: '84%', maxWidth: '420px', gap: '10px' });
-  for (const b of [stayButton, leaveButton]) style(b, { width: 'auto', flex: '1 1 0', whiteSpace: 'nowrap' });
-  exitRow.append(stayButton, leaveButton);
-  const exitParts = [exitLine, exitRow];
-  const showExitParts = (on: boolean) => {
-    for (const el of exitParts) el.style.display = on ? (el === exitRow ? 'flex' : '') : 'none';
-  };
-  /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 MAIN MENU) */
-  let asking = false;
-  let exitFocus = 0;
-  const showExitFocus = () => {
-    // (focused as every box in the menus is: a cyan edge, one pixel more round it; MAIN MENU's red)
-    style(stayButton, { borderColor: exitFocus === 0 ? '#5fe0d0' : '#3a3858', boxShadow: exitFocus === 0 ? '0 0 0 1px #5fe0d0' : '' });
-    leaveButton.style.boxShadow = exitFocus === 1 ? '0 0 0 1px #d8323c' : '';
-  };
-  /** What leaving loses, said under the question. */
-  const exitCost = () => championship ? "THE ROUND WON'T COUNT" : options.daily ? 'THIS RUN WON\'T COUNT' : session === 'race' || session === 'qualifying' ? "THIS RACE WON'T COUNT" : 'BACK TO THE CIRCUITS';
-  const askExit = (on: boolean) => {
-    if (on === asking) return;
-    if (on) menuPick();
-    asking = on;
-    pauseTitle.textContent = tr(!on ? 'PAUSED' : session === 'race' || session === 'qualifying' ? 'LEAVE THE RACE?' : 'LEAVE THE SESSION?');
-    exitLine.textContent = tr(exitCost());
-    for (const el of pauseMain) el.style.display = on ? 'none' : '';
-    showSkipQualifying();
-    showExitParts(on);
-    exitFocus = 0;
-    showExitFocus();
-  };
-  pauseScreen.append(pauseTitle, ...pauseMain, ...exitParts);
-  showSkipQualifying();
-  showExitParts(false);
+  const { pauseSettings, pausePages, askExit, openPauseSettings, showSkipQualifying } = pauseMenu;
   // the phone's back button: a replay skipped, the pause screen's settings closed, the pause screen resumed, the race paused; once
   // it's over, on (a Championship round with its results seen counts, as with A)
   const offBack = onBack(() => {
     if (replay && !paused) endReplay();
-    else if (pauseSettingsOn) pausePages.back();
-    else if (asking) askExit(false);
+    else if (pauseMenu.settingsOn) pausePages.back();
+    else if (pauseMenu.asking) askExit(false);
     else if (paused) setPaused(false);
     else if (!done) setPaused(true);
     else if (championship && results.style.display === 'block') finishRound();
@@ -1479,7 +1417,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
-    settings: pauseSettingsOn, resultsUp: results.style.display === 'block', roundOver: !!championship && done, qualifyingOver: !!quali?.over,
+    settings: pauseMenu.settingsOn, resultsUp: results.style.display === 'block', roundOver: !!championship && done, qualifyingOver: !!quali?.over,
     attackOver: !!attack?.result, session, learnt: learn?.o.step === 'done', watching: !!gridPan || !!replay, done, paused,
   });
   const deckEl = document.getElementById('deck');
@@ -1561,7 +1499,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       requestAnimationFrame(tick);
       return;
     }
-    if (pauseSettingsOn) {
+    if (pauseMenu.settingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
       pressed('select');
       if (up || down) pausePages.move(down ? 1 : -1);
@@ -1571,16 +1509,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       requestAnimationFrame(tick);
       return;
     }
-    if (asking) {
+    if (pauseMenu.asking) {
       // leave? left/right (or up/down) moves between STAY and MAIN MENU, A or START picks, B stays, SELECT again leaves
       const [up, down, left, right, a, b, start, select] = (['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'] as const).map(pressed);
       if (up || down || left || right) {
-        exitFocus = 1 - exitFocus;
         menuTick();
-        showExitFocus();
+        pauseMenu.toggleFocus();
       }
       if (b) askExit(false);
-      else if (select || ((a || start) && exitFocus === 1)) quitting = true;
+      else if (select || ((a || start) && pauseMenu.focus === 1)) quitting = true;
       else if (a || start) askExit(false);
       if (quitting && !controls.isDown('select') && !controls.isDown('a') && !controls.isDown('start')) {
         quitting = false;
