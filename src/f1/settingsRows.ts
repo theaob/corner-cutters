@@ -16,7 +16,7 @@ import { INITIALS, initials, playerId, setInitials, setStats, statsOn } from './
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
-import { availableLanguages, language, setLanguage, t, backLabel } from '../engine/i18n';
+import { availableLanguages, chooseLanguage, language, t, backLabel } from '../engine/i18n';
 import { GRAPHICS_SETTINGS, graphicsSetting, setGraphicsSetting, type GraphicsSetting } from './graphics';
 import { exportSaveDoc, replaceSave } from '../engine/save';
 import { decodeSave, encodeSave } from '../engine/saveCode';
@@ -236,10 +236,10 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
       about: v === 'off' ? 'no notifications' : "on a day you haven't played: the Daily Challenge and your streak",
     }), (v) => void setReminder(v))
     : undefined;
-  // LANGUAGE: only once the game has another language besides English (a change reloads the page)
+  // LANGUAGE: only once the game has another language besides English (a change builds the open screen again)
   const languages = availableLanguages();
   const languageRow = languages.length > 1
-    ? optionRow('LANGUAGE', languages.map((l) => l.code), language().code, (c) => ({ name: languages.find((l) => l.code === c)!.name.toUpperCase(), about: 'the language of the menus' }), setLanguage)
+    ? optionRow('LANGUAGE', languages.map((l) => l.code), language().code, (c) => ({ name: languages.find((l) => l.code === c)!.name.toUpperCase(), about: 'the language of the menus' }), (c) => void chooseLanguage(c))
     : undefined;
   // (STATS only where the build has a backend to send them to)
   // (the page for what doesn't clearly fit: the daily reminder, STATS and the screen are about the game)
