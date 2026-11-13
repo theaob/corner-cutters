@@ -54,11 +54,10 @@ import type { ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
 import { defaults } from '../engine/tuning';
-import { HALF_WIDTH, TILE, buildCircuit } from './circuit';
-import { vibrate } from '../engine/haptics';
-import { newRumble, rumble } from './rumble';
-import { newShake, stepShake, timeScale } from './shake';
-import { RaceSounds, crowdNear, menuPick, menuTick } from './sounds';
+import { HALF_WIDTH, buildCircuit } from './circuit';
+import { newRumble } from './rumble';
+import { newShake, timeScale } from './shake';
+import { RaceSounds, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { note, setGpu, setQuality } from '../engine/logbook';
 import { reportProblem, setRaceSpot } from './crashes';
@@ -99,6 +98,7 @@ import { splitColor, splitWord } from './access';
 import { t as tl } from '../engine/i18n';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
+import { feelFrame } from './race/feel';
 import { createCameraRig } from './race/camera';
 import { createFlagOverlay, createRain } from './race/screenFx';
 import { F1_TUNING } from './tuning';
@@ -1819,43 +1819,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         startTutorial();
       }
     }
-    // your car's vibration: crashes, landings, grass and gravel, kerbs
-    {
-      const me = race.entrants[you];
-      const ev = step.cars[you];
-      const cell = circuit.cells[Math.floor(me.car.y / TILE) * circuit.width + Math.floor(me.car.x / TILE)];
-      const felt = {
-        dt, speed: speedOf(me.car), topSpeed: me.car.cls.topSpeed, healthLost: healthBefore - me.car.health,
-        wreckedNow: ev.wreckedNow, landed: ev.landed, onRough: ev.onRough, onKerb: cell === 'kerb',
-      };
-      vibrate(rumble(rumbleState, felt));
-      // and the camera's shake (not in the replay, nor once you're out)
-      stepShake(shake, replay || !running(me) ? { ...felt, healthLost: 0, wreckedNow: false, landed: 0, onRough: false, onKerb: false } : felt);
-      // and its sounds: the engine, tyres, ground, the nearest rival, and hits
-      const lost = healthBefore - me.car.health;
-      if (lost > 0) tookDamage = true;
-      if (ev.wreckedNow) sounds.hit(1);
-      else if (lost > 0.5) sounds.hit(Math.min(1, 0.25 + lost / 15));
-      // (and the scrape of metal with the sparks)
-      if (!replay && (lost > 0.5 || ev.landed > 160)) sounds.scrape(Math.min(1, 0.3 + Math.max(lost, 0) / 10));
-      else if (ev.landed > 160) sounds.hit(0.3);
-      if (!running(me) || me.car.wrecked || replay) sounds.quiet();
-      else {
-        const f = { x: Math.sin(me.car.heading), y: -Math.cos(me.car.heading) };
-        let rival: { speed: number; distance: number } | undefined;
-        race.entrants.forEach((o, i) => {
-          if (i === you || !running(o) || o.car.wrecked) return;
-          const d = Math.hypot(o.car.x - me.car.x, o.car.y - me.car.y);
-          if (!rival || d < rival.distance) rival = { speed: speedOf(o.car), distance: d };
-        });
-        sounds.update({
-          dt, speed: speedOf(me.car), top: me.car.cls.topSpeed, slide: Math.abs(me.car.vx * -f.y + me.car.vy * f.x),
-          onRough: ev.onRough, onKerb: cell === 'kerb', rival, tow: me.tow,
-          onGravel: cell === 'gravel', crowd: crowdNear(stands, me.car.x, me.car.y),
-          limiter: !!me.pit && inLimitZone(circuit.pit, circuit.pit.points[me.pit.at].s),
-        });
-      }
-    }
+    // your car's vibration, shake and sounds (race/feel.ts)
+    if (feelFrame({ dt, race, you, circuit, ev: step.cars[you], healthBefore, replay: !!replay, rumbleState, shake, sounds, stands })) tookDamage = true;
     mistakeCount += step.race.filter((e) => e.kind === 'mistake').length;
     for (const e of step.race) {
       // achievements as they happen: a stop, lapping a car, a wreck (in a race)
