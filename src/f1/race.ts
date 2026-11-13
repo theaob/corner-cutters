@@ -24,7 +24,7 @@ import { LIMITS } from './trackLimits';
 import { aiTimes, gridOrder, judgeLap, newQualiLap, newQualifying, referenceLap, type QualiLap } from './qualifying';
 import { roundSeed, teamOf, type Season } from './championship';
 import { RACE_LAPS } from './laps';
-import { GRID_PAN, gridWalkOn, panAt, panLength } from './gridPan';
+import { gridWalkOn, panAt, panLength } from './gridPan';
 import { landmarksOf } from './town3d';
 import { standsOf } from './stands';
 import { CRASH_REPLAY, REPLAY, crashSpeed, crashWindow, newReplay, recordReplay, replayPose, replaySpeed, replayWindow, wantsCrashReplay, type ReplayRecorder } from './replay';
@@ -57,7 +57,7 @@ import { defaults } from '../engine/tuning';
 import { HALF_WIDTH, TILE, buildCircuit } from './circuit';
 import { vibrate } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
-import { ZOOM_OUT, newShake, rushOf, zoomOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
+import { newShake, stepShake, timeScale } from './shake';
 import { RaceSounds, crowdNear, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { note, setGpu, setQuality } from '../engine/logbook';
@@ -95,10 +95,11 @@ import { createCeremonyView } from './race/ceremonyView';
 import { ghostText, limitsText, readoutText, towText, tyreText } from './race/readout';
 import { paintRows } from './race/readoutView';
 import { bannerMessage, evenLines } from './race/banner';
-import { motionReduced, splitColor, splitWord } from './access';
+import { splitColor, splitWord } from './access';
 import { t as tl } from '../engine/i18n';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
+import { createCameraRig } from './race/camera';
 import { createFlagOverlay, createRain } from './race/screenFx';
 import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
@@ -108,12 +109,9 @@ import { RACE_SAVE_VERSION, dropKeptGrid, dropKeptRace, keptGridFor, keepGrid, k
 import { DESIGNER_DRAFT_ID } from './designerDraft';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
-const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
 /** Seconds of the champagne ceremony before the results (A shows them at once). */
 const PODIUM_HOLD = CEREMONY.len;
-/** How much closer the camera comes for the ceremony. */
-const CEREMONY_ZOOM = 2.6;
 /** s of count (3, 2, 1) after RESUME before the race goes on */
 const RESUME_COUNT = 3;
 
@@ -290,13 +288,6 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     say(radioQ, radioLine(cue));
   };
   // the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
-  /** the rush now (eased toward what the speed says; it feeds the sound) */
-  let rushNow = 0;
-  /** how far the camera has pulled back for speed now (eased toward what the speed says) */
-  let zoomNow = 0;
-  /** wheel to wheel: a rival this close (px) pulls the camera back this much more, eased in and slowly out */
-  const BATTLE = { near: 50, pullBack: 0.08 };
-  let battleNow = 0;
   const rain = createRain();
   const flagOverlay = createFlagOverlay();
   // the banner's message, on even lines if it takes two: a message in phrases (' · ') a phrase a line; otherwise the
@@ -1055,7 +1046,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         radio: () => radioQ.now?.text,
         /** the weather: the forecast, the track's wetness and the rain now, and your tyres (and whether they're the wrong ones) */
         weather: () => ({ forecast: { ...forecast }, wetness: race.wetness, rain: race.rain, condition: race.weather, tyres: race.entrants[you].tyres.compound, wrong: !!race.forecast && wrongTyres(race, you), compounds: race.entrants.map((e) => e.tyres.compound) }),
-        feel: () => ({ trauma: shake.trauma, hold: shake.hold, rush: rushNow, battle: battleNow }),
+        feel: () => ({ trauma: shake.trauma, hold: shake.hold, rush: cameraRig.rush(), battle: cameraRig.battle() }),
         /** your start off the lights, judged */
         launch: () => ({ ...launch }),
         /** hit your car for `health` (a crash of your own, for trying out the shake and sparks) */
@@ -1527,14 +1518,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
 
   // ---------------------------------------------------------------- loop
-  const focus = new THREE.Vector3(race.entrants[you].car.x, 0, race.entrants[you].car.y);
-  const target = new THREE.Vector3();
+  // the camera's rig (race/camera.ts): what it looks at, eased, and how far speed and a battle pull it back
+  const cameraRig = createCameraRig(camera, ceremonyView, race.entrants[you].car);
+  const { focus } = cameraRig;
   let miniTime = 0;
 
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
   let lookAt: { x: number; y: number } | undefined;
-  /** the camera's zoom for the grid pan, eased */
-  let panZoom = 1;
   /** the view has been closed: the loop stops */
   let closed = false;
   /** a frame failing on purpose (a debug hook: the loop has to carry on past one) */
@@ -2279,51 +2269,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     skids.update(dt);
     deckSkids?.update(dt);
 
-    // camera: follow your car, looking ahead along its motion; or, at the ceremony, on the podium
-    const c = me.car;
-    const drawn = pose(c, you, alpha);
-    const mineThen = replay && replayPose(recorder, replay.follow, replay.t);
-    if (lookAt) {
-      // (the debug hook's: the camera on a point of the map)
-      target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
-      focus.copy(target);
-    } else if (mineThen) {
-      // the replay: on your car as it was, looking ahead along its way
-      target.set(mineThen.x + Math.sin(mineThen.heading) * t.lead * 0.6, mineThen.z * 0.5, mineThen.y - Math.cos(mineThen.heading) * t.lead * 0.6);
-    } else if (gridPan) {
-      // the grid pan: along the grid from pole to the back
-      const at = panAt(gridPan.slots, gridPan.t);
-      target.set(at.x, groundAt(grid, at.x, at.y).h * 0.5, at.y);
-      focus.copy(target);
-    } else if (podium) {
-      // on the ceremony's set (the results over it: from above, as ever)
-      target.copy(ceremony.view(CEREMONY.len, camera.aspect, camera.fov).at);
-      ceremony.group.localToWorld(target);
-      if (podium.time <= dt) focus.copy(target);
-    } else target.set(drawn.x + (c.vx / c.cls.topSpeed) * t.lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * t.lead);
-    focus.lerp(target, 1 - Math.exp(-dt * 6));
-    const pitch = deg(LOOK.pitch);
-    // (the zoom eases back out from the grid pan's)
-    panZoom += ((gridPan ? GRID_PAN.zoom : 1) - panZoom) * (1 - Math.exp(-dt * 4));
-    // (speed pulls the camera back, smoothly: a touch less for a device asking for less motion)
-    const meNow = race.entrants[you];
-    const rushWant = !replay && !podium && !gridPan && running(meNow) && !meNow.pit ? rushOf(speedOf(meNow.car), meNow.car.cls.topSpeed, meNow.tow) : 0;
-    rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
-    const zoomWant = !replay && !podium && !gridPan && running(meNow) && !meNow.pit ? zoomOf(speedOf(meNow.car), meNow.car.cls.topSpeed) * (motionReduced() ? ZOOM_OUT.calm : 1) : 0;
-    zoomNow += (zoomWant - zoomNow) * Math.min(1, dt * 1.5);
-    // (wheel to wheel with a rival, it pulls back a touch more, to show you both)
-    const battleWant = !replay && !podium && !gridPan && session === 'race' && race.phase === 'racing' && running(meNow) && !meNow.pit
-      && race.entrants.some((e, i) => i !== you && running(e) && !e.pit && Math.hypot(e.car.x - meNow.car.x, e.car.y - meNow.car.y) < BATTLE.near) ? 1 : 0;
-    battleNow += (battleWant - battleNow) * Math.min(1, dt * (battleWant ? 2 : 0.8));
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + ZOOM_OUT.pullBack * zoomNow + BATTLE.pullBack * battleNow);
-    camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
-    camera.lookAt(focus.x, focus.y, focus.z);
-    // the shake: the camera moved across and up its own view (SCREEN SHAKE off in the settings: still)
-    if (shakeOn()) {
-      const o = shakeOffset(shake);
-      camera.translateX(o.x);
-      camera.translateY(o.y);
-    }
+    // camera: follow your car, looking ahead along its motion; or, at the ceremony, on the podium (race/camera.ts)
+    cameraRig.step({
+      dt, race, you, session, grid, drawn: pose(me.car, you, alpha), recorder, replay, gridPan, podium, lookAt, shake, viewH, lead: t.lead, zoom: t.zoom,
+    });
     // the ceremony: its own camera, from third across to the three of them (the plates under them)
     const onSet = ceremony.group.visible && !!podium;
     if (onSet) focus.copy(ceremonyView.aim(podium!.time, camera));
