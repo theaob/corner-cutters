@@ -29,21 +29,20 @@ const WEATHER: (string | undefined)[] = [undefined, undefined, 'wet', undefined,
 
 export function buildScript(layouts: CircuitLayout[], teams: Team[]): ShowStep[] {
   const steps: ShowStep[] = [
-    { kind: 'screen', screen: 'menu', secs: 5 },
-    { kind: 'screen', screen: 'shop', secs: 5 },
-    { kind: 'screen', screen: 'championship', secs: 5 },
-    { kind: 'screen', screen: 'daily', secs: 4 },
+    { kind: 'screen', screen: 'menu', secs: 3 },
+    { kind: 'screen', screen: 'shop', secs: 3 },
+    { kind: 'screen', screen: 'championship', secs: 3 },
   ];
   layouts.forEach((l, i) => {
     const pit = !!l.pitRoof;
     const jumps = capturePlaces(l, 1000, 24, 0).map((p) => p.label).filter((x) => x !== 'START / FINISH' && (pit || x !== 'PIT LANE'));
     steps.push({
       kind: 'race', circuit: l.id, mode: 'race', team: teams[i % teams.length].id, secs: 0,
-      weather: pit ? undefined : WEATHER[i % WEATHER.length], jumps: jumps.slice(0, 3), champagne: i % 6 === 5 || i === layouts.length - 1,
+      weather: pit ? undefined : WEATHER[i % WEATHER.length], jumps: jumps.slice(0, pit ? 2 : 1), champagne: i % 6 === 5 || i === layouts.length - 1,
     });
   });
-  steps.push({ kind: 'race', circuit: layouts[3 % layouts.length].id, mode: 'timetrial', team: teams[2].id, secs: 22 });
-  steps.push({ kind: 'race', circuit: layouts[0].id, mode: 'timeattack', team: teams[4].id, secs: 22 });
+  steps.push({ kind: 'race', circuit: layouts[3 % layouts.length].id, mode: 'timetrial', team: teams[2].id, secs: 8 });
+  steps.push({ kind: 'race', circuit: layouts[0].id, mode: 'timeattack', team: teams[4].id, secs: 8 });
   return steps;
 }
 

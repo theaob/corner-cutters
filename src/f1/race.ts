@@ -157,7 +157,7 @@ export interface RaceOptions {
   /** a race kept on the device to come back to (raceSave.ts): built as it was and picked up where it was left, paused */
   resume?: KeptRace;
   /** the capture build's showreel (showreel.ts): your car drives itself, flies past the set pieces and ends in the ceremony; the race is left when it's over */
-  show?: { jumps: string[]; champagne: boolean; secs: number; first: boolean };
+  show?: { jumps: string[]; champagne: boolean; secs: number };
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
   mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
@@ -1103,7 +1103,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     /** the race clock the flights start from (once the lights are out), and the plan: [clock offset, what] */
     let t0: number | undefined;
     const plan: { at: number; run: () => void }[] = [];
-    let at = 11;
+    let at = 5;
     for (const label of sh.jumps) {
       const place = places.find((p) => p.label === label);
       if (!place) continue;
@@ -1114,16 +1114,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         const e = race.entrants[you];
         if (pit && e.plan) e.plan = { ...e.plan, stopAt: e.progress.lap + e.progress.idx / track.samples.length };
       } });
-      at += pit ? 20 : 9;
+      at += pit ? 13 : 4.5;
     }
     const mode0 = mode;
-    const end = mode0 === 'race' ? at + 4 : sh.secs;
+    const end = mode0 === 'race' ? at + 1 : sh.secs;
     plan.push({ at: end, run: () => (sh.champagne && mode0 === 'race' && session === 'race' && !podium && !done ? startCeremony() : leave()) });
-    if (mode0 === 'race' && sh.champagne) plan.push({ at: end + CEREMONY.len + 1.5, run: () => leave() });
+    if (mode0 === 'race' && sh.champagne) plan.push({ at: end + 6, run: () => leave() });
     const began = Date.now();
     directorTimer = setInterval(() => {
       if (leaving || closed) return;
-      if (gridPan && !sh.first) endPan();
+      // (the grid pan skipped, and the lights cut to a second: a short reel)
+      if (gridPan) endPan();
+      if (race.phase === 'lights' && race.clock < -1) race.clock = -1;
       if (t0 === undefined) {
         // (a race: from the lights going out; a Time Trial or Time Attack: from the start)
         if ((race.phase === 'racing' || Date.now() - began > 9000) && !gridPan) t0 = race.clock;
