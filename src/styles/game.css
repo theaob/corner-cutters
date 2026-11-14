@@ -2219,3 +2219,11 @@ html.reduce-motion .splash.go .splash-start {
 html.splash-up .menu-report {
   display: none;
 }
+
+/* the capture build's showreel (capture/?show): nothing to press, so nothing of the controls shows */
+html.showreel #deck,
+html.showreel .menu-report,
+html.showreel .tune-toggle,
+html.showreel .version-line {
+  display: none !important;
+}
