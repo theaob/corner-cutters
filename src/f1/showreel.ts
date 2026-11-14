@@ -1,7 +1,7 @@
 // The capture build's showreel (capture/?show): a hands-off tour for screen recording. Open it, start the recording and
-// tap the title; after that it plays itself: the menus, then every circuit in turn with a different team (some in the
-// rain), the AI driving your car, the camera on it, a flight past each circuit's set pieces (the tunnel, the castle
-// walls, the pit lane, ...), a few crashes, the champagne ceremony on some, a Time Trial lap and a Time Attack run. The
+// tap the title; after that it plays itself: the menus, every circuit in succession as a turning 3D model, then a few
+// races (the AI driving your car, the camera on it): a flight through Monaco's tunnel, rain in Brazil, the champagne
+// ceremony, a pit stop and a big crash at La Source in the Ardennes, then a Time Trial lap and a Time Attack run. The
 // page's address says where it is (?show=<step>), so a reload carries on from there. No controls or buttons are shown.
 //
 // The steps are data: showreel.json, the one place the reel is written down (each step's length, circuit, team,
@@ -17,15 +17,17 @@ import reel from './showreel.json';
 /** Something that happens during a race step, `at` seconds after the lights go out. */
 export interface ShowEvent {
   at: number;
-  /** a flight past a set piece (`place`: capture.ts's label), a crash staged by your car, or the champagne ceremony */
+  /** a flight past a set piece (`place`: capture.ts's label), a crash staged by your car (`place`: at a named corner, such
+   * as La Source, rather than beside you), or the champagne ceremony */
   do: 'flight' | 'crash' | 'champagne';
   place?: string;
 }
 
 export interface ShowStep {
-  kind: 'screen' | 'race';
+  kind: 'screen' | 'race' | 'model';
   /** a screen: which one (the menu, the car shop, the Championship) */
   screen?: 'menu' | 'shop' | 'championship';
+  /** a race's circuit; a model's: the circuit shown as a turning 3D model on the loading card, no racing */
   circuit?: string;
   mode?: 'race' | 'timetrial' | 'timeattack';
   team?: string;
@@ -40,7 +42,7 @@ export interface ShowStep {
   captionsOnly?: boolean;
 }
 
-/** The reel's timings, for the run sheet (s): the loading card, the lights, a crash replay, a ceremony. */
+/** The reel's timings, for the run sheet (s): the loading card, a model's card before its seconds, the lights, a crash replay, a ceremony. */
 export const REEL_TIMING = reel.timing;
 
 /** The steps of the reel, with the end card only when captions are on. */
@@ -55,12 +57,13 @@ export function checkScript(steps: ShowStep[], layouts: CircuitLayout[], teams: 
     if (s.kind === 'screen') return;
     const layout = layouts.find((l) => l.id === s.circuit);
     if (!layout) return void bad.push(`${at}: unknown circuit`);
+    if (s.kind === 'model') return;
     if (!teams.some((t) => t.id === s.team)) bad.push(`${at}: unknown team ${s.team}`);
     if (s.weather && !weatherById(s.weather)) bad.push(`${at}: unknown weather ${s.weather}`);
     const places = capturePlaces(layout, 1000, 24, 0).map((p) => p.label);
     for (const e of s.events ?? []) {
       if (e.at < 0 || e.at > s.secs) bad.push(`${at}: ${e.do} at ${e.at} s is outside the step's ${s.secs} s`);
-      if (e.do === 'flight' && !places.includes(e.place ?? '')) bad.push(`${at}: no place "${e.place}" on ${layout.name}`);
+      if ((e.do === 'flight' || (e.do === 'crash' && e.place)) && !places.includes(e.place ?? '')) bad.push(`${at}: no place "${e.place}" on ${layout.name}`);
       if (e.do === 'champagne' && s.mode && s.mode !== 'race') bad.push(`${at}: champagne only in a race`);
     }
   });
@@ -85,15 +88,16 @@ export function sheetRows(steps: ShowStep[], layouts: CircuitLayout[], teams: Te
     const events = s.events ?? [];
     const crash = events.some((e) => e.do === 'crash');
     const champagne = events.some((e) => e.do === 'champagne');
-    const length = s.kind === 'screen' ? s.secs : t.load + (s.mode === 'race' || !s.mode ? t.lights : 0) + s.secs + (crash ? t.replay : 0) + (champagne ? t.ceremony : 0);
+    const length = s.kind === 'screen' ? s.secs : s.kind === 'model' ? s.secs + t.card : t.load + (s.mode === 'race' || !s.mode ? t.lights : 0) + s.secs + (crash ? t.replay : 0) + (champagne ? t.ceremony : 0);
     let what = '';
     if (s.kind === 'screen') what = `${s.screen} screen`;
+    else if (s.kind === 'model') what = `3D model · ${layouts.find((l) => l.id === s.circuit)?.name ?? s.circuit}`;
     else {
       const layout = layouts.find((l) => l.id === s.circuit);
       const team = teams.find((x) => x.id === s.team);
       const mode = s.mode === 'timetrial' ? 'Time Trial' : s.mode === 'timeattack' ? 'Time Attack' : 'Race';
       what = `${mode} · ${layout?.name ?? s.circuit} · ${team?.name ?? s.team} · ${s.weather ?? 'dry'}`;
-      const ev = events.map((e) => `${e.at} s ${e.do === 'flight' ? `fly past ${e.place}` : e.do === 'crash' ? 'crash + replay' : 'champagne'}`);
+      const ev = events.map((e) => `${e.at} s ${e.do === 'flight' ? `fly past ${e.place}` : e.do === 'crash' ? `${e.place ? `big crash at ${e.place} ` : 'crash '}+ replay` : 'champagne'}`);
       if (ev.length) what += ` · ${ev.join(', ')}`;
     }
     rows.push({ start: clock, length, what });
@@ -116,6 +120,7 @@ export function stepUrl(href: string, i: number, step: ShowStep | undefined): st
   const p = url.searchParams;
   p.delete('circuit');
   p.delete('mode');
+  p.delete('model');
   if (!step) {
     p.delete('show');
     return url.href;
@@ -124,6 +129,7 @@ export function stepUrl(href: string, i: number, step: ShowStep | undefined): st
   if (step.kind === 'race') {
     p.set('circuit', step.circuit!);
     if (step.mode && step.mode !== 'race') p.set('mode', step.mode);
-  } else if (step.screen !== 'menu') p.set('mode', step.screen!);
+  } else if (step.kind === 'model') p.set('model', step.circuit!);
+  else if (step.screen !== 'menu') p.set('mode', step.screen!);
   return url.href;
 }

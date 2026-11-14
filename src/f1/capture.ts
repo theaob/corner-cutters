@@ -17,6 +17,14 @@ export interface CapturePlace {
 
 /** px of run-up before a feature, so the camera has it in view as the car arrives */
 const RUN_UP = 600;
+/** px ahead of your car a staged crash is put, close enough for the replay's camera to see it */
+export const CRASH_AHEAD = 300;
+
+/** Named corners worth a crash (px along the lap, where the wreck lies), on circuits whose layout carries no name for them. */
+const LANDMARKS: Record<string, { label: string; at: number }[]> = {
+  // the hairpin right after the line
+  ardennes: [{ label: 'LA SOURCE', at: 455 }],
+};
 
 /**
  * The set pieces of a circuit worth a take, as track samples: where each starts, a run-up before it. `n` samples of
@@ -34,5 +42,6 @@ export function capturePlaces(layout: CircuitLayout, n: number, spacing: number,
   (layout.jumps ?? []).forEach((j, k, all) => places.push({ label: all.length > 1 ? `JUMP ${k + 1}` : 'JUMP', idx: at(j.at) }));
   const banks = layout.banking === undefined ? [] : Array.isArray(layout.banking) ? layout.banking : [layout.banking];
   banks.forEach((b, k) => places.push({ label: banks.length > 1 ? `BANKING ${k + 1}` : 'BANKING', idx: at(b.from) }));
+  for (const m of LANDMARKS[layout.id] ?? []) places.push({ label: m.label, idx: (((Math.round((m.at - CRASH_AHEAD) / spacing) % n) + n) % n) });
   return places;
 }

@@ -236,7 +236,9 @@ async function route(): Promise<void> {
   // the curtain down over the screen going (going to a race, with its loading card), then the screen closed behind it
   const params0 = new URLSearchParams(window.location.search);
   const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
-  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : undefined);
+  // (a showreel's model: the circuit as a turning 3D model on the card, nothing raced)
+  const model = showStep?.kind === 'model' ? layoutById(showStep.circuit ?? null) : undefined;
+  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : model ? { layout: model, line: model.about.toUpperCase() } : undefined);
   if (id !== routeId) return;
   // (the screen going failing to close never keeps the next from opening: the curtain would stay down, the page black)
   try {
@@ -250,6 +252,12 @@ async function route(): Promise<void> {
   controls.clearAll();
   releaseDeck(deck);
   const params = new URLSearchParams(window.location.search);
+  // a showreel's model: the card stays up for its seconds, then the next step
+  if (model && showStep) {
+    if (showStep.caption && captionsOn(window.location.search)) showCaption(showStep.caption, showStep.secs);
+    setTimeout(() => id === routeId && showNext(), showStep.secs * 1000);
+    return;
+  }
   // a showreel's screen (the menu, the shop, ...): on for its seconds, then the next step
   if (showStep?.kind === 'screen' && showStep.caption && captionsOn(window.location.search)) showCaption(showStep.caption, showStep.secs - 0.6);
   if (showStep?.kind === 'screen') setTimeout(() => id === routeId && showNext(), showStep.secs * 1000);

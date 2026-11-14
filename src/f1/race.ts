@@ -76,7 +76,7 @@ import { sayDayNews } from './screens/dayNews';
 import { carStyle, styled } from './carStyle';
 import { loadStreak } from './streak';
 import { LAYOUTS } from './layouts';
-import { CAPTURE, capturePlaces } from './capture';
+import { CAPTURE, CRASH_AHEAD, capturePlaces } from './capture';
 import { placeCaption, showCaption } from './captions';
 import { type Medal, MEDALS, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
@@ -1119,9 +1119,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
      * replay's camera finds it; one too far off is put just ahead first), shoved across the track so it spins, and the
      * next one with it. The real wreck handling does the rest: debris, the safety car, the crash replay.
      */
-    const crash = () => {
+    const crash = (label?: string) => {
       const me = race.entrants[you];
       const n = track.samples.length;
+      // (at a named corner: your car put before it first, the wrecks lying in it)
+      const spot = label ? places.find((p) => p.label === label) : undefined;
+      if (spot) jumpTo(spot.idx);
       const near = race.entrants
         .map((e, i) => ({ e, i, d: Math.hypot(e.car.x - me.car.x, e.car.y - me.car.y) }))
         .filter(({ e, i }) => i !== you && e.ai && !e.car.wrecked && !e.pit && e.progress.finished === undefined)
@@ -1129,9 +1132,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         .slice(0, 2);
       near.forEach(({ e, d }, k) => {
         const c = e.car;
-        if (d > 260) {
-          // (too far for the replay to see: just ahead of you, at your speed)
-          const idx = (me.progress.idx + 5 + 2 * k) % n;
+        if (d > 260 || spot) {
+          // (too far for the replay to see: just ahead of you, at your speed; at a corner, ahead in it)
+          const idx = ((spot ? spot.idx + Math.round(CRASH_AHEAD / track.spacing) : me.progress.idx + 5) + 2 * k) % n;
           const s = track.samples[idx];
           Object.assign(c, { x: s.x, y: s.y, heading: s.dir, vx: Math.sin(s.dir) * speedOf(me.car), vy: -Math.cos(s.dir) * speedOf(me.car) });
           e.progress = { ...e.progress, idx };
@@ -1154,7 +1157,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const plan: { at: number; run: () => void }[] = [];
     for (const ev of sh.events) {
       if (ev.do === 'flight') plan.push({ at: ev.at, run: () => live() && flight(ev.place ?? '') });
-      else if (ev.do === 'crash') plan.push({ at: ev.at, run: () => live() && crash() });
+      else if (ev.do === 'crash') plan.push({ at: ev.at, run: () => live() && crash(ev.place) });
       else plan.push({ at: ev.at, run: champagne });
     }
     // (a ceremony is left once it has run; any other step at its length)
