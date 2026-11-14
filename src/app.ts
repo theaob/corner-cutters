@@ -267,7 +267,7 @@ async function route(): Promise<void> {
     else if (mode === 'daily' && !layout) await showDailyScreen(id);
     else if (params.get('mode') === 'shop' && !layout) await showCarShopScreen(id);
     else if (!layout) await showMenu(id);
-    else await showRace(id, layout, mode, showStep?.kind === 'race' ? { step: showStep, first: showAt === 4, next: showNext } : undefined);
+    else await showRace(id, layout, mode, showStep?.kind === 'race' ? { step: showStep, next: showNext } : undefined);
   } catch (e) {
     // (a screen that failed to open: the curtain lifted all the same, on whatever got up, rather than black for good;
     // a race that failed, back to the menu)
@@ -551,7 +551,7 @@ async function showCarShopScreen(id: number): Promise<void> {
   navigate(withCircuit(null));
 }
 
-async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial', show?: { step: ShowStep; first: boolean; next: () => void }): Promise<void> {
+async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial', show?: { step: ShowStep; next: () => void }): Promise<void> {
   racingOn = { circuit: layout.id, mode };
   // the Daily Challenge: today's circuit only (another, or yesterday's left open: to today's screen)
   const today = mode === 'daily' ? challengeOn(dayOf()) : undefined;
@@ -650,7 +650,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     const { step } = show;
     options = {
       ...options, team: teamById(step.team) ?? TEAMS[0], seat: 0, difficulty: NORMAL, weather: weatherById(step.weather) ?? DRY, qualifying: false, laps: 3, startTyres: undefined,
-      toMenu: show.next, show: { jumps: step.jumps ?? [], champagne: !!step.champagne, secs: step.secs, first: show.first },
+      toMenu: show.next, show: { jumps: step.jumps ?? [], champagne: !!step.champagne, secs: step.secs },
     };
   }
   const view: StandaloneView = await raceOn(layout, show ? show.next : quit, options)({ host: screen, services, tuning, fit });
