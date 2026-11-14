@@ -2227,3 +2227,32 @@ html.showreel .tune-toggle,
 html.showreel .version-line {
   display: none !important;
 }
+
+/* the showreel's captions (captions.ts) */
+.show-caption {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 9%;
+  z-index: 2000; /* over the curtain too */
+  padding: 0 16px;
+  text-align: center;
+  pointer-events: none;
+  font-family: 'Silkscreen', monospace;
+  color: #fff;
+  text-shadow: 0 2px 0 #000, 0 0 8px #000, 0 0 18px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.show-caption.on {
+  opacity: 1;
+}
+.show-caption-title {
+  font-size: clamp(18px, 5vmin, 44px);
+  letter-spacing: 0.06em;
+}
+.show-caption-line {
+  margin-top: 6px;
+  font-size: clamp(11px, 2.6vmin, 22px);
+  color: #f2c14e;
+}

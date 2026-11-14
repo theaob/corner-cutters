@@ -40,6 +40,27 @@ export default defineConfig({
       },
     },
     {
+      // the web app manifest: installed to the home screen, the game opens full screen with no address bar (not in the
+      // YouTube build, which a frame hosts); the capture build (VITE_CAPTURE=1) starts its showreel
+      name: 'web-manifest',
+      apply: 'build',
+      generateBundle() {
+        if (process.env.VITE_STORE === 'youtube') return;
+        const capture = process.env.VITE_CAPTURE === '1';
+        this.emitFile({
+          type: 'asset',
+          fileName: 'manifest.webmanifest',
+          source: JSON.stringify({
+            name: capture ? 'Corner Cutters (capture)' : 'Corner Cutters', short_name: capture ? 'CC capture' : 'Corner Cutters',
+            start_url: capture ? './?show' : './', scope: './', display: 'standalone', display_override: ['fullscreen', 'standalone'],
+            background_color: '#15141f', theme_color: '#15141f',
+            icons: [{ src: 'icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }],
+          }, null, 2),
+        });
+      },
+      transformIndexHtml: (html) => (process.env.VITE_STORE === 'youtube' ? html : html.replace('</head>', '    <link rel="manifest" href="manifest.webmanifest" />\n  </head>')),
+    },
+    {
       // the YouTube build (VITE_STORE=youtube): the SDK's script ahead of the game's module, as Playables asks
       name: 'youtube-sdk',
       transformIndexHtml: {
