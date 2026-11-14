@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
-import { REEL_TIMING, checkScript, loadScript, sheetRows, showIndex, stepUrl } from '../src/f1/showreel';
+import { REEL_TIMING, SHOTS, checkScript, loadScript, sheetRows, showIndex, stepUrl } from '../src/f1/showreel';
 import { LAYOUTS } from '../src/f1/layouts';
 import { TEAMS } from '../src/f1/teams';
 
@@ -25,7 +25,7 @@ describe('showreel', () => {
   it('races Brazil in the wet, with a pit stop and a big crash at La Source in the Ardennes, and the tunnel at Monaco', () => {
     const race = (id: string) => script.find((s) => s.circuit === id && s.kind === 'race' && !s.mode)!;
     expect(race('twin-lakes').weather).toBe('wet');
-    expect(race('ardennes').events).toEqual(expect.arrayContaining([{ at: 4, do: 'flight', place: 'PIT LANE' }, expect.objectContaining({ do: 'crash', place: 'LA SOURCE' })]));
+    expect(race('ardennes').events).toEqual(expect.arrayContaining([expect.objectContaining({ do: 'flight', place: 'PIT LANE' }), expect.objectContaining({ do: 'crash', place: 'LA SOURCE' })]));
     expect(race('harbour').events?.some((e) => e.place === 'TUNNEL')).toBe(true);
   });
   it('opens the circuits with the Ardennes: the crash and the safety car at La Source', () => {
@@ -33,15 +33,43 @@ describe('showreel', () => {
     expect(first.circuit).toBe('ardennes');
     expect(first.events?.some((e) => e.do === 'crash' && e.place === 'LA SOURCE')).toBe(true);
   });
+  it('directs the camera: every race opens on a shot of its own, and every shot named exists', () => {
+    const races = script.filter((s) => s.kind === 'race');
+    expect(races.every((s) => s.shot && SHOTS[s.shot])).toBe(true);
+    const cams = races.flatMap((s) => (s.events ?? []).filter((e) => e.do === 'cam'));
+    expect(cams.length).toBeGreaterThan(races.length);
+    expect(cams.every((e) => SHOTS[e.shot ?? ''])).toBe(true);
+    // (the game's own view is one of them, untouched)
+    expect(SHOTS.wide).toEqual({ zoom: 1, yaw: 0, pitch: 0 });
+  });
+  it('catches a shot that does not exist, and a cut to nowhere on the lap', () => {
+    const team = TEAMS[0].id;
+    const bad = [
+      { kind: 'race' as const, circuit: 'harbour', team, secs: 5, shot: 'upside-down', events: [{ at: 1, do: 'cam' as const, shot: 'sideways' }] },
+      { kind: 'race' as const, circuit: 'harbour', team, secs: 5, start: 1.5, events: [{ at: 1, do: 'flight' as const, lap: 2 }] },
+    ];
+    expect(checkScript(bad, LAYOUTS, TEAMS).length).toBe(4);
+    const good = [{ kind: 'race' as const, circuit: 'harbour', team, secs: 5, start: 0.5, shot: 'low', events: [{ at: 1, do: 'flight' as const, lap: 0.25 }, { at: 2, do: 'cam' as const, shot: 'orbit', cut: true }] }];
+    expect(checkScript(good, LAYOUTS, TEAMS)).toEqual([]);
+  });
+  it('starts the short races rolling (no lights), the Ardennes from the grid', () => {
+    const race = (id: string) => script.find((s) => s.circuit === id && s.kind === 'race' && !s.mode)!;
+    expect(race('ardennes').start).toBeUndefined();
+    for (const id of ['jade-spiral', 'harbour', 'twin-lakes', 'vegas']) expect(race(id).start).toBeGreaterThanOrEqual(0);
+    const team = TEAMS[0].id;
+    const [grid, rolling] = sheetRows([{ kind: 'race', circuit: 'harbour', team, secs: 5 }, { kind: 'race', circuit: 'harbour', team, secs: 5, start: 0.2 }], LAYOUTS, TEAMS);
+    expect(grid.length - rolling.length).toBeCloseTo(REEL_TIMING.lights);
+    expect(rolling.what).toContain('rolling start');
+  });
   it('adds an end card only with captions', () => {
     expect(all.length).toBe(script.length + 1);
     expect(all.at(-1)?.caption?.[0]).toBe('CORNER CUTTERS');
   });
-  it('comes to about two to three minutes', () => {
+  it('comes to two to two and a half minutes', () => {
     const rows = sheetRows(all, LAYOUTS, TEAMS);
     const end = rows.at(-1)!.start + rows.at(-1)!.length;
     expect(end).toBeGreaterThan(2 * 60);
-    expect(end).toBeLessThan(3.5 * 60);
+    expect(end).toBeLessThan(2.5 * 60);
     expect(REEL_TIMING.load).toBeGreaterThan(0);
   });
   it('addresses its steps and reads them back', () => {
@@ -61,13 +89,13 @@ describe('showreel', () => {
     const rows = sheetRows(all, LAYOUTS, TEAMS);
     const lines = all.map((s, i) => {
       const r = rows[i];
-      const cap = s.caption ? s.caption.join(' / ') : s.kind === 'race' ? '(auto: circuit, team, description)' : s.kind === 'model' ? '(its name and description on the loading card)' : '';
+      const cap = s.caption ? s.caption.join(' / ') : s.kind === 'race' ? '(auto: circuit and team)' : s.kind === 'model' ? '(its flag and name on the card)' : '';
       return `| ${i + 1} | ${mmss(r.start)} | ${r.length.toFixed(1)} s | ${r.what} | ${cap} |`;
     });
     const end = rows.at(-1)!.start + rows.at(-1)!.length;
     writeFileSync(process.env.REEL_SHEET!, [
       '# Showreel run sheet', '',
-      `Generated from \`src/f1/showreel.json\` (\`npm run reel:sheet\`). Total about ${mmss(end)}. Times are estimates: a circuit's map card ${REEL_TIMING.load} s (a model step: ${REEL_TIMING.card} s before its seconds), lights ${REEL_TIMING.lights} s, crash replay ${REEL_TIMING.replay} s, ceremony ${REEL_TIMING.ceremony} s on top of each race's racing seconds.`, '',
+      `Generated from \`src/f1/showreel.json\` (\`npm run reel:sheet\`). Total about ${mmss(end)}. Times are estimates: a race's map card ${REEL_TIMING.load} s (a model step: ${REEL_TIMING.card} s on top of its seconds), lights ${REEL_TIMING.lights} s (none on a rolling start), crash replay ${REEL_TIMING.replay} s, ceremony ${REEL_TIMING.ceremony} s on top of each race's racing seconds.`, '',
       '| # | Start | Length | What happens | Caption (with &captions) |', '|---|---|---|---|---|', ...lines, '',
     ].join('\n'));
   });
