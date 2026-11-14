@@ -238,7 +238,7 @@ async function route(): Promise<void> {
   const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
   // (a showreel's model: the circuit as a turning 3D model on the card, nothing raced)
   const model = showStep?.kind === 'model' ? layoutById(showStep.circuit ?? null) : undefined;
-  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : model ? { layout: model, line: model.about.toUpperCase() } : undefined);
+  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : model ? { layout: model, line: '' } : undefined);
   if (id !== routeId) return;
   // (the screen going failing to close never keeps the next from opening: the curtain would stay down, the page black)
   try {

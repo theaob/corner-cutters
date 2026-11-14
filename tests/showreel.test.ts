@@ -14,11 +14,11 @@ describe('showreel', () => {
     const bad = [{ kind: 'race' as const, circuit: 'nowhere', team: 'x', secs: 5 }, { kind: 'race' as const, circuit: 'harbour', team: TEAMS[0].id, weather: 'fog', secs: 5, events: [{ at: 9, do: 'flight' as const, place: 'TUNNEL' }, { at: 1, do: 'flight' as const, place: 'MOON' }] }];
     expect(checkScript(bad, LAYOUTS, TEAMS).length).toBe(4);
   });
-  it('shows every circuit as a model, once, and races only a few', () => {
-    expect(script.filter((s) => s.kind === 'model').map((s) => s.circuit)).toEqual(LAYOUTS.map((l) => l.id));
+  it('shows every circuit once, as a model card or as the race whose card it is, and races only a few', () => {
+    expect(script.filter((s) => s.kind !== 'screen' && !s.mode).map((s) => s.circuit)).toEqual(LAYOUTS.map((l) => l.id));
     const raced = script.filter((s) => s.kind === 'race' && !s.mode).map((s) => s.circuit);
-    // Monaco, China, Brazil, Las Vegas and the Ardennes
-    expect(raced).toEqual(['harbour', 'jade-spiral', 'twin-lakes', 'vegas', 'ardennes']);
+    // China, Monaco, the Ardennes, Brazil and Las Vegas
+    expect(raced).toEqual(['jade-spiral', 'harbour', 'ardennes', 'twin-lakes', 'vegas']);
     expect(script.at(-2)?.mode).toBe('timetrial');
     expect(script.at(-1)?.mode).toBe('timeattack');
   });
@@ -43,9 +43,9 @@ describe('showreel', () => {
     expect(showIndex('?show')).toBe(0);
     expect(showIndex('?show=7')).toBe(7);
     expect(showIndex('')).toBeUndefined();
-    const url = stepUrl('http://x/capture/?show=0&desktop', 5, script[5]); // (a model)
-    expect(showIndex(new URL(url).search)).toBe(5);
-    expect(new URL(url).searchParams.get('model')).toBe(script[5].circuit);
+    const url = stepUrl('http://x/capture/?show=0&desktop', 3, script[3]); // (a model)
+    expect(showIndex(new URL(url).search)).toBe(3);
+    expect(new URL(url).searchParams.get('model')).toBe(script[3].circuit);
     expect(new URL(url).searchParams.has('circuit')).toBe(false);
     expect(new URL(url).searchParams.has('desktop')).toBe(true);
     expect(new URL(stepUrl('http://x/?show=3&circuit=a', 3, undefined)).search).toBe('');
@@ -62,7 +62,7 @@ describe('showreel', () => {
     const end = rows.at(-1)!.start + rows.at(-1)!.length;
     writeFileSync(process.env.REEL_SHEET!, [
       '# Showreel run sheet', '',
-      `Generated from \`src/f1/showreel.json\` (\`npm run reel:sheet\`). Total about ${mmss(end)}. Times are estimates: loading card ${REEL_TIMING.load} s (a model: ${REEL_TIMING.card} s before its seconds), lights ${REEL_TIMING.lights} s, crash replay ${REEL_TIMING.replay} s, ceremony ${REEL_TIMING.ceremony} s on top of each race's racing seconds.`, '',
+      `Generated from \`src/f1/showreel.json\` (\`npm run reel:sheet\`). Total about ${mmss(end)}. Times are estimates: a circuit's map card ${REEL_TIMING.load} s (a model step: ${REEL_TIMING.card} s before its seconds), lights ${REEL_TIMING.lights} s, crash replay ${REEL_TIMING.replay} s, ceremony ${REEL_TIMING.ceremony} s on top of each race's racing seconds.`, '',
       '| # | Start | Length | What happens | Caption (with &captions) |', '|---|---|---|---|---|', ...lines, '',
     ].join('\n'));
   });
