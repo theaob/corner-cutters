@@ -158,7 +158,7 @@ export interface RaceOptions {
   /** a race kept on the device to come back to (raceSave.ts): built as it was and picked up where it was left, paused */
   resume?: KeptRace;
   /** the capture build's showreel (showreel.ts): your car drives itself, flies past the set pieces and ends in the ceremony; the race is left when it's over */
-  show?: { jumps: string[]; champagne: boolean; secs: number; captions: boolean };
+  show?: { jumps: string[]; champagne: boolean; secs: number; captions: boolean; crash: boolean };
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
   mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
@@ -1108,7 +1108,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     /** the race clock the flights start from (once the lights are out), and the plan: [clock offset, what] */
     let t0: number | undefined;
     const plan: { at: number; run: () => void }[] = [];
-    let at = 5;
+    let at = 4;
     for (const label of sh.jumps) {
       const place = places.find((p) => p.label === label);
       if (!place) continue;
@@ -1122,10 +1122,29 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       } });
       at += pit ? 13 : 4.5;
     }
+    // a crash, if staged: two AI cars put on the track just ahead of yours, at its speed, and wrecked there (the crash
+    // replay follows, as it does for a wreck within sight; the race clock stands still through it)
+    if (sh.crash) {
+      plan.push({ at: 4, run: () => {
+        const me = race.entrants[you];
+        const n = track.samples.length;
+        const victims = race.entrants.map((e, i) => ({ e, i })).filter(({ e }) => e.ai && e.progress.finished === undefined && !e.car.wrecked).slice(0, 2);
+        victims.forEach(({ e }, k) => {
+          const idx = (me.progress.idx + 6 + 3 * k) % n;
+          const s = track.samples[idx];
+          const side = k === 0 ? 0 : 10;
+          Object.assign(e.car, { x: s.x - Math.sin(s.dir) * side, y: s.y + Math.cos(s.dir) * side, heading: s.dir, vx: Math.sin(s.dir) * 260, vy: -Math.cos(s.dir) * 260 });
+          e.progress = { ...e.progress, idx };
+          applyDamage(e.car, 1000, HANDLING);
+        });
+        say(['COLLISIONS AND CRASH REPLAYS'], 5);
+      } });
+      at = 4;
+    }
     const mode0 = mode;
-    const end = mode0 === 'race' ? at + 1 : sh.secs;
+    const end = mode0 === 'race' ? at + (sh.crash ? 4 : 1) : sh.secs;
     plan.push({ at: end, run: () => (sh.champagne && mode0 === 'race' && session === 'race' && !podium && !done ? (say(['CHAMPAGNE!'], 5), startCeremony()) : leave()) });
-    if (mode0 === 'race' && sh.champagne) plan.push({ at: end + 6, run: () => leave() });
+    if (mode0 === 'race' && sh.champagne) plan.push({ at: end + 5, run: () => leave() });
     const began = Date.now();
     directorTimer = setInterval(() => {
       if (leaving || closed) return;
