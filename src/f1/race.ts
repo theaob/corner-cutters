@@ -1101,7 +1101,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     document.documentElement.classList.add('showreel');
     // (the captions, if asked for)
     const say = (lines: string[], secs: number) => sh.captions && showCaption(lines, secs);
-    const intro = () => say(sh.caption ?? (mode === 'timetrial' ? ['TIME TRIAL', layout.name.toUpperCase()] : mode === 'timeattack' ? ['TIME ATTACK', `${layout.name.toUpperCase()} · AGAINST THE CLOCK`] : [layout.name.toUpperCase(), `${team.name.toUpperCase()} · ${layout.about.toUpperCase()}`]), 4.5);
+    const intro = () => say(sh.caption ?? (mode === 'timetrial' ? ['TIME TRIAL', layout.name.toUpperCase()] : mode === 'timeattack' ? ['TIME ATTACK', `${layout.name.toUpperCase()} · AGAINST THE CLOCK`] : [layout.name.toUpperCase(), team.name.toUpperCase()]), 4.5);
     let introduced = false;
     race.entrants[you].ai = { lane: 0, pace: 0.99 };
     const places = capturePlaces(layout, track.samples.length, track.spacing, circuit.pit.entry);

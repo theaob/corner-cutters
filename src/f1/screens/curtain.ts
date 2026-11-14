@@ -74,7 +74,10 @@ export async function curtainDown(race?: { layout: CircuitLayout; line: string }
     // the circuit as a turning 3D map (the menu's model), big; in the capture build's showreel also held a moment so it's seen
     const reel = document.documentElement.classList.contains('showreel');
     stopSpin();
-    card!.append(spinningModel(race.layout, Math.min(reel ? 360 : 240, Math.round(window.innerWidth * 0.7), Math.round(window.innerHeight * 0.4))), name, line, dots);
+    // (the showreel's card is just the turning map, the flag and the name: no description, no squares)
+    const map = spinningModel(race.layout, Math.min(reel ? 360 : 240, Math.round(window.innerWidth * 0.7), Math.round(window.innerHeight * 0.4)));
+    if (reel) card!.append(map, name);
+    else card!.append(map, name, line, dots);
     if (reel) {
       const shown = !s.classList.contains('down');
       s.classList.add('down');
