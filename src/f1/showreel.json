@@ -1,0 +1,30 @@
+{
+  "timing": {"load": 2.3, "lights": 1.5, "replay": 7, "ceremony": 5},
+  "steps": [
+    {"kind": "screen", "screen": "menu", "secs": 2.5, "caption": ["CORNER CUTTERS", "ARCADE GRAND PRIX · 19 CIRCUITS"]},
+    {"kind": "screen", "screen": "shop", "secs": 2.5, "caption": ["MAKE IT YOURS", "HELMETS AND LIVERIES TO UNLOCK"]},
+    {"kind": "screen", "screen": "championship", "secs": 2.5, "caption": ["WIN THE CHAMPIONSHIP", "EVERY CIRCUIT, EVERY TEAM"]},
+    {"kind": "race", "circuit": "crescent-park", "team": "milk-energy", "secs": 5, "events": []},
+    {"kind": "race", "circuit": "southern-lake", "team": "prancing-monkey", "secs": 5, "events": []},
+    {"kind": "race", "circuit": "jade-spiral", "team": "golden-arrows", "weather": "wet", "secs": 5, "events": []},
+    {"kind": "race", "circuit": "silver-heath", "team": "calrissian", "secs": 5, "events": []},
+    {"kind": "race", "circuit": "harbour", "team": "british-lime", "weather": "damp", "secs": 5, "events": [{"at": 4, "do": "flight", "place": "TUNNEL"}]},
+    {"kind": "race", "circuit": "maple-island", "team": "renee", "secs": 5, "events": [{"at": 4, "do": "flight", "place": "WALL OF CHAMPIONS"}, {"at": 5, "do": "champagne"}]},
+    {"kind": "race", "circuit": "royal-park", "team": "frankies-groove", "secs": 5, "events": [{"at": 4, "do": "flight", "place": "BANKING"}]},
+    {"kind": "race", "circuit": "ardennes", "team": "cheaper-milk", "secs": 5, "events": []},
+    {"kind": "race", "circuit": "alpine-ring", "team": "dmw", "secs": 5, "events": []},
+    {"kind": "race", "circuit": "twin-lakes", "team": "maas", "weather": "wet", "secs": 5, "events": []},
+    {"kind": "race", "circuit": "oasis", "team": "grandmas-fave", "secs": 13, "events": [{"at": 9, "do": "crash"}]},
+    {"kind": "race", "circuit": "pearl-sands", "team": "milk-energy", "weather": "damp", "secs": 5, "events": [{"at": 5, "do": "champagne"}]},
+    {"kind": "race", "circuit": "baku", "team": "prancing-monkey", "secs": 18, "events": [{"at": 4, "do": "flight", "place": "PIT LANE"}, {"at": 17, "do": "flight", "place": "CASTLE WALLS"}]},
+    {"kind": "race", "circuit": "suzuka", "team": "golden-arrows", "secs": 5, "events": [{"at": 4, "do": "flight", "place": "BRIDGE"}]},
+    {"kind": "race", "circuit": "dune-coast", "team": "calrissian", "secs": 13, "events": [{"at": 9, "do": "crash"}]},
+    {"kind": "race", "circuit": "vegas", "team": "british-lime", "secs": 13, "events": [{"at": 9, "do": "crash"}]},
+    {"kind": "race", "circuit": "glacier-pass", "team": "renee", "weather": "wet", "secs": 5, "events": [{"at": 4, "do": "flight", "place": "JUMP 1"}]},
+    {"kind": "race", "circuit": "dust-bowl", "team": "frankies-groove", "secs": 5, "events": [{"at": 4, "do": "flight", "place": "JUMP"}, {"at": 5, "do": "champagne"}]},
+    {"kind": "race", "circuit": "volcano-isle", "team": "cheaper-milk", "weather": "damp", "secs": 5, "events": [{"at": 4, "do": "flight", "place": "JUMP"}, {"at": 5, "do": "champagne"}]},
+    {"kind": "race", "mode": "timetrial", "circuit": "silver-heath", "team": "golden-arrows", "secs": 7, "events": []},
+    {"kind": "race", "mode": "timeattack", "circuit": "crescent-park", "team": "british-lime", "secs": 7, "events": []},
+    {"kind": "screen", "screen": "menu", "secs": 6, "captionsOnly": true, "caption": ["CORNER CUTTERS", "GET IT ON GOOGLE PLAY · PLAY FREE ON ITCH.IO", "NO ADS · NO ACCOUNT"]}
+  ]
+}

@@ -158,7 +158,7 @@ export interface RaceOptions {
   /** a race kept on the device to come back to (raceSave.ts): built as it was and picked up where it was left, paused */
   resume?: KeptRace;
   /** the capture build's showreel (showreel.ts): your car drives itself, flies past the set pieces and ends in the ceremony; the race is left when it's over */
-  show?: { jumps: string[]; champagne: boolean; secs: number; captions: boolean; crash: boolean };
+  show?: { events: { at: number; do: 'flight' | 'crash' | 'champagne'; place?: string }[]; secs: number; ceremonySecs: number; captions: boolean; caption?: string[] };
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
   mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
@@ -1092,70 +1092,87 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     });
   }
 
-  // the capture build's showreel (showreel.ts): the director. Your car on the AI's line, the grid pan skipped (after the
-  // first), a flight past each set piece (the pit lane with a stop called, as the AI makes one), then the champagne
-  // ceremony or the next circuit. Polled on the sim's own clock, so a slow device keeps its timing.
+  // the capture build's showreel (showreel.ts): the director. Your car on the AI's line, the grid pan skipped, and the
+  // step's events at their times after the lights (flights past set pieces, a crash, the champagne ceremony), then on
+  // to the next step. Polled on the sim's own clock, so a slow device keeps its timing.
   let directorTimer: ReturnType<typeof setInterval> | undefined;
   if (CAPTURE && options.show) {
     const sh = options.show;
     document.documentElement.classList.add('showreel');
-    // (the captions, if asked for: the circuit and the team as it starts)
+    // (the captions, if asked for)
     const say = (lines: string[], secs: number) => sh.captions && showCaption(lines, secs);
-    const intro = () => say(mode === 'timetrial' ? ['TIME TRIAL', layout.name.toUpperCase()] : mode === 'timeattack' ? ['TIME ATTACK', `${layout.name.toUpperCase()} · AGAINST THE CLOCK`] : [layout.name.toUpperCase(), `${team.name.toUpperCase()} · ${layout.about.toUpperCase()}`], 4.5);
+    const intro = () => say(sh.caption ?? (mode === 'timetrial' ? ['TIME TRIAL', layout.name.toUpperCase()] : mode === 'timeattack' ? ['TIME ATTACK', `${layout.name.toUpperCase()} · AGAINST THE CLOCK`] : [layout.name.toUpperCase(), `${team.name.toUpperCase()} · ${layout.about.toUpperCase()}`]), 4.5);
     let introduced = false;
     race.entrants[you].ai = { lane: 0, pace: 0.99 };
     const places = capturePlaces(layout, track.samples.length, track.spacing, circuit.pit.entry);
-    /** the race clock the flights start from (once the lights are out), and the plan: [clock offset, what] */
-    let t0: number | undefined;
-    const plan: { at: number; run: () => void }[] = [];
-    let at = 4;
-    for (const label of sh.jumps) {
+    /** a flight past a set piece: your car put on the track before it (the pit lane with a stop called, as the AI makes one) */
+    const flight = (label: string) => {
       const place = places.find((p) => p.label === label);
-      if (!place) continue;
-      const pit = label === 'PIT LANE';
-      plan.push({ at, run: () => {
-        jumpTo(place.idx);
-        say([placeCaption(label, layout.pitRoof)], pit ? 6 : 3.5);
-        // (a stop called as the AI's own plan has it: due now, so the car turns into the pit lane)
-        const e = race.entrants[you];
-        if (pit && e.plan) e.plan = { ...e.plan, stopAt: e.progress.lap + e.progress.idx / track.samples.length };
-      } });
-      at += pit ? 13 : 4.5;
-    }
-    // a crash, if staged: two AI cars put on the track just ahead of yours, at its speed, and wrecked there (the crash
-    // replay follows, as it does for a wreck within sight; the race clock stands still through it)
-    if (sh.crash) {
-      plan.push({ at: 4, run: () => {
-        const me = race.entrants[you];
-        const n = track.samples.length;
-        const victims = race.entrants.map((e, i) => ({ e, i })).filter(({ e }) => e.ai && e.progress.finished === undefined && !e.car.wrecked).slice(0, 2);
-        victims.forEach(({ e }, k) => {
-          const idx = (me.progress.idx + 6 + 3 * k) % n;
+      if (!place) return;
+      jumpTo(place.idx);
+      say([placeCaption(label, layout.pitRoof)], label === 'PIT LANE' ? 6 : 3.5);
+      const e = race.entrants[you];
+      if (label === 'PIT LANE' && e.plan) e.plan = { ...e.plan, stopAt: e.progress.lap + e.progress.idx / track.samples.length };
+    };
+    /**
+     * A crash: the AI car nearest yours is wrecked where it is (a car close beside or ahead, so you pass it and the
+     * replay's camera finds it; one too far off is put just ahead first), shoved across the track so it spins, and the
+     * next one with it. The real wreck handling does the rest: debris, the safety car, the crash replay.
+     */
+    const crash = () => {
+      const me = race.entrants[you];
+      const n = track.samples.length;
+      const near = race.entrants
+        .map((e, i) => ({ e, i, d: Math.hypot(e.car.x - me.car.x, e.car.y - me.car.y) }))
+        .filter(({ e, i }) => i !== you && e.ai && !e.car.wrecked && !e.pit && e.progress.finished === undefined)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 2);
+      near.forEach(({ e, d }, k) => {
+        const c = e.car;
+        if (d > 260) {
+          // (too far for the replay to see: just ahead of you, at your speed)
+          const idx = (me.progress.idx + 5 + 2 * k) % n;
           const s = track.samples[idx];
-          const side = k === 0 ? 0 : 10;
-          Object.assign(e.car, { x: s.x - Math.sin(s.dir) * side, y: s.y + Math.cos(s.dir) * side, heading: s.dir, vx: Math.sin(s.dir) * 260, vy: -Math.cos(s.dir) * 260 });
+          Object.assign(c, { x: s.x, y: s.y, heading: s.dir, vx: Math.sin(s.dir) * speedOf(me.car), vy: -Math.cos(s.dir) * speedOf(me.car) });
           e.progress = { ...e.progress, idx };
-          applyDamage(e.car, 1000, HANDLING);
-        });
-        say(['COLLISIONS AND CRASH REPLAYS'], 5);
-      } });
-      at = 4;
+        }
+        // (a shove across its line, the way it was going)
+        const sp = Math.hypot(c.vx, c.vy) || 1;
+        c.vx += (-c.vy / sp) * 140 * (k ? -1 : 1);
+        c.vy += (c.vx / sp) * 140 * (k ? -1 : 1);
+        applyDamage(c, 1000, HANDLING);
+      });
+      say(['COLLISIONS AND CRASH REPLAYS'], 5);
+    };
+    const live = () => session === 'race' && !podium && !done;
+    const champagne = () => {
+      if (!live()) return leave();
+      say(['CHAMPAGNE!'], 5);
+      startCeremony();
+    };
+    const ended = sh.events.some((e) => e.do === 'champagne');
+    const plan: { at: number; run: () => void }[] = [];
+    for (const ev of sh.events) {
+      if (ev.do === 'flight') plan.push({ at: ev.at, run: () => live() && flight(ev.place ?? '') });
+      else if (ev.do === 'crash') plan.push({ at: ev.at, run: () => live() && crash() });
+      else plan.push({ at: ev.at, run: champagne });
     }
-    const mode0 = mode;
-    const end = mode0 === 'race' ? at + (sh.crash ? 4 : 1) : sh.secs;
-    plan.push({ at: end, run: () => (sh.champagne && mode0 === 'race' && session === 'race' && !podium && !done ? (say(['CHAMPAGNE!'], 5), startCeremony()) : leave()) });
-    if (mode0 === 'race' && sh.champagne) plan.push({ at: end + 5, run: () => leave() });
+    // (a ceremony is left once it has run; any other step at its length)
+    plan.push({ at: ended ? Math.max(...sh.events.filter((e) => e.do === 'champagne').map((e) => e.at)) + sh.ceremonySecs : sh.secs, run: () => leave() });
+    plan.sort((a, b) => a.at - b.at);
+    /** the race clock the events count from (once the lights are out) */
+    let t0: number | undefined;
     const began = Date.now();
     directorTimer = setInterval(() => {
       if (leaving || closed) return;
       // (the grid pan skipped, and the lights cut to a second: a short reel)
       if (gridPan) endPan();
+      if (race.phase === 'lights' && race.clock < -1) race.clock = -1;
       // (the circuit's caption once the curtain is up on it)
       if (!introduced && Date.now() - began > 1500) {
         introduced = true;
         intro();
       }
-      if (race.phase === 'lights' && race.clock < -1) race.clock = -1;
       if (t0 === undefined) {
         // (a race: from the lights going out; a Time Trial or Time Attack: from the start)
         if ((race.phase === 'racing' || Date.now() - began > 9000) && !gridPan) t0 = race.clock;

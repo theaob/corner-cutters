@@ -42,7 +42,7 @@ import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
 import { openCircuits, savedUnlocks, unlockCircuit } from './f1/unlocks';
 import { CAPTURE } from './f1/capture';
-import { buildScript, showIndex, stepUrl, type ShowStep } from './f1/showreel';
+import { REEL_TIMING, loadScript, showIndex, stepUrl, type ShowStep } from './f1/showreel';
 import { captionsOn, showCaption } from './f1/captions';
 import { PAYWALL, circuitsOpen, openShop, ownsChampionship } from './f1/purchase';
 import { loadRecords } from './f1/records';
@@ -219,7 +219,7 @@ async function route(): Promise<void> {
   const id = ++routeId;
   // the capture build's showreel: the step the address is on (?show alone: the first), the next one's address
   const showAt = CAPTURE ? showIndex(window.location.search) : undefined;
-  if (showAt !== undefined && !SCRIPT.length) SCRIPT = buildScript(LAYOUTS, TEAMS, captionsOn(window.location.search));
+  if (showAt !== undefined && !SCRIPT.length) SCRIPT = loadScript(captionsOn(window.location.search));
   const showStep: ShowStep | undefined = showAt === undefined ? undefined : SCRIPT[showAt];
   // (past the last step, or the address a step short of the right one: the menu, no showreel any more)
   if (showAt !== undefined && !showStep) {
@@ -652,7 +652,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     const { step } = show;
     options = {
       ...options, team: teamById(step.team) ?? TEAMS[0], seat: 0, difficulty: NORMAL, weather: weatherById(step.weather) ?? DRY, qualifying: false, laps: 3, startTyres: undefined,
-      toMenu: show.next, show: { jumps: step.jumps ?? [], champagne: !!step.champagne, secs: step.secs, captions: captionsOn(window.location.search), crash: !!step.crash },
+      toMenu: show.next, show: { events: step.events ?? [], secs: step.secs, ceremonySecs: REEL_TIMING.ceremony, captions: captionsOn(window.location.search), caption: step.caption },
     };
   }
   const view: StandaloneView = await raceOn(layout, show ? show.next : quit, options)({ host: screen, services, tuning, fit });
