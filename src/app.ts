@@ -41,6 +41,7 @@ import { achievementToast, hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
 import { openCircuits, savedUnlocks, unlockCircuit } from './f1/unlocks';
+import { CAPTURE } from './f1/capture';
 import { PAYWALL, circuitsOpen, openShop, ownsChampionship } from './f1/purchase';
 import { loadRecords } from './f1/records';
 import type { RaceOptions } from './f1/race';
@@ -447,9 +448,9 @@ function menuScreen(): void {
 
 /** The circuits open for a Quick Race, a Time Attack or a Time Trial now (in the Google Play build, without the Championship bought: the first only). */
 const freeIds = FREE_LAYOUTS.map((l) => l.id);
-const openNow = () => circuitsOpen(ownsChampionship(), LAYOUTS[0].id, openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits), freeIds), freeIds);
+const openNow = () => CAPTURE ? new Set(LAYOUTS.map((l) => l.id)) : circuitsOpen(ownsChampionship(), LAYOUTS[0].id, openCircuits(LAYOUTS.map((l) => l.id), savedUnlocks(), Object.keys(loadRecords().circuits), freeIds), freeIds);
 /** A new player: never done (or skipped) the controls lap, and nothing played yet (no records, no season, nothing unlocked). */
-const needsControlsLap = () => saved('progress', 'onboarded') !== true && !Object.keys(loadRecords().circuits).length && !loadSeason() && !savedUnlocks().length;
+const needsControlsLap = () => !CAPTURE && saved('progress', 'onboarded') !== true && !Object.keys(loadRecords().circuits).length && !loadSeason() && !savedUnlocks().length;
 /** A circuit the Championship just unlocked (said on its screen once). */
 let justUnlocked: string | undefined;
 /** The Championship was just won (celebrated on its screen once). */

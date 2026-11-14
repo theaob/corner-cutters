@@ -76,6 +76,7 @@ import { sayDayNews } from './screens/dayNews';
 import { carStyle, styled } from './carStyle';
 import { loadStreak } from './streak';
 import { LAYOUTS } from './layouts';
+import { CAPTURE, capturePlaces } from './capture';
 import { type Medal, MEDALS, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
@@ -441,7 +442,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const startHits = new Set<number>();
   /** Unlock achievements `ids`: a toast for each new one. */
   const achieve = (ids: string[]) => {
-    for (const a of unlock(ids)) achievementToast(a);
+    // (the capture build: no toasts over the footage)
+    for (const a of unlock(ids)) if (!CAPTURE) achievementToast(a);
   };
   /** Something done towards the day (missions.ts): its missions and the streak brought on, and said (not on a designer's draft or the controls lap). */
   const play = (e: PlayEvent) => {
@@ -1233,6 +1235,25 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const showSkipQualifying = () => {
     skipQualifying.style.display = session === 'qualifying' && !quali?.over && !asking ? '' : 'none';
   };
+  /** The capture build's pause buttons: CHAMPAGNE (the race finished at once, the podium) and a jump to each set piece. */
+  function captureButtons() {
+    const live = () => session === 'race' && race.phase === 'racing' && !done && !replay && !podium;
+    const champagne = pauseButton('CHAMPAGNE', () => {
+      if (!live()) return;
+      setPaused(false, false);
+      startCeremony();
+    });
+    const jumps = capturePlaces(layout, track.samples.length, track.spacing, circuit.pit.entry).map((p) => pauseButton(`GO TO ${p.label}`, () => {
+      if (!live()) return;
+      const me = race.entrants[you];
+      const s = track.samples[p.idx];
+      const out = 0;
+      Object.assign(me.car, { x: s.x + Math.cos(s.dir) * out, y: s.y + Math.sin(s.dir) * out, heading: s.dir, vx: Math.sin(s.dir) * 200, vy: -Math.cos(s.dir) * 200 });
+      me.progress = { ...me.progress, idx: p.idx };
+      setPaused(false, false);
+    }));
+    return [champagne, ...jumps];
+  }
   const pauseMain = [
     pauseButton('RESUME', () => setPaused(false)),
     skipQualifying,
@@ -1240,6 +1261,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     pauseButton('SETTINGS', () => openPauseSettings(true)),
     // a report: the race as it is (the pause screen out of the picture), to draw on and say what happened (not on
     // YouTube: it goes to the game's own backend)
+    // the capture build: the champagne ceremony at once, and a jump to each of the circuit's set pieces (capture.ts)
+    ...(CAPTURE ? captureButtons() : []),
     ...(YOUTUBE ? [] : [pauseButton('REPORT', () => void openReport({ circuit: layout.id, mode: statsMode() }, [pauseScreen]))]),
     pauseButton('EXIT', () => askExit(true)),
   ];

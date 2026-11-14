@@ -64,6 +64,9 @@ jobs:
           VITE_SUPABASE_URL: ''
           VITE_SUPABASE_ANON_KEY: ''
       - run: mv dist-designer dist-stats/designer
+      # the capture build under capture/ (everything open, for recording footage by hand: src/f1/capture.ts; sends nothing)
+      - run: npm run capture:build
+      - run: mv dist-capture dist-stats/capture
       # the plain pages beside them (site/: the game's privacy policy and terms, privacy.html and terms.html, as the store listings link them)
       - run: cp -r site/. dist-stats/
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
