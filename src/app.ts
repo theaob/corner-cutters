@@ -85,7 +85,11 @@ const savedLayout = () => {
 // (the capture build's showreel: the desktop layout in a landscape window, the handheld one in a portrait one, unless the address says)
 const showreel = CAPTURE && showIndex(window.location.search) !== undefined;
 let layout: LayoutMode = showreel && !/[?&](desktop|mobile)\b/.test(window.location.search) ? (window.innerWidth > window.innerHeight ? 'desktop' : 'handheld') : startLayout(window.location.search, savedLayout());
-if (showreel) document.documentElement.classList.add('showreel');
+if (showreel) {
+  document.documentElement.classList.add('showreel');
+  // (and all its motion, whatever the phone asks: access.ts)
+  applyMotion();
+}
 function applyLayout(): void {
   const desktop = layout === 'desktop';
   document.documentElement.classList.toggle('desktop', desktop);
@@ -238,16 +242,20 @@ async function route(): Promise<void> {
   const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
   // (a showreel's model: the circuit as a turning 3D model on the card, nothing raced)
   const model = showStep?.kind === 'model' ? layoutById(showStep.circuit ?? null) : undefined;
-  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : model ? { layout: model, line: '', hold: 0 } : undefined);
+  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : model ? { layout: model, line: '', hold: 0, glass: !!current && !!racingOn } : undefined);
   if (id !== routeId) return;
+  // (a showreel's model over a race: the race kept on behind the card, blurred, till the next race's is built)
+  const behind = !!model && !!current && !!racingOn;
   // (the screen going failing to close never keeps the next from opening: the curtain would stay down, the page black)
   try {
-    current?.close();
+    if (!behind) current?.close();
   } catch (e) {
     reportLater(e);
   }
-  current = undefined;
-  racingOn = undefined;
+  if (!behind) {
+    current = undefined;
+    racingOn = undefined;
+  }
   // (nothing held on one screen carries over to the next)
   controls.clearAll();
   releaseDeck(deck);
@@ -672,7 +680,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     const { step } = show;
     options = {
       ...options, team: teamById(step.team) ?? TEAMS[0], seat: 0, difficulty: NORMAL, weather: weatherById(step.weather) ?? DRY, qualifying: false, laps: 3, startTyres: undefined,
-      toMenu: show.next, show: { events: step.events ?? [], secs: step.secs, ceremonySecs: REEL_TIMING.ceremony, captions: captionsOn(window.location.search), caption: step.caption, shot: step.shot, start: step.start },
+      toMenu: show.next, show: { events: step.events ?? [], secs: step.secs, ceremonySecs: REEL_TIMING.ceremony, captions: captionsOn(window.location.search), caption: step.caption, shot: step.shot, start: step.start, flyover: step.flyover },
     };
   }
   const view: StandaloneView = await raceOn(layout, show ? show.next : quit, options)({ host: screen, services, tuning, fit });

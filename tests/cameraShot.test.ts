@@ -5,7 +5,7 @@ import { HD2D_VIEW } from '../src/engine/look';
 
 // the capture build's showreel directs the race's camera with shots (race/camera.ts); with none it's the game's own view
 describe('camera shots', () => {
-  const car = { x: 100, y: 200, vx: 0, vy: 0, cls: { topSpeed: 300 } };
+  const car = { x: 100, y: 200, vx: 0, vy: 0, heading: 0, cls: { topSpeed: 300 } };
   const frame = (shot?: Shot): CameraFrame => ({
     dt: 1 / 60, you: 0, session: 'race', drawn: { x: car.x, y: car.y, z: 0 }, replay: undefined, gridPan: undefined, podium: undefined, lookAt: undefined,
     lead: 0, zoom: 1, viewH: 400, shake: { trauma: 0, t: 0 } as unknown as CameraFrame['shake'], shot,
@@ -54,6 +54,23 @@ describe('camera shots', () => {
     for (let i = 0; i < 600; i++) r.step(frame());
     expect(seen(camera, r.focus).yaw).toBeCloseTo(0, 1);
     expect(seen(camera, r.focus).dist).toBeCloseTo(far, 0);
+  });
+  it('chases the car: behind it whichever way it heads, coming round as it turns', () => {
+    const { camera, rig: r } = rig();
+    const shot: Shot = { zoom: 1, yaw: 0, pitch: 0, follow: true, cut: true };
+    // (heading east: the camera to the west of it)
+    Object.assign(car, { heading: Math.PI / 2 });
+    r.step(frame(shot));
+    expect(seen(camera, r.focus).yaw).toBeCloseTo(-90);
+    // (it turns to head south: the camera comes round to the north, the short way)
+    Object.assign(car, { heading: Math.PI });
+    r.step(frame(shot));
+    const part = seen(camera, r.focus).yaw;
+    expect(part).toBeLessThan(-90);
+    expect(part).toBeGreaterThan(-180);
+    for (let i = 0; i < 600; i++) r.step(frame(shot));
+    expect(Math.abs(seen(camera, r.focus).yaw)).toBeCloseTo(180, 0);
+    Object.assign(car, { heading: 0 });
   });
   it('keeps turning round the car in an orbit', () => {
     const { camera, rig: r } = rig();

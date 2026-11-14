@@ -48,6 +48,15 @@ describe('accessibility', () => {
     expect([splitWord('record'), splitWord('better'), splitWord('worse')]).toEqual([' · RECORD', ' · BEST', '']);
   });
 
+  it("the showreel plays with all its motion, whatever the phone asks", () => {
+    reducedMotion(true);
+    expect(motionReduced()).toBe(true);
+    const had = globalThis.document;
+    vi.stubGlobal('document', { documentElement: { classList: { contains: (c: string) => c === 'showreel' } } });
+    expect(motionReduced()).toBe(false);
+    vi.stubGlobal('document', had);
+  });
+
   it('less motion asked for: SCREEN SHAKE starts off (and on as before otherwise); a choice made stays', async () => {
     reducedMotion(true);
     expect(motionReduced()).toBe(true);

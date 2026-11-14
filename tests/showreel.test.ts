@@ -61,6 +61,18 @@ describe('showreel', () => {
     expect(grid.length - rolling.length).toBeCloseTo(REEL_TIMING.lights);
     expect(rolling.what).toContain('rolling start');
   });
+  it('opens the Ardennes with a flyover up the start-finish straight, then chases the car off the line', () => {
+    const ardennes = script.find((s) => s.circuit === 'ardennes' && s.kind === 'race')!;
+    expect(ardennes.flyover).toBeGreaterThan(2);
+    expect(ardennes.shot).toBe('chase');
+    expect(SHOTS.chase.follow).toBe(true);
+    const team = TEAMS[0].id;
+    // (only before a race's grid start)
+    expect(checkScript([{ kind: 'race', circuit: 'harbour', team, secs: 5, flyover: 3, start: 0.2 }, { kind: 'race', mode: 'timetrial', circuit: 'harbour', team, secs: 5, flyover: 3 }], LAYOUTS, TEAMS).length).toBe(2);
+    const [plain, flown] = sheetRows([{ kind: 'race', circuit: 'harbour', team, secs: 5 }, { kind: 'race', circuit: 'harbour', team, secs: 5, flyover: 3 }], LAYOUTS, TEAMS);
+    expect(flown.length).toBeGreaterThan(plain.length);
+    expect(flown.what).toContain('flyover');
+  });
   it('adds an end card only with captions', () => {
     expect(all.length).toBe(script.length + 1);
     expect(all.at(-1)?.caption?.[0]).toBe('CORNER CUTTERS');

@@ -27,6 +27,8 @@ export function systemMotionReduced(): boolean {
 }
 /** Less motion wanted: the setting if it's set, else the device's ask. No screen shake unless turned on, a gentler speed zoom, no animations. */
 export function motionReduced(): boolean {
+  // (the capture build's showreel plays whole whatever the phone or the setting says: it's a film, not the game)
+  if (globalThis.document?.documentElement.classList.contains('showreel')) return false;
   const m = motionSetting();
   return m === 'auto' ? systemMotionReduced() : m === 'reduced';
 }
