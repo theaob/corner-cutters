@@ -34,6 +34,8 @@ export interface Shot {
   pitch: number;
   spin?: number;
   cut?: boolean;
+  /** a chase: `yaw` counts from behind the car, the way it's heading, in place of from the game's side */
+  follow?: boolean;
 }
 
 /** What the camera needs of the frame it's moved for. */
@@ -76,6 +78,8 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, ceremony: Retur
   const shotNow = { zoom: 1, yaw: 0, pitch: 0 };
   let shotAsked: Shot | undefined;
   let spun = 0;
+  /** this frame is a cut's first: the camera goes round at once */
+  let cutNow = false;
   return {
     focus,
     rush: () => rushNow,
@@ -88,12 +92,16 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, ceremony: Retur
       if (shot !== shotAsked) {
         shotAsked = shot;
         spun = 0;
-        if (shot?.cut) Object.assign(shotNow, { zoom: shot.zoom, yaw: shot.yaw, pitch: shot.pitch });
-      }
+        cutNow = !!shot?.cut;
+        if (shot?.cut) Object.assign(shotNow, { zoom: shot.zoom, pitch: shot.pitch });
+      } else cutNow = false;
       spun += (shot?.spin ?? 0) * dt;
       const ease = 1 - Math.exp(-dt * 2.2);
       shotNow.zoom += ((shot?.zoom ?? 1) - shotNow.zoom) * ease;
-      shotNow.yaw += ((shot ? shot.yaw + spun : 0) - shotNow.yaw) * (shot?.spin ? 1 - Math.exp(-dt * 6) : ease);
+      // (round to where it's wanted the short way; a chase keeps up with the car as it turns)
+      const yawWant = shot ? shot.yaw + spun - (shot.follow ? THREE.MathUtils.radToDeg(race.entrants[you].car.heading) : 0) : 0;
+      const turn = ((((yawWant - shotNow.yaw) % 360) + 540) % 360) - 180;
+      shotNow.yaw += turn * (cutNow ? 1 : shot?.spin ? 1 - Math.exp(-dt * 6) : shot?.follow ? 1 - Math.exp(-dt * 3.5) : ease);
       shotNow.pitch += ((shot?.pitch ?? 0) - shotNow.pitch) * ease;
       // (closer in, the camera looks less far ahead of the car: it stays in the picture)
       const lead = f.lead / shotNow.zoom;
@@ -134,6 +142,9 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, ceremony: Retur
       battleNow += (battleWant - battleNow) * Math.min(1, dt * (battleWant ? 2 : 0.8));
       const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (f.zoom * shotNow.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + ZOOM_OUT.pullBack * zoomNow + BATTLE.pullBack * battleNow);
       camera.position.set(focus.x + Math.sin(yaw) * Math.cos(pitch) * dist, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(yaw) * Math.cos(pitch) * dist);
+      // (round the car, the picture turns with the camera: its up is the sky's, not the map's north, which is the same thing square on)
+      if (Math.abs(shotNow.yaw) > 0.01) camera.up.set(0, 1, 0);
+      else camera.up.set(0, 0, -1);
       camera.lookAt(focus.x, focus.y, focus.z);
       // the shake: the camera moved across and up its own view (SCREEN SHAKE off in the settings: still)
       if (shakeOn()) {

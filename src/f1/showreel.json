@@ -1,10 +1,10 @@
 {
-  "timing": {"load": 2.3, "card": 0.25, "lights": 1.5, "replay": 5, "ceremony": 5},
+  "timing": {"load": 1.6, "card": 0.25, "lights": 1.5, "replay": 5, "ceremony": 5},
   "steps": [
     {"kind": "screen", "screen": "menu", "secs": 2.5, "caption": ["CORNER CUTTERS", "ARCADE GRAND PRIX · 19 CIRCUITS"]},
     {"kind": "screen", "screen": "shop", "secs": 3.5, "caption": ["MAKE IT YOURS", "HELMETS AND LIVERIES TO UNLOCK"]},
     {"kind": "screen", "screen": "championship", "secs": 2.5, "caption": ["WIN THE CHAMPIONSHIP", "EVERY CIRCUIT, EVERY TEAM"]},
-    {"kind": "race", "circuit": "ardennes", "team": "cheaper-milk", "secs": 20, "shot": "low", "events": [{"at": 1, "do": "cam", "shot": "wide"}, {"at": 4, "do": "flight", "lap": 0.13}, {"at": 4, "do": "cam", "shot": "right", "cut": true}, {"at": 6.5, "do": "cam", "shot": "wide"}, {"at": 8, "do": "flight", "place": "PIT LANE"}, {"at": 8, "do": "cam", "shot": "close", "cut": true}, {"at": 12, "do": "cam", "shot": "orbit"}, {"at": 14.5, "do": "cam", "shot": "wide"}, {"at": 16, "do": "crash", "place": "LA SOURCE"}]},
+    {"kind": "race", "circuit": "ardennes", "team": "cheaper-milk", "secs": 20, "flyover": 3.5, "shot": "chase", "events": [{"at": 4, "do": "flight", "lap": 0.13}, {"at": 4, "do": "cam", "shot": "right", "cut": true}, {"at": 6.5, "do": "cam", "shot": "wide"}, {"at": 8, "do": "flight", "place": "PIT LANE"}, {"at": 8, "do": "cam", "shot": "close", "cut": true}, {"at": 12, "do": "cam", "shot": "orbit"}, {"at": 14.5, "do": "cam", "shot": "wide"}, {"at": 16, "do": "crash", "place": "LA SOURCE"}]},
     {"kind": "model", "circuit": "crescent-park", "secs": 1.5},
     {"kind": "model", "circuit": "southern-lake", "secs": 1.5},
     {"kind": "race", "circuit": "jade-spiral", "team": "golden-arrows", "secs": 6.5, "start": 0.98, "shot": "high", "events": [{"at": 0.3, "do": "cam", "shot": "low"}, {"at": 4, "do": "cam", "shot": "wide"}]},

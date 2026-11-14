@@ -67,14 +67,16 @@ const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
  * Bring the curtain down (resolves once it's down and drawn): with a loading card for a race on `layout` (`line`
- * under its name: the mode, the weather), or plain.
+ * under its name: the mode, the weather; `glass`: the showreel's, the screen behind left showing, blurred), or plain.
  */
-export async function curtainDown(race?: { layout: CircuitLayout; line: string; hold?: number }): Promise<void> {
+export async function curtainDown(race?: { layout: CircuitLayout; line: string; hold?: number; glass?: boolean }): Promise<void> {
   const s = ensure();
   const reel = inReel();
   const fade = reel ? WIPE_MS : CURTAIN_MS;
   clearTimeout(wiped);
   s.classList.remove('lifting');
+  // (the showreel's model over a race: see-through, the race blurred behind it; any other card solid, what's behind it going)
+  s.classList.toggle('glass', !!race?.glass);
   card!.replaceChildren();
   if (race) {
     const name = document.createElement('strong');
@@ -97,8 +99,8 @@ export async function curtainDown(race?: { layout: CircuitLayout; line: string; 
       const shown = !s.classList.contains('down');
       s.classList.add('down');
       if (shown) await wait(fade);
-      // (held a moment so it's seen before the circuit's built behind it; a model's card stays up for its own seconds)
-      await wait(race.hold ?? 1000);
+      // (held just long enough to whip in before the circuit's built behind it, which stops it turning; a model's card stays up for its own seconds)
+      await wait(race.hold ?? 250);
     }
   }
   const was = s.classList.contains('down');

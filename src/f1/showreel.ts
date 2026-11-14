@@ -30,7 +30,12 @@ export const SHOTS: Record<string, Shot> = {
   right: { zoom: 1.4, yaw: 28, pitch: -8 },
   orbit: { zoom: 1.45, yaw: -20, pitch: -8, spin: 12 },
   high: { zoom: 0.6, yaw: 0, pitch: 10 },
+  chase: { zoom: 1.5, yaw: 0, pitch: -24, follow: true },
 };
+/** The flyover along the start-finish straight: low over the grid, looking up the track (its yaw is set to the straight's). */
+export const FLYOVER_SHOT = { zoom: 1.3, pitch: -24 };
+/** s between a flyover's end and the lights going out, the camera coming round to the step's opening shot */
+export const FLY_SETTLE = 0.6;
 /** A crash's replay in the reel: close on the wreck, turning slowly round it. */
 export const REPLAY_SHOT: Shot = { zoom: 1.5, yaw: -15, pitch: -8, spin: 8 };
 
@@ -62,6 +67,8 @@ export interface ShowStep {
   events?: ShowEvent[];
   /** a race's opening shot (one of SHOTS; the game's own view when left out) */
   shot?: string;
+  /** a grid start: this many seconds of flyover first, up the start-finish straight over the grid as the lights come on */
+  flyover?: number;
   /** a rolling start: no lights, the field already racing this share of the way round the lap (0 to 1) */
   start?: number;
   /** the caption lines (when captions are on): a screen's; a race's own in place of its circuit and team */
@@ -90,6 +97,7 @@ export function checkScript(steps: ShowStep[], layouts: CircuitLayout[], teams: 
     if (s.weather && !weatherById(s.weather)) bad.push(`${at}: unknown weather ${s.weather}`);
     const places = capturePlaces(layout, 1000, 24, 0).map((p) => p.label);
     if (s.shot && !SHOTS[s.shot]) bad.push(`${at}: unknown shot ${s.shot}`);
+    if (s.flyover !== undefined && (!(s.flyover > 0) || s.start !== undefined || (s.mode && s.mode !== 'race'))) bad.push(`${at}: a flyover is some seconds before a race's grid start`);
     if (s.start !== undefined && !(s.start >= 0 && s.start < 1)) bad.push(`${at}: a rolling start is a share of the lap, 0 to 1`);
     for (const e of s.events ?? []) {
       if (e.at < 0 || e.at > s.secs) bad.push(`${at}: ${e.do} at ${e.at} s is outside the step's ${s.secs} s`);
@@ -120,7 +128,7 @@ export function sheetRows(steps: ShowStep[], layouts: CircuitLayout[], teams: Te
     const events = s.events ?? [];
     const crash = events.some((e) => e.do === 'crash');
     const champagne = events.some((e) => e.do === 'champagne');
-    const length = s.kind === 'screen' ? s.secs : s.kind === 'model' ? s.secs + t.card : t.load + ((s.mode === 'race' || !s.mode) && s.start === undefined ? t.lights : 0) + s.secs + (crash ? t.replay : 0) + (champagne ? t.ceremony : 0);
+    const length = s.kind === 'screen' ? s.secs : s.kind === 'model' ? s.secs + t.card : t.load + ((s.mode === 'race' || !s.mode) && s.start === undefined ? (s.flyover ? s.flyover + FLY_SETTLE : t.lights) : 0) + s.secs + (crash ? t.replay : 0) + (champagne ? t.ceremony : 0);
     let what = '';
     if (s.kind === 'screen') what = `${s.screen} screen`;
     else if (s.kind === 'model') what = `3D model · ${layouts.find((l) => l.id === s.circuit)?.name ?? s.circuit}`;
@@ -134,6 +142,7 @@ export function sheetRows(steps: ShowStep[], layouts: CircuitLayout[], teams: Te
           : e.do === 'flight' ? (e.lap !== undefined ? `cut to ${Math.round(e.lap * 100)}% round the lap` : `fly past ${e.place}`)
             : e.do === 'crash' ? `${e.place ? `big crash at ${e.place} ` : 'crash '}+ replay` : 'champagne'}`);
       if (s.start !== undefined) what += ` · rolling start${s.start ? ` ${Math.round(s.start * 100)}% round the lap` : ''}`;
+      if (s.flyover) what += ` · ${s.flyover} s flyover up the start-finish straight`;
       if (s.shot) what += ` · opens ${s.shot}`;
       if (ev.length) what += ` · ${ev.join(', ')}`;
     }
