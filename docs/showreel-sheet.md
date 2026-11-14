@@ -7,14 +7,14 @@ Generated from `src/f1/showreel.json` (`npm run reel:sheet`). Total about 2:22. 
 | 1 | 0:00 | 2.5 s | menu screen | CORNER CUTTERS / ARCADE GRAND PRIX · 19 CIRCUITS |
 | 2 | 0:03 | 2.5 s | shop screen | MAKE IT YOURS / HELMETS AND LIVERIES TO UNLOCK |
 | 3 | 0:05 | 2.5 s | championship screen | WIN THE CHAMPIONSHIP / EVERY CIRCUIT, EVERY TEAM |
-| 4 | 0:08 | 2.7 s | 3D model · Crescent Park | (its name and description on the loading card) |
-| 5 | 0:10 | 2.7 s | 3D model · Southern Lake | (its name and description on the loading card) |
-| 6 | 0:13 | 8.8 s | Race · Jade Spiral · Golden Arrows · dry | (auto: circuit, team, description) |
-| 7 | 0:22 | 2.7 s | 3D model · Silver Heath | (its name and description on the loading card) |
-| 8 | 0:24 | 8.8 s | Race · Harbour · British Lime · damp · 4 s fly past TUNNEL | (auto: circuit, team, description) |
-| 9 | 0:33 | 2.7 s | 3D model · Maple Island | (its name and description on the loading card) |
-| 10 | 0:36 | 2.7 s | 3D model · Royal Park | (its name and description on the loading card) |
-| 11 | 0:39 | 31.8 s | Race · Ardennes · Cheaper Milk · dry · 4 s fly past PIT LANE, 17 s big crash at LA SOURCE + replay | (auto: circuit, team, description) |
+| 4 | 0:08 | 31.8 s | Race · Ardennes · Cheaper Milk · dry · 4 s fly past PIT LANE, 17 s big crash at LA SOURCE + replay | (auto: circuit, team, description) |
+| 5 | 0:39 | 2.7 s | 3D model · Crescent Park | (its name and description on the loading card) |
+| 6 | 0:42 | 2.7 s | 3D model · Southern Lake | (its name and description on the loading card) |
+| 7 | 0:45 | 8.8 s | Race · Jade Spiral · Golden Arrows · dry | (auto: circuit, team, description) |
+| 8 | 0:54 | 2.7 s | 3D model · Silver Heath | (its name and description on the loading card) |
+| 9 | 0:56 | 8.8 s | Race · Harbour · British Lime · damp · 4 s fly past TUNNEL | (auto: circuit, team, description) |
+| 10 | 1:05 | 2.7 s | 3D model · Maple Island | (its name and description on the loading card) |
+| 11 | 1:08 | 2.7 s | 3D model · Royal Park | (its name and description on the loading card) |
 | 12 | 1:10 | 2.7 s | 3D model · Alpine Ring | (its name and description on the loading card) |
 | 13 | 1:13 | 8.8 s | Race · Twin Lakes · MaaS · wet | (auto: circuit, team, description) |
 | 14 | 1:22 | 2.7 s | 3D model · Oasis | (its name and description on the loading card) |

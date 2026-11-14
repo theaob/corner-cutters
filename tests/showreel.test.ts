@@ -15,10 +15,10 @@ describe('showreel', () => {
     expect(checkScript(bad, LAYOUTS, TEAMS).length).toBe(4);
   });
   it('shows every circuit once, as a model card or as the race whose card it is, and races only a few', () => {
-    expect(script.filter((s) => s.kind !== 'screen' && !s.mode).map((s) => s.circuit)).toEqual(LAYOUTS.map((l) => l.id));
+    expect(script.filter((s) => s.kind !== 'screen' && !s.mode).map((s) => s.circuit).sort()).toEqual(LAYOUTS.map((l) => l.id).sort());
     const raced = script.filter((s) => s.kind === 'race' && !s.mode).map((s) => s.circuit);
     // China, Monaco, the Ardennes, Brazil and Las Vegas
-    expect(raced).toEqual(['jade-spiral', 'harbour', 'ardennes', 'twin-lakes', 'vegas']);
+    expect(raced.slice().sort()).toEqual(['ardennes', 'harbour', 'jade-spiral', 'twin-lakes', 'vegas']);
     expect(script.at(-2)?.mode).toBe('timetrial');
     expect(script.at(-1)?.mode).toBe('timeattack');
   });
@@ -27,6 +27,11 @@ describe('showreel', () => {
     expect(race('twin-lakes').weather).toBe('wet');
     expect(race('ardennes').events).toEqual(expect.arrayContaining([{ at: 4, do: 'flight', place: 'PIT LANE' }, expect.objectContaining({ do: 'crash', place: 'LA SOURCE' })]));
     expect(race('harbour').events?.some((e) => e.place === 'TUNNEL')).toBe(true);
+  });
+  it('opens the circuits with the Ardennes: the crash and the safety car at La Source', () => {
+    const first = script.find((s) => s.kind !== 'screen')!;
+    expect(first.circuit).toBe('ardennes');
+    expect(first.events?.some((e) => e.do === 'crash' && e.place === 'LA SOURCE')).toBe(true);
   });
   it('adds an end card only with captions', () => {
     expect(all.length).toBe(script.length + 1);
@@ -43,9 +48,9 @@ describe('showreel', () => {
     expect(showIndex('?show')).toBe(0);
     expect(showIndex('?show=7')).toBe(7);
     expect(showIndex('')).toBeUndefined();
-    const url = stepUrl('http://x/capture/?show=0&desktop', 3, script[3]); // (a model)
-    expect(showIndex(new URL(url).search)).toBe(3);
-    expect(new URL(url).searchParams.get('model')).toBe(script[3].circuit);
+    const url = stepUrl('http://x/capture/?show=0&desktop', 4, script[4]); // (a model)
+    expect(showIndex(new URL(url).search)).toBe(4);
+    expect(new URL(url).searchParams.get('model')).toBe(script[4].circuit);
     expect(new URL(url).searchParams.has('circuit')).toBe(false);
     expect(new URL(url).searchParams.has('desktop')).toBe(true);
     expect(new URL(stepUrl('http://x/?show=3&circuit=a', 3, undefined)).search).toBe('');
