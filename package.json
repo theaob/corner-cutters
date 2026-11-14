@@ -1,12 +1,13 @@
 {
   "name": "corner-cutters",
   "private": true,
-  "version": "0.2.25",
+  "version": "0.2.26",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "youtube:build": "tsc && VITE_STORE=youtube VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= vite build --outDir dist-youtube --emptyOutDir && python3 tools/youtube-bundle.py dist-youtube",
+    "capture:build": "tsc && VITE_CAPTURE=1 VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= vite build --outDir dist-capture --emptyOutDir",
     "preview": "vite preview",
     "designer": "vite --config vite.designer.config.ts --open /designer.html",
     "designer:build": "vite build --config vite.designer.config.ts",

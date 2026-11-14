@@ -8,4 +8,6 @@ interface ImportMetaEnv {
   /** where the game is played, on shared result cards */
   readonly VITE_SHARE_URL?: string;
   readonly VITE_STORE?: string;
+  /** "1": the capture build (src/f1/capture.ts): everything open, for recording footage */
+  readonly VITE_CAPTURE?: string;
 }

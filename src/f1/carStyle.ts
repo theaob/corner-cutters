@@ -5,6 +5,7 @@
 import { save, saved } from '../engine/save';
 import type { CarLook } from '../engine/render/vehicles3d';
 import { REWARDS, earned } from './streak';
+import { CAPTURE } from './capture';
 
 export interface CarStyle {
   id: string;
@@ -41,6 +42,8 @@ export const CAR_STYLES: CarStyle[] = [
 
 /** The styles a best streak of `best` has earned (STANDARD always). */
 export const stylesFor = (best: number): CarStyle[] => {
+  // (the capture build: every look is open)
+  if (CAPTURE) return CAR_STYLES;
   const got = new Set(earned(best).map((r) => r.id));
   return CAR_STYLES.filter((s) => s.days === 0 || got.has(s.id));
 };
