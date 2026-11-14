@@ -1,58 +1,105 @@
 // The capture build's showreel (capture/?show): a hands-off tour for screen recording. Open it, start the recording and
 // tap the title; after that it plays itself: the menus, then every circuit in turn with a different team (some in the
 // rain), the AI driving your car, the camera on it, a flight past each circuit's set pieces (the tunnel, the castle
-// walls, the pit lane, ...), the champagne ceremony on some, a Time Trial lap and a Time Attack run. The page's address
-// says where it is (?show=<step>), so a reload carries on from there. No controls or buttons are shown.
+// walls, the pit lane, ...), a few crashes, the champagne ceremony on some, a Time Trial lap and a Time Attack run. The
+// page's address says where it is (?show=<step>), so a reload carries on from there. No controls or buttons are shown.
+//
+// The steps are data: showreel.json, the one place the reel is written down (each step's length, circuit, team,
+// weather, what happens when, and its caption). `npm run reel:sheet` writes the same as a timed run sheet
+// (docs/showreel-sheet.md), and the tests check every circuit, team, weather and place in it exists.
 
 import type { CircuitLayout } from './layouts';
 import type { Team } from './teams';
 import { capturePlaces } from './capture';
+import { weatherById } from './weather';
+import reel from './showreel.json';
+
+/** Something that happens during a race step, `at` seconds after the lights go out. */
+export interface ShowEvent {
+  at: number;
+  /** a flight past a set piece (`place`: capture.ts's label), a crash staged by your car, or the champagne ceremony */
+  do: 'flight' | 'crash' | 'champagne';
+  place?: string;
+}
 
 export interface ShowStep {
   kind: 'screen' | 'race';
-  /** a screen: which one (the menu, the car shop, the Championship, the Daily Challenge) */
-  screen?: 'menu' | 'shop' | 'championship' | 'daily';
+  /** a screen: which one (the menu, the car shop, the Championship) */
+  screen?: 'menu' | 'shop' | 'championship';
   circuit?: string;
   mode?: 'race' | 'timetrial' | 'timeattack';
   team?: string;
+  /** dry, damp, wet or changeable (dry when left out) */
   weather?: string;
-  /** a screen's caption (when captions are on) */
-  caption?: string[];
-  /** a screen's time, or a Time Trial's or Time Attack's (s) */
+  /** a screen's time; a race's racing seconds after the lights (when it ends, ceremony aside) */
   secs: number;
-  /** the set pieces to fly past (capture.ts's labels), in order */
-  jumps?: string[];
-  /** a crash staged in front of your car (the crash replay follows) */
-  crash?: boolean;
-  /** ends in the champagne ceremony */
-  champagne?: boolean;
+  events?: ShowEvent[];
+  /** the caption lines (when captions are on): a screen's; a race's own in place of its circuit and team */
+  caption?: string[];
+  /** only with captions on (the end card) */
+  captionsOnly?: boolean;
 }
 
-/** Wet and damp weather on a few circuits (not where the pit lane's on show: the stop wants dry). */
-const WEATHER: (string | undefined)[] = [undefined, undefined, 'wet', undefined, 'damp', undefined, undefined];
+/** The reel's timings, for the run sheet (s): the loading card, the lights, a crash replay, a ceremony. */
+export const REEL_TIMING = reel.timing;
 
-/** With `captions`, the screens carry theirs, and an end card closes the reel. */
-export function buildScript(layouts: CircuitLayout[], teams: Team[], captions = false): ShowStep[] {
-  const steps: ShowStep[] = [
-    { kind: 'screen', screen: 'menu', secs: 2.5, caption: ['CORNER CUTTERS', `ARCADE GRAND PRIX · ${layouts.length} CIRCUITS`] },
-    { kind: 'screen', screen: 'shop', secs: 2.5, caption: ['MAKE IT YOURS', 'HELMETS AND LIVERIES TO UNLOCK'] },
-    { kind: 'screen', screen: 'championship', secs: 2.5, caption: ['WIN THE CHAMPIONSHIP', 'EVERY CIRCUIT, EVERY TEAM'] },
-  ];
-  /** circuits without a set piece to fly past get a crash instead, on a few of them (every other one, four at most) */
-  let free = 0;
-  layouts.forEach((l, i) => {
-    const pit = !!l.pitRoof;
-    const jumps = capturePlaces(l, 1000, 24, 0).map((p) => p.label).filter((x) => x !== 'START / FINISH' && (pit || x !== 'PIT LANE'));
-    const crash = jumps.length === 0 && free++ % 2 === 1 && steps.filter((x) => x.crash).length < 4;
-    steps.push({
-      kind: 'race', circuit: l.id, mode: 'race', team: teams[i % teams.length].id, secs: 0, crash,
-      weather: pit ? undefined : WEATHER[i % WEATHER.length], jumps: jumps.slice(0, pit ? 2 : 1), champagne: i % 6 === 5 || i === layouts.length - 1,
-    });
+/** The steps of the reel, with the end card only when captions are on. */
+export const loadScript = (captions = false): ShowStep[] => (reel.steps as ShowStep[]).filter((s) => captions || !s.captionsOnly);
+
+/** What's wrong with a script, in words: an unknown circuit, team, weather or place, an event outside its step. Empty when it's fine. */
+export function checkScript(steps: ShowStep[], layouts: CircuitLayout[], teams: Team[]): string[] {
+  const bad: string[] = [];
+  steps.forEach((s, i) => {
+    const at = `step ${i} (${s.circuit ?? s.screen})`;
+    if (!(s.secs > 0)) bad.push(`${at}: no length`);
+    if (s.kind === 'screen') return;
+    const layout = layouts.find((l) => l.id === s.circuit);
+    if (!layout) return void bad.push(`${at}: unknown circuit`);
+    if (!teams.some((t) => t.id === s.team)) bad.push(`${at}: unknown team ${s.team}`);
+    if (s.weather && !weatherById(s.weather)) bad.push(`${at}: unknown weather ${s.weather}`);
+    const places = capturePlaces(layout, 1000, 24, 0).map((p) => p.label);
+    for (const e of s.events ?? []) {
+      if (e.at < 0 || e.at > s.secs) bad.push(`${at}: ${e.do} at ${e.at} s is outside the step's ${s.secs} s`);
+      if (e.do === 'flight' && !places.includes(e.place ?? '')) bad.push(`${at}: no place "${e.place}" on ${layout.name}`);
+      if (e.do === 'champagne' && s.mode && s.mode !== 'race') bad.push(`${at}: champagne only in a race`);
+    }
   });
-  steps.push({ kind: 'race', circuit: layouts[3 % layouts.length].id, mode: 'timetrial', team: teams[2].id, secs: 7 });
-  steps.push({ kind: 'race', circuit: layouts[0].id, mode: 'timeattack', team: teams[4].id, secs: 7 });
-  if (captions) steps.push({ kind: 'screen', screen: 'menu', secs: 6, caption: ['CORNER CUTTERS', 'GET IT ON GOOGLE PLAY · PLAY FREE ON ITCH.IO', 'NO ADS · NO ACCOUNT'] });
-  return steps;
+  return bad;
+}
+
+/** One line of the timed run sheet. */
+export interface SheetRow {
+  /** s from the start of the reel */
+  start: number;
+  /** s it takes, as estimated (the sim's own clock decides in the end) */
+  length: number;
+  what: string;
+}
+
+/** The run sheet's rows: each step's start and length, estimated from the timings, and what happens in it. */
+export function sheetRows(steps: ShowStep[], layouts: CircuitLayout[], teams: Team[], captions = true): SheetRow[] {
+  const t = REEL_TIMING;
+  let clock = 0;
+  const rows: SheetRow[] = [];
+  steps.filter((s) => captions || !s.captionsOnly).forEach((s) => {
+    const events = s.events ?? [];
+    const crash = events.some((e) => e.do === 'crash');
+    const champagne = events.some((e) => e.do === 'champagne');
+    const length = s.kind === 'screen' ? s.secs : t.load + (s.mode === 'race' || !s.mode ? t.lights : 0) + s.secs + (crash ? t.replay : 0) + (champagne ? t.ceremony : 0);
+    let what = '';
+    if (s.kind === 'screen') what = `${s.screen} screen`;
+    else {
+      const layout = layouts.find((l) => l.id === s.circuit);
+      const team = teams.find((x) => x.id === s.team);
+      const mode = s.mode === 'timetrial' ? 'Time Trial' : s.mode === 'timeattack' ? 'Time Attack' : 'Race';
+      what = `${mode} · ${layout?.name ?? s.circuit} · ${team?.name ?? s.team} · ${s.weather ?? 'dry'}`;
+      const ev = events.map((e) => `${e.at} s ${e.do === 'flight' ? `fly past ${e.place}` : e.do === 'crash' ? 'crash + replay' : 'champagne'}`);
+      if (ev.length) what += ` · ${ev.join(', ')}`;
+    }
+    rows.push({ start: clock, length, what });
+    clock += length;
+  });
+  return rows;
 }
 
 /** The step the address is on (?show=<n>; ?show alone is the first), or undefined when it isn't a showreel. */
@@ -76,7 +123,7 @@ export function stepUrl(href: string, i: number, step: ShowStep | undefined): st
   p.set('show', String(i));
   if (step.kind === 'race') {
     p.set('circuit', step.circuit!);
-    if (step.mode !== 'race') p.set('mode', step.mode!);
+    if (step.mode && step.mode !== 'race') p.set('mode', step.mode);
   } else if (step.screen !== 'menu') p.set('mode', step.screen!);
   return url.href;
 }

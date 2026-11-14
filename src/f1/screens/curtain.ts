@@ -1,12 +1,13 @@
 // The curtain between screens: a dark sheet over the whole page that fades in
 // before a screen goes and out once the next is up, so the menu, a race and the
 // Championship screen follow one another instead of cutting. Going to a race it
-// carries a loading card (the circuit's outline and name, the mode and the
+// carries a loading card (the circuit as a turning 3D map, its name, the mode and the
 // weather, and a run of chequered squares lighting in turn) while the circuit is
 // built. The page opens with it down, lifted once the first screen is up.
 
 import { flagSvg } from '../flags';
 import type { CircuitLayout } from '../layouts';
+import { motionReduced } from '../access';
 import { TRACK_MODEL, drawModel, fitModel, trackModel } from '../trackModel';
 
 /** ms the curtain takes to fade in or out. */
@@ -28,28 +29,7 @@ function ensure(): HTMLDivElement {
   return sheet;
 }
 
-/** A small outline of the circuit (its centreline, fitted to `size`). */
-function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = c.height = size * 2;
-  const x = c.getContext('2d');
-  if (!x) return c;
-  const xs = layout.points.map((p) => p.x);
-  const ys = layout.points.map((p) => p.y);
-  const [minX, minY] = [Math.min(...xs), Math.min(...ys)];
-  const k = (size * 2 - 16) / Math.max(Math.max(...xs) - minX, Math.max(...ys) - minY);
-  x.strokeStyle = '#f4f2fa';
-  x.lineWidth = 4;
-  x.lineJoin = 'round';
-  x.beginPath();
-  layout.points.forEach((p, i) => (i ? x.lineTo : x.moveTo).call(x, 8 + (p.x - minX) * k, 8 + (p.y - minY) * k));
-  x.closePath();
-  x.stroke();
-  Object.assign(c.style, { width: `${size}px`, height: `${size}px` });
-  return c;
-}
-
-/** The circuit as the menu draws it, a line in 3D, turning (once a few seconds: the card isn't up long). */
+/** The circuit as the menu draws it, a line in 3D, turning (once every few seconds: the card isn't up long; still under less motion). */
 function spinningModel(layout: CircuitLayout, size: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = size * 2;
@@ -58,6 +38,10 @@ function spinningModel(layout: CircuitLayout, size: number): HTMLCanvasElement {
   if (!ctx) return c;
   const m = trackModel(layout);
   const view = fitModel(m, c.width, c.height);
+  if (motionReduced()) {
+    drawModel(ctx, m, view, c.width, c.height, -0.35);
+    return c;
+  }
   let id = 0;
   const draw = (now: number) => {
     drawModel(ctx, m, view, c.width, c.height, -0.35 + ((now / 1000) * 2 * Math.PI) / (TRACK_MODEL.turn / 4));
@@ -87,10 +71,10 @@ export async function curtainDown(race?: { layout: CircuitLayout; line: string }
     const dots = document.createElement('div');
     dots.className = 'curtain-dots';
     for (let k = 0; k < 5; k++) dots.append(document.createElement('i'));
-    // (the capture build's showreel: the circuit as a turning 3D map, big, and held a moment so it's seen)
+    // the circuit as a turning 3D map (the menu's model), big; in the capture build's showreel also held a moment so it's seen
     const reel = document.documentElement.classList.contains('showreel');
     stopSpin();
-    card!.append(reel ? spinningModel(race.layout, Math.min(360, Math.round(window.innerWidth * 0.7), Math.round(window.innerHeight * 0.5))) : outline(race.layout, 72), name, line, dots);
+    card!.append(spinningModel(race.layout, Math.min(reel ? 360 : 240, Math.round(window.innerWidth * 0.7), Math.round(window.innerHeight * 0.4))), name, line, dots);
     if (reel) {
       const shown = !s.classList.contains('down');
       s.classList.add('down');
