@@ -6,6 +6,8 @@
 // controls lap). Only on opening the game to its menu: a link straight to a
 // race or a mode goes straight there.
 
+import { goFullscreen } from '../../engine/fullscreen';
+import { CAPTURE } from '../capture';
 import type { Button, Controls } from '../../engine/controls';
 import type { CircuitLayout } from '../layouts';
 import { versionLine } from '../settingsRows';
@@ -74,6 +76,8 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
     go = () => {
       if (done || signal.aborted) return;
       done = true;
+      // (a phone's browser: the whole screen, from this tap; the capture build's showreel also holds the screen's turn)
+      goFullscreen(CAPTURE && new URLSearchParams(location.search).has('show'));
       page.classList.add('go');
       setTimeout(resolve, SPLASH_GO_MS);
     };

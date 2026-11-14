@@ -77,6 +77,7 @@ import { carStyle, styled } from './carStyle';
 import { loadStreak } from './streak';
 import { LAYOUTS } from './layouts';
 import { CAPTURE, capturePlaces } from './capture';
+import { placeCaption, showCaption } from './captions';
 import { type Medal, MEDALS, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
@@ -157,7 +158,7 @@ export interface RaceOptions {
   /** a race kept on the device to come back to (raceSave.ts): built as it was and picked up where it was left, paused */
   resume?: KeptRace;
   /** the capture build's showreel (showreel.ts): your car drives itself, flies past the set pieces and ends in the ceremony; the race is left when it's over */
-  show?: { jumps: string[]; champagne: boolean; secs: number };
+  show?: { jumps: string[]; champagne: boolean; secs: number; captions: boolean };
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
   mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
@@ -1098,6 +1099,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   if (CAPTURE && options.show) {
     const sh = options.show;
     document.documentElement.classList.add('showreel');
+    // (the captions, if asked for: the circuit and the team as it starts)
+    const say = (lines: string[], secs: number) => sh.captions && showCaption(lines, secs);
+    const intro = () => say(mode === 'timetrial' ? ['TIME TRIAL', layout.name.toUpperCase()] : mode === 'timeattack' ? ['TIME ATTACK', `${layout.name.toUpperCase()} · AGAINST THE CLOCK`] : [layout.name.toUpperCase(), `${team.name.toUpperCase()} · ${layout.about.toUpperCase()}`], 4.5);
+    let introduced = false;
     race.entrants[you].ai = { lane: 0, pace: 0.99 };
     const places = capturePlaces(layout, track.samples.length, track.spacing, circuit.pit.entry);
     /** the race clock the flights start from (once the lights are out), and the plan: [clock offset, what] */
@@ -1110,6 +1115,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const pit = label === 'PIT LANE';
       plan.push({ at, run: () => {
         jumpTo(place.idx);
+        say([placeCaption(label, layout.pitRoof)], pit ? 6 : 3.5);
         // (a stop called as the AI's own plan has it: due now, so the car turns into the pit lane)
         const e = race.entrants[you];
         if (pit && e.plan) e.plan = { ...e.plan, stopAt: e.progress.lap + e.progress.idx / track.samples.length };
@@ -1118,13 +1124,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     const mode0 = mode;
     const end = mode0 === 'race' ? at + 1 : sh.secs;
-    plan.push({ at: end, run: () => (sh.champagne && mode0 === 'race' && session === 'race' && !podium && !done ? startCeremony() : leave()) });
+    plan.push({ at: end, run: () => (sh.champagne && mode0 === 'race' && session === 'race' && !podium && !done ? (say(['CHAMPAGNE!'], 5), startCeremony()) : leave()) });
     if (mode0 === 'race' && sh.champagne) plan.push({ at: end + 6, run: () => leave() });
     const began = Date.now();
     directorTimer = setInterval(() => {
       if (leaving || closed) return;
       // (the grid pan skipped, and the lights cut to a second: a short reel)
       if (gridPan) endPan();
+      // (the circuit's caption once the curtain is up on it)
+      if (!introduced && Date.now() - began > 1500) {
+        introduced = true;
+        intro();
+      }
       if (race.phase === 'lights' && race.clock < -1) race.clock = -1;
       if (t0 === undefined) {
         // (a race: from the lights going out; a Time Trial or Time Attack: from the start)

@@ -16,6 +16,8 @@ export interface ShowStep {
   mode?: 'race' | 'timetrial' | 'timeattack';
   team?: string;
   weather?: string;
+  /** a screen's caption (when captions are on) */
+  caption?: string[];
   /** a screen's time, or a Time Trial's or Time Attack's (s) */
   secs: number;
   /** the set pieces to fly past (capture.ts's labels), in order */
@@ -27,11 +29,12 @@ export interface ShowStep {
 /** Wet and damp weather on a few circuits (not where the pit lane's on show: the stop wants dry). */
 const WEATHER: (string | undefined)[] = [undefined, undefined, 'wet', undefined, 'damp', undefined, undefined];
 
-export function buildScript(layouts: CircuitLayout[], teams: Team[]): ShowStep[] {
+/** With `captions`, the screens carry theirs, and an end card closes the reel. */
+export function buildScript(layouts: CircuitLayout[], teams: Team[], captions = false): ShowStep[] {
   const steps: ShowStep[] = [
-    { kind: 'screen', screen: 'menu', secs: 3 },
-    { kind: 'screen', screen: 'shop', secs: 3 },
-    { kind: 'screen', screen: 'championship', secs: 3 },
+    { kind: 'screen', screen: 'menu', secs: 3, caption: ['CORNER CUTTERS', `ARCADE GRAND PRIX · ${layouts.length} CIRCUITS`] },
+    { kind: 'screen', screen: 'shop', secs: 3, caption: ['MAKE IT YOURS', 'HELMETS AND LIVERIES TO UNLOCK'] },
+    { kind: 'screen', screen: 'championship', secs: 3, caption: ['WIN THE CHAMPIONSHIP', 'EVERY CIRCUIT, EVERY TEAM'] },
   ];
   layouts.forEach((l, i) => {
     const pit = !!l.pitRoof;
@@ -43,6 +46,7 @@ export function buildScript(layouts: CircuitLayout[], teams: Team[]): ShowStep[]
   });
   steps.push({ kind: 'race', circuit: layouts[3 % layouts.length].id, mode: 'timetrial', team: teams[2].id, secs: 8 });
   steps.push({ kind: 'race', circuit: layouts[0].id, mode: 'timeattack', team: teams[4].id, secs: 8 });
+  if (captions) steps.push({ kind: 'screen', screen: 'menu', secs: 6, caption: ['CORNER CUTTERS', 'GET IT ON GOOGLE PLAY · PLAY FREE ON ITCH.IO', 'NO ADS · NO ACCOUNT'] });
   return steps;
 }
 

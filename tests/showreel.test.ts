@@ -20,6 +20,12 @@ describe('showreel', () => {
     expect(new Set(script.map((s) => s.team).filter(Boolean)).size).toBe(TEAMS.length);
     expect(script.filter((s) => s.champagne).length).toBeGreaterThanOrEqual(3);
   });
+  it('adds captions and an end card only when asked', () => {
+    expect(script.some((x) => x.caption && x.screen === 'menu' && x.secs === 6)).toBe(false);
+    const withCaptions = buildScript(LAYOUTS, TEAMS, true);
+    expect(withCaptions.length).toBe(script.length + 1);
+    expect(withCaptions.at(-1)?.caption?.[0]).toBe('CORNER CUTTERS');
+  });
   it('addresses its steps and reads them back', () => {
     expect(showIndex('?show')).toBe(0);
     expect(showIndex('?show=7')).toBe(7);
