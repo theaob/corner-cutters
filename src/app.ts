@@ -238,7 +238,7 @@ async function route(): Promise<void> {
   const going = params0.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params0.get('circuit'));
   // (a showreel's model: the circuit as a turning 3D model on the card, nothing raced)
   const model = showStep?.kind === 'model' ? layoutById(showStep.circuit ?? null) : undefined;
-  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : model ? { layout: model, line: '' } : undefined);
+  await curtainDown(going ? { layout: going, line: raceLine(params0.get('mode')) } : model ? { layout: model, line: '', hold: 0 } : undefined);
   if (id !== routeId) return;
   // (the screen going failing to close never keeps the next from opening: the curtain would stay down, the page black)
   try {
@@ -261,6 +261,18 @@ async function route(): Promise<void> {
   // a showreel's screen (the menu, the shop, ...): on for its seconds, then the next step
   if (showStep?.kind === 'screen' && showStep.caption && captionsOn(window.location.search)) showCaption(showStep.caption, showStep.secs - 0.6);
   if (showStep?.kind === 'screen') setTimeout(() => id === routeId && showNext(), showStep.secs * 1000);
+  // (and a screen longer than the picture, the shop: panned down from its top to its foot while it's up)
+  if (CAPTURE && showStep?.kind === 'screen') {
+    const began = performance.now();
+    const pan = (now: number) => {
+      const t = (now - began) / (showStep.secs * 1000);
+      if (id !== routeId || t >= 1) return;
+      const u = Math.max(0, Math.min(1, (t - 0.2) / 0.65));
+      screen.scrollTop = (screen.scrollHeight - screen.clientHeight) * u * u * (3 - 2 * u);
+      requestAnimationFrame(pan);
+    };
+    requestAnimationFrame(pan);
+  }
   // (a circuit straight from the track designer: ?circuit=designer-draft)
   const layout = params.get('circuit') === DESIGNER_DRAFT_ID ? designerDraft() : layoutById(params.get('circuit'));
   // (and a draft edited in the designer since it was last driven)
@@ -660,7 +672,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     const { step } = show;
     options = {
       ...options, team: teamById(step.team) ?? TEAMS[0], seat: 0, difficulty: NORMAL, weather: weatherById(step.weather) ?? DRY, qualifying: false, laps: 3, startTyres: undefined,
-      toMenu: show.next, show: { events: step.events ?? [], secs: step.secs, ceremonySecs: REEL_TIMING.ceremony, captions: captionsOn(window.location.search), caption: step.caption },
+      toMenu: show.next, show: { events: step.events ?? [], secs: step.secs, ceremonySecs: REEL_TIMING.ceremony, captions: captionsOn(window.location.search), caption: step.caption, shot: step.shot, start: step.start },
     };
   }
   const view: StandaloneView = await raceOn(layout, show ? show.next : quit, options)({ host: screen, services, tuning, fit });

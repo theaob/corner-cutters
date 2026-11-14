@@ -78,6 +78,7 @@ import { loadStreak } from './streak';
 import { LAYOUTS } from './layouts';
 import { CAPTURE, CRASH_AHEAD, capturePlaces } from './capture';
 import { placeCaption, showCaption } from './captions';
+import { REPLAY_SHOT, SHOTS, type ShowEvent } from './showreel';
 import { type Medal, MEDALS, MEDAL_COLOR, MEDAL_NAME, attackMedal, attackTargets, awardMedal, lapMedal, lapTargets, loadTrophies, nextMedal } from './medals';
 import type { CircuitLayout } from './layouts';
 import { createCircuitScene } from './circuitScene';
@@ -101,7 +102,7 @@ import { deckLabels as labelsFor } from './race/deckLabels';
 import { qualifyingRows, renderQualifying, renderResults, resultRows } from './race/resultsView';
 import { feelFrame } from './race/feel';
 import { QualityWatch } from './race/qualityWatch';
-import { createCameraRig } from './race/camera';
+import { createCameraRig, type Shot } from './race/camera';
 import { createFlagOverlay, createRain } from './race/screenFx';
 import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
@@ -158,7 +159,7 @@ export interface RaceOptions {
   /** a race kept on the device to come back to (raceSave.ts): built as it was and picked up where it was left, paused */
   resume?: KeptRace;
   /** the capture build's showreel (showreel.ts): your car drives itself, flies past the set pieces and ends in the ceremony; the race is left when it's over */
-  show?: { events: { at: number; do: 'flight' | 'crash' | 'champagne'; place?: string }[]; secs: number; ceremonySecs: number; captions: boolean; caption?: string[] };
+  show?: { events: ShowEvent[]; secs: number; ceremonySecs: number; captions: boolean; caption?: string[]; shot?: string; start?: number };
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
   mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
   /**
@@ -661,6 +662,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   /** every car through the race, for the replay after your flag; and the replay when it's on: the race time it's showing, its end, your finish */
   let recorder: ReplayRecorder = newReplay(0);
   let replay: { t: number; to: number; kind: 'finish' | 'crash'; at: number; follow: number } | undefined;
+  /** the capture build's showreel: the camera's shot now (none: the game's own view) */
+  let showShot: Shot | undefined;
+  /** the capture build's showreel: when a staged crash's cars were put in place (its replay starts no earlier) */
+  let showStagedAt: number | undefined;
   /** a big crash's replay to come (its race time, and the car), and when the last was */
   let crashDue: { at: number; who: number } | undefined;
   let lastCrashReplay = -Infinity;
@@ -1096,6 +1101,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // step's events at their times after the lights (flights past set pieces, a crash, the champagne ceremony), then on
   // to the next step. Polled on the sim's own clock, so a slow device keeps its timing.
   let directorTimer: ReturnType<typeof setInterval> | undefined;
+  /** the cars brought along on a cut: px between the rows, px to either side of the line */
+  const PACK = { gap: 84, side: 14 };
+  /** s between a staged crash's cars being put ahead of you and their wreck */
+  const STAGE_LEAD = 0.6;
   if (CAPTURE && options.show) {
     const sh = options.show;
     document.documentElement.classList.add('showreel');
@@ -1104,20 +1113,48 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const intro = () => say(sh.caption ?? (mode === 'timetrial' ? ['TIME TRIAL', layout.name.toUpperCase()] : mode === 'timeattack' ? ['TIME ATTACK', `${layout.name.toUpperCase()} · AGAINST THE CLOCK`] : [layout.name.toUpperCase(), team.name.toUpperCase()]), 4.5);
     let introduced = false;
     race.entrants[you].ai = { lane: 0, pace: 0.99 };
+    // (the step's opening shot, there as the curtain lifts)
+    if (sh.shot && SHOTS[sh.shot]) showShot = { ...SHOTS[sh.shot], cut: true };
+    let rolled = sh.start === undefined;
     const places = capturePlaces(layout, track.samples.length, track.spacing, circuit.pit.entry);
-    /** a flight past a set piece: your car put on the track before it (the pit lane with a stop called, as the AI makes one) */
-    const flight = (label: string) => {
+    /** the cars round yours brought with it to sample `idx`, two abreast ahead of and behind it, at its speed: a cut to another part of the lap keeps the racing in the picture */
+    const pack = (idx: number) => {
+      const me = race.entrants[you];
+      const n = track.samples.length;
+      const near = race.entrants
+        .map((e, i) => ({ e, i, d: Math.hypot(e.car.x - me.car.x, e.car.y - me.car.y) }))
+        .filter(({ e, i }) => i !== you && e.ai && !e.car.wrecked && !e.pit && !e.progress.retired && e.progress.finished === undefined)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 5);
+      jumpTo(idx);
+      const v = speedOf(me.car);
+      near.forEach(({ e }, k) => {
+        // (rows of two: the nearest just ahead, the next just behind, and so on outwards, on alternate sides)
+        const row = Math.floor(k / 2) + 1;
+        const at = (((idx + (k % 2 ? -1 : 1) * row * Math.round(PACK.gap / track.spacing)) % n) + n) % n;
+        const sp = track.samples[at];
+        const side = (row % 2 ? 1 : -1) * (k % 2 ? -1 : 1) * PACK.side;
+        Object.assign(e.car, { x: sp.x + Math.cos(sp.dir) * side, y: sp.y + Math.sin(sp.dir) * side, heading: sp.dir, vx: Math.sin(sp.dir) * v, vy: -Math.cos(sp.dir) * v });
+        e.progress = { ...e.progress, idx: at };
+      });
+    };
+    /** a share of the lap as a track sample */
+    const lapIdx = (lap: number) => Math.round((((lap % 1) + 1) % 1) * track.samples.length) % track.samples.length;
+    /** a flight past a set piece: your car put on the track before it (the pit lane with a stop called, as the AI makes one), the cars round it brought along; or to a share of the way round the lap */
+    const flight = (label: string | undefined, lap: number | undefined) => {
+      if (lap !== undefined) return pack(lapIdx(lap));
       const place = places.find((p) => p.label === label);
       if (!place) return;
-      jumpTo(place.idx);
-      say([placeCaption(label, layout.pitRoof)], label === 'PIT LANE' ? 6 : 3.5);
+      if (label === 'PIT LANE') jumpTo(place.idx);
+      else pack(place.idx);
+      say([placeCaption(place.label, layout.pitRoof)], label === 'PIT LANE' ? 6 : 3.5);
       const e = race.entrants[you];
       if (label === 'PIT LANE' && e.plan) e.plan = { ...e.plan, stopAt: e.progress.lap + e.progress.idx / track.samples.length };
     };
     /**
-     * A crash: the AI car nearest yours is wrecked where it is (a car close beside or ahead, so you pass it and the
-     * replay's camera finds it; one too far off is put just ahead first), shoved across the track so it spins, and the
-     * next one with it. The real wreck handling does the rest: debris, the safety car, the crash replay.
+     * A crash: the AI car nearest yours and the next one (close beside or ahead, so you pass them and the replay's
+     * camera finds them; too far off, or at a named corner, put just ahead first) are, a moment on, shoved across
+     * the track so they spin, and wrecked. The real wreck handling does the rest: debris, the safety car, the crash replay.
      */
     const crash = (label?: string) => {
       const me = race.entrants[you];
@@ -1139,12 +1176,24 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
           Object.assign(c, { x: s.x, y: s.y, heading: s.dir, vx: Math.sin(s.dir) * speedOf(me.car), vy: -Math.cos(s.dir) * speedOf(me.car) });
           e.progress = { ...e.progress, idx };
         }
-        // (a shove across its line, the way it was going)
-        const sp = Math.hypot(c.vx, c.vy) || 1;
-        c.vx += (-c.vy / sp) * 140 * (k ? -1 : 1);
-        c.vy += (c.vx / sp) * 140 * (k ? -1 : 1);
-        applyDamage(c, 1000, HANDLING);
       });
+      // (the replay from here on: before it the cars were elsewhere)
+      showStagedAt = race.clock;
+      // a moment on, as you close on them: each shoved across its line, the way it was going, and wrecked
+      plan.push({
+        at: tNow + STAGE_LEAD,
+        run: () => {
+          lastCrashReplay = -Infinity;
+          near.forEach(({ e }, k) => {
+            const c = e.car;
+            const sp = Math.hypot(c.vx, c.vy) || 1;
+            c.vx += (-c.vy / sp) * 140 * (k ? -1 : 1);
+            c.vy += (c.vx / sp) * 140 * (k ? -1 : 1);
+            applyDamage(c, 1000, HANDLING);
+          });
+        },
+      });
+      plan.sort((x, y) => x.at - y.at);
       say(['COLLISIONS AND CRASH REPLAYS'], 5);
     };
     const live = () => session === 'race' && !podium && !done;
@@ -1156,21 +1205,36 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const ended = sh.events.some((e) => e.do === 'champagne');
     const plan: { at: number; run: () => void }[] = [];
     for (const ev of sh.events) {
-      if (ev.do === 'flight') plan.push({ at: ev.at, run: () => live() && flight(ev.place ?? '') });
+      if (ev.do === 'flight') plan.push({ at: ev.at, run: () => live() && flight(ev.place, ev.lap) });
+      else if (ev.do === 'cam') plan.push({ at: ev.at, run: () => (showShot = SHOTS[ev.shot ?? 'wide'] && { ...SHOTS[ev.shot ?? 'wide'], cut: !!ev.cut }) });
       else if (ev.do === 'crash') plan.push({ at: ev.at, run: () => live() && crash(ev.place) });
       else plan.push({ at: ev.at, run: champagne });
     }
     // (a ceremony is left once it has run; any other step at its length)
     plan.push({ at: ended ? Math.max(...sh.events.filter((e) => e.do === 'champagne').map((e) => e.at)) + sh.ceremonySecs : sh.secs, run: () => leave() });
     plan.sort((a, b) => a.at - b.at);
-    /** the race clock the events count from (once the lights are out) */
+    /** the race clock the events count from (once the lights are out), and the time since */
     let t0: number | undefined;
+    let tNow = 0;
+    let set = false;
     const began = Date.now();
-    directorTimer = setInterval(() => {
+    const direct = () => {
       if (leaving || closed) return;
+      if (!set) {
+        set = true;
+        // (only the staged crash is replayed: one of the AI's own would use up the reel's replay)
+        lastCrashReplay = Infinity;
+        // (a rolling start: no team card under the lights)
+        if (!rolled) teamCard.style.display = 'none';
+      }
       // (the grid pan skipped, and the lights cut to a second: a short reel)
       if (gridPan) endPan();
-      if (race.phase === 'lights' && race.clock < -1) race.clock = -1;
+      // (a rolling start: no lights, the field already racing, a share of the way round the lap)
+      if (race.phase === 'lights' && race.clock < (rolled ? -1 : race.lightsOut)) race.clock = rolled ? -1 : race.lightsOut;
+      if (!rolled && race.phase === 'racing') {
+        rolled = true;
+        pack(lapIdx(sh.start ?? 0));
+      }
       // (the circuit's caption once the curtain is up on it)
       if (!introduced && Date.now() - began > 1500) {
         introduced = true;
@@ -1181,9 +1245,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         if ((race.phase === 'racing' || Date.now() - began > 9000) && !gridPan) t0 = race.clock;
         return;
       }
-      const t = race.clock - t0;
-      while (plan.length && plan[0].at <= t) plan.shift()!.run();
-    }, 250);
+      tNow = race.clock - t0;
+      while (plan.length && plan[0].at <= tNow) plan.shift()!.run();
+    };
+    // (often, and once as soon as the race is up: a rolling start shows no lights)
+    directorTimer = setInterval(direct, 100);
+    setTimeout(direct, 0);
   }
 
   // the pit entry is on this side of the track, and the pit wall calls you in when a stop would pay off
@@ -1256,6 +1323,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   // the pit lane, the track dry: your next set picked on the way to your box (left/right, or ◀ ▶ tapped), the pit
   // wall's strategy's to start with
   const tyrePick = document.createElement('div');
+  tyrePick.className = 'tyre-pick';
   style(tyrePick, {
     position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: '3', display: 'none', justifyContent: 'center', alignItems: 'center', gap: '12px',
     padding: '6px', borderRadius: '14px', background: 'rgba(18,17,28,.82)', border: '1px solid #3a3858',
@@ -1862,7 +1930,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       // a big crash's: a moment after it, the seconds round it, on the crashed car (then the race goes on)
       if (!replay && crashDue && race.clock >= crashDue.at + CRASH_REPLAY.delay) {
         const w = crashWindow(recorder, crashDue.at);
-        replay = { t: w.from, to: w.to, kind: 'crash', at: crashDue.at, follow: crashDue.who };
+        replay = { t: CAPTURE && showStagedAt !== undefined ? Math.max(w.from, showStagedAt) : w.from, to: w.to, kind: 'crash', at: crashDue.at, follow: crashDue.who };
         crashDue = undefined;
       }
       if (replay) {
@@ -2352,6 +2420,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // camera: follow your car, looking ahead along its motion; or, at the ceremony, on the podium (race/camera.ts)
     cameraRig.step({
       dt, race, you, session, grid, drawn: pose(me.car, you, alpha), recorder, replay, gridPan, podium, lookAt, shake, viewH, lead: t.lead, zoom: t.zoom,
+      // (the showreel's shot; a crash's replay close on the wreck, turning round it)
+      shot: CAPTURE && showShot ? (replay?.kind === 'crash' ? REPLAY_SHOT : showShot) : undefined,
     });
     // the ceremony: its own camera, from third across to the three of them (the plates under them)
     const onSet = ceremony.group.visible && !!podium;
