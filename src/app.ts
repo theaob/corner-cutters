@@ -652,7 +652,7 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
     const { step } = show;
     options = {
       ...options, team: teamById(step.team) ?? TEAMS[0], seat: 0, difficulty: NORMAL, weather: weatherById(step.weather) ?? DRY, qualifying: false, laps: 3, startTyres: undefined,
-      toMenu: show.next, show: { jumps: step.jumps ?? [], champagne: !!step.champagne, secs: step.secs, captions: captionsOn(window.location.search) },
+      toMenu: show.next, show: { jumps: step.jumps ?? [], champagne: !!step.champagne, secs: step.secs, captions: captionsOn(window.location.search), crash: !!step.crash },
     };
   }
   const view: StandaloneView = await raceOn(layout, show ? show.next : quit, options)({ host: screen, services, tuning, fit });

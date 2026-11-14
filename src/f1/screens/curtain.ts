@@ -7,12 +7,15 @@
 
 import { flagSvg } from '../flags';
 import type { CircuitLayout } from '../layouts';
+import { TRACK_MODEL, drawModel, fitModel, trackModel } from '../trackModel';
 
 /** ms the curtain takes to fade in or out. */
 export const CURTAIN_MS = 180;
 
 let sheet: HTMLDivElement | undefined;
 let card: HTMLDivElement | undefined;
+/** stops the loading card's turning map (the capture build's showreel) */
+let stopSpin: () => void = () => {};
 
 function ensure(): HTMLDivElement {
   if (sheet) return sheet;
@@ -46,6 +49,25 @@ function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
   return c;
 }
 
+/** The circuit as the menu draws it, a line in 3D, turning (once a few seconds: the card isn't up long). */
+function spinningModel(layout: CircuitLayout, size: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = c.height = size * 2;
+  Object.assign(c.style, { width: `${size}px`, height: `${size}px` });
+  const ctx = c.getContext('2d');
+  if (!ctx) return c;
+  const m = trackModel(layout);
+  const view = fitModel(m, c.width, c.height);
+  let id = 0;
+  const draw = (now: number) => {
+    drawModel(ctx, m, view, c.width, c.height, -0.35 + ((now / 1000) * 2 * Math.PI) / (TRACK_MODEL.turn / 4));
+    id = requestAnimationFrame(draw);
+  };
+  id = requestAnimationFrame(draw);
+  stopSpin = () => cancelAnimationFrame(id);
+  return c;
+}
+
 const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -65,7 +87,16 @@ export async function curtainDown(race?: { layout: CircuitLayout; line: string }
     const dots = document.createElement('div');
     dots.className = 'curtain-dots';
     for (let k = 0; k < 5; k++) dots.append(document.createElement('i'));
-    card!.append(outline(race.layout, 72), name, line, dots);
+    // (the capture build's showreel: the circuit as a turning 3D map, big, and held a moment so it's seen)
+    const reel = document.documentElement.classList.contains('showreel');
+    stopSpin();
+    card!.append(reel ? spinningModel(race.layout, Math.min(360, Math.round(window.innerWidth * 0.7), Math.round(window.innerHeight * 0.5))) : outline(race.layout, 72), name, line, dots);
+    if (reel) {
+      const shown = !s.classList.contains('down');
+      s.classList.add('down');
+      if (shown) await wait(CURTAIN_MS);
+      await wait(1000);
+    }
   }
   const was = s.classList.contains('down');
   s.classList.add('down');
@@ -85,6 +116,7 @@ export const curtainIsDown = (): boolean => !!sheet?.classList.contains('down');
 
 /** Lift the curtain (the next screen is up). */
 export function curtainUp(): void {
+  stopSpin();
   ensure().classList.remove('down');
   lifted();
 }

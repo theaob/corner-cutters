@@ -20,6 +20,12 @@ describe('showreel', () => {
     expect(new Set(script.map((s) => s.team).filter(Boolean)).size).toBe(TEAMS.length);
     expect(script.filter((s) => s.champagne).length).toBeGreaterThanOrEqual(3);
   });
+  it('stages a few crashes, on circuits with no set piece to fly past', () => {
+    const crashes = script.filter((x) => x.crash);
+    expect(crashes.length).toBeGreaterThanOrEqual(3);
+    expect(crashes.length).toBeLessThanOrEqual(4);
+    for (const c of crashes) expect(c.jumps).toEqual([]);
+  });
   it('adds captions and an end card only when asked', () => {
     expect(script.some((x) => x.caption && x.screen === 'menu' && x.secs === 6)).toBe(false);
     const withCaptions = buildScript(LAYOUTS, TEAMS, true);
