@@ -33,8 +33,11 @@ export interface Splash {
   close(): void;
 }
 
-/** Show the splash in `host`, the backdrop racing on `layout`; `controls` for a gamepad's buttons. */
-export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: Controls): Splash {
+/**
+ * Show the splash in `host`, the backdrop racing on `layout`; `controls` for a gamepad's buttons. With `auto` (ms) it
+ * starts itself after that long, no prompt shown (the capture build's showreel, started from its own button).
+ */
+export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: Controls, auto?: number): Splash {
   const closed = new AbortController();
   const { signal } = closed;
   const still = showStill(host);
@@ -46,7 +49,7 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
   });
 
   const page = document.createElement('div');
-  page.className = 'splash';
+  page.className = auto === undefined ? 'splash' : 'splash auto';
   const logo = document.createElement('h1');
   logo.className = 'splash-logo';
   logo.setAttribute('aria-label', 'Corner Cutters');
@@ -82,6 +85,7 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
       setTimeout(resolve, SPLASH_GO_MS);
     };
   });
+  if (auto !== undefined) setTimeout(go, auto);
   // a tap: on its release (in a cross-origin frame on a phone a tap's click can go astray)
   let armed = false;
   page.addEventListener('pointerdown', () => (armed = true), { signal });
