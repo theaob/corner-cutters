@@ -504,6 +504,8 @@ const needsControlsLap = () => !CAPTURE && saved('progress', 'onboarded') !== tr
 let justUnlocked: string | undefined;
 /** The Championship was just won (celebrated on its screen once). */
 let justWon = false;
+/** ms the showreel's title is up, started from its button, before the reel goes on by itself */
+const REEL_TITLE_MS = 2200;
 /** The capture build's showreel, built on first use. */
 let SCRIPT: ShowStep[] = [];
 
@@ -720,11 +722,15 @@ async function opening(): Promise<void> {
     return;
   }
   if (!params.has('circuit') && !params.has('mode') && !settingsResumePending()) {
+    // (the capture build's showreel: nothing drawn or heard until its START button, pressed once the screen is whole
+    // and the recorder running; then the title plays through by itself. ?debug keeps the plain tap)
+    const gated = showreel && !params.has('debug');
+    if (CAPTURE && gated) await (await import('./f1/screens/reelGate')).showReelGate();
     menuScreen();
     document.documentElement.classList.add('splash-up');
     // (the theme from the start: it sounds with the first tap)
     playMusic(THEME_MUSIC);
-    const splash = showSplash(screen, backdropCircuit(), controls);
+    const splash = showSplash(screen, backdropCircuit(), controls, gated ? REEL_TITLE_MS : undefined);
     // (the race's code meanwhile: a new player's controls lap is next)
     fetchRaceSoon();
     current = { close: () => {
