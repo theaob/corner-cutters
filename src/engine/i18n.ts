@@ -1,8 +1,7 @@
 // Language support: the game's text is written in English, and `t('SETTINGS')` gives that text in the chosen
 // language (the English itself is the key, so a string without a translation, or in English, reads as written).
 // A language is a dictionary from English text to its translation; `{name}` in the text is filled from `vars`.
-// The choice is remembered (settings.language); until one is made it follows the device's language where the
-// game has it, else English. Menus are built once, so a change has the open screen built again (the app does that).
+// The choice is remembered (settings.language); until one is made the game is in English, whatever the device's language. Menus are built once, so a change has the open screen built again (the app does that).
 // Only the chosen language's words are loaded: the rest are known by name until one of them is chosen.
 
 import { save, saved } from './save';
@@ -59,18 +58,11 @@ export async function loadLanguages(sources: LanguageSource[]): Promise<void> {
 }
 export const availableLanguages = (): Language[] => languages;
 
-/** The device's languages as base codes, most preferred first. */
-function deviceCodes(): string[] {
-  const nav = globalThis.navigator;
-  const list = nav?.languages?.length ? nav.languages : nav?.language ? [nav.language] : [];
-  return list.map((l) => l.toLowerCase().split('-')[0]);
-}
-
-/** The saved choice if it's a language we have, else the first of the device's we have, else English. */
+/** The saved choice if it's a language we have, else English (the device's language is not followed). */
 function pick(): Language {
   const code = saved('settings', 'language');
   const have = (c: unknown) => languages.find((l) => l.code === c && !missing.has(l.code));
-  return have(code) ?? deviceCodes().map(have).find(Boolean) ?? ENGLISH;
+  return have(code) ?? ENGLISH;
 }
 
 export const language = (): Language => current;

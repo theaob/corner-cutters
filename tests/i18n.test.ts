@@ -22,11 +22,8 @@ describe('language', () => {
     expect(t('SETTINGS')).toBe('SETTINGS');
   });
 
-  it("follows the device's language when the game has it, else English", () => {
-    vi.stubGlobal('navigator', { languages: ['fr-FR', 'xx-YY'] });
-    useLanguages([xx]);
-    expect(language().code).toBe('xx');
-    vi.stubGlobal('navigator', { languages: ['fr-FR'] });
+  it("stays English whatever the device's language, until one is chosen", () => {
+    vi.stubGlobal('navigator', { languages: ['xx-YY', 'es-ES'] });
     useLanguages([xx]);
     expect(language().code).toBe('en');
   });
@@ -78,11 +75,14 @@ describe('only the chosen language is loaded', () => {
     expect(t('SETTINGS')).toBe('SETTINGS');
   });
 
-  it("the device's language is fetched, alone", async () => {
+  it("the device's language is not fetched; only a chosen one is", async () => {
     vi.stubGlobal('navigator', { languages: ['yy-ZZ', 'xx'] });
     await loadLanguages([source(xx), source(yy)]);
+    expect(loads).toEqual([]);
+    expect(language().code).toBe('en');
+    setLanguage('yy');
+    await loadLanguages([source(xx), source(yy)]);
     expect(loads).toEqual(['yy']);
-    expect(language().code).toBe('yy');
     expect(t('SETTINGS')).toBe('YSET');
   });
 
@@ -96,8 +96,9 @@ describe('only the chosen language is loaded', () => {
   });
 
   it('words that fail to arrive leave the game in English, the choice kept for next time', async () => {
-    vi.stubGlobal('navigator', { languages: ['tr-TR', 'xx'] });
     const tr: Language = { code: 'tr', name: 'Türkçe', words: {} };
+    useLanguages([tr]);
+    setLanguage('tr');
     await loadLanguages([source(tr, true), source(xx)]);
     expect(language().code).toBe('en');
     expect(upper('pit')).toBe('PIT');
