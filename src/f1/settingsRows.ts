@@ -18,9 +18,6 @@ import type { LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
 import { availableLanguages, chooseLanguage, language, t, backLabel } from '../engine/i18n';
 import { GRAPHICS_SETTINGS, graphicsSetting, setGraphicsSetting, type GraphicsSetting } from './graphics';
-import { exportSaveDoc, replaceSave } from '../engine/save';
-import { decodeSave, encodeSave } from '../engine/saveCode';
-import { Share } from '@capacitor/share';
 import { REMINDER_HOURS, reminderSetting, remindersHere, setReminder, type ReminderSetting } from './reminder';
 
 /** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
@@ -79,73 +76,15 @@ export function actionRow(label: string, value: () => string, about: () => strin
   return { el, step: () => {}, value: () => undefined, refresh: render, activate: () => (run(), render()) };
 }
 
-/** Copy `text` (or, where the page may not, hand it to the phone's share sheet): true if it went anywhere. */
-async function copyOrShare(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      await Share.share({ text });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
-/**
- * RESTORE: paste a code from BACK UP on another device. A whole, unchanged code asks to be tapped again (it replaces
- * what's on this device, which is kept aside first); then the page reloads with it.
- */
-function restoreRow(): SettingsRow {
-  const el = document.createElement('div');
-  el.className = 'option-row';
-  const label = Object.assign(document.createElement('b'), { textContent: t('RESTORE') });
-  const right = document.createElement('div');
-  right.className = 'value';
-  const field = document.createElement('input');
-  Object.assign(field, { type: 'text', autocomplete: 'off', spellcheck: false, placeholder: t('PASTE A CODE') });
-  field.setAttribute('aria-label', t('PASTE A CODE'));
-  Object.assign(field.style, { width: '9em', font: 'inherit' });
-  const about = document.createElement('span');
-  const idle = () => t('progress from a BACK UP on another device');
-  about.textContent = idle();
-  let ready: ReturnType<typeof decodeSave>;
-  let armed = false;
-  const check = () => {
-    ready = decodeSave(field.value);
-    armed = false;
-    about.textContent = !field.value.trim() ? idle() : ready ? t('a good code: tap here to replace this device’s progress') : t('not a whole code: copy it again');
-  };
-  field.addEventListener('input', check);
-  const run = () => {
-    if (!ready) return;
-    if (!armed) {
-      armed = true;
-      about.textContent = t('tap again: this replaces the progress on this device');
-      return;
-    }
-    about.textContent = replaceSave(ready) ? (location.reload(), t('restored')) : t('this code is from a newer game: update it first');
-    armed = false;
-  };
-  el.addEventListener('pointerup', (e) => {
-    if (e.target !== field) run();
-  });
-  right.append(field, about);
-  el.append(label, right);
-  return { el, step: () => {}, value: () => undefined, refresh: check, activate: run };
-}
-
 /** Open a page of the game's site (a new tab on the web; the phone's own browser in the app). */
 function openPage(url: string): void {
   window.open(url, '_blank', 'noopener');
 }
 
-/** The settings' pages: CONTROLS (how you drive), GAME (how it plays), SOUND and ACCESSIBILITY (text size, colours, camera shake). */
-export type SettingsSection = 'controls' | 'game' | 'sound' | 'access';
-export const SETTINGS_SECTIONS: SettingsSection[] = ['controls', 'game', 'sound', 'access'];
-const SECTION_ABOUT: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY' };
+/** The settings' pages: CONTROLS (how you drive), GAME (how it plays), SOUND, ACCESSIBILITY (text size, colours, camera shake) and PRIVACY & DATA (the pages, STATS, the player number). */
+export type SettingsSection = 'controls' | 'game' | 'sound' | 'access' | 'privacy';
+export const SETTINGS_SECTIONS: SettingsSection[] = ['controls', 'game', 'sound', 'access', 'privacy'];
+const SECTION_ABOUT: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY', privacy: 'PRIVACY & DATA' };
 const sectionName = (s: SettingsSection) => t(SECTION_ABOUT[s]);
 
 /** The rows, read from the save as they are now, by page. */
@@ -198,14 +137,6 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
     copied = true;
     void navigator.clipboard?.writeText(playerId()).catch(() => (copied = false));
   });
-  // BACK UP and RESTORE: the whole save as a code to copy to another device (a new phone, the app and the web)
-  let backedUp: boolean | undefined;
-  const backupRow = actionRow('BACK UP', () => t('COPY'), () => (backedUp === undefined ? t('your progress as a code, to RESTORE on another device') : backedUp ? t('copied: keep it private, it holds your progress') : t('couldn’t copy it')), () => {
-    void copyOrShare(encodeSave(exportSaveDoc())).then((ok) => {
-      backedUp = ok;
-      backupRow.refresh();
-    });
-  });
   // NAME: your three letters on the timing screens and the boards, typed (the phone's keyboard comes up), as on an arcade board
   const nameRow = (() => {
     const el = document.createElement('div');
@@ -245,9 +176,10 @@ export function settingsRows(): Record<SettingsSection, SettingsRow[]> {
   // (the page for what doesn't clearly fit: the daily reminder, STATS and the screen are about the game)
   return {
     controls: [stickRow, drivingRow, vibrationRow],
-    game: [...(languageRow ? [languageRow] : []), nameRow, graphicsRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow, ...(online() ? [statsRow] : []), backupRow, restoreRow(), privacyRow, termsRow, idRow],
+    game: [...(languageRow ? [languageRow] : []), nameRow, graphicsRow, ...(reminderRow ? [reminderRow] : []), ...(screenRow ? [screenRow] : []), gridWalkRow],
     sound: [soundRow, musicRow],
     access: [textRow, coloursRow, motionRow, shakeRow],
+    privacy: [privacyRow, termsRow, ...(online() ? [statsRow] : []), idRow],
   } as Record<SettingsSection, SettingsRow[]>;
 }
 
