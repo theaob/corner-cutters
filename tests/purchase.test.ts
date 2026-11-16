@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
-import { CHAMPIONSHIP_PRODUCT, PAYWALL, SALE, bought, saleOffered, championshipOpen, circuitsOpen, openShop, ownsChampionship, resetShop, saleOn } from '../src/f1/purchase';
+import { CHAMPIONSHIP_PRODUCT, PAYWALL, SALE_OFFER, pickOffer, SALE, bought, saleOffered, championshipOpen, circuitsOpen, openShop, ownsChampionship, resetShop, saleOn } from '../src/f1/purchase';
 
 beforeEach(() => {
   const items = new Map<string, string>();
@@ -35,18 +35,21 @@ describe('the Championship as a purchase', () => {
 });
 
 /** A stand-in for Google Play's store (the plugin's CdvPurchase): one product, bought or not. */
-function fakePlay(o: { owned?: boolean; price?: string } = {}) {
+function fakePlay(o: { owned?: boolean; price?: string; offers?: unknown[]; ordered?: unknown[] } = {}) {
   let owned = !!o.owned;
   const on: Record<string, ((x: unknown) => void)[]> = { approved: [], finished: [], productUpdated: [] };
   const product = {
     id: CHAMPIONSHIP_PRODUCT,
     pricing: { price: o.price ?? '€2.99' },
+    offers: o.offers,
     canPurchase: true,
     get owned() {
       return owned;
     },
     getOffer: () => ({
+      id: CHAMPIONSHIP_PRODUCT,
       order: async () => {
+        o.ordered?.push(CHAMPIONSHIP_PRODUCT);
         const t = { products: [{ id: CHAMPIONSHIP_PRODUCT }], finish: () => ((owned = true), on.finished.forEach((f) => f(t))) };
         on.approved.forEach((f) => f(t));
         return undefined;
@@ -144,6 +147,37 @@ describe('the shop (Google Play)', () => {
     const shop = openShop();
     expect(await shop.restore()).toBe(false);
     expect(bought()).toBe(false);
+  });
+});
+
+const phase = (price: string, priceMicros: number) => [{ price, priceMicros }];
+const full = { id: CHAMPIONSHIP_PRODUCT, pricingPhases: phase('€2.99', 2990000) };
+const sale = { id: `${CHAMPIONSHIP_PRODUCT}@${SALE_OFFER}`, pricingPhases: phase('€0.29', 290000) };
+
+describe('the sale offer', () => {
+  it('picks the sale offer by id, with the full price to strike through', () => {
+    expect(pickOffer([full, sale])).toMatchObject({ offer: sale, price: '€0.29', list: '€2.99' });
+    expect(pickOffer([sale, full]).offer).toBe(sale);
+  });
+  it('falls back to the cheapest offer when the id is not there', () => {
+    const other = { id: `${CHAMPIONSHIP_PRODUCT}@other`, pricingPhases: phase('€0.99', 990000) };
+    expect(pickOffer([full, other])).toMatchObject({ offer: other, price: '€0.99', list: '€2.99' });
+  });
+  it('has no list price when there is a single offer', () => {
+    expect(pickOffer([full])).toEqual({ offer: full, price: '€2.99', list: undefined });
+    expect(pickOffer([]).offer).toBeUndefined();
+  });
+  it('shows the discounted price and buys with the discount offer', async () => {
+    const orders: string[] = [];
+    const offers = [full, sale].map((x) => ({ ...x, order: async () => (orders.push(x.id), undefined) }));
+    fakePlay({ offers });
+    const shop = openShop();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shop.state()).toMatchObject({ price: '€0.29', list: '€2.99' });
+    void shop.buy();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(orders).toEqual([sale.id]);
   });
 });
 

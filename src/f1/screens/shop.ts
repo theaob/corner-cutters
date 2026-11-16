@@ -48,7 +48,15 @@ export function showShop(host: HTMLElement, services: Services, shop: Shop, clos
   let busy = false;
   const render = () => {
     const st = shop.state();
-    buyButton.textContent = busy ? t('WITH {store}…', { store: STORE_NAME }) : st.price ? t('UNLOCK · {price}', { price: st.price }) : st.error ? t('UNLOCK') : t('CONNECTING TO {store}…', { store: STORE_NAME });
+    const label = busy ? t('WITH {store}…', { store: STORE_NAME }) : st.price ? t('UNLOCK · {price}', { price: st.price }) : st.error ? t('UNLOCK') : t('CONNECTING TO {store}…', { store: STORE_NAME });
+    buyButton.textContent = label;
+    if (!busy && st.price && st.list) {
+      // (a sale: the full price struck through beside the discounted one)
+      const was = document.createElement('s');
+      was.textContent = st.list;
+      was.style.opacity = '0.6';
+      buyButton.replaceChildren(t('UNLOCK · {price}', { price: st.price }), ' ', was);
+    }
     buyButton.disabled = busy || !st.ready;
     status.textContent = st.error ?? '';
   };

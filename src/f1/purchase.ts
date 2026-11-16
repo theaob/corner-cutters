@@ -53,12 +53,38 @@ export const ownsChampionship = (): boolean => championshipOpen(PAYWALL, bought(
  */
 export const circuitsOpen = (owned: boolean, first: string, unlocked: ReadonlySet<string>, free: string[] = []): Set<string> => new Set([...(owned ? unlocked : [first]), ...free]);
 
+/** The id of the Play Console discount offer on the Championship (a one-time product has its full-price purchase option and, while a sale runs, a discount offer beside it). */
+export const SALE_OFFER = 'championship-newyear-90';
+
+/** A purchase option of the product, as the plugin lists it. */
+interface PriceOffer {
+  id?: string;
+  pricingPhases?: { price?: string; priceMicros?: number }[];
+}
+
+const micros = (o: PriceOffer): number => o.pricingPhases?.[0]?.priceMicros ?? 0;
+
+/**
+ * The offer to show and to buy: Google Play lists the full-price option and the discount offers of a one-time product
+ * side by side (the plugin's `pricing` and `getOffer()` stand for the first of them, the full price), so the sale's own
+ * offer is picked by id, else the cheapest one. `list` is the full price, when the chosen offer is below it.
+ */
+export function pickOffer<T extends PriceOffer>(offers: readonly T[]): { offer: T | undefined; price?: string; list?: string } {
+  const priced = offers.filter((o) => o.pricingPhases?.[0]?.price);
+  if (!priced.length) return { offer: offers[0] };
+  const offer = priced.find((o) => o.id?.endsWith('@' + SALE_OFFER)) ?? priced.reduce((a, b) => (micros(b) > 0 && micros(b) < micros(a) ? b : a));
+  const top = priced.reduce((a, b) => (micros(b) > micros(a) ? b : a));
+  return { offer, price: offer.pricingPhases![0].price, list: micros(top) > micros(offer) ? top.pricingPhases![0].price : undefined };
+}
+
 /** What the store says about the Championship. */
 export interface ShopState {
   /** the store is up (the store reached, the product found) */
   ready: boolean;
   /** its price, as the store shows it (in the player's currency) */
   price?: string;
+  /** the full price, when `price` is a discount (shown struck through) */
+  list?: string;
   /** why it can't be bought (no store: an app not installed from it, or offline) */
   error?: string;
 }
@@ -144,7 +170,9 @@ export function openShop(): Shop {
       })
       .productUpdated(() => {
         const p = store.get(CHAMPIONSHIP_PRODUCT, STORE_PLATFORM(Platform));
-        st.price = p?.pricing?.price;
+        const pick = pickOffer<Cdv>(p?.offers ?? []);
+        st.price = pick.price ?? p?.pricing?.price;
+        st.list = pick.list;
         st.ready = !!p?.canPurchase || !!p?.owned;
         if (p?.owned) owned();
         changed();
@@ -174,7 +202,9 @@ export function openShop(): Shop {
     onChange: (f) => listeners.push(f),
     async buy() {
       const store = await ready;
-      const offer = store?.get(CHAMPIONSHIP_PRODUCT)?.getOffer();
+      const p = store?.get(CHAMPIONSHIP_PRODUCT);
+      // (the discount offer, with its offer token; the plugin passes the token on to launchBillingFlow)
+      const offer = pickOffer<Cdv>(p?.offers ?? []).offer ?? p?.getOffer();
       if (!offer) return false;
       const done = new Promise<boolean>((resolve) => (waiting = resolve));
       const err = await offer.order();
