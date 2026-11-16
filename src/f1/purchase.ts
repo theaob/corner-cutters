@@ -3,7 +3,7 @@
 // the game is free, with Crescent Park open in every mode; the Championship,
 // and with it every other circuit (reached in a Championship, as before), is a
 // one-time purchase through the store (cordova-plugin-purchase). Bought once,
-// it's kept in the save, and restored from the store on a new install. Every
+// it's kept in the save, and restored from the store on a new install. Checked against the store at every start: a purchase the store no longer lists (a refund) takes it back. Every
 // other build (the web game, and the Android app sideloaded from itch.io) has
 // no store: everything is open, as before.
 
@@ -76,6 +76,11 @@ export interface Shop {
 /** Mark the Championship bought on this device. */
 function grant(): void {
   save('progress', 'championship', true);
+}
+
+/** Take the Championship back (a purchase the store no longer lists: refunded, or voided). */
+function revoke(): void {
+  save('progress', 'championship', undefined);
 }
 
 /** The plugin's name for this build's store. */
@@ -154,6 +159,11 @@ export function openShop(): Shop {
     const errors: Cdv[] | undefined = await store.initialize([STORE_PLATFORM(Platform)]);
     if (errors?.length) st.error = unavailable(errors.map((e) => e?.message ?? e?.code).join(' · '));
     if (store.owned(CHAMPIONSHIP_PRODUCT)) owned();
+    // (the store reached cleanly, its purchases loaded, and it offers the Championship for sale again: a refunded or voided purchase is no longer listed as owned, so the unlock saved on this device goes. A store that couldn't be reached, or doesn't have the product, says nothing: offline never takes it away)
+    else if (!errors?.length && !st.error && store.get(CHAMPIONSHIP_PRODUCT, STORE_PLATFORM(Platform))?.canPurchase && bought()) {
+      revoke();
+      st.ready = true;
+    }
     // (the store reached, but no Championship there to sell: the product's not made, or not active, in its console)
     else if (!st.error && !st.price) st.error = t('THE CHAMPIONSHIP ISN’T ON SALE ON {store} YET', { store: STORE_NAME });
     changed();
