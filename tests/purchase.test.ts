@@ -112,6 +112,33 @@ describe('the shop (Google Play)', () => {
     expect(empty.state().error).toBe('THE CHAMPIONSHIP ISN’T ON SALE ON GOOGLE PLAY YET');
   });
 
+  it('takes the Championship back when Google Play no longer lists it (a refund)', async () => {
+    fakePlay();
+    const shop = openShop();
+    expect(await shop.buy()).toBe(true);
+    expect(bought()).toBe(true);
+    // (refunded: the next start finds it saved here, but not owned in the store)
+    resetShop();
+    fakePlay();
+    openShop();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(bought()).toBe(false);
+  });
+
+  it('keeps it when Google Play cannot be reached (offline is no refund)', async () => {
+    fakePlay({ owned: true });
+    await openShop().restore();
+    resetShop();
+    fakePlay();
+    type Play = { store: { initialize: () => Promise<unknown[]> } };
+    (globalThis as { CdvPurchase?: Play }).CdvPurchase!.store.initialize = async () => [{ code: 6777001, message: 'BILLING_UNAVAILABLE' }];
+    openShop();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(bought()).toBe(true);
+  });
+
   it("finds nothing to restore when it wasn't bought", async () => {
     fakePlay();
     const shop = openShop();
