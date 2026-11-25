@@ -11,7 +11,7 @@ art (flat colours, slope-shaded ground, box car) and an IMGUI HUD. No AI, pits, 
 
 ## Open it
 
-1. Unity **6000.0 LTS** (6.0). The project version file says 6000.0.58f2; Unity will offer to upgrade if yours is newer.
+1. Unity **6000.3.29f1** (Unity 6.3 LTS), pinned in `ProjectSettings/ProjectVersion.txt`.
 2. Open the `unity/` folder in Unity Hub. First import takes a minute and writes `.meta` files: **commit them**.
 3. If asked, enable the new Input System backend (restarts the editor). Or: Project Settings > Player > Active Input Handling = *Input System Package (New)*.
 4. Menu **Corner Cutters > Create main scene**, open `Assets/Scenes/Main.unity`, press Play. (The game starts itself from
