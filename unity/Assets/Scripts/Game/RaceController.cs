@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using CornerCutters.Core;
 using UnityEngine;
+using Grid = CornerCutters.Core.Grid;
 
 namespace CornerCutters.Game
 {

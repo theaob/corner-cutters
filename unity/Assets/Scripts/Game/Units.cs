@@ -2,6 +2,7 @@
 // One tile (16 px) is one Unity unit, so an F1 car (30 px long) is a little under 2 units and a lap is a few hundred.
 using CornerCutters.Core;
 using UnityEngine;
+using Grid = CornerCutters.Core.Grid;
 
 namespace CornerCutters.Game
 {
