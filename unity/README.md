@@ -9,50 +9,19 @@ One F1 car on any of the 19 circuits, three laps against the clock: start lights
 warning, damage, restart, pause, next/previous circuit, three cameras (C: the web game's classic view, chase, top-down).
 Keyboard and gamepad. No AI, pits, tyres, weather, menus, audio, saves or shop yet.
 
-**Look.** Crescent Park has had a first look pass toward the web game's: its camera (north up, 26 degree lens, 52 degree
-pitch), the web game's own ground picture on every circuit (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane,
-grid boxes, chequered line: baked from its painter, one texel per map pixel, nearest-neighbour), the barriers where the
-web game stands them (tyre stacks, a street circuit's steel, hay bales on dirt), the pit garages and the pit wall (`PitView`), the web game's trees (baked from its own placement code), its grandstands on every circuit (`StandView`: back wall with
-the painted crowd, canopy, terraces, flags, and the blocky crowd that sways and cheers as the car passes),
-blob shadows, a blocky livery car and a tilt-shift blur with saturation and vignette (`TiltShift` shader). The other 18
-circuits get the ground, barriers, pits, stands and camera but no trees yet (`SCENERY` in `tools/unity/bake.ts`). HUD: the web game's wide-screen layout in its pixel font
-(`HudView`: readout, lap strip, minimap, start-light dots and team card, banner, key prompts, pause screen). Finish:
-its glow, tilt-shift, grade and tone mapping (`TiltShift` shader). Still placeholder: the banking's catch fence, other cars, crowd animation, weather, sky, sound, night lamps.
+**Look.** The camera is the web game's (north up, 26 degree lens, 52 degree pitch). Each circuit's ground is the web
+game's own picture (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane, grid boxes, chequered line: baked from its
+painter, one texel per map pixel, nearest-neighbour). Everything standing on it is the web game's own scene, built by its
+own code and baked (`BakedScenery`): towns and cities, custom buildings and landmarks, trees, grandstands, pits, barriers,
+bridges, lakes, the coast and the volcano, each face lit as the web game lights it. What moves in that scene (monster
+trucks, kangaroos, moose and geese, boats, the tramway, petals...) is recorded from the web game's own animation as a
+40 s loop and played back (`SceneryMovers`); the airliners over Crescent Park are flown as the web game flies them, over
+wherever you are (`ScenePlanes`). The crowds and flags are `StandView`'s and cheer as the car passes. HUD: the web game's
+wide-screen layout in its pixel font (`HudView`). Finish: its glow, tilt-shift, grade and tone mapping (`TiltShift` shader).
 
-## Open it
-
-1. Unity **6000.3.29f1** (Unity 6.3 LTS), pinned in `ProjectSettings/ProjectVersion.txt`.
-2. Open the `unity/` folder in Unity Hub. First import takes a minute and writes `.meta` files: **commit them**.
-3. If asked, enable the new Input System backend (restarts the editor). Or: Project Settings > Player > Active Input Handling = *Input System Package (New)*.
-4. Menu **Corner Cutters > Create main scene**, open `Assets/Scenes/Main.unity`, press Play. (The game starts itself from
-   code, `GameBootstrap`, so the scene can stay empty.)
-
-Desktop builds: `Unity -batchmode -quit -projectPath unity -executeMethod CornerCutters.Editor.BuildScript.BuildWindows64`
-(or `BuildMacOS`, `BuildLinux64`), output in `unity/Builds/`.
-
-## Controls
-
-| | Keyboard | Gamepad (Xbox, PlayStation, Switch Pro, any standard pad) |
-|---|---|---|
-| Steer | A / D or Left / Right | Left stick |
-| Gas | W or Up | Right trigger |
-| Brake / reverse | S or Down | Left trigger |
-| Drift (handbrake) | Space or Shift | A (south) or X (west) |
-| Pause | Esc or P | Start |
-| Restart | R | Y (north) |
-| Next / previous circuit | Tab or ] / [ | RB / LB |
-| Camera (classic / chase / top-down) | C | B (east) |
-
-What changed from the web game's controls (`src/engine/controls.ts`, a handheld with a D-pad and A/B/START/SELECT):
-
-- **Actions, not a virtual handheld.** Input is defined as named Input System actions (`GameInput.cs`), each with keyboard
-  and gamepad bindings, so a rebinding screen later is `PerformInteractiveRebinding` on those actions.
-- **Keyboard steering is eased** (`SteeringSmoother`): the web game's keys snap to full lock, which is twitchy on a keyboard
-  and for a car this fast. A tap is now a nudge, a hold is full lock, release re-centres, frame-rate independent. The three
-  rates are the tuning knobs.
-- **Gamepad reading is the web game's own** (`GamepadReader`, same dead zone and curve), so the car feels the same, on the
-  standard layout that Xbox, PlayStation and Switch pads all map to.
-- **Last device used wins**, and the on-screen hint line follows it.
+Known gaps: the scene is lit for day on every circuit (night circuits like Vegas show their neon but not the dark), and
+recorded animals react to a recorded car going round, not to yours (the gopher and the yeti). Still placeholder: other
+cars, weather, sky, sound.
 
 ## Layout
 
@@ -64,6 +33,10 @@ What changed from the web game's controls (`src/engine/controls.ts`, a handheld 
 - `Assets/Resources/Grounds/*.png`: each circuit's ground picture, **generated** from the web game's painter
   (`npm run unity:grounds [id ...]`; needs Playwright, e.g. `npm i -g playwright && npx playwright install chromium`).
   `Editor/GroundImport.cs` imports them full size, point-filtered, uncompressed. About 28 MB for all 19.
+- `Assets/Resources/Scenery/`: each circuit's scene (`<id>.bytes`, its textures `<id>-<n>.png`, what moves in
+  `<id>.moving.txt`, and `<id>-planes.bytes` where there's an airport), **generated** from the web game's createCircuitScene
+  by the same command (`npm run unity:grounds -- --scenery-only [id ...]`). The file format is at the top of
+  `tools/unity/scenery.ts`. About 45 MB for all 19. `node tools/unity/preview.mjs` renders one without Unity, as a check.
 - `Tests~/Core.Tests/`: the core's tests; `golden.json` is **generated** from the web game (`npm run unity:golden`).
 
 ## Keeping the port honest

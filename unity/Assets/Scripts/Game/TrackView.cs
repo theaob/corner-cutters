@@ -17,7 +17,8 @@ namespace CornerCutters.Game
         const float BarrierHeight = 0.9f;
         static readonly Vector3 Sun = new Vector3(-0.45f, 0.8f, 0.4f).normalized;
 
-        public static GameObject Build(CircuitData c)
+        /// <summary>The ground; with barriers false, no barriers (the baked scenery has them).</summary>
+        public static GameObject Build(CircuitData c, bool barriers = true)
         {
             var root = new GameObject("Circuit " + c.id);
             var mat = MeshBuilder.VertexColorMaterial();
@@ -133,7 +134,7 @@ namespace CornerCutters.Game
                 }
             }
 
-            if (baked) BuildBarriers(root, c, mat);
+            if (baked && barriers) BuildBarriers(root, c, mat);
             // (the baked picture has the line and the grid boxes painted on)
             if (picture == null) AddStartLine(root, c, mat);
             return root;

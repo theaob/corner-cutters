@@ -38,6 +38,8 @@ namespace CornerCutters.Game
         Phase phase;
         double phaseTime, raceTime;
         bool paused;
+        SceneryMovers movers;
+        ScenePlanes planes;
         int circuitIndex;
         IReadOnlyList<string> ids;
         double bestLap = double.NaN;
@@ -73,11 +75,19 @@ namespace CornerCutters.Game
             PlayerPrefs.SetString("circuit", circuit.id);
             grid = circuit.ToGrid();
             track = circuit.ToTrack();
-            circuitView = TrackView.Build(circuit);
+            // the web game's own scenery, baked (BakedScenery: towns, buildings, trees, stands, pits, barriers...); without it,
+            // the hand-built stand-ins
+            bool baked = BakedScenery.Has(circuit.id);
+            circuitView = TrackView.Build(circuit, barriers: !baked);
             circuitView.transform.SetParent(transform, false);
-            SceneryView.Build(circuitView, circuit);
-            PitView.Build(circuitView, circuit);
-            stands = StandView.Build(circuitView, circuit);
+            movers = baked ? BakedScenery.Build(circuitView, circuit) : null;
+            planes = baked ? ScenePlanes.Load(circuit.id) : null;
+            if (!baked)
+            {
+                SceneryView.Build(circuitView, circuit);
+                PitView.Build(circuitView, circuit);
+            }
+            stands = StandView.Build(circuitView, circuit, structure: !baked);
             lights = new StartLights(circuitView.transform, circuit);
             hud = new HudView(circuit);
             record = PlayerPrefs.HasKey("rec." + circuit.id) ? PlayerPrefs.GetFloat("rec." + circuit.id) : double.NaN;
@@ -169,6 +179,8 @@ namespace CornerCutters.Game
             carView.Root.transform.SetPositionAndRotation(pos, Units.Rotation(car, grid, h));
             // (the crowds sway on while paused, as the web game's: frame is 0 then only if the clock stops)
             if (stands != null) stands.Step(frame, x, y);
+            movers?.Step(frame);
+            planes?.Step(frame, x, y, car.Vx, car.Vy);
             float speed01 = Mathf.Clamp01((float)(Driving.SpeedOf(car) / car.Cls.TopSpeed));
             // look a little ahead of where the car is going (the web game's lead: about 40 px at full speed)
             var lead = new Vector3((float)(car.Vx / car.Cls.TopSpeed * 2.5), 0, (float)(-car.Vy / car.Cls.TopSpeed * 2.5));

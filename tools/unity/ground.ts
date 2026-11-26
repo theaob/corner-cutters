@@ -9,7 +9,9 @@ import { carClass } from '../../src/engine/driving';
 import { DIFFICULTIES, handlingFor } from '../../src/f1/difficulty';
 import { createCircuitScene, roofLetters } from '../../src/f1/circuitScene';
 
-declare global { interface Window { groundIds: string[]; paintGround: (id: string) => string; paintRoof: (id: string) => string; groundReady: boolean } }
+import { bakeScenery } from './scenery';
+
+declare global { interface Window { groundIds: string[]; paintGround: (id: string) => string; paintRoof: (id: string) => string; scenery: (id: string) => { file: string; planes?: string; textures: string[]; moving: string[]; stats: string }; groundReady: boolean } }
 
 window.groundIds = LAYOUTS.map((l) => l.id);
 function circuitOf(id: string) {
@@ -41,4 +43,17 @@ window.paintGround = (id: string) => {
   if (!found) throw new Error(`no ${W}x${H} ground picture in ${id}'s scene`);
   return found.toDataURL('image/png');
 };
+/** The scene's still parts for Unity (scenery.ts), the file as base64. */
+window.scenery = (id: string) => {
+  const c = circuitOf(id);
+  const r = bakeScenery(c, { w: c.width * c.grid.tile, h: c.height * c.grid.tile });
+  const b64 = (buf: ArrayBuffer) => {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  };
+  return { file: b64(r.file), planes: r.planes && b64(r.planes), textures: r.textures, moving: r.moving, stats: r.stats };
+};
+
 window.groundReady = true;

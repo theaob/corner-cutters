@@ -1,0 +1,5 @@
+BoxGeometry
+BufferGeometry
+ShapeGeometry
+SphereGeometry
+TorusGeometry

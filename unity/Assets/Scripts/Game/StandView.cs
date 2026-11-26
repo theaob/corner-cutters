@@ -46,18 +46,19 @@ namespace CornerCutters.Game
         float time;
         int tick;
 
-        public static StandView Build(GameObject root, CircuitData c)
+        /// <summary>The stands of c; with structure false, only what moves (the crowd and flags), the rest being in the baked scenery.</summary>
+        public static StandView Build(GameObject root, CircuitData c, bool structure = true)
         {
             if (c.stands == null || c.stands.Length == 0) return null;
             var grid = c.ToGrid();
             var go = new GameObject("grandstands");
             go.transform.SetParent(root.transform, false);
             var view = go.AddComponent<StandView>();
-            view.Make(go, grid, c.stands);
+            view.Make(go, grid, c.stands, structure);
             return view;
         }
 
-        void Make(GameObject go, Grid grid, BakedStand[] list)
+        void Make(GameObject go, Grid grid, BakedStand[] list, bool structure)
         {
             stands = list;
             frames = new Matrix4x4[list.Length];
@@ -71,7 +72,8 @@ namespace CornerCutters.Game
                 // (three.js: at its middle on the ground, turned -dir, and half a turn more on the left: its back, +x, away from the track)
                 float yaw = (float)(-s.dir + (s.side < 0 ? System.Math.PI : 0));
                 frames[k] = Matrix4x4.TRS(new Vector3((float)s.x, (float)h, (float)s.y), Quaternion.AngleAxis(yaw * Mathf.Rad2Deg, Vector3.up), Vector3.one);
-                Structure(solid, faces, k, s);
+                if (structure) Structure(solid, faces, k, s);
+                Flags(go, k, s, yaw);
                 people += s.crowd?.x?.Length ?? 0;
             }
             solid.Xf = faces.Xf = Matrix4x4.identity;
@@ -119,8 +121,39 @@ namespace CornerCutters.Game
             {
                 float z = alongs[f] * len, px = Depth / 2 - Wall / 2;
                 mb.CylinderY(new Vector3(px, Height, z), 0.7f, FlagTop - Height, 4, TrackView.Hex(0xc9ccd4));
-                var flag = TrackView.Hex(FlagColors[(k * 3 + f) % FlagColors.Length]);
-                mb.Quad(new Vector3(px, FlagTop, z), new Vector3(px + 13, FlagTop, z), new Vector3(px + 13, FlagTop - 8, z), new Vector3(px, FlagTop - 8, z), flag);
+            }
+        }
+
+        // the flags, each its own object turning on its pole (circuitScene.ts: rotation.y = sin(3t + phase) * 0.5 + sin(7.3t + phase) * 0.15)
+        readonly System.Collections.Generic.List<(Transform t, float yaw, float phase)> flags = new System.Collections.Generic.List<(Transform, float, float)>();
+
+        void Flags(GameObject parent, int k, BakedStand s, float yaw)
+        {
+            float[] alongs = { -0.35f, 0f, 0.35f };
+            for (int f = 0; f < alongs.Length; f++)
+            {
+                // the pole's top-ish, where the flag hangs from, in the web game's space, then Unity's
+                var at = ToUnity.MultiplyPoint3x4(frames[k].MultiplyPoint3x4(new Vector3(Depth / 2 - Wall / 2, FlagTop - 4, alongs[f] * (float)s.len)));
+                var mb = new MeshBuilder();
+                float P = Units.PerPx;
+                // (13 x 8 px, out from the pole along its +x; mirrored into Unity's space, z flipped: in a flat flag, nothing)
+                mb.Quad(new Vector3(0, 4 * P, 0), new Vector3(13 * P, 4 * P, 0), new Vector3(13 * P, -4 * P, 0), new Vector3(0, -4 * P, 0), TrackView.Hex(FlagColors[(k * 3 + f) % FlagColors.Length]));
+                var go = new GameObject("flag");
+                go.transform.SetParent(parent.transform, false);
+                go.transform.position = at;
+                go.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh("flag");
+                go.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.VertexColorMaterial();
+                flags.Add((go.transform, yaw, k * 1.7f + alongs[f] * 5));
+            }
+        }
+
+        void WaveFlags()
+        {
+            // (a turn about y in the web game's space is the opposite turn in Unity's, its z mirrored)
+            foreach (var (t, yaw, phase) in flags)
+            {
+                float a = yaw + Mathf.Sin(time * 3 + phase) * 0.5f + Mathf.Sin(time * 7.3f + phase) * 0.15f;
+                t.rotation = Quaternion.AngleAxis(-a * Mathf.Rad2Deg, Vector3.up);
             }
         }
 
@@ -264,8 +297,9 @@ namespace CornerCutters.Game
         /// <summary>The crowds dt s on, with the car at (x, y) on the map: excited as it nears, settling once it has gone.</summary>
         public void Step(float dt, double carX, double carY)
         {
-            if (crowd == null) return;
             time += dt;
+            WaveFlags();
+            if (crowd == null) return;
             tick++;
             for (int k = 0; k < stands.Length; k++)
             {

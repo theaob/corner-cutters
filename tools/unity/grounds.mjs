@@ -9,7 +9,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 const { chromium } = await import('playwright').catch(() => createRequire(import.meta.url)('playwright'));
 
 const out = 'unity/Assets/Resources/Grounds';
+const sceneryOut = 'unity/Assets/Resources/Scenery';
 mkdirSync(out, { recursive: true });
+mkdirSync(sceneryOut, { recursive: true });
+// (--scenery-only: just the scenery; --no-scenery: just the ground pictures)
+const flags = process.argv.slice(2).filter((a) => a.startsWith('--'));
+const doGround = !flags.includes('--scenery-only');
+const doScenery = !flags.includes('--no-scenery');
 const server = await createServer({ server: { port: 5199, strictPort: false }, logLevel: 'warn' });
 await server.listen();
 const url = server.resolvedUrls.local[0];
@@ -20,9 +26,19 @@ try {
   await page.goto(`${url}tools/unity/ground.html`);
   await page.waitForFunction(() => window.groundReady === true, null, { timeout: 120000 });
   const all = await page.evaluate(() => window.groundIds);
-  const ids = process.argv.length > 2 ? process.argv.slice(2) : all;
+  const named = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const ids = named.length ? named : all;
   for (const id of ids) {
     if (!all.includes(id)) throw new Error(`no circuit ${id}`);
+    if (doScenery) {
+      const sc = await page.evaluate((i) => window.scenery(i), id);
+      writeFileSync(`${sceneryOut}/${id}.bytes`, Buffer.from(sc.file, 'base64'));
+      if (sc.planes) writeFileSync(`${sceneryOut}/${id}-planes.bytes`, Buffer.from(sc.planes, 'base64'));
+      sc.textures.forEach((t, k) => writeFileSync(`${sceneryOut}/${id}-${k}.png`, Buffer.from(t.slice(t.indexOf(',') + 1), 'base64')));
+      writeFileSync(`${sceneryOut}/${id}.moving.txt`, sc.moving.join('\n') + '\n');
+      console.log(`${id} scenery: ${sc.stats}; moving: ${sc.moving.join(', ') || 'nothing'}`);
+    }
+    if (!doGround) continue;
     const data = await page.evaluate((i) => window.paintGround(i), id);
     const png = Buffer.from(data.slice(data.indexOf(',') + 1), 'base64');
     writeFileSync(`${out}/${id}.png`, png);
