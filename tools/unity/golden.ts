@@ -21,6 +21,9 @@ import { aiTimes, gridOrder, newQualifying, referenceLap } from '../../src/f1/qu
 import { qualifyingRows, raceSummary, resultRows } from '../../src/f1/race/resultsView';
 import { formatTime } from '../../src/f1/records';
 import { lookAt } from '../../src/f1/weather';
+import { fling, stepPiece } from '../../src/engine/debris';
+import { panAt, panLength } from '../../src/f1/gridPan';
+import { crashWindow, newReplay, recordReplay, replayPose, replayWindow } from '../../src/f1/replay';
 import type { PitLane } from '../../src/f1/pits';
 import type { AiDriver } from '../../src/f1/racing';
 import { keysWheel, newProgress, nearestSample, stepProgress, wheelInput, stickWheel, type Track, type WheelPad } from '../../src/f1/racing';
@@ -312,6 +315,44 @@ function goldenQualifying() {
   console.log(`qualifying: ${out.map((q) => `${q.id} ${q.reference.toFixed(3)}`).join(', ')}`);
 }
 
+/**
+ * The picture's own rules: debris thrown and flown (seeded, over hills), the grid pan along a circuit's slots, and the
+ * replay's recording (single floats) read back between frames.
+ */
+function goldenFx() {
+  const ground = (x: number, y: number) => 6 * Math.sin(x / 40) + 4 * Math.cos(y / 55);
+  const debris = [0.2, 0.7, 1].map((power, n) => {
+    const rng = seededRandom(100 + n);
+    const p = fling(400 + n * 30, 300, ground(400 + n * 30, 300) + 5, 220 - n * 90, -140 + n * 60, { x: 0.6, y: -0.8 }, power, rng);
+    const trace: number[][] = [];
+    for (let k = 1; k <= 700; k++) {
+      stepPiece(p, 1 / 60, ground);
+      if (k % 10 === 0) trace.push([p.x, p.y, p.h, p.vx, p.vy, p.vh, ...p.rot, p.rest ? 1 : 0, p.rested]);
+    }
+    return { seed: 100 + n, power, trace };
+  });
+  const { b } = load('crescent-park');
+  const slots = b.slots.slice(0, 11);
+  const pan = { length: panLength(slots.length), at: [0, 0.5, 1, 1.3, 2.71, 4.4, 6.9, 7.2, 20].map((t) => { const a = panAt(slots, t); return [t, a.x, a.y, a.car]; }) };
+  const rec = newReplay(3);
+  const rng = seededRandom(5);
+  const poses: number[][] = [];
+  for (let t = 0; t < 22; t += 1 / 60) {
+    const cars = [0, 1, 2].map((i) => (i === 2 && t > 8 && t < 9 ? undefined : { x: 100 + t * 200 + i * 13.37, y: 50 - t * 31 * i, z: Math.sin(t) * 3, heading: (t * 2.3 + i) % (2 * Math.PI) - Math.PI, condition: (['ok', 'smoking', 'burning', 'wrecked'] as const)[Math.floor(t / 4 + i) % 4] }));
+    recordReplay(rec, t, cars);
+    if (Math.round(t * 60) % 37 === 0) {
+      const q = t - rng() * 14;
+      for (let i = 0; i < 3; i++) {
+        const p = replayPose(rec, i, q);
+        poses.push([t, i, q, ...(p ? [p.x, p.y, p.z, p.heading, ['ok', 'smoking', 'burning', 'wrecked'].indexOf(p.condition ?? 'ok')] : [])]);
+      }
+    }
+  }
+  const windows = [replayWindow(rec, 20), replayWindow(rec, 21.5), crashWindow(rec, 15), crashWindow(rec, 21)].map((w) => [w.from, w.to]);
+  writeFileSync('unity/Tests~/Core.Tests/fx.json', JSON.stringify({ debris, pan, poses, windows, start: rec.start, frames: rec.frames.length }));
+  console.log(`fx: ${debris.map((d) => d.trace.findIndex((r) => r[9] === 1)).join(', ')} rest steps/10, ${poses.length} replay poses`);
+}
+
 /** V8's Math.sin, cos, atan, atan2 and exp on inputs like the game's (headings, angles, slopes, grip): JsMath.cs must give the same bits. */
 function goldenMath() {
   const rng = seededRandom(99);
@@ -331,10 +372,12 @@ function goldenMath() {
   }));
 }
 
-if (process.argv[1]?.endsWith('golden.mjs')) {
+if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenMath();
   goldenAll();
   goldenCritters();
   goldenRaces();
   goldenQualifying();
+  goldenFx();
 }

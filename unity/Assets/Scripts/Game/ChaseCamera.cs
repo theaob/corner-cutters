@@ -13,6 +13,8 @@ namespace CornerCutters.Game
         bool snapped;
         Vector3 focus;
         public CameraMode Mode = CameraMode.Classic;
+        /// <summary>how much closer than the race's view the camera comes (the grid pan's 1.6)</summary>
+        public float Zoom = 1;
 
         // the web game's look (src/engine/look.ts HD2D_VIEW), distance chosen to frame the car as the web game does (about 13 units high)
         const float ClassicFov = 26f, ClassicPitch = 52f, ClassicDistance = 29f;
@@ -42,7 +44,7 @@ namespace CornerCutters.Game
             float fov;
             if (Mode == CameraMode.Classic)
             {
-                float d = ClassicDistance * (1f + 0.35f * speed01);
+                float d = ClassicDistance * (1f + 0.35f * speed01) / Zoom;
                 float p = ClassicPitch * Mathf.Deg2Rad;
                 pos = focus + new Vector3(0, Mathf.Sin(p) * d, -Mathf.Cos(p) * d);
                 rot = Quaternion.LookRotation(focus - pos, Vector3.up);

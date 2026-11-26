@@ -49,6 +49,7 @@ static class Program
         Critters(root);
         Races(root);
         QualifyingSessions(root);
+        Fx(root);
         PlayerRace(root);
 
         Console.WriteLine(failures == 0 ? $"OK  {checks} checks" : $"{failures} of {checks} checks FAILED");
@@ -349,6 +350,77 @@ static class Program
         Check(Qualifying.JudgeLap(q2, p2, false, out _) == QualiCall.Void, "a deleted lap ends void");
         p2.LapTimes.Add(79);
         Check(Qualifying.JudgeLap(q2, p2, false, out double t2) == QualiCall.Time && t2 == 79, "a good lap is timed");
+    }
+
+    /// <summary>Debris, the grid pan and the replay's recording (Core/Debris.cs, Replay.cs) against the web game's (fx.json).</summary>
+    static void Fx(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/fx.json"))).RootElement;
+        bool Same(double a, double b) => BitConverter.DoubleToInt64Bits(a) == BitConverter.DoubleToInt64Bits(b) || a == b;
+        double Ground(double x, double y) => 6 * JsMath.Sin(x / 40) + 4 * JsMath.Cos(y / 55);
+        int n = 0;
+        foreach (var d in g.GetProperty("debris").EnumerateArray())
+        {
+            var rng = new SeededRandom((uint)d.GetProperty("seed").GetInt32());
+            double power = D(d, "power");
+            double x0 = 400 + n * 30;
+            var p = Debris.Fling(x0, 300, Ground(x0, 300) + 5, 220 - n * 90, -140 + n * 60, 0.6, -0.8, power, rng.Next);
+            int k = 0, off = -1;
+            foreach (var row in d.GetProperty("trace").EnumerateArray())
+            {
+                for (int s = 0; s < 10; s++) Debris.Step(p, 1.0 / 60, Ground);
+                double[] got = { p.X, p.Y, p.H, p.Vx, p.Vy, p.Vh, p.Rot[0], p.Rot[1], p.Rot[2], p.Rest ? 1 : 0, p.Rested };
+                for (int c = 0; c < got.Length && off < 0; c++) { checks++; if (!Same(got[c], row[c].GetDouble())) off = k * 10 + 10; }
+                k++;
+            }
+            Check(off < 0, $"debris {n}: flies as the web game's" + (off < 0 ? "" : $" (off at step {off})"));
+            n++;
+        }
+        var circuit = JsonSerializer.Deserialize<CircuitData>(File.ReadAllText(Path.Combine(root, "Assets/Resources/Circuits/crescent-park.json")), new JsonSerializerOptions { IncludeFields = true });
+        var xs = circuit.slots.Take(11).Select(s => s.x).ToList();
+        var ys = circuit.slots.Take(11).Select(s => s.y).ToList();
+        var pan = g.GetProperty("pan");
+        Check(Same(GridPan.LengthOf(11), D(pan, "length")), "grid pan length");
+        foreach (var a in pan.GetProperty("at").EnumerateArray())
+        {
+            var at = GridPan.At(xs, ys, a[0].GetDouble());
+            Check(Same(at.x, a[1].GetDouble()) && Same(at.y, a[2].GetDouble()) && at.car == a[3].GetInt32(), $"grid pan at {a[0]}");
+        }
+        var rec = new ReplayRecorder(3);
+        var rng2 = new SeededRandom(5);
+        var poses = g.GetProperty("poses").EnumerateArray().GetEnumerator();
+        int poseOff = 0, poseCount = 0;
+        for (double t = 0; t < 22; t += 1.0 / 60)
+        {
+            var cars = new ReplayPose?[3];
+            for (int i = 0; i < 3; i++)
+                cars[i] = i == 2 && t > 8 && t < 9 ? (ReplayPose?)null : new ReplayPose
+                {
+                    X = 100 + t * 200 + i * 13.37, Y = 50 - t * 31 * i, Z = JsMath.Sin(t) * 3, Heading = ((t * 2.3 + i) % (2 * Math.PI)) - Math.PI,
+                    Condition = (CarCondition)((int)Math.Floor(t / 4 + i) % 4),
+                };
+            rec.Record(t, cars);
+            if (JsMath.Round(t * 60) % 37 == 0)
+            {
+                double q = t - rng2.Next() * 14;
+                for (int i = 0; i < 3; i++)
+                {
+                    poses.MoveNext();
+                    var w = poses.Current;
+                    var p = rec.Pose(i, q);
+                    poseCount++;
+                    bool ok = Same(w[2].GetDouble(), q) && (w.GetArrayLength() == 3 ? p == null
+                        : p != null && Same(p.Value.X, w[3].GetDouble()) && Same(p.Value.Y, w[4].GetDouble()) && Same(p.Value.Z, w[5].GetDouble()) && Same(p.Value.Heading, w[6].GetDouble()) && (int)p.Value.Condition == w[7].GetInt32());
+                    if (!ok) poseOff++;
+                }
+            }
+        }
+        Check(poseOff == 0, $"replay poses: {poseOff} of {poseCount} off");
+        Check(Same(rec.Start, D(g, "start")) && rec.Frames.Count == g.GetProperty("frames").GetInt32(), "replay keeps the last 15 s");
+        var ws = g.GetProperty("windows").EnumerateArray().ToList();
+        var mine = new[] { rec.FinishWindow(20), rec.FinishWindow(21.5), rec.CrashWindow(15), rec.CrashWindow(21) };
+        for (int i = 0; i < 4; i++) Check(Same(mine[i].from, ws[i][0].GetDouble()) && Same(mine[i].to, ws[i][1].GetDouble()), $"replay window {i}");
+        Console.WriteLine($"fx: {n} pieces of debris, {poseCount} replay poses");
     }
 
     /// <summary>The gopher and the yeti (Core/Critters.cs) against the web game's (critters.json): the same car, the same poses.</summary>

@@ -34,6 +34,12 @@ namespace CornerCutters.Game
     public sealed class CarView
     {
         public readonly GameObject Root;
+        /// <summary>the parts a big crash can tear off (vehicles3d.ts parts): the nose with its front wing, and each wheel
+        /// (front left, front right, rear left, rear right), each its own object with its origin where it sits</summary>
+        public readonly GameObject Nose;
+        public readonly GameObject[] Wheels = new GameObject[4];
+        /// <summary>the car's own material (its paint, charred as it burns: effects.ts CarFx)</summary>
+        public readonly Material Paint;
         const float K = Units.PerPx;
         // the car's numbers (web: driving.ts f1 class): px
         const float W = 14, L = 30;
@@ -88,10 +94,14 @@ namespace CornerCutters.Game
         }
 
         /// <param name="band">the tyres' compound colour (0xRRGGBB: the soft's red unless given)</param>
-        public CarView(Livery look, int band = 0xe8463c)
+        /// <param name="helmet">a driver in the cockpit (not at the ceremony: they're up on the car)</param>
+        public CarView(Livery look, int band = 0xe8463c, bool helmet = true)
         {
             Root = new GameObject("Car");
+            Paint = new Material(MeshBuilder.VertexColorMaterial()) { name = "Car paint" };
             var mb = new MeshBuilder();
+            var nose = new MeshBuilder();
+            float noseZ = -(L / 2 - 6);
             var body = look.Body;
             var trim = look.Trim;
             var pods = look.Accent ?? body;
@@ -99,32 +109,35 @@ namespace CornerCutters.Game
             var dark = new Color(0.07f, 0.07f, 0.07f);
 
             PatternBox(mb, 5, 3.5f, L - 6, 3.5f, 1, body, trim, look.Pattern, body);       // tub, the pattern along its top
-            Box(mb, 3, 2.5f, 8, 3, -(L / 2 - 6), body, 0, trim);                              // nose (its top in the trim colour)
+            Box(nose, 3, 2.5f, 8, 3, 0, body, 0, trim);                                        // nose (its top in the trim colour)
             foreach (float sx in new[] { -4f, 4f }) Box(mb, 3, 3, 9, 3, 3, pods, sx);         // sidepods
             Box(mb, 3.5f, 1.5f, 5, 5.8f, 0, carbon);                                          // cockpit
             if (look.Pattern != LiveryPattern.Plain) PatternBox(mb, 11, 0.6f, 8, 5.4f, 7, body, trim, look.Pattern, pods); // engine cover
             Box(mb, 2.6f, 2.4f, 3, 7.6f, 2.6f, body);                                         // air intake
             Box(mb, 4.2f, 1, 1.6f, 9.3f, 2.4f, look.TCam ?? carbon);                          // T-camera
-            mb.Sphere(new Vector3(0, 7.2f * K, -0.5f * K), 1.7f * K, new Color(0.91f, 0.91f, 0.93f)); // helmet
-            Box(mb, W, 0.8f, 3, 1.4f, -(L / 2 - 1.5f), trim);                                 // front wing
+            if (helmet) mb.Sphere(new Vector3(0, 7.2f * K, -0.5f * K), 1.7f * K, new Color(0.91f, 0.91f, 0.93f)); // helmet
+            Box(nose, W, 0.8f, 3, 1.4f, -(L / 2 - 1.5f) - noseZ, trim);                       // front wing
             Box(mb, W - 3, 0.8f, 2.5f, 8.5f, L / 2 - 1.5f, trim, 0, body);                    // rear wing
             foreach (float sx in new[] { -(W - 3) / 2, (W - 3) / 2 }) Box(mb, 0.6f, 5, 3, 6.5f, L / 2 - 1.5f, carbon, sx); // end plates
 
             // wheels: [z, radius, width, half-track] per axle; the compound band (soft: red) round the outer edge
             var rubber = new Color(0.082f, 0.082f, 0.082f);
             var bandColor = TrackView.Hex(band);
+            int wheel = 0;
             foreach (var (z, r, w, half) in new[] { (-(L / 2 - 8), 3.2f, 3f, W / 2 - 1.5f), (L / 2 - 6, 3.8f, 3.6f, W / 2 - 1.2f) })
                 foreach (float sx in new[] { -1f, 1f })
                 {
-                    var hub = new Vector3(sx * half * K, r * K, -z * K);
-                    mb.CylinderX(hub, r * K, w * K, 12, rubber);
-                    mb.CylinderX(hub + new Vector3(sx * (w / 2 - 0.4f) * K, 0, 0), (r + 0.12f) * K, 0.8f * K, 12, bandColor, openEnded: true);
+                    var wb = new MeshBuilder();
+                    wb.CylinderX(Vector3.zero, r * K, w * K, 12, rubber);
+                    wb.CylinderX(new Vector3(sx * (w / 2 - 0.4f) * K, 0, 0), (r + 0.12f) * K, 0.8f * K, 12, bandColor, openEnded: true);
+                    Wheels[wheel++] = Part(wb, "wheel", new Vector3(sx * half * K, r * K, -z * K));
                 }
 
             var body3d = new GameObject("body");
             body3d.transform.SetParent(Root.transform, false);
             body3d.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh("car");
-            body3d.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.VertexColorMaterial();
+            body3d.AddComponent<MeshRenderer>().sharedMaterial = Paint;
+            Nose = Part(nose, "nose", new Vector3(0, 0, -noseZ * K));
 
             // a soft shadow on the ground, a little to the lower right
             var sh = new MeshBuilder();
@@ -136,6 +149,26 @@ namespace CornerCutters.Game
             shadow.transform.localPosition = new Vector3(0, 0.03f, 0);
             shadow.AddComponent<MeshFilter>().sharedMesh = sh.ToMesh("car shadow");
             shadow.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.ShadowMaterial();
+        }
+
+        GameObject Part(MeshBuilder mb, string name, Vector3 at)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(Root.transform, false);
+            go.transform.localPosition = at;
+            go.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh(name);
+            go.AddComponent<MeshRenderer>().sharedMaterial = Paint;
+            return go;
+        }
+
+        /// <summary>The paint at `k` of its colour (1 whole, 0.6 burning, 0.22 a wreck's).</summary>
+        public void Char(float k) => Paint.color = new Color(k, k, k, 1);
+
+        /// <summary>Every part back on (a new session).</summary>
+        public void Refit()
+        {
+            Nose.SetActive(true);
+            foreach (var w in Wheels) w.SetActive(true);
         }
     }
 

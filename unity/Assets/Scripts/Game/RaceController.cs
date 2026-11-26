@@ -7,6 +7,10 @@
 // the race runs to its forecast, the rain falling, the track darkening and the cars throwing up spray as it wets.
 // This class wires input, the fixed-step clock, the views and the HUD (the timing tower, your place, the race's
 // calls). Restart replays the session; a new circuit, or a new weather, draws a new weekend.
+// Before the lights the camera walks down the grid naming each car (GridPan); a big crash throws the car's nose and a
+// wheel or two clear (DebrisView), sets it smoking or alight (CarFx, Particles), and a moment later plays again slowed
+// through the impact; after your flag your finish plays again, then the top three spray champagne in parc fermé
+// (Ceremony), then the results. Enter or A skips the grid walk, a replay or the ceremony.
 using System.Collections.Generic;
 using System.Linq;
 using CornerCutters.Core;
@@ -67,6 +71,29 @@ namespace CornerCutters.Game
         bool newLapRecord;
         HudView.ResultsTable results;
         float tableUp;
+
+        // the picture's own: the puffs, the debris, each car's smoke and fire, last frame's health (for sparks)
+        Particles particles;
+        DebrisView debris;
+        readonly List<CarFx> fx = new List<CarFx>();
+        double[] healthWas = new double[0];
+        StepEvents[] lastEvents = new StepEvents[0];
+        double[] landed = new double[0];
+        // the replays: every car recorded; the one playing (its race time now, its end, the moment it's of, the car followed)
+        ReplayRecorder recorder;
+        sealed class Playing { public double T, To, At; public bool Crash; public int Follow; }
+        Playing replay;
+        (double at, int who)? crashDue;
+        double lastCrashReplay;
+        bool replayed;
+        // the grid walk (s in, and its length), and the ceremony (its top three and s in)
+        double? panT;
+        double panLength;
+        float zoom = 1;
+        Ceremony ceremony;
+        List<int> podiumTop;
+        float podiumT;
+        float blur = 1.2f;
         readonly Team team = Field.Teams[0];
         readonly Difficulty difficulty = Field.Normal;
         Weekend weekend;
@@ -99,6 +126,8 @@ namespace CornerCutters.Game
             chase = new ChaseCamera(cam);
             this.cam = cam;
             weatherView = new WeatherView();
+            particles = new Particles(220);
+            ceremony = new Ceremony(transform);
             weatherChoice = (WeatherChoice)Mathf.Clamp(PlayerPrefs.GetInt("weather", 0), 0, 3);
             safetyCar = new SafetyCarView();
             safetyCar.Root.transform.SetParent(transform, false);
@@ -134,6 +163,8 @@ namespace CornerCutters.Game
             }
             stands = StandView.Build(circuitView, circuit, structure: !baked);
             lights = new StartLights(circuitView.transform, circuit);
+            debris?.Clear();
+            debris = new DebrisView(transform, grid);
             hud = new HudView(circuit);
             record = PlayerPrefs.HasKey("rec." + circuit.id) ? PlayerPrefs.GetFloat("rec." + circuit.id) : double.NaN;
             bestLap = double.NaN;
@@ -219,6 +250,12 @@ namespace CornerCutters.Game
             results = null;
             Begin(new List<int>(slots));
             lapsSeen = new int[race.Entrants.Count];
+            // the grid walk first (Enter or A skips it; GRID WALK off in the settings: straight to the lights)
+            if (PlayerPrefs.GetInt("gridWalk", 1) != 0)
+            {
+                panT = 0;
+                panLength = GridPan.LengthOf(slots.Count);
+            }
         }
 
         /// <summary>A session's cars on the screen, `drivers` in the entrants' places, and a clean slate for the rest.</summary>
@@ -238,7 +275,21 @@ namespace CornerCutters.Game
             notice = null;
             sinceStart = 0;
             paused = false;
-            weatherView.Clear();
+            particles.Clear();
+            debris.Clear();
+            fx.Clear();
+            for (int k = 0; k < race.Entrants.Count; k++) fx.Add(new CarFx());
+            healthWas = race.Entrants.Select(e => e.Car.Health).ToArray();
+            lastEvents = new StepEvents[race.Entrants.Count];
+            landed = new double[race.Entrants.Count];
+            recorder = new ReplayRecorder(race.Entrants.Count + 1);
+            replay = null;
+            crashDue = null;
+            lastCrashReplay = double.NegativeInfinity;
+            replayed = false;
+            panT = null;
+            podiumTop = null;
+            ceremony.Show(false);
             clock.Carry = 0;
             input.ResetWheel();
             chase.Snap();
@@ -278,6 +329,9 @@ namespace CornerCutters.Game
             if (input.AcceptPressed && !paused)
             {
                 if (session == Session.QualiOver) StartRace(qualiGrid);
+                else if (panT.HasValue) panT = null;
+                else if (replay != null) EndReplay();
+                else if (podiumTop != null && results == null) podiumT = Ceremony.Len;
                 else if (results != null) LoadCircuit(circuitIndex + 1);
             }
             if (input.CameraPressed) chase.Cycle();
@@ -285,10 +339,17 @@ namespace CornerCutters.Game
             float frame = Time.unscaledDeltaTime;
             if (!paused)
             {
-                clock.Advance(frame, out int steps, out double alpha);
-                for (int i = 0; i < steps; i++) Step();
-                alpha = System.Math.Min(1, clock.Carry / clock.Step);
-                Draw(alpha, frame);
+                if (session == Session.Race) Watching(frame);
+                // (during the grid walk and a replay nothing moves: the race holds)
+                if (panT.HasValue || replay != null) Draw(1, frame);
+                else
+                {
+                    clock.Advance(frame, out int steps, out double alpha);
+                    for (int k = 0; k < landed.Length; k++) landed[k] = 0;
+                    for (int i = 0; i < steps; i++) Step();
+                    alpha = System.Math.Min(1, clock.Carry / clock.Step);
+                    Draw(alpha, frame);
+                }
             }
             else
             {
@@ -297,6 +358,63 @@ namespace CornerCutters.Game
             if (session == Session.Race) UpdateResults();
             if (qualiTable != null || results != null) tableUp += frame;
         }
+
+        /// <summary>
+        /// What the race holds for: the grid walk till it's down the grid; a few seconds after your flag your finish
+        /// again; a moment after a big crash, the seconds round it; and once your finish has played, the ceremony.
+        /// </summary>
+        void Watching(float frame)
+        {
+            if (panT.HasValue)
+            {
+                panT += frame;
+                if (panT >= panLength) panT = null;
+            }
+            var mine = Me.Progress;
+            if (replay == null && !replayed && mine.Finished.HasValue && race.Clock >= mine.Finished.Value + ReplayRecorder.StartAt && podiumTop == null && results == null)
+            {
+                var w = recorder.FinishWindow(mine.Finished.Value);
+                replay = new Playing { T = w.from, To = w.to, At = mine.Finished.Value, Follow = you };
+            }
+            if (replay == null && crashDue.HasValue && race.Clock >= crashDue.Value.at + CrashReplay.Delay)
+            {
+                var w = recorder.CrashWindow(crashDue.Value.at);
+                replay = new Playing { T = w.from, To = w.to, At = crashDue.Value.at, Crash = true, Follow = crashDue.Value.who };
+                crashDue = null;
+            }
+            if (replay != null)
+            {
+                replay.T += frame * (replay.Crash ? CrashReplay.SpeedAt(replay.T, replay.At) : ReplayRecorder.FinishSpeed(replay.T, replay.At));
+                if (replay.T >= replay.To) EndReplay();
+            }
+            if (podiumTop == null && mine.Finished.HasValue && replayed && results == null) StartCeremony();
+            if (podiumTop != null && results == null) podiumT += frame;
+        }
+
+        /// <summary>The replay over (or skipped): back to the race, live (after your flag, the ceremony follows).</summary>
+        void EndReplay()
+        {
+            if (replay != null && !replay.Crash) replayed = true;
+            replay = null;
+            debris.Back();
+        }
+
+        /// <summary>The ceremony: the race finished at once (the rest at their pace, everyone put in their garage), and the top three on the podium.</summary>
+        void StartCeremony()
+        {
+            podiumTop = RaceControl.SkipToParked(race).Take(3).ToList();
+            podiumT = 0;
+            var top = new List<(CarView, Team, bool)>();
+            foreach (int i in podiumTop)
+            {
+                var d = weekend.Drivers[driverOf[i]];
+                var car = new CarView(Livery.FromTeam(d.Team, d.Seat), Tyres.Color(race.Entrants[i].Tyres.Compound), helmet: false);
+                top.Add((car, d.Team, i == you));
+            }
+            ceremony.SetDrivers(top);
+        }
+
+        bool OnSet => podiumTop != null && results == null;
 
         /// <summary>The next weather (dry, damp, wet, changeable), remembered, and a new weekend in it.</summary>
         void NextWeather()
@@ -311,7 +429,7 @@ namespace CornerCutters.Game
         {
             var p = Me.Progress;
             if (p.Finished.HasValue && flagAt == null) flagAt = sinceStart;
-            bool show = results != null || (flagAt.HasValue && sinceStart - flagAt.Value >= 4) || (p.Retired && RaceControl.Settled(race));
+            bool show = results != null || (podiumTop != null && podiumT >= Ceremony.Len) || (!p.Finished.HasValue && p.Retired && RaceControl.Settled(race));
             if (!show) return;
             if (results == null) tableUp = 0;
             var order = RaceControl.Order(race);
@@ -345,7 +463,13 @@ namespace CornerCutters.Game
                 if (session != Session.QualiOver && (double.IsNaN(bestLap) || t < bestLap)) bestLap = t;
                 if (session == Session.Race && (double.IsNaN(record) || t < record)) { record = t; newLapRecord = true; PlayerPrefs.SetFloat("rec." + circuit.id, (float)t); }
             }
+            for (int k = 0; k < result.Cars.Length && k < landed.Length; k++)
+            {
+                lastEvents[k] = result.Cars[k];
+                landed[k] = System.Math.Max(landed[k], result.Cars[k].Landed);
+            }
             foreach (var ev in result.Race) Call(ev);
+            if (session == Session.Race) Record();
             if (session == Session.Qualifying) JudgeQualifying(result.Race);
             if (session == Session.Race) FastestLap();
             for (int k = 0; k < race.Entrants.Count; k++) now[k] = PoseOf(race.Entrants[k].Car);
@@ -355,6 +479,41 @@ namespace CornerCutters.Game
                 // (just out: drawn where it joins, not swept there from the last place it was)
                 now[sc] = PoseOf(race.Sc.Car);
                 if (!scWasOut) was[sc] = now[sc];
+            }
+        }
+
+        /// <summary>Every car on the track (and the safety car) for the replays, as it is now.</summary>
+        void Record()
+        {
+            var cars = new ReplayPose?[race.Entrants.Count + 1];
+            for (int i = 0; i < race.Entrants.Count; i++)
+            {
+                var e = race.Entrants[i];
+                if (e.Progress.Retired || (e.Pit != null && e.Pit.Phase == PitPhase.Garage)) continue;
+                cars[i] = new ReplayPose { X = e.Car.X, Y = e.Car.Y, Z = e.Car.Z, Heading = e.Car.Heading, Condition = Driving.Condition(e.Car) };
+            }
+            if (race.Sc != null) cars[race.Entrants.Count] = new ReplayPose { X = race.Sc.Car.X, Y = race.Sc.Car.Y, Z = race.Sc.Car.Z, Heading = race.Sc.Car.Heading };
+            recorder.Record(race.Clock, cars);
+        }
+
+        /// <summary>A big crash: replayed in a moment (in a race, before your flag); the nose torn off, and on a wreck a wheel or two.</summary>
+        void Crashed(RaceEvent ev)
+        {
+            var them = race.Entrants[ev.Who].Car;
+            if (session == Session.Race && !Me.Progress.Finished.HasValue && crashDue == null
+                && CrashReplay.Wants(ev.Who == you, ev.Wrecked, ev.Hit, RaceControl.BigHit, JsMath.Hypot(them.X - Me.Car.X, them.Y - Me.Car.Y), race.Clock, lastCrashReplay))
+            {
+                crashDue = (race.Clock, ev.Who);
+                lastCrashReplay = race.Clock;
+            }
+            var view = views[ev.Who];
+            double power = ev.Wrecked ? 1 : System.Math.Min(1, ev.Hit * 1.5);
+            debris.Tear(view, view.Nose, race.Clock, ev.Vx, ev.Vy, power);
+            if (ev.Wrecked)
+            {
+                int first = Random.Range(0, 4);
+                var lost = Random.value < 0.5f ? new[] { first } : new[] { first, (first + 1 + Random.Range(0, 3)) % 4 };
+                foreach (int k in lost) debris.Tear(view, view.Wheels[k], race.Clock, ev.Vx, ev.Vy, power, onItsSide: true);
             }
         }
 
@@ -412,6 +571,8 @@ namespace CornerCutters.Game
                 case RaceEventKind.Blue when mine: Notice("BLUE FLAG · LET THEM BY", blue, 3); break;
                 case RaceEventKind.PitStop when mine: Notice($"PIT STOP · {ev.Seconds:0.0}S · {Tyres.Name(Me.Tyres.Compound)}", ink, 3); break;
                 case RaceEventKind.Wreck when mine: Notice("WRECKED", red, 4); break;
+                case RaceEventKind.Crash: Crashed(ev); break;
+                case RaceEventKind.PitRepaired: debris.Refit(views[ev.Who], race.Clock); break;
                 case RaceEventKind.Retired when !mine: Notice($"{DriverName(driverOf[ev.Who])} OUT", ink, 3); break;
                 case RaceEventKind.Rain: Notice(ev.On ? "RAIN · THE TRACK IS GETTING WET" : "THE RAIN HAS STOPPED · THE TRACK WILL DRY", TrackView.Hex(0x8fb8e8), 2.5); break;
                 case RaceEventKind.TrackCondition when sinceStart >= noticeUntil:
@@ -436,42 +597,114 @@ namespace CornerCutters.Game
 
         void Draw(double alpha, float frame)
         {
+            float dt = paused ? 0 : frame;
+            // the ceremony: its set alone (far off the circuit), its own shot, no tilt-shift
+            ceremony.Show(OnSet);
+            var post = cam.GetComponent<TiltShiftEffect>();
+            if (post != null) post.Amount = OnSet ? 0 : blur;
+            if (OnSet)
+            {
+                ceremony.Aim(podiumT, cam);
+                ceremony.Update(podiumT, dt, cam);
+                return;
+            }
             lights.Show(race.Phase == RacePhase.Lights ? StartLights.LitAt(race.Clock + RaceControl.Lights) : 0);
+            bool replaying = replay != null;
+            bool spray = weatherView.Look.Spray, muddy = track.Dirt && !spray;
             for (int k = 0; k < race.Entrants.Count; k++)
             {
                 var e = race.Entrants[k];
-                // (a wreck cleared off by the marshals is gone)
-                bool shown = !e.Progress.Retired;
-                if (views[k].Root.activeSelf != shown) views[k].Root.SetActive(shown);
-                if (!shown) continue;
-                if (viewTyres[k] != e.Tyres.Compound) AddView(k);
-                var p = Between(k, alpha);
-                var g = Bridge.GridFor(track, grid, e.Progress.Idx);
-                views[k].Root.transform.SetPositionAndRotation(Units.ToWorld(p.X, p.Y, p.Z), Units.Rotation(e.Car, g, p.H));
+                var view = views[k];
+                if (viewTyres[k] != e.Tyres.Compound) { AddView(k); view = views[k]; }
+                double x, y, z, h;
+                Quaternion turn;
+                CarCondition condition;
+                if (replaying)
+                {
+                    // (in the replay, where it was then, as it was then: whole before its crash)
+                    var then = recorder.Pose(k, replay.T);
+                    if (view.Root.activeSelf != then.HasValue) view.Root.SetActive(then.HasValue);
+                    if (then == null) continue;
+                    x = then.Value.X; y = then.Value.Y; z = then.Value.Z; h = then.Value.Heading;
+                    turn = Quaternion.Euler(0, Units.Yaw(h), 0);
+                    condition = then.Value.Condition;
+                }
+                else
+                {
+                    // (a wreck cleared off by the marshals is gone)
+                    bool shown = !e.Progress.Retired;
+                    if (view.Root.activeSelf != shown) view.Root.SetActive(shown);
+                    if (!shown) continue;
+                    var p = Between(k, alpha);
+                    x = p.X; y = p.Y; z = p.Z; h = p.H;
+                    turn = Units.Rotation(e.Car, Bridge.GridFor(track, grid, e.Progress.Idx), p.H);
+                    condition = Driving.Condition(e.Car);
+                }
+                view.Root.transform.SetPositionAndRotation(Units.ToWorld(x, y, z), turn);
+                double speed = Driving.SpeedOf(e.Car);
+                var ev = lastEvents[k];
+                float dust = !replaying && ev.OnRough && speed > 25 ? (float)System.Math.Min(1, speed / 120) : 0;
+                fx[k].Update(dt, condition, particles, view, (float)x, (float)y, (float)z, dust);
+                if (replaying || dt == 0) continue;
+                // sparks: off a hit (a wall, another car), thrown back the way it was going, and off a hard landing
+                double lost = healthWas[k] - e.Car.Health;
+                healthWas[k] = e.Car.Health;
+                float bx = speed > 1 ? (float)(-e.Car.Vx / speed) : 0, by = speed > 1 ? (float)(-e.Car.Vy / speed) : 0;
+                if (lost > 0.5) particles.Sparks((float)x, (float)y, (float)z, System.Math.Min(14, 4 + (int)System.Math.Round(lost)), bx * 0.6f, by * 0.6f);
+                if (landed[k] > 160) particles.Sparks((float)x, (float)y, (float)z, 6);
+                // on dirt, mud flung up behind it at speed (and more while it slides)
+                if (muddy && !ev.Airborne && speed > 50 && Random.value < dt * (12 * System.Math.Min(1, speed / 250) + (ev.Skidding ? 16 : 0)))
+                    particles.Mud((float)(x - JsMath.Sin(h) * 15), (float)(y + JsMath.Cos(h) * 15), (float)z);
             }
-            bool scOut = race.Sc != null;
+            if (replaying) debris.Replay(replay.T); else debris.Update(race.Clock);
+            // the safety car (in the replay, if it was out then)
+            var scThen = replaying ? recorder.Pose(race.Entrants.Count, replay.T) : null;
+            bool scOut = replaying ? scThen.HasValue : race.Sc != null;
             if (safetyCar.Root.activeSelf != scOut) safetyCar.Root.SetActive(scOut);
             if (scOut)
             {
-                var p = Between(race.Entrants.Count, alpha);
-                safetyCar.Root.transform.SetPositionAndRotation(Units.ToWorld(p.X, p.Y, p.Z), Units.Rotation(race.Sc.Car, grid, p.H));
+                if (replaying) safetyCar.Root.transform.SetPositionAndRotation(Units.ToWorld(scThen.Value.X, scThen.Value.Y, scThen.Value.Z), Quaternion.Euler(0, Units.Yaw(scThen.Value.Heading), 0));
+                else
+                {
+                    var p = Between(race.Entrants.Count, alpha);
+                    safetyCar.Root.transform.SetPositionAndRotation(Units.ToWorld(p.X, p.Y, p.Z), Units.Rotation(race.Sc.Car, grid, p.H));
+                }
                 safetyCar.Step(frame);
             }
             weatherView.Show(race.Wetness, race.Rain, cam);
-            if (!paused) weatherView.Spray(race.Entrants, race.Rain, frame);
-            weatherView.Step(paused ? 0 : frame, cam);
+            if (!paused && !replaying) weatherView.Spray(race.Entrants, race.Rain, frame, particles);
+            particles.Step(dt, cam);
             var me = Between(you, alpha);
             var car = Me.Car;
-            var pos = Units.ToWorld(me.X, me.Y, me.Z);
             // (the crowds sway on while paused, as the web game's: frame is 0 then only if the clock stops)
             if (stands != null) stands.Step(frame, me.X, me.Y);
             movers?.Step(frame);
             planes?.Step(frame, me.X, me.Y, car.Vx, car.Vy);
             critters?.Step(frame, me.X, me.Y, car.Vx, car.Vy);
-            float speed01 = Mathf.Clamp01((float)(Driving.SpeedOf(car) / car.Cls.TopSpeed));
-            // look a little ahead of where the car is going (the web game's lead: about 40 px at full speed)
-            var lead = new Vector3((float)(car.Vx / car.Cls.TopSpeed * 2.5), 0, (float)(-car.Vy / car.Cls.TopSpeed * 2.5));
-            chase.Follow(pos, Units.Yaw(me.H), speed01, lead, frame);
+            // the camera: down the grid (closer in), on the car a replay follows as it was, or on yours
+            zoom += ((panT.HasValue ? (float)GridPan.Zoom : 1) - zoom) * (1 - Mathf.Exp(-frame * 4));
+            chase.Zoom = zoom;
+            var followed = replaying ? recorder.Pose(replay.Follow, replay.T) : null;
+            if (panT.HasValue)
+            {
+                var at = GridPan.At(circuit.slots.Take(race.Entrants.Count).Select(q => q.x).ToList(), circuit.slots.Take(race.Entrants.Count).Select(q => q.y).ToList(), panT.Value);
+                chase.Follow(Units.ToWorld(at.x, at.y, Sim.GroundAt(grid, at.x, at.y).H * 0.5), 0, 0, Vector3.zero, frame);
+            }
+            else if (followed.HasValue)
+            {
+                var f = followed.Value;
+                // (looking ahead along its way, as the web game's replay does)
+                var ahead = new Vector3((float)(JsMath.Sin(f.Heading) * 2.5 * 0.6), 0, (float)(JsMath.Cos(f.Heading) * 2.5 * 0.6));
+                chase.Follow(Units.ToWorld(f.X, f.Y, f.Z), Units.Yaw(f.Heading), 0, ahead, frame);
+            }
+            else
+            {
+                var pos = Units.ToWorld(me.X, me.Y, me.Z);
+                float speed01 = Mathf.Clamp01((float)(Driving.SpeedOf(car) / car.Cls.TopSpeed));
+                // look a little ahead of where the car is going (the web game's lead: about 40 px at full speed)
+                var lead = new Vector3((float)(car.Vx / car.Cls.TopSpeed * 2.5), 0, (float)(-car.Vy / car.Cls.TopSpeed * 2.5));
+                chase.Follow(pos, Units.Yaw(me.H), speed01, lead, frame);
+            }
         }
 
         // ---- the HUD (HudView: the web game's, in its pixel font) ----
@@ -500,9 +733,53 @@ namespace CornerCutters.Game
             return rows;
         }
 
+        /// <summary>The grid walk's banner: the car the camera's on, by grid place, name and team (you in gold).</summary>
+        string PanBanner(out Color color)
+        {
+            color = TrackView.Hex(0xf4f4f8);
+            if (!panT.HasValue) return null;
+            int k = GridPan.At(circuit.slots.Take(race.Entrants.Count).Select(q => q.x).ToList(), circuit.slots.Take(race.Entrants.Count).Select(q => q.y).ToList(), panT.Value).car;
+            if (k == you) color = TrackView.Hex(0xf2c14e);
+            return $"P{k + 1} {DriverName(driverOf[k])} · {weekend.Drivers[driverOf[k]].Team.Code}";
+        }
+
+        /// <summary>The ceremony's words: the circuit's name and GRAND PRIX on the wall, the boards' numbers, the name plates.</summary>
+        void CeremonyWords()
+        {
+            Vector2 Screen2(Vector3 world)
+            {
+                var v = cam.WorldToScreenPoint(world);
+                return new Vector2(v.x, Screen.height - v.y);
+            }
+            var words = new List<(Vector2, string, Color, float, bool)>();
+            var winner = weekend.Drivers[driverOf[podiumTop[0]]].Team;
+            var body = TrackView.Hex(winner.Body);
+            var ink = 0.299f * body.r + 0.587f * body.g + 0.114f * body.b > 0.55f ? TrackView.Hex(0x1b1b26) : TrackView.Hex(0xf4f4f8);
+            // (sized to the wall as it's seen: its half width on the screen)
+            var top = Screen2(ceremony.WallTop);
+            float half = Mathf.Abs(Screen2(ceremony.WallEdge).x - top.x) / (Screen.height / 720f);
+            float px = Mathf.Clamp(half * 2 / Mathf.Max(8, circuit.name.Length) * 1.2f, 8, 40);
+            words.Add((top - new Vector2(0, px * 0.9f * Screen.height / 720f), circuit.name.ToUpperInvariant(), ink, px, false));
+            words.Add((top + new Vector2(0, px * 0.9f * Screen.height / 720f), "GRAND PRIX", ink, px, false));
+            for (int k = 0; k < ceremony.Count; k++)
+            {
+                words.Add((Screen2(ceremony.Board(k)), $"{k + 1}", TrackView.Hex(0x1b1b26), Mathf.Clamp(half / 6, 8, 30), false));
+                var at = Screen2(ceremony.Plate(k));
+                if (at.x < Screen.width * 0.05f || at.x > Screen.width * 0.95f) continue;
+                int i = podiumTop[k];
+                words.Add((at, $"P{k + 1} {DriverName(driverOf[i])}", i == you ? TrackView.Hex(0xf2c14e) : TrackView.Hex(0xf4f4f8), 11, true));
+            }
+            hud.Words(words, "SKIP", input.Source);
+        }
+
         void OnGUI()
         {
             if (race == null || hud == null) return;
+            if (OnSet && !paused)
+            {
+                CeremonyWords();
+                return;
+            }
             var p = Me.Progress;
             bool racing = race.Phase == RacePhase.Racing;
             bool quali = session != Session.Race;
@@ -533,11 +810,15 @@ namespace CornerCutters.Game
                 Team = team.Name.ToUpperInvariant(), Difficulty = difficulty.Name, Weather = forecast.Name,
                 Place = order.IndexOf(you) + 1,
                 Cars = order.Count,
-                Tower = racing && !quali ? TowerRows(order) : null,
+                Tower = racing && !quali && !panT.HasValue ? TowerRows(order) : null,
                 Strip = quali ? "QUALI   " + (p.LapStart == null ? "OUT LAP" : qualiLap.Deleted ? "LAP DELETED" : "FLYING LAP") : null,
                 Rain = race.Rain,
                 Quali = session == Session.Qualifying,
                 WeatherChoice = WeatherLooks.Name(weatherChoice),
+                Banner = PanBanner(out var bannerColor) ?? (replay != null && (Time.unscaledTime * 2 % 2) < 1.4f ? "REPLAY" : null),
+                BannerColor = replay != null ? TrackView.Hex(0xd8323c) : bannerColor,
+                Skip = panT.HasValue || replay != null ? "SKIP" : null,
+                GridWalk = PlayerPrefs.GetInt("gridWalk", 1) != 0,
                 Tyre = $"{Tyres.Short(Me.Tyres.Compound)} {System.Math.Round((1 - Me.Tyres.Wear) * 100):0}%",
                 TyreColor = TrackView.Hex(Tyres.Color(Me.Tyres.Compound)),
                 Notice = sinceStart < noticeUntil ? notice : held,
@@ -548,6 +829,7 @@ namespace CornerCutters.Game
             else if (choice == HudView.PauseChoice.Restart) Restart();
             else if (choice == HudView.PauseChoice.SkipQualifying) StartRace(null);
             else if (choice == HudView.PauseChoice.Weather) NextWeather();
+            else if (choice == HudView.PauseChoice.GridWalk) PlayerPrefs.SetInt("gridWalk", PlayerPrefs.GetInt("gridWalk", 1) != 0 ? 0 : 1);
             else if (choice == HudView.PauseChoice.NextCircuit) LoadCircuit(circuitIndex + 1);
             if (paused) return;
             // qualifying's times, then the results at the flag

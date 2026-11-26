@@ -60,6 +60,13 @@ namespace CornerCutters.Game
             public bool Quali;
             /// <summary>the weather picked, on its pause button</summary>
             public string WeatherChoice;
+            /// <summary>the banner's own text over everything else (the grid walk's car, REPLAY), and its colour</summary>
+            public string Banner;
+            public Color BannerColor;
+            /// <summary>what Enter or A does now (SKIP), shown at the bottom right; null for nothing</summary>
+            public string Skip;
+            /// <summary>GRID WALK in the settings: the pan down the grid before each race</summary>
+            public bool GridWalk;
         }
 
         /// <summary>A row of the timing tower (towerView.ts): its place, the team's colours, the name, the gap; Gap null: the ··· between the top three and you.</summary>
@@ -71,7 +78,7 @@ namespace CornerCutters.Game
             public bool You, Out, Blue;
         }
 
-        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, NextCircuit }
+        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, GridWalk, NextCircuit }
 
         /// <summary>Qualifying's table: the title, the rows, where you start, the record line.</summary>
         public sealed class QualiTable
@@ -168,6 +175,7 @@ namespace CornerCutters.Game
             TowerView(s, w);
             Banner(s, w, h);
             Controls(s, h);
+            SkipHint(s.Skip, s.Source, w, h);
             return s.Paused ? Pause(s, w, h) : PauseChoice.None;
         }
 
@@ -325,6 +333,11 @@ namespace CornerCutters.Game
         void Banner(State s, float w, float h)
         {
             float y = h * 0.3f;
+            if (s.Banner != null)
+            {
+                Text(0, y, w, 30, s.Banner, Style(20, s.BannerColor, TextAnchor.MiddleCenter), Shadow);
+                return;
+            }
             if (s.Lights)
             {
                 // ● ● ○ ○ ○ in red, 20 px type: drawn as dots, the font has no circles
@@ -353,6 +366,40 @@ namespace CornerCutters.Game
             else if (s.Notice != null) { text = s.Notice; color = s.NoticeColor; }
             if (text == null) return;
             Text(0, y, w, 30, text, Style(20, color, TextAnchor.MiddleCenter), Shadow);
+        }
+
+        /// <summary>Bottom right: what Enter (or A) does now, as a keycap and its word.</summary>
+        void SkipHint(string what, InputSource source, float w, float h)
+        {
+            if (what == null) return;
+            string key = source == InputSource.Gamepad ? "A" : "ENTER";
+            var keySt = Style(10, Ink, TextAnchor.MiddleCenter);
+            var labelSt = Style(10, Muted);
+            float kw = Width(key, keySt) + 12, lw = Width(what, labelSt), bw = 6 + kw + 5 + lw + 8;
+            float x = w - 12 - bw, y = h - 12 - 30;
+            Fill(R(x, y, bw, 30), Strip, 8 * k);
+            Fill(R(x + 6, y + 5, kw, 20), KeyBg, 6 * k, Mathf.Max(1, k), KeyEdge);
+            Text(x + 6, y + 5, kw, 20, key, keySt);
+            Text(x + 6 + kw + 5, y, lw, 30, what, labelSt);
+        }
+
+        /// <summary>The ceremony's words over the picture (the set has no lettering of its own): each at a screen point (px from top left), in the pixel font.</summary>
+        public void Words(IEnumerable<(Vector2 at, string text, Color color, float px, bool panel)> words, string skip, InputSource source)
+        {
+            k = Screen.height / 720f;
+            foreach (var wd in words)
+            {
+                var st = Style(wd.px, wd.color, TextAnchor.MiddleCenter);
+                float tw = Width(wd.text, st), th = wd.px * 1.6f;
+                float x = wd.at.x / k - tw / 2, y = wd.at.y / k;
+                if (wd.panel)
+                {
+                    Fill(R(x - 8, y, tw + 16, th + 6), Rgba(21, 20, 31, 0.85f), 6 * k);
+                    Text(x, y + 3, tw, th, wd.text, st);
+                }
+                else Text(x, y - th / 2, tw, th, wd.text, st);
+            }
+            SkipHint(skip, source, Screen.width / k, Screen.height / k);
         }
 
         /// <summary>Bottom left: the controls, each as its key and what it does (the deck's key prompts on a wide screen).</summary>
@@ -387,6 +434,7 @@ namespace CornerCutters.Game
             var list = new List<(string label, PauseChoice c)> { ("RESUME", PauseChoice.Resume), ("RESTART", PauseChoice.Restart) };
             if (s.Quali) list.Add(("SKIP QUALIFYING", PauseChoice.SkipQualifying));
             list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
+            list.Add(($"GRID WALK: {(s.GridWalk ? "ON" : "OFF")}", PauseChoice.GridWalk));
             list.Add(("NEXT CIRCUIT", PauseChoice.NextCircuit));
             float y = h / 2 - 25 * (list.Count + 1) - 10;
             Text(0, y, w, 34, "PAUSED", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
