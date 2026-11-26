@@ -11,7 +11,9 @@ namespace CornerCutters.Game
     public sealed class RaceController : MonoBehaviour
     {
         const int Laps = 3;
-        const double LightsSeconds = 3.0;
+        // the web game's lights: one every 0.6 s, all five lit at 3 s, held till 3.6 s and then out after a random 0.3 to 1 s more
+        const double LightsHeld = 3.6;
+        double lightsOut = LightsHeld + 0.6;
         // the web game's F1 car tops out at 320 px/s; shown as a real-looking number
         const double KmhPerPx = 340.0 / 320.0;
 
@@ -25,6 +27,9 @@ namespace CornerCutters.Game
         GameObject circuitView;
         StartLights lights;
         StandView stands;
+        HudView hud;
+        /// <summary>the best lap ever on this circuit (PlayerPrefs)</summary>
+        double record = double.NaN;
         CircuitData circuit;
         Grid grid;
         Track track;
@@ -74,6 +79,8 @@ namespace CornerCutters.Game
             PitView.Build(circuitView, circuit);
             stands = StandView.Build(circuitView, circuit);
             lights = new StartLights(circuitView.transform, circuit);
+            hud = new HudView(circuit);
+            record = PlayerPrefs.HasKey("rec." + circuit.id) ? PlayerPrefs.GetFloat("rec." + circuit.id) : double.NaN;
             bestLap = double.NaN;
             Restart();
         }
@@ -86,6 +93,7 @@ namespace CornerCutters.Game
             progress = Racing.NewProgress(Racing.NearestSample(track, car.X, car.Y));
             phase = Phase.Lights;
             phaseTime = raceTime = 0;
+            lightsOut = LightsHeld + 0.3 + Random.value * 0.7;
             paused = false;
             clock.Carry = 0;
             input.ResetWheel();
@@ -125,7 +133,7 @@ namespace CornerCutters.Game
             {
                 // lights: the wheel is held until they go out (a jump start is a later phase's rule)
                 drive = new DriveInput();
-                if (phaseTime >= LightsSeconds) { phase = Phase.Racing; phaseTime = 0; }
+                if (phaseTime >= lightsOut) { phase = Phase.Racing; phaseTime = 0; }
             }
             else if (phase == Phase.Racing)
             {
@@ -145,6 +153,7 @@ namespace CornerCutters.Game
                 {
                     double t = progress.LapTimes[progress.LapTimes.Count - 1];
                     if (double.IsNaN(bestLap) || t < bestLap) bestLap = t;
+                    if (double.IsNaN(record) || t < record) { record = t; PlayerPrefs.SetFloat("rec." + circuit.id, (float)t); }
                 }
                 if (progress.Finished.HasValue) { phase = Phase.Finished; phaseTime = 0; }
             }
@@ -166,51 +175,37 @@ namespace CornerCutters.Game
             chase.Follow(pos, Units.Yaw(h), speed01, lead, frame);
         }
 
-        // ---- placeholder HUD (IMGUI: no UI assets yet) ----
-
-        static string Time3(double t) => double.IsNaN(t) ? "--:--.---" : $"{(int)(t / 60)}:{t % 60:00.000}";
+        // ---- the HUD (HudView: the web game's, in its pixel font) ----
 
         void OnGUI()
         {
-            if (car == null) return;
-            float s = Screen.height / 720f;
-            GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
-            float w = Screen.width / s, h = Screen.height / s;
-            var big = new GUIStyle(GUI.skin.label) { fontSize = 54, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            var mid = new GUIStyle(GUI.skin.label) { fontSize = 24, fontStyle = FontStyle.Bold };
-            var small = new GUIStyle(GUI.skin.label) { fontSize = 15 };
-            var centre = new GUIStyle(small) { alignment = TextAnchor.MiddleCenter };
-
-            double kmh = Driving.SpeedOf(car) * KmhPerPx;
-            GUI.Label(new Rect(w - 250, h - 90, 230, 50), $"{kmh:0} km/h", new GUIStyle(mid) { alignment = TextAnchor.MiddleRight, fontSize = 36 });
-            double hp = car.Health / car.Cls.Health;
-            GUI.Label(new Rect(w - 250, h - 40, 230, 24), $"damage {(1 - hp) * 100:0}%" + (car.Wrecked ? "  WRECKED" : ""), new GUIStyle(small) { alignment = TextAnchor.MiddleRight });
-
-            GUI.Label(new Rect(20, 14, 500, 30), $"{circuit.name}   ({circuitIndex + 1}/{ids.Count})", mid);
-            double lapNow = progress.LapStart.HasValue ? raceTime - progress.LapStart.Value : double.NaN;
-            GUI.Label(new Rect(20, 48, 500, 24), $"LAP {System.Math.Min(Laps, progress.Lap + 1)}/{Laps}    {Time3(lapNow)}", small);
-            GUI.Label(new Rect(20, 70, 500, 24), $"LAST {Time3(progress.LapTimes.Count > 0 ? progress.LapTimes[progress.LapTimes.Count - 1] : double.NaN)}    BEST {Time3(bestLap)}", small);
-            if (progress.WrongWay > 0.8) GUI.Label(new Rect(0, 120, w, 60), "WRONG WAY", big);
-
-            if (phase == Phase.Lights)
+            if (car == null || hud == null) return;
+            double lapNow = progress.LapStart.HasValue && phase == Phase.Racing ? raceTime - progress.LapStart.Value : double.NaN;
+            var choice = hud.Draw(new HudView.State
             {
-                // the five lights, coming on one by one, all out for the start
-                int lit = StartLights.LitAt(phaseTime);
-                for (int i = 0; i < StartLights.Count; i++)
-                {
-                    GUI.color = i < lit ? new Color(1f, 0.08f, 0.05f) : new Color(0.25f, 0.05f, 0.05f);
-                    GUI.DrawTexture(new Rect(w / 2 - 125 + i * 52, h * 0.2f, 42, 42), Texture2D.whiteTexture);
-                }
-                GUI.color = Color.white;
-            }
-            else if (phase == Phase.Racing && phaseTime < 1.0) GUI.Label(new Rect(0, h * 0.25f, w, 80), "GO", big);
-            else if (phase == Phase.Finished)
-            {
-                GUI.Label(new Rect(0, h * 0.25f, w, 80), "FINISH", big);
-                GUI.Label(new Rect(0, h * 0.25f + 70, w, 30), $"race {Time3(progress.Finished ?? 0)}   best lap {Time3(bestLap)}", centre);
-            }
-            if (paused) GUI.Label(new Rect(0, h * 0.4f, w, 80), "PAUSED", big);
-            GUI.Label(new Rect(0, h - 28, w, 24), input.Hints, centre);
+                LapTime = lapNow,
+                Last = progress.LapTimes.Count > 0 ? progress.LapTimes[progress.LapTimes.Count - 1] : double.NaN,
+                Best = bestLap,
+                Record = record,
+                Health = car.Health / car.Cls.Health,
+                Wrecked = car.Wrecked,
+                Lap = System.Math.Min(Laps, progress.Lap + 1),
+                Laps = Laps,
+                Lights = phase == Phase.Lights,
+                Lit = StartLights.LitAt(phaseTime),
+                AllLit = phaseTime >= LightsHeld,
+                SinceGo = phase == Phase.Racing ? phaseTime : double.NaN,
+                WrongWay = progress.WrongWay,
+                Finished = phase == Phase.Finished,
+                RaceTime = progress.Finished ?? 0,
+                Paused = paused,
+                CarX = cx, CarY = cy,
+                Source = input.Source,
+                Team = "MILK ENERGY", Difficulty = "NORMAL", Weather = "DRY",
+            });
+            if (choice == HudView.PauseChoice.Resume) paused = false;
+            else if (choice == HudView.PauseChoice.Restart) Restart();
+            else if (choice == HudView.PauseChoice.NextCircuit) LoadCircuit(circuitIndex + 1);
         }
     }
 }

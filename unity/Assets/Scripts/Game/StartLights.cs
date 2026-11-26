@@ -1,4 +1,4 @@
-// The start gantry: five red lights over the line that come on one by one (every 0.5 s) and all go out for the start.
+// The start gantry: five red lights over the line that come on one by one (every 0.6 s) and all go out for the start.
 // A 3D gantry over the start line (so you see it from the grid) and the same five lights on the HUD (RaceController.OnGUI).
 using CornerCutters.Core;
 using UnityEngine;
@@ -8,7 +8,7 @@ namespace CornerCutters.Game
     public sealed class StartLights
     {
         public const int Count = 5;
-        public const double Interval = 0.5;
+        public const double Interval = 0.6;   // (the web game's: raceControl.ts LIGHTS, a light every 0.6 s)
         static readonly Color Off = new Color(0.18f, 0.03f, 0.03f);
         static readonly Color On = new Color(1f, 0.08f, 0.05f);
 

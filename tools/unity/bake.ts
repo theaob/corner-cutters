@@ -36,6 +36,8 @@ function pitsOf(c: ReturnType<typeof buildCircuit>) {
   const wallThick = PIT.offset - LANE_IN - PIT_WALL;
   return {
     side: pit.side,
+    /** the lane's line, entry to exit (for the minimap) */
+    lane: { x: pit.points.map((p) => round(p.x, 1)), y: pit.points.map((p) => round(p.y, 1)), dir: pit.points.map((p) => round(p.dir, 4)) },
     boxSpacing: PIT.boxSpacing,
     garages: garageSpots(c).map((g) => ({ x: round(g.x, 2), y: round(g.y, 2), dir: round(g.dir, 6) })),
     /** the pit wall: blocks between consecutive points, wallThick px thick, centred wallAcross px from the lane's line */

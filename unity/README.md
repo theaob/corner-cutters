@@ -15,8 +15,9 @@ grid boxes, chequered line: baked from its painter, one texel per map pixel, nea
 web game stands them (tyre stacks, a street circuit's steel, hay bales on dirt), the pit garages and the pit wall (`PitView`), the web game's trees (baked from its own placement code), its grandstands on every circuit (`StandView`: back wall with
 the painted crowd, canopy, terraces, flags, and the blocky crowd that sways and cheers as the car passes),
 blob shadows, a blocky livery car and a tilt-shift blur with saturation and vignette (`TiltShift` shader). The other 18
-circuits get the ground, barriers, pits, stands and camera but no trees yet (`SCENERY` in `tools/unity/bake.ts`). Still placeholder:
-HUD (IMGUI, no pixel font), the banking's catch fence, other cars, crowd animation, weather, sky, sound, night lamps.
+circuits get the ground, barriers, pits, stands and camera but no trees yet (`SCENERY` in `tools/unity/bake.ts`). HUD: the web game's wide-screen layout in its pixel font
+(`HudView`: readout, lap strip, minimap, start-light dots and team card, banner, key prompts, pause screen). Finish:
+its glow, tilt-shift, grade and tone mapping (`TiltShift` shader). Still placeholder: the banking's catch fence, other cars, crowd animation, weather, sky, sound, night lamps.
 
 ## Open it
 

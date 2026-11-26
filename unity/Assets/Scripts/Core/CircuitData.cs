@@ -80,6 +80,8 @@ namespace CornerCutters.Core
     {
         /// <summary>-1: the lane is on the left of the way of the race; +1: on the right</summary>
         public int side;
+        /// <summary>the lane's line, entry to exit</summary>
+        public BakedPoints lane;
         public double boxSpacing;
         /// <summary>one garage behind each box: its middle and the lane's direction there</summary>
         public BakedGarage[] garages;
