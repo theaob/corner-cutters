@@ -7,16 +7,29 @@ import { LAYOUTS } from '../../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../../src/f1/racing';
 import { carClass } from '../../src/engine/driving';
 import { DIFFICULTIES, handlingFor } from '../../src/f1/difficulty';
-import { createCircuitScene } from '../../src/f1/circuitScene';
+import { createCircuitScene, roofLetters } from '../../src/f1/circuitScene';
 
-declare global { interface Window { groundIds: string[]; paintGround: (id: string) => string; groundReady: boolean } }
+declare global { interface Window { groundIds: string[]; paintGround: (id: string) => string; paintRoof: (id: string) => string; groundReady: boolean } }
 
 window.groundIds = LAYOUTS.map((l) => l.id);
-window.paintGround = (id: string) => {
+function circuitOf(id: string) {
   const layout = LAYOUTS.find((l) => l.id === id)!;
   const f1 = carClass('f1');
   const handling = handlingFor(DIFFICULTIES.find((d) => d.id === 'normal')!);
-  const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, handling), decel: lineDecel(f1) });
+  return buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, handling), decel: lineDecel(f1) });
+}
+
+/** The word across the garages' roofs (layout.pitRoof), the whole row's picture, or '' for none. */
+window.paintRoof = (id: string) => {
+  const c = circuitOf(id);
+  if (!c.layout.pitRoof) return '';
+  const roof = roofLetters(c, c.layout.pitRoof)[0];
+  const img = (roof?.material as THREE.MeshLambertMaterial | undefined)?.map?.image as HTMLCanvasElement | undefined;
+  return img ? img.toDataURL('image/png') : '';
+};
+
+window.paintGround = (id: string) => {
+  const c = circuitOf(id);
   const scene = createCircuitScene(c);
   const W = c.width * c.grid.tile, H = c.height * c.grid.tile;
   let found: HTMLCanvasElement | undefined;

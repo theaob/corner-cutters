@@ -35,8 +35,10 @@ namespace CornerCutters.Game
             bool IsWall(char k) => k == 'W' || k == 'Q';
             bool TrackLike(char k) => k == 'T' || k == 'K';
             // a wall tile is a barrier only where the open ground meets it: the rest, out beyond, is flat ground
+            bool baked = c.barriers != null && c.barriers.walls != null;
             bool Barrier(int tx, int ty)
             {
+                if (baked) return false;   // (stood by BuildBarriers instead, where the web game stands them)
                 char k = At(tx, ty);
                 if (k == 'Q') return true;
                 if (k != 'W') return false;
@@ -131,10 +133,60 @@ namespace CornerCutters.Game
                 }
             }
 
+            if (baked) BuildBarriers(root, c, mat);
             // (the baked picture has the line and the grid boxes painted on)
             if (picture == null) AddStartLine(root, c, mat);
             return root;
         }
+
+        /// <summary>
+        /// The barriers where the web game stands them (barrierTiles): a tyre stack on each wall tile that meets the run-off
+        /// (red and white, 14 px across and 7 high; a street circuit's grey steel with red and white bands, 9 high; hay bales
+        /// on dirt), but none behind the garages or on the pit wall's tiles (PitView builds that wall); concrete beside a
+        /// banking (its see-through catch fence not yet); the Wall of Champions in green and white.
+        /// </summary>
+        static void BuildBarriers(GameObject root, CircuitData c, Material mat)
+        {
+            var grid = c.ToGrid();
+            var b = c.barriers;
+            bool steel = c.barrierKind == "steel", bales = c.barrierKind == "bales";
+            Color red = bales ? Hex(0xd9b25a) : Hex(0xd8323c), white = bales ? Hex(0xc39a40) : Hex(0xf4f4f8), grey = Hex(0xb8bcc6);
+            var mb = new MeshBuilder();
+            float T = (float)c.tile * Units.PerPx;
+            Vector3 Foot(int k, out int i, out int j)
+            {
+                i = k % c.width; j = k / c.width;
+                double x = (i + 0.5) * c.tile, y = (j + 0.5) * c.tile;
+                return Units.ToWorld(x, y, Sim.GroundAt(grid, x, y).H);
+            }
+            foreach (int k in b.walls)
+            {
+                var foot = Foot(k, out int i, out int j);
+                if (steel)
+                {
+                    int m = (i + j) % 6;
+                    mb.Box(foot + new Vector3(0, 9 * Units.PerPx / 2, 0), new Vector3(T, 9 * Units.PerPx, T), m == 0 ? red : m == 3 ? white : grey);
+                }
+                else mb.CylinderY(foot, 7 * Units.PerPx, 7 * Units.PerPx, 8, (i + j) % 2 == 0 ? red : white);
+            }
+            foreach (int k in b.bank ?? new int[0])
+            {
+                var foot = Foot(k, out _, out _);
+                mb.Box(foot + new Vector3(0, 6 * Units.PerPx, 0), new Vector3(T, 12 * Units.PerPx, T), Hex(0xd4d2cc));
+            }
+            foreach (int k in b.champions ?? new int[0])
+            {
+                var foot = Foot(k, out int i, out int j);
+                mb.Box(foot + new Vector3(0, 6 * Units.PerPx, 0), new Vector3(T, 12 * Units.PerPx, T), (i + j) % 4 < 2 ? Hex(0x2fbf3f) : Hex(0xf4f6f2));
+            }
+            if (mb.VertexCount == 0) return;
+            var go = new GameObject("barriers");
+            go.transform.SetParent(root.transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh("barriers");
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+        }
+
+        public static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, 1f);
 
         /// <summary>A chequered line across the track at sample 0, and the grid slots' marks behind it.</summary>
         static void AddStartLine(GameObject root, CircuitData c, Material mat)

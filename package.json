@@ -28,7 +28,7 @@
     "ios:appstore": "VITE_STORE=appstore npm run ios:sync",
     "ios:open": "npm run ios:sync && cap open ios",
     "ios:run": "npm run ios:sync && cap run ios",
-    "unity:bake": "rolldown tools/unity/bake.ts --platform node --format esm -o node_modules/.cache/bake.mjs && node node_modules/.cache/bake.mjs",
+    "unity:bake": "rolldown tools/unity/bake.ts --banner 'import.meta.env = {};' --platform node --format esm -o node_modules/.cache/bake.mjs && node node_modules/.cache/bake.mjs",
     "unity:grounds": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true node tools/unity/grounds.mjs",
     "unity:golden": "rolldown tools/unity/golden.ts --banner 'import.meta.env = {};' --platform node --format esm -o node_modules/.cache/golden.mjs && node node_modules/.cache/golden.mjs"
   },

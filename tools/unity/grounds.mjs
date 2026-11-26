@@ -27,6 +27,8 @@ try {
     const png = Buffer.from(data.slice(data.indexOf(',') + 1), 'base64');
     writeFileSync(`${out}/${id}.png`, png);
     console.log(`${id}: ${(png.length / 1024).toFixed(0)} kB`);
+    const roof = await page.evaluate((i) => window.paintRoof(i), id);
+    if (roof) writeFileSync(`${out}/${id}-roof.png`, Buffer.from(roof.slice(roof.indexOf(',') + 1), 'base64'));
   }
 } finally {
   await browser.close();

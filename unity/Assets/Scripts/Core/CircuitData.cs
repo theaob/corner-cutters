@@ -34,6 +34,54 @@ namespace CornerCutters.Core
         public bool atStart;
     }
 
+    /// <summary>The barriers as the web game stands them, as tile indices (j * width + i).</summary>
+    [Serializable]
+    public class BakedBarriers
+    {
+        /// <summary>tyre walls (or a street circuit's steel, or hay bales on dirt): wall tiles that meet the run-off, but not behind the garages</summary>
+        public int[] walls;
+        /// <summary>beside a banking: a concrete wall with a catch fence</summary>
+        public int[] bank;
+        /// <summary>the Wall of Champions: green and white concrete</summary>
+        public int[] champions;
+    }
+
+    [Serializable]
+    public class BakedGarage
+    {
+        public double x, y, dir;
+    }
+
+    [Serializable]
+    public class BakedRoof
+    {
+        /// <summary>a garage's middle (map px), and the way its share of the word reads along it</summary>
+        public double x, y, tx, tz;
+    }
+
+    [Serializable]
+    public class BakedPoints
+    {
+        public double[] x, y, dir;
+    }
+
+    /// <summary>The pit buildings, placed as the web game's circuitScene places them.</summary>
+    [Serializable]
+    public class BakedPits
+    {
+        /// <summary>-1: the lane is on the left of the way of the race; +1: on the right</summary>
+        public int side;
+        public double boxSpacing;
+        /// <summary>one garage behind each box: its middle and the lane's direction there</summary>
+        public BakedGarage[] garages;
+        /// <summary>the pit wall's run: a block between each two points, wallThick px thick, wallAcross px across from them</summary>
+        public BakedPoints wall;
+        public double wallThick, wallAcross;
+        /// <summary>a word across the roofs (Resources/Grounds/&lt;id&gt;-roof.png), and the roofs in reading order</summary>
+        public string roof;
+        public BakedRoof[] roofs;
+    }
+
     [Serializable]
     public class CircuitData
     {
@@ -52,6 +100,10 @@ namespace CornerCutters.Core
         /// <summary>scenery baked so far (empty for circuits not yet given their look pass)</summary>
         public BakedTrees trees;
         public BakedStand[] stands;
+        public BakedBarriers barriers;
+        /// <summary>tyres, steel or bales</summary>
+        public string barrierKind;
+        public BakedPits pits;
 
         public Grid ToGrid()
         {

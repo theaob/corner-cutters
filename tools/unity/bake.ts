@@ -17,6 +17,9 @@ import { handlingFor } from '../../src/f1/difficulty';
 import { DIFFICULTIES } from '../../src/f1/difficulty';
 import { treesOf } from '../../src/f1/forest3d';
 import { standsOf } from '../../src/f1/stands';
+import { barrierTiles, garageSpots, roofOrder } from '../../src/f1/circuitScene';
+import { PIT, between } from '../../src/f1/pits';
+import { LANE_IN, PIT_WALL } from '../../src/f1/circuit';
 
 /** circuits baked with their scenery (trees, stands) so far: the look pass is one circuit at a time */
 const SCENERY = new Set(['crescent-park']);
@@ -24,6 +27,25 @@ const KINDS = ['spruce', 'broadleaf', 'palm', 'rock', 'blossom'];
 
 const CELL_CHAR: Record<CircuitCell, string> = { track: 'T', kerb: 'K', grass: 'G', gravel: 'V', apron: 'A', wall: 'W', pit: 'P', pitwall: 'Q' };
 const round = (v: number, d = 4) => Math.round(v * 10 ** d) / 10 ** d;
+
+/** The pit buildings, as circuitScene places them: the garages (their middles and the lane's way) and the pit wall's run. */
+function pitsOf(c: ReturnType<typeof buildCircuit>) {
+  const pit = c.pit;
+  const wallPts = pit.points.filter((p) => between(p.idx, pit.wallFrom, pit.wallTo, c.track.samples.length));
+  const wallThick = PIT.offset - LANE_IN - PIT_WALL;
+  return {
+    side: pit.side,
+    boxSpacing: PIT.boxSpacing,
+    garages: garageSpots(c).map((g) => ({ x: round(g.x, 2), y: round(g.y, 2), dir: round(g.dir, 6) })),
+    /** the pit wall: blocks between consecutive points, wallThick px thick, centred wallAcross px from the lane's line */
+    wall: { x: wallPts.map((p) => round(p.x, 2)), y: wallPts.map((p) => round(p.y, 2)), dir: wallPts.map((p) => round(p.dir, 6)) },
+    wallThick,
+    wallAcross: -(PIT.offset - PIT_WALL - wallThick / 2) * pit.side,
+    /** a word across the roofs (Resources/Grounds/<id>-roof.png, from unity:grounds), and the roofs in reading order with the way to read along each */
+    roof: c.layout.pitRoof ?? '',
+    roofs: c.layout.pitRoof ? roofOrder(c).map((r) => ({ x: round(r.g.x, 2), y: round(r.g.y, 2), tx: round(r.tx, 6), tz: round(r.tz, 6) })) : [],
+  };
+}
 
 export function bakeAll() {
   const f1 = carClass('f1');
@@ -56,6 +78,11 @@ export function bakeAll() {
       /** trees: parallel arrays (map px; height px; kind index into spruce/broadleaf/palm/rock/blossom; crown colour 0xRRGGBB) */
       trees: SCENERY.has(layout.id) ? (() => { const t = treesOf(c); return { x: t.map((q) => round(q.x, 1)), y: t.map((q) => round(q.y, 1)), h: t.map((q) => round(q.h, 1)), kind: t.map((q) => KINDS.indexOf(q.kind)), color: t.map((q) => q.color) }; })() : { x: [], y: [], h: [], kind: [], color: [] },
       stands: SCENERY.has(layout.id) ? standsOf(c).map((q) => ({ x: round(q.x, 1), y: round(q.y, 1), dir: round(q.dir, 5), side: q.side, len: q.len, atStart: q.at === 'start' })) : [],
+      /** the barriers as the web game stands them (tile indices j*width+i): tyre walls, the banking's concrete, the Wall of Champions */
+      barriers: (() => { const b = barrierTiles(c); const ix = (l: [number, number][]) => l.map(([i, j]) => j * c.width + i); return { walls: ix(b.walls), bank: ix(b.bankWall), champions: ix(b.champions) }; })(),
+      /** what the tyre walls are on this circuit: tyres (stacks), steel (a street circuit's) or bales (on dirt) */
+      barrierKind: layout.street ? 'steel' : layout.dirt ? 'bales' : 'tyres',
+      pits: pitsOf(c),
       // not yet used by the Unity core: a bridge's second level, the pit lane's geometry
       bridge: !!layout.bridge,
     };

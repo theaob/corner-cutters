@@ -79,6 +79,25 @@ namespace CornerCutters.Game
         /// <summary>A flat patch on the ground or a surface: corners a, b, c, d, one colour.</summary>
         public void Patch(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color color) => Quad(a, b, c, d, color);
 
+        /// <summary>An upright many-sided cylinder (a tyre stack) standing on <paramref name="bottom"/>, with a top; sides shaded by their facing.</summary>
+        public void CylinderY(Vector3 bottom, float radius, float height, int segments, Color color)
+        {
+            var top = bottom + new Vector3(0, height, 0);
+            Color32 lid = (Color)color;
+            for (int i = 0; i < segments; i++)
+            {
+                float a0 = i * Mathf.PI * 2f / segments, a1 = (i + 1) * Mathf.PI * 2f / segments;
+                var p0 = new Vector3(Mathf.Cos(a0) * radius, 0, Mathf.Sin(a0) * radius);
+                var p1 = new Vector3(Mathf.Cos(a1) * radius, 0, Mathf.Sin(a1) * radius);
+                // (lit from the north-west, where TrackView's sun stands: west is -x, north +z)
+                float mid = (a0 + a1) * 0.5f;
+                float s = 0.6f + 0.25f * (-Mathf.Cos(mid) * 0.5f + 0.5f) + 0.12f * (Mathf.Sin(mid) * 0.5f + 0.5f);
+                Color32 c = (Color)new Color(color.r * s, color.g * s, color.b * s, 1f);
+                Quad(top + p0, top + p1, bottom + p1, bottom + p0, c);
+                Quad(top, top + p1, top + p0, top + p0, lid);
+            }
+        }
+
         /// <summary>A many-sided cylinder with its axle along X (a wheel), from -width/2 to +width/2; faces shaded by their turn.</summary>
         public void CylinderX(Vector3 centre, float radius, float width, int segments, Color color)
         {

@@ -16,7 +16,8 @@ namespace CornerCutters.Editor
             t.textureType = TextureImporterType.Default;
             t.npotScale = TextureImporterNPOTScale.None;
             t.mipmapEnabled = false;
-            t.filterMode = FilterMode.Point;
+            // (a roof's word, drawn in letters, reads better smooth; the ground is pixel art)
+            t.filterMode = assetPath.EndsWith("-roof.png") ? FilterMode.Bilinear : FilterMode.Point;
             t.wrapMode = TextureWrapMode.Clamp;
             t.maxTextureSize = 8192;
             t.textureCompression = TextureImporterCompression.Uncompressed;

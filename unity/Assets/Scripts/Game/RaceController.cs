@@ -70,6 +70,7 @@ namespace CornerCutters.Game
             circuitView = TrackView.Build(circuit);
             circuitView.transform.SetParent(transform, false);
             SceneryView.Build(circuitView, circuit);
+            PitView.Build(circuitView, circuit);
             lights = new StartLights(circuitView.transform, circuit);
             bestLap = double.NaN;
             Restart();
