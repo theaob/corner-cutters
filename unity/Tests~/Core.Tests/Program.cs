@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using CornerCutters.Core;
 
@@ -44,10 +45,209 @@ static class Program
         GamepadMapping(golden.GetProperty("gamepad"));
         Smoother();
         Clock();
+        MathBits(root);
         Critters(root);
+        Races(root);
+        PlayerRace(root);
 
         Console.WriteLine(failures == 0 ? $"OK  {checks} checks" : $"{failures} of {checks} checks FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>JsMath's sin, cos, atan, atan2 and exp against V8's (math.json): the same bits.</summary>
+    static void MathBits(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/math.json"))).RootElement;
+        int off = 0, n = 0;
+        void One(string what, double got, double want, string args)
+        {
+            n++;
+            if (BitConverter.DoubleToInt64Bits(got) == BitConverter.DoubleToInt64Bits(want) || (double.IsNaN(got) && double.IsNaN(want))) return;
+            if (off++ < 5) Console.WriteLine($"FAIL  {what}({args}): got {got:R}, want {want:R}");
+        }
+        foreach (var r in g.GetProperty("sin").EnumerateArray()) One("sin", JsMath.Sin(r[0].GetDouble()), r[1].GetDouble(), r[0].ToString());
+        foreach (var r in g.GetProperty("cos").EnumerateArray()) One("cos", JsMath.Cos(r[0].GetDouble()), r[1].GetDouble(), r[0].ToString());
+        foreach (var r in g.GetProperty("atan").EnumerateArray()) One("atan", JsMath.Atan(r[0].GetDouble()), r[1].GetDouble(), r[0].ToString());
+        foreach (var r in g.GetProperty("atan2").EnumerateArray()) One("atan2", JsMath.Atan2(r[0].GetDouble(), r[1].GetDouble()), r[2].GetDouble(), $"{r[0]}, {r[1]}");
+        foreach (var r in g.GetProperty("exp").EnumerateArray()) One("exp", JsMath.Exp(r[0].GetDouble()), r[1].GetDouble(), r[0].ToString());
+        int libm = 0;
+        foreach (var r in g.GetProperty("sin").EnumerateArray()) if (Math.Sin(r[0].GetDouble()) != r[1].GetDouble()) libm++;
+        Check(off == 0, $"JsMath gives V8's bits ({off} of {n} differ)");
+        Console.WriteLine($"math: {n} values, {off} off (the platform's Math.Sin is off on {libm} of the sines)");
+        checks += n;
+    }
+
+    /// <summary>A race as the Unity game runs it (RaceController): you in your slot on the wheel, the field drawn from a seed.
+    /// You hold the gas and steer for the line ahead; the race must run to its end with the AI all home.</summary>
+    static void PlayerRace(string root)
+    {
+        var opts = new JsonSerializerOptions { IncludeFields = true };
+        var circuit = JsonSerializer.Deserialize<CircuitData>(File.ReadAllText(Path.Combine(root, "Assets/Resources/Circuits/crescent-park.json")), opts);
+        var grid = circuit.ToGrid();
+        var track = circuit.ToTrack();
+        var w = Field.DrawWeekend(2024, circuit.slots.Length, Field.Teams[0], Field.Normal);
+        var field = new List<FieldEntry>();
+        for (int k = 0; k < w.Drivers.Count; k++)
+            field.Add(new FieldEntry { Car = new Car(CarClass.F1(), circuit.slots[k].x, circuit.slots[k].y, circuit.slots[k].heading), Ai = w.Drivers[k].Ai, Box = w.Drivers[k].Box });
+        var race = RaceControl.NewRace(track, grid, Field.Normal.Handling(), 3, field, w.LightsOut, circuit.ToPitLane());
+        var gaps = new GapTimer(race.Entrants.Count);
+        int steps = 0, calls = 0;
+        DriveInput Player(Entrant e)
+        {
+            calls++;
+            int idx = e.Progress.Idx, n = track.Count;
+            int t = (idx + 8 + (int)(Driving.SpeedOf(e.Car) / 40)) % n;
+            double want = Math.Atan2(track.X[t] - e.Car.X, -(track.Y[t] - e.Car.Y));
+            double turn = Math.Max(-1, Math.Min(1, Driving.AngleDiff(want, e.Car.Heading) * 2.2));
+            bool slow = Driving.SpeedOf(e.Car) > track.Speed[idx] * 0.85;
+            return Racing.WheelInput(new Racing.WheelPad { Turn = turn, Gas = slow ? 0 : 1, Brake = slow ? 0.6 : 0 }, e.Car);
+        }
+        while (steps < 60 * 400 && !race.Entrants.All(e => e.Progress.Retired || e.InLap?.Parked == true))
+        {
+            RaceControl.StepRace(race, 1.0 / 60, Player);
+            if (race.Phase == RacePhase.Racing) gaps.Step(race.Entrants.Select(e => e.Progress).ToList(), track, race.Clock);
+            steps++;
+        }
+        var order = RaceControl.Order(race);
+        int you = w.YouDriver;
+        var rows = Tower.Rows(order, you);
+        Check(calls > 0, "player race: your input asked for");
+        Check(race.Entrants.Where((e, i) => i != you).All(e => e.Progress.Retired || e.Progress.Finished != null), "player race: the AI field all took the flag or retired");
+        Check(rows.Contains(you), "player race: you're on the tower");
+        Console.WriteLine($"player race: {steps / 60.0:F0} s, you P{order.IndexOf(you) + 1} of {order.Count}, laps {race.Entrants[you].Progress.Lap}, tower [{string.Join(" ", rows)}], gap to the leader {gaps.Between(order[0], you)?.ToString("0.0") ?? "-"} s");
+    }
+
+    /// <summary>Whole races (Core/RaceControl.cs, Field.cs) against the web game's (races.json): the same field from the same
+    /// seed, every car's state every half second and every race event the same, lights to flag.</summary>
+    static void Races(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/races.json"))).RootElement;
+        var opts = new JsonSerializerOptions { IncludeFields = true };
+        double dt = D(g, "dt");
+        foreach (var spec in g.GetProperty("races").EnumerateArray())
+        {
+            string id = spec.GetProperty("id").GetString();
+            uint seed = (uint)spec.GetProperty("seed").GetInt64();
+            int laps = spec.GetProperty("laps").GetInt32();
+            string weather = spec.GetProperty("weather").GetString();
+            var circuit = JsonSerializer.Deserialize<CircuitData>(File.ReadAllText(Path.Combine(root, $"Assets/Resources/Circuits/{id}.json")), opts);
+            var grid = circuit.ToGrid();
+            var track = circuit.ToTrack();
+            var pit = circuit.ToPitLane();
+            var level = Field.DifficultyById(spec.GetProperty("difficulty").GetString());
+            var w = Field.DrawWeekend(seed, circuit.slots.Length, Field.Teams[0], level);
+            var draw = spec.GetProperty("draw");
+            int failedBefore = failures;
+            Near(w.LightsOut, D(draw, "lightsOut"), 1e-12, $"{id}: lights out");
+            int k0 = 0;
+            foreach (var t in draw.GetProperty("teams").EnumerateArray()) { Check(w.Drivers[k0].Team.Id == t.GetString(), $"{id}: team {k0}"); k0++; }
+            k0 = 0;
+            foreach (var d in draw.GetProperty("drivers").EnumerateArray())
+            {
+                var ai = w.Drivers[k0].Ai;
+                if (d.ValueKind == JsonValueKind.Null) Check(ai == null, $"{id}: driver {k0} is you");
+                else
+                {
+                    Near(ai.Pace, D(d, "pace"), 1e-12, $"{id}: driver {k0} pace");
+                    Near(ai.Craft ?? -1, D(d, "craft"), 1e-12, $"{id}: driver {k0} craft");
+                    Near(ai.Mistakes, D(d, "mistakes"), 1e-12, $"{id}: driver {k0} mistakes");
+                    Near(ai.Reaction, D(d, "reaction"), 1e-12, $"{id}: driver {k0} reaction");
+                    Near(ai.Lane, D(d, "lane"), 0, $"{id}: driver {k0} lane");
+                }
+                k0++;
+            }
+            w.Drivers[w.YouDriver].Ai = new AiDriver { Lane = 0, Pace = 0.94 };
+            var field = new List<FieldEntry>();
+            for (int i = 0; i < w.Drivers.Count; i++)
+                field.Add(new FieldEntry { Car = new Car(CarClass.F1(), circuit.slots[i].x, circuit.slots[i].y, circuit.slots[i].heading), Ai = w.Drivers[i].Ai, Box = w.Drivers[i].Box });
+            Race race;
+            if (weather == "changeable") race = RaceControl.NewRace(track, grid, level.Handling(), laps, field, w.LightsOut, pit, Weather.Dry, Forecast.Changeable(seed, laps * track.Length / 300));
+            else race = RaceControl.NewRace(track, grid, level.Handling(), laps, field, w.LightsOut, pit, weather == "wet" ? Weather.Wet : weather == "damp" ? Weather.Damp : Weather.Dry);
+            var practice = spec.GetProperty("practice");
+            if (practice.ValueKind != JsonValueKind.Null)
+            {
+                Near(race.Practice.LapTime, D(practice, "lapTime"), 1e-9, $"{id}: practice lap");
+                Near(race.Practice.PerLap, D(practice, "perLap"), 1e-9, $"{id}: practice wear");
+            }
+            var compounds = new[] { "slick", "hard", "inter", "wet", "dirt" };
+            k0 = 0;
+            foreach (var pl in spec.GetProperty("plans").EnumerateArray())
+            {
+                var mine = race.Entrants[k0].Plan;
+                if (pl.ValueKind == JsonValueKind.Null) Check(mine == null, $"{id}: entrant {k0} has no plan");
+                else if (mine == null) Check(false, $"{id}: entrant {k0} has a plan");
+                else
+                {
+                    var stints = pl.GetProperty("stints");
+                    Check(mine.Plan.Stints.Count == stints.GetArrayLength(), $"{id}: entrant {k0} stints");
+                    int s0 = 0;
+                    foreach (var st in stints.EnumerateArray())
+                    {
+                        if (s0 < mine.Plan.Stints.Count) Check(compounds[(int)mine.Plan.Stints[s0].Compound] == st[0].GetString() && mine.Plan.Stints[s0].Laps == st[1].GetDouble(), $"{id}: entrant {k0} stint {s0}");
+                        s0++;
+                    }
+                    Check((mine.StopAt ?? -1) == pl.GetProperty("stopAt").GetInt32(), $"{id}: entrant {k0} stop lap");
+                }
+                k0++;
+            }
+            // the race, step by step: the states every 60 steps, the events every step
+            var states = spec.GetProperty("states");
+            var events = spec.GetProperty("events");
+            int steps = spec.GetProperty("steps").GetInt32();
+            var evIt = events.EnumerateArray().GetEnumerator();
+            bool evMore = evIt.MoveNext();
+            int stateK = 0, firstOff = -1;
+            string offWhat = null;
+            var kinds = new Dictionary<RaceEventKind, string>
+            {
+                [RaceEventKind.LightsOut] = "lights-out", [RaceEventKind.Crash] = "crash", [RaceEventKind.Wreck] = "wreck", [RaceEventKind.Retired] = "retired",
+                [RaceEventKind.SafetyCar] = "safety-car", [RaceEventKind.Vsc] = "vsc", [RaceEventKind.VscEnding] = "vsc-ending", [RaceEventKind.Green] = "green",
+                [RaceEventKind.Penalty] = "penalty", [RaceEventKind.PitIn] = "pit-in", [RaceEventKind.PitStop] = "pit-stop", [RaceEventKind.PitOut] = "pit-out",
+                [RaceEventKind.PitRepaired] = "pit-repaired", [RaceEventKind.Mistake] = "mistake", [RaceEventKind.Blue] = "blue", [RaceEventKind.TrackLimits] = "track-limits",
+                [RaceEventKind.OffTrack] = "off-track", [RaceEventKind.Rain] = "rain", [RaceEventKind.TrackCondition] = "track",
+            };
+            int evCount = 0, stateChecks = 0;
+            for (int step = 1; step <= steps && firstOff < 0; step++)
+            {
+                var r = RaceControl.StepRace(race, dt);
+                foreach (var ev in r.Race)
+                {
+                    if (ev.Kind == RaceEventKind.Contact) continue;
+                    evCount++;
+                    if (!evMore || evIt.Current[0].GetInt32() != step || evIt.Current[1].GetString() != kinds[ev.Kind] || evIt.Current[2].GetInt32() != ev.Who)
+                    {
+                        firstOff = step;
+                        offWhat = $"event {kinds[ev.Kind]} {ev.Who}, want " + (evMore ? evIt.Current.ToString() : "none");
+                        break;
+                    }
+                    evMore = evIt.MoveNext();
+                }
+                if (firstOff < 0 && evMore && evIt.Current[0].GetInt32() == step) { firstOff = step; offWhat = "missing event " + evIt.Current; }
+                if (firstOff >= 0 || step % 60 != 0) continue;
+                var want = states[stateK++];
+                for (int i = 0; i < race.Entrants.Count && firstOff < 0; i++)
+                {
+                    var e = race.Entrants[i];
+                    var p = e.Progress;
+                    double[] got =
+                    {
+                        e.Car.X, e.Car.Y, e.Car.Heading, e.Car.Vx, e.Car.Vy, e.Car.Health, e.Car.Z, p.Lap, p.Idx, p.Penalty, p.Retired ? 1 : 0, p.Finished ?? -1,
+                        e.Tyres.Wear, (int)e.Tyres.Compound, e.Stops, e.Pit == null ? -1 : (int)e.Pit.Phase,
+                    };
+                    var wi = want[i];
+                    for (int c = 0; c < got.Length; c++)
+                    {
+                        stateChecks++;
+                        double wv = wi[c].GetDouble();
+                        if (BitConverter.DoubleToInt64Bits(got[c]) != BitConverter.DoubleToInt64Bits(wv) && got[c] != wv) { firstOff = step; offWhat = $"entrant {i} field {c}: got {got[c]:R}, want {wv:R}"; break; }
+                    }
+                }
+            }
+            Check(firstOff < 0, $"{id}: race matches the web game's to the flag" + (firstOff < 0 ? "" : $" (first off at step {firstOff} of {steps}, {firstOff * dt:F1} s: {offWhat})"));
+            if (firstOff < 0) Check(!evMore, $"{id}: every event seen");
+            checks += stateChecks + evCount;
+            Console.WriteLine($"race {id}: {(firstOff < 0 ? "matched" : $"off at {firstOff * dt:F1} s")}, {evCount} events, {stateChecks} state checks");
+        }
     }
 
     /// <summary>The gopher and the yeti (Core/Critters.cs) against the web game's (critters.json): the same car, the same poses.</summary>

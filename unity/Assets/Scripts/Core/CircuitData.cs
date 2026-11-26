@@ -94,6 +94,43 @@ namespace CornerCutters.Core
     }
 
     [Serializable]
+    public class BakedLanePoints
+    {
+        public double[] x, y, s, dir, off;
+        public int[] idx;
+    }
+
+    [Serializable]
+    public class BakedPodiumSpot
+    {
+        public int idx;
+        public double lane;
+    }
+
+    /// <summary>The pit lane as race control drives it (pits.ts's buildPitLane).</summary>
+    [Serializable]
+    public class BakedPitLane
+    {
+        public int side;
+        public double length;
+        public int entry, exit, wallFrom, wallTo;
+        public double[] boxes;
+        public double limitFrom, limitTo;
+        public BakedPodiumSpot[] podium;
+        public BakedLanePoints points;
+    }
+
+    /// <summary>A bridge: the deck's stretch, the crossing, and the deck's own grid ('1' or '0' a tile).</summary>
+    [Serializable]
+    public class BakedLevels
+    {
+        public int from, to, over, under;
+        public double height;
+        public double[] heights;
+        public string solid, rough;
+    }
+
+    [Serializable]
     public class CircuitData
     {
         public string id, name, country, about;
@@ -115,6 +152,9 @@ namespace CornerCutters.Core
         /// <summary>tyres, steel or bales</summary>
         public string barrierKind;
         public BakedPits pits;
+        public bool dirt;
+        public BakedPitLane pitLane;
+        public BakedLevels levels;
 
         public Grid ToGrid()
         {
@@ -133,7 +173,43 @@ namespace CornerCutters.Core
         public Track ToTrack() => new Track
         {
             X = samples.x, Y = samples.y, S = samples.s, Dir = samples.dir, Curve = samples.curve, Speed = samples.speed,
-            Spacing = spacing, Length = length,
+            Spacing = spacing, Length = length, Dirt = dirt, TyreWear = tyreWear > 0 ? tyreWear : 1, Levels = ToLevels(),
         };
+
+        /// <summary>The bridge's levels (null: no bridge; JsonUtility fills an absent one with an empty object).</summary>
+        public Levels ToLevels()
+        {
+            if (levels == null || string.IsNullOrEmpty(levels.solid)) return null;
+            int n = width * height;
+            var solid = new bool[n];
+            bool[] rough = string.IsNullOrEmpty(levels.rough) ? null : new bool[n];
+            for (int i = 0; i < n; i++)
+            {
+                solid[i] = levels.solid[i] == '1';
+                if (rough != null) rough[i] = levels.rough[i] == '1';
+            }
+            return new Levels
+            {
+                Upper = new Grid { Width = width, Height = height, Tile = tile, Solid = solid, Rough = rough, Heights = levels.heights },
+                From = levels.from, To = levels.to, Over = levels.over, Under = levels.under, Height = levels.height,
+            };
+        }
+
+        /// <summary>The pit lane (null: none).</summary>
+        public PitLane ToPitLane()
+        {
+            if (pitLane == null || pitLane.points == null || pitLane.points.x == null || pitLane.points.x.Length == 0) return null;
+            var p = pitLane;
+            var pts = new PitLanePoint[p.points.x.Length];
+            for (int k = 0; k < pts.Length; k++)
+                pts[k] = new PitLanePoint { X = p.points.x[k], Y = p.points.y[k], S = p.points.s[k], Dir = p.points.dir[k], Idx = p.points.idx[k], Off = p.points.off[k] };
+            var podium = new PitLane.Spot[p.podium?.Length ?? 0];
+            for (int k = 0; k < podium.Length; k++) podium[k] = new PitLane.Spot { Idx = p.podium[k].idx, Lane = p.podium[k].lane };
+            return new PitLane
+            {
+                Side = p.side, Points = pts, Length = p.length, Entry = p.entry, Exit = p.exit, WallFrom = p.wallFrom, WallTo = p.wallTo,
+                Boxes = p.boxes, LimitFrom = p.limitFrom, LimitTo = p.limitTo, Podium = podium,
+            };
+        }
     }
 }

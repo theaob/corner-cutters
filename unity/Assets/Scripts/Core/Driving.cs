@@ -26,7 +26,8 @@ namespace CornerCutters.Core
         /// <summary>The web game's F1 car at the reference tuning (src/engine/driving.ts CLASS_TABLE.f1).</summary>
         public static CarClass F1() => new CarClass
         {
-            TopSpeed = 320, Torque = 161, Power = 37000, BrakeTime = 0.35, TurnRate = 3.8, Grip = 10,
+            // (the turn rate as the web game's carClass works it out, scaled to its reference and back: a last bit under 3.8)
+            TopSpeed = 320, Torque = 161, Power = 37000, BrakeTime = 0.35, TurnRate = 3.7999999999999994, Grip = 10,
             Health = 60, Mass = 0.7, Width = 14, Length = 30, OffRoad = 0.25,
         };
     }
@@ -49,6 +50,8 @@ namespace CornerCutters.Core
         public double DamageSlow = 0;
 
         /// <summary>Race handling at the NORMAL difficulty (src/f1/racing.ts RACE_HANDLING + difficulty.ts).</summary>
+        public HandlingParams Clone() => (HandlingParams)MemberwiseClone();
+
         public static HandlingParams Race(double crashDamage = 0.2, double damageSlow = 0.3)
         {
             return new HandlingParams { AllowReverse = true, CrashDamage = crashDamage, DamageSlow = damageSlow };
@@ -116,9 +119,9 @@ namespace CornerCutters.Core
         public const double SmokeAt = 0.5;
         public const double FireAt = 0.2;
 
-        public static Vec2 ForwardOf(double h) => new Vec2(Math.Sin(h), -Math.Cos(h));
-        static Vec2 RightOf(double h) => new Vec2(Math.Cos(h), Math.Sin(h));
-        public static double SpeedOf(Car c) => Math.Sqrt(c.Vx * c.Vx + c.Vy * c.Vy);
+        public static Vec2 ForwardOf(double h) => new Vec2(JsMath.Sin(h), -JsMath.Cos(h));
+        static Vec2 RightOf(double h) => new Vec2(JsMath.Cos(h), JsMath.Sin(h));
+        public static double SpeedOf(Car c) => JsMath.Hypot(c.Vx, c.Vy);
 
         public static CarCondition Condition(Car car)
         {
@@ -228,7 +231,7 @@ namespace CornerCutters.Core
 
             bool grounded = !car.Airborne;
             Vec2? steer = car.Wrecked || !grounded ? null : input.Steer;
-            double mag = steer.HasValue ? Math.Min(1, Math.Sqrt(steer.Value.X * steer.Value.X + steer.Value.Y * steer.Value.Y)) : 0;
+            double mag = steer.HasValue ? Math.Min(1, JsMath.Hypot(steer.Value.X, steer.Value.Y)) : 0;
             bool handbrake = !car.Wrecked && grounded && input.Handbrake;
             bool braking = !car.Wrecked && grounded && input.Brake;
             WheelCmd? wheel = car.Wrecked || !grounded ? (WheelCmd?)null : input.Wheel;
@@ -269,7 +272,7 @@ namespace CornerCutters.Core
             else if (steer.HasValue && mag > 0)
             {
                 var s = steer.Value;
-                double target = Math.Atan2(s.X, -s.Y);
+                double target = JsMath.Atan2(s.X, -s.Y);
                 double diff = AngleDiff(target, car.Heading);
                 bool reversing = p.AllowReverse && Math.Abs(diff) > (Math.PI * 5) / 6 && fwd < 20;
                 if (reversing)
@@ -321,7 +324,7 @@ namespace CornerCutters.Core
 
                 double gripShare = (0.5 + 0.5 * rough) * (handbrake ? p.HandbrakeGrip : 1) * (car.Wrecked ? 3 : 1);
                 double grip = cls.Grip * car.TyreGrip * gripShare;
-                double bite = side * (1 - Math.Exp(-grip * dt));
+                double bite = side * (1 - JsMath.Exp(-grip * dt));
                 double most = double.IsFinite(p.LateralGrip) ? p.LateralGrip * grip * dt : double.PositiveInfinity;
                 side -= Math.Sign(bite) * Math.Min(Math.Abs(bite), most);
                 if (p.SlideScrub != 0 && fwd > 0) fwd = Math.Max(0, fwd - Math.Abs(side) * p.SlideScrub * dt);
@@ -411,15 +414,49 @@ namespace CornerCutters.Core
         {
             if (car.Airborne)
             {
-                pitch = Math.Atan2(car.Vz, Math.Max(40, SpeedOf(car))) * 0.6;
+                pitch = JsMath.Atan2(car.Vz, Math.Max(40, SpeedOf(car))) * 0.6;
                 roll = 0;
                 return;
             }
             var g = Sim.GroundAt(grid, car.X, car.Y);
             var f = ForwardOf(car.Heading);
             var r = RightOf(car.Heading);
-            pitch = Math.Atan(g.Gx * f.X + g.Gy * f.Y);
-            roll = Math.Atan(g.Gx * r.X + g.Gy * r.Y);
+            pitch = JsMath.Atan(g.Gx * f.X + g.Gy * f.Y);
+            roll = JsMath.Atan(g.Gx * r.X + g.Gy * r.Y);
+        }
+
+        /// <summary>Resolve a hit between two vehicles (their body circles, 1 px fatter): push them apart, exchange momentum by
+        /// mass, and damage both by the closing speed. Returns the closing speed (0 when they weren't colliding).</summary>
+        public static double CollideCars(Car a, Car b, HandlingParams p)
+        {
+            bool found = false;
+            double bnx = 0, bny = 0, bo = 0;
+            foreach (var ca in BodyCircles(a, a.Heading, a.X, a.Y))
+                foreach (var cb in BodyCircles(b, b.Heading, b.X, b.Y))
+                {
+                    double dx = cb.X - ca.X, dy = cb.Y - ca.Y;
+                    double d = JsMath.Hypot(dx, dy);
+                    double overlap = ca.R + cb.R + 2 - d;
+                    if (overlap > 0 && d > 0 && (!found || overlap > bo)) { found = true; bnx = dx / d; bny = dy / d; bo = overlap; }
+                }
+            if (!found) return 0;
+            double ma = a.Cls.Mass, mb = b.Cls.Mass;
+            a.X -= bnx * bo * (mb / (ma + mb));
+            a.Y -= bny * bo * (mb / (ma + mb));
+            b.X += bnx * bo * (ma / (ma + mb));
+            b.Y += bny * bo * (ma / (ma + mb));
+            double closing = (a.Vx - b.Vx) * bnx + (a.Vy - b.Vy) * bny;
+            if (closing <= 0) return 0;
+            const double e = 0.3;
+            double j = (1 + e) * closing / (1 / ma + 1 / mb);
+            a.Vx -= j / ma * bnx;
+            a.Vy -= j / ma * bny;
+            b.Vx += j / mb * bnx;
+            b.Vy += j / mb * bny;
+            double hit = Math.Max(0, closing - p.CrashThreshold) * p.CrashDamage;
+            ApplyDamage(a, hit * (mb / ma), p);
+            ApplyDamage(b, hit * (ma / mb), p);
+            return closing;
         }
 
         /// <summary>Fully repaired and stopped, at a position and heading.</summary>

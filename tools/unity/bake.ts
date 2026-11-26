@@ -90,8 +90,23 @@ export function bakeAll() {
       /** what the tyre walls are on this circuit: tyres (stacks), steel (a street circuit's) or bales (on dirt) */
       barrierKind: layout.street ? 'steel' : layout.dirt ? 'bales' : 'tyres',
       pits: pitsOf(c),
-      // not yet used by the Unity core: a bridge's second level, the pit lane's geometry
       bridge: !!layout.bridge,
+      /** a dirt circuit: off-road tyres, softer knocks */
+      dirt: !!layout.dirt,
+      /** the pit lane as race control drives it (pits.ts's buildPitLane): its points one per track sample, entry to exit */
+      pitLane: (() => {
+        const p = c.pit;
+        const col = <K extends keyof (typeof p.points)[number]>(k: K) => p.points.map((q) => q[k]);
+        return {
+          side: p.side, length: p.length, entry: p.entry, exit: p.exit, wallFrom: p.wallFrom, wallTo: p.wallTo, boxes: p.boxes, limitFrom: p.limitFrom, limitTo: p.limitTo,
+          podium: p.podium, points: { x: col('x'), y: col('y'), s: col('s'), dir: col('dir'), idx: col('idx'), off: col('off') },
+        };
+      })(),
+      /** a bridge (bridge.ts): the deck's stretch, where the two stretches cross, and the deck's own grid (heights; solid and rough, '1' or '0' a tile) */
+      levels: t.levels ? {
+        from: t.levels.from, to: t.levels.to, over: t.levels.over, under: t.levels.under, height: t.levels.height,
+        heights: t.levels.upper.heights, solid: t.levels.upper.solid.map((b) => (b ? '1' : '0')).join(''), rough: (t.levels.upper.rough ?? []).map((b) => (b ? '1' : '0')).join(''),
+      } : null,
     };
     writeFileSync(`${out}/${layout.id}.json`, JSON.stringify(baked));
     index.push({ id: layout.id, name: layout.name, country: layout.country, about: layout.about, bridge: !!layout.bridge });

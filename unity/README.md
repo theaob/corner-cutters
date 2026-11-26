@@ -3,11 +3,18 @@
 A port of the web game to Unity, for desktop now and Nintendo Switch later. It lives in this folder only: the web game
 (`src/`), its tests and its Android/iOS/itch.io releases are untouched. The plan and phases are in [PORT_PLAN.md](PORT_PLAN.md).
 
-## What works (phase 1)
+## What works
 
-One F1 car on any of the 19 circuits, three laps against the clock: start lights, lap and best-lap times, wrong-way
-warning, damage, restart, pause, next/previous circuit, three cameras (C: the web game's classic view, chase, top-down).
-Keyboard and gamepad. No AI, pits, tyres, weather, menus, audio, saves or shop yet.
+A five-lap race on any of the 19 circuits, you mid-grid against ten AI rivals in their team liveries, run by the web
+game's own race rules (`Core/RaceControl.cs`): start lights and each driver's reaction off them; the AI's racing (passing,
+defending, giving room, mistakes into bends, misjudged dives); contact; tyre wear and each car's strategy (SOFTs or HARDs,
+one stop or two, as the web game's crews plan them); pit stops for tyres and repairs (drive into the pit entry and the car
+takes itself down the lane); the slipstream; blue flags; track limits and penalties; the safety car and the virtual one;
+wrecks cleared and retired; after the flag a cool-down lap and home to the garages. Restart replays the same weekend (its
+seed), a new circuit draws a new one. HUD: your place, the timing tower with gaps, your tyres, the race's calls. Lap and
+best-lap times, wrong-way warning, damage, pause, next/previous circuit, three cameras (C: the web game's classic view,
+chase, top-down). Keyboard and gamepad. Not yet: qualifying, results and podium, weather on screen (the rules have it),
+menus, audio, saves, shop.
 
 **Look.** The camera is the web game's (north up, 26 degree lens, 52 degree pitch). Each circuit's ground is the web
 game's own picture (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane, grid boxes, chequered line: baked from its
@@ -22,12 +29,17 @@ the yeti waits up the road, roars and gives chase. The crowds and flags are `Sta
 wide-screen layout in its pixel font (`HudView`). Finish: its glow, tilt-shift, grade and tone mapping (`TiltShift` shader).
 
 Known gaps: the scene is lit for day on every circuit (night circuits like Vegas show their neon but not the dark).
-Still placeholder: other cars, weather, sky, sound.
+Still placeholder: weather, sky, sound.
 
 ## Layout
 
 - `Assets/Scripts/Core/`: the game's rules in plain C# (no `UnityEngine`; asmdef `noEngineReferences`): driving, ground and
-  walls, lap and sector timing, the wheel, the gamepad reader, the fixed-step clock. Ported from the web game's TypeScript.
+  walls, lap and sector timing, the wheel, the gamepad reader, the fixed-step clock; the AI (`Ai.cs`), race control
+  (`RaceControl.cs`), tyres, strategy, pits, the smaller rules (`RaceRules.cs`: slipstream, blue flags, track limits,
+  weather, bridges), the field (`Field.cs`: teams, drivers, difficulties, a weekend drawn from its seed) and timing gaps.
+  Ported from the web game's TypeScript. `JsMath.cs` holds JavaScript's arithmetic where C#'s differs (V8's sin, cos,
+  atan, atan2 and exp, which are fdlibm's; Math.hypot; Math.round; a stable sort; the seeded random numbers), so the
+  port makes the same decisions from the same numbers, on every platform.
 - `Assets/Scripts/Game/`: the Unity side: input, track and car meshes, camera, race flow, HUD.
 - `Assets/Scripts/Editor/`: scene setup and command-line builds.
 - `Assets/Resources/Circuits/*.json`: the circuits, **generated** from the web game (`npm run unity:bake`). Don't edit by hand.
@@ -38,7 +50,8 @@ Still placeholder: other cars, weather, sky, sound.
   `<id>.moving.txt`, and `<id>-planes.bytes` where there's an airport), **generated** from the web game's createCircuitScene
   by the same command (`npm run unity:grounds -- --scenery-only [id ...]`). The file format is at the top of
   `tools/unity/scenery.ts`. About 45 MB for all 19. `node tools/unity/preview.mjs` renders one without Unity, as a check.
-- `Tests~/Core.Tests/`: the core's tests; `golden.json` is **generated** from the web game (`npm run unity:golden`).
+- `Tests~/Core.Tests/`: the core's tests; `golden.json`, `critters.json`, `races.json` and `math.json` are **generated**
+  from the web game (`npm run unity:golden`).
 
 ## Keeping the port honest
 
@@ -49,8 +62,11 @@ resulting car state. Then:
     cd unity/Tests~/Core.Tests && dotnet run
 
 replays those inputs through the C# and compares positions, speeds, health, lap counts and lap times, and runs the gopher
-and the yeti beside a scripted car against the web game's (`critters.json`). Today: 11,286 checks,
-worst difference about 3e-12 px over two laps. If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
+and the yeti beside a scripted car against the web game's (`critters.json`). It also runs whole races (`races.json`):
+eight weekends on different circuits (pit stops, rain, dirt, a bridge, HARD, the virtual safety car), each field drawn
+from its seed, lights to flag, every car's state every second and every race event compared, and they match **bit for
+bit**. JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
+(The player's wheel still uses .NET's `Math.Pow`, a last bit off now and then: the recorded lap drifts about 2e-12 px.) If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
 and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.)
 
 ## Not verified yet

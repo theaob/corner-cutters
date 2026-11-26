@@ -20,7 +20,15 @@ namespace CornerCutters.Game
         static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
 
         /// <summary>Milk Energy, the web game's first team: navy with gold nose and wings (src/f1/teams.ts).</summary>
-        public static Livery MilkEnergy() => new Livery { Body = Hex(0x1e2b5c), Trim = Hex(0xf2c14e), Pattern = LiveryPattern.Nose };
+        public static Livery MilkEnergy() => FromTeam(CornerCutters.Core.Field.Teams[0], 0);
+
+        /// <summary>A team's livery (src/f1/teams.ts), its second car with the bright green T-camera (race.ts TCAM_GREEN).</summary>
+        public static Livery FromTeam(CornerCutters.Core.Team t, int seat) => new Livery
+        {
+            Body = Hex(t.Body), Trim = Hex(t.Trim), Accent = t.Accent >= 0 ? Hex(t.Accent) : (Color?)null,
+            Pattern = System.Enum.TryParse<LiveryPattern>(t.Pattern, true, out var p) ? p : LiveryPattern.Plain,
+            TCam = seat == 1 ? Hex(0x39ff14) : (Color?)null,
+        };
     }
 
     public sealed class CarView
@@ -79,7 +87,8 @@ namespace CornerCutters.Game
                 }
         }
 
-        public CarView(Livery look)
+        /// <param name="band">the tyres' compound colour (0xRRGGBB: the soft's red unless given)</param>
+        public CarView(Livery look, int band = 0xe8463c)
         {
             Root = new GameObject("Car");
             var mb = new MeshBuilder();
@@ -103,13 +112,13 @@ namespace CornerCutters.Game
 
             // wheels: [z, radius, width, half-track] per axle; the compound band (soft: red) round the outer edge
             var rubber = new Color(0.082f, 0.082f, 0.082f);
-            var band = new Color(0.86f, 0.12f, 0.1f);
+            var bandColor = TrackView.Hex(band);
             foreach (var (z, r, w, half) in new[] { (-(L / 2 - 8), 3.2f, 3f, W / 2 - 1.5f), (L / 2 - 6, 3.8f, 3.6f, W / 2 - 1.2f) })
                 foreach (float sx in new[] { -1f, 1f })
                 {
                     var hub = new Vector3(sx * half * K, r * K, -z * K);
                     mb.CylinderX(hub, r * K, w * K, 12, rubber);
-                    mb.CylinderX(hub + new Vector3(sx * (w / 2 - 0.4f) * K, 0, 0), (r + 0.12f) * K, 0.8f * K, 12, band, openEnded: true);
+                    mb.CylinderX(hub + new Vector3(sx * (w / 2 - 0.4f) * K, 0, 0), (r + 0.12f) * K, 0.8f * K, 12, bandColor, openEnded: true);
                 }
 
             var body3d = new GameObject("body");
@@ -127,6 +136,69 @@ namespace CornerCutters.Game
             shadow.transform.localPosition = new Vector3(0, 0.03f, 0);
             shadow.AddComponent<MeshFilter>().sharedMesh = sh.ToMesh("car shadow");
             shadow.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.ShadowMaterial();
+        }
+    }
+
+    /// <summary>The safety car (src/f1/safetyCar3d.ts): a low road car in silver with a green stripe, and an amber light bar
+    /// whose two lamps take turns while it leads the field.</summary>
+    public sealed class SafetyCarView
+    {
+        public readonly GameObject Root;
+        readonly GameObject[] on = new GameObject[2], off = new GameObject[2];
+        float time;
+        const float K = Units.PerPx;
+
+        public SafetyCarView(float w = 14, float l = 28)
+        {
+            Root = new GameObject("Safety car");
+            var mb = new MeshBuilder();
+            var silver = TrackView.Hex(0xc9ccd4);
+            var stripe = TrackView.Hex(0x2f9a5a);
+            var glass = TrackView.Hex(0x2e3b5c);
+            // (the web game's boxes: x across, y up, z along with the nose at -z, px; here z flipped and scaled)
+            void Box(float bw, float h, float bl, float y, float z, Color sides, Color? top = null)
+            {
+                var c = new Vector3(0, y * K, -z * K);
+                var size = new Vector3(bw * K, h * K, bl * K);
+                if (top.HasValue) mb.Box(c, size, sides, top.Value); else mb.Box(c, size, sides);
+            }
+            Box(w, 5, l, 4.5f, 0, silver);
+            Box(4, 0.4f, l + 0.2f, 7.1f, 0, stripe);
+            Box(w - 3, 3.5f, l * 0.42f, 8.7f, 2, glass, silver);
+            var tyre = TrackView.Hex(0x151515);
+            foreach (float z in new[] { -(l / 2 - 5), l / 2 - 5 })
+                foreach (float x in new[] { -w / 2, w / 2 })
+                    mb.CylinderX(new Vector3(x * K, 3 * K, -z * K), 3 * K, 2 * K, 12, tyre);
+            var body = new GameObject("body");
+            body.transform.SetParent(Root.transform, false);
+            body.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh("safety car");
+            body.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.VertexColorMaterial();
+            for (int i = 0; i < 2; i++)
+            {
+                float x = i == 0 ? -2.5f : 2.5f;
+                on[i] = Lamp(x, new Color(1f, 0.75f, 0.2f), "lamp on");
+                off[i] = Lamp(x, new Color(0.25f, 0.14f, 0.02f), "lamp off");
+            }
+        }
+
+        GameObject Lamp(float x, Color c, string name)
+        {
+            var mb = new MeshBuilder();
+            mb.Box(new Vector3(x * K, 11.2f * K, -2 * K), new Vector3(4 * K, 1.4f * K, 2.4f * K), c);
+            var go = new GameObject(name);
+            go.transform.SetParent(Root.transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh(name);
+            go.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.VertexColorMaterial();
+            return go;
+        }
+
+        /// <summary>Flash the light bar.</summary>
+        public void Step(float dt)
+        {
+            time += dt;
+            bool phase = Mathf.FloorToInt(time * 5) % 2 == 0;
+            on[0].SetActive(phase); off[0].SetActive(!phase);
+            on[1].SetActive(!phase); off[1].SetActive(phase);
         }
     }
 }

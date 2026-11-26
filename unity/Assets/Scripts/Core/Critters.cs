@@ -98,7 +98,7 @@ namespace CornerCutters.Core
         }
 
         static double Hyp(double x, double y) => Math.Sqrt(x * x + y * y);
-        double Lateral(int i, double x, double y) => (x - track.X[i]) * Math.Cos(track.Dir[i]) + (y - track.Y[i]) * Math.Sin(track.Dir[i]);
+        double Lateral(int i, double x, double y) => (x - track.X[i]) * JsMath.Cos(track.Dir[i]) + (y - track.Y[i]) * JsMath.Sin(track.Dir[i]);
 
         /// <summary>dt s on, near focus (the camera's), with cars about.</summary>
         public void Step(double dt, IList<CritterCar> cars, double fx, double fy)
@@ -162,9 +162,9 @@ namespace CornerCutters.Core
             var c = Current;
             double speed = Hyp(car.Vx, car.Vy);
             double aside = (r.Next() - 0.5) * 0.5;
-            double dir = Math.Atan2(car.Vy, car.Vx) + aside;
+            double dir = JsMath.Atan2(car.Vy, car.Vx) + aside;
             double v = speed * G.fling;
-            c.Air = new Air { X = x, Y = y, Z = 0, Vx = Math.Cos(dir) * v, Vy = Math.Sin(dir) * v, Vz = G.lift + speed * G.liftMore, Tumble = 0, Heading = dir };
+            c.Air = new Air { X = x, Y = y, Z = 0, Vx = JsMath.Cos(dir) * v, Vy = JsMath.Sin(dir) * v, Vz = G.lift + speed * G.liftMore, Tumble = 0, Heading = dir };
             c.Phase = Phase.Flung; c.T = 0;
             Hits++;
         }
@@ -189,7 +189,7 @@ namespace CornerCutters.Core
                 double side = Math.Sign(Lateral(k, lx, ly));
                 if (side == 0) side = 1;
                 double o = halfWidth + G.holeOut;
-                to = (track.X[k] + Math.Cos(track.Dir[k]) * o * side, track.Y[k] + Math.Sin(track.Dir[k]) * o * side);
+                to = (track.X[k] + JsMath.Cos(track.Dir[k]) * o * side, track.Y[k] + JsMath.Sin(track.Dir[k]) * o * side);
                 c.Holes.Add(to);
             }
             c.FromX = lx; c.FromY = ly; c.ToX = to.x; c.ToY = to.y;
@@ -212,8 +212,8 @@ namespace CornerCutters.Core
             if (clear.Count == 0) { wait = 1.5; return; }
             double o = halfWidth + G.holeOut;
             (double x, double y) Hole(int p, double s, double along) => (
-                track.X[p] + Math.Cos(track.Dir[p]) * o * s + Math.Sin(track.Dir[p]) * along,
-                track.Y[p] + Math.Sin(track.Dir[p]) * o * s - Math.Cos(track.Dir[p]) * along);
+                track.X[p] + JsMath.Cos(track.Dir[p]) * o * s + JsMath.Sin(track.Dir[p]) * along,
+                track.Y[p] + JsMath.Sin(track.Dir[p]) * o * s - JsMath.Cos(track.Dir[p]) * along);
             bool OffTrack((double x, double y) h) => Math.Abs(Lateral(Racing.NearestSample(track, h.x, h.y), h.x, h.y)) > halfWidth + G.holeOut / 2;
             int q = clear[(int)Math.Floor(r.Next() * clear.Count)];
             double side = r.Next() < 0.5 ? 1 : -1;
@@ -252,7 +252,7 @@ namespace CornerCutters.Core
                 return true;
             }
             var (x, y) = Where();
-            double dir = Math.Atan2(c.ToY - c.FromY, c.ToX - c.FromX) + (c.Back ? Math.PI : 0);
+            double dir = JsMath.Atan2(c.ToY - c.FromY, c.ToX - c.FromX) + (c.Back ? Math.PI : 0);
             double up = c.Phase == Phase.Peek ? Math.Min(1, c.T / (G.peek * 0.4)) : c.Phase == Phase.Duck ? Math.Max(0, 1 - c.T / G.duck) : 1;
             pose = new GopherPose { X = x, Y = y, Heading = dir, Up = up, Step = stride / 5, Running = c.Phase == Phase.Run || c.Phase == Phase.Bolt, Dazed = c.Phase == Phase.Dazed };
             return true;
@@ -290,7 +290,7 @@ namespace CornerCutters.Core
         }
 
         static double Hyp(double x, double y) => Math.Sqrt(x * x + y * y);
-        double Lateral(int i, double x, double y) => (x - track.X[i]) * Math.Cos(track.Dir[i]) + (y - track.Y[i]) * Math.Sin(track.Dir[i]);
+        double Lateral(int i, double x, double y) => (x - track.X[i]) * JsMath.Cos(track.Dir[i]) + (y - track.Y[i]) * JsMath.Sin(track.Dir[i]);
 
         /// <summary>dt s on, the camera on (fx, fy): the car it's after.</summary>
         public void Step(double dt, double fx, double fy)
@@ -307,14 +307,14 @@ namespace CornerCutters.Core
             double far = Hyp(fx - p.X, fy - p.Y);
             if (p.Phase == Phase.Wait)
             {
-                p.Heading = Math.Atan2(fy - p.Y, fx - p.X);
+                p.Heading = JsMath.Atan2(fy - p.Y, fx - p.X);
                 if (far < Y.sees) { p.Phase = Phase.Roar; p.T = 0; }
                 else if (p.T > Y.patience) Gone();
                 return;
             }
             if (p.Phase == Phase.Roar)
             {
-                p.Heading = Math.Atan2(fy - p.Y, fx - p.X);
+                p.Heading = JsMath.Atan2(fy - p.Y, fx - p.X);
                 if (p.T >= Y.roar) { p.Phase = Phase.Chase; p.T = 0; Chases++; }
                 return;
             }
@@ -324,17 +324,17 @@ namespace CornerCutters.Core
                 {
                     int i = Racing.NearestSample(track, p.X, p.Y);
                     double d = track.Dir[i];
-                    p.Phase = Phase.Leave; p.T = 0; p.Heading = Math.Atan2(Math.Sin(d) * side, Math.Cos(d) * side);
+                    p.Phase = Phase.Leave; p.T = 0; p.Heading = JsMath.Atan2(JsMath.Sin(d) * side, JsMath.Cos(d) * side);
                     return;
                 }
                 int k = Racing.NearestSample(track, fx, fy);
-                double tx = track.X[k] + Math.Cos(track.Dir[k]) * keep * side;
-                double ty = track.Y[k] + Math.Sin(track.Dir[k]) * keep * side;
+                double tx = track.X[k] + JsMath.Cos(track.Dir[k]) * keep * side;
+                double ty = track.Y[k] + JsMath.Sin(track.Dir[k]) * keep * side;
                 double dx = tx - p.X, dy = ty - p.Y, dist = Hyp(dx, dy);
                 double go = Math.Min(dist, Y.speed * dt);
                 if (dist > 0.5)
                 {
-                    p.Heading = Math.Atan2(dy, dx);
+                    p.Heading = JsMath.Atan2(dy, dx);
                     p.X += dx / dist * go;
                     p.Y += dy / dist * go;
                     p.Step += go;
@@ -342,8 +342,8 @@ namespace CornerCutters.Core
                 KeepOff(p);
                 return;
             }
-            p.X += Math.Cos(p.Heading) * Y.leave * dt;
-            p.Y += Math.Sin(p.Heading) * Y.leave * dt;
+            p.X += JsMath.Cos(p.Heading) * Y.leave * dt;
+            p.Y += JsMath.Sin(p.Heading) * Y.leave * dt;
             p.Step += Y.leave * dt;
             if (p.T >= Y.leaveFor) Gone();
         }
@@ -355,12 +355,12 @@ namespace CornerCutters.Core
             int at = Racing.NearestSample(track, fx, fy);
             int k = (int)Math.Round((Y.ahead.from + r.Next() * (Y.ahead.to - Y.ahead.from)) / spacing, MidpointRounding.AwayFromZero);
             int q = (at + k) % n;
-            double south = Math.Sin(track.Dir[q]);
+            double south = JsMath.Sin(track.Dir[q]);
             side = Math.Abs(south) > 0.3 ? Math.Sign(south) : r.Next() < 0.5 ? 1 : -1;
-            double x = track.X[q] + Math.Cos(track.Dir[q]) * keep * side;
-            double y = track.Y[q] + Math.Sin(track.Dir[q]) * keep * side;
+            double x = track.X[q] + JsMath.Cos(track.Dir[q]) * keep * side;
+            double y = track.Y[q] + JsMath.Sin(track.Dir[q]) * keep * side;
             if (Math.Abs(Lateral(Racing.NearestSample(track, x, y), x, y)) < keep - 1 || Blocked(x, y)) { wait = 1.5; return; }
-            Pose = new YetiPose { X = x, Y = y, Heading = Math.Atan2(fy - y, fx - x), Phase = Phase.Wait };
+            Pose = new YetiPose { X = x, Y = y, Heading = JsMath.Atan2(fy - y, fx - x), Phase = Phase.Wait };
         }
 
         bool Blocked(double x, double y)
@@ -376,8 +376,8 @@ namespace CornerCutters.Core
             if (Math.Abs(off) >= keep) return;
             double s = Math.Sign(off);
             double to = (s != 0 ? s : side) * keep;
-            p.X += Math.Cos(track.Dir[i]) * (to - off);
-            p.Y += Math.Sin(track.Dir[i]) * (to - off);
+            p.X += JsMath.Cos(track.Dir[i]) * (to - off);
+            p.Y += JsMath.Sin(track.Dir[i]) * (to - off);
         }
 
         void Gone()

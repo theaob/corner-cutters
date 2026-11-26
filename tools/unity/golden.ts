@@ -10,6 +10,15 @@ import { handlingFor, DIFFICULTIES } from '../../src/f1/difficulty';
 import { GOPHER, GopherRun } from '../../src/f1/gopher';
 import { YETI, YetiRun } from '../../src/f1/yeti';
 import { HALF_WIDTH } from '../../src/f1/circuit';
+import { aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, paceRanks } from '../../src/f1/difficulty';
+import { aiReaction } from '../../src/f1/launch';
+import { driverSeats, teamGrid, TEAMS } from '../../src/f1/teams';
+import { styleOf } from '../../src/f1/drivers';
+import { seededRandom } from '../../src/engine/rng';
+import { changeableForecast } from '../../src/f1/forecast';
+import { newRace, stepRace, type RaceEvent } from '../../src/f1/raceControl';
+import type { PitLane } from '../../src/f1/pits';
+import type { AiDriver } from '../../src/f1/racing';
 import { keysWheel, newProgress, nearestSample, stepProgress, wheelInput, stickWheel, type Track, type WheelPad } from '../../src/f1/racing';
 
 const TILE_OF = (id: string) => JSON.parse(readFileSync(`unity/Assets/Resources/Circuits/${id}.json`, 'utf8'));
@@ -157,7 +166,122 @@ function goldenCritters() {
   console.log(`critters: gopher ${gopher.crossings} crossings, ${gopher.bolts} bolts, ${gopher.hits} hits; yeti ${yeti.chases} chases`);
 }
 
+/** A circuit's track as race control sees it (its pit lane, its bridge, its dirt), from the baked JSON alone, as the C# side builds it. */
+function loadRace(id: string) {
+  const { b, grid, track } = load(id);
+  track.dirt = b.dirt;
+  track.tyreWear = b.tyreWear;
+  if (b.levels) {
+    const l = b.levels;
+    track.levels = {
+      upper: { ...grid, heights: l.heights, solid: l.solid.split('').map((c: string) => c === '1'), rough: l.rough ? l.rough.split('').map((c: string) => c === '1') : undefined },
+      from: l.from, to: l.to, over: l.over, under: l.under, height: l.height,
+    };
+  }
+  const q = b.pitLane;
+  const pit: PitLane | undefined = q ? {
+    ...q, points: q.points.x.map((x: number, k: number) => ({ x, y: q.points.y[k], s: q.points.s[k], dir: q.points.dir[k], idx: q.points.idx[k], off: q.points.off[k] })),
+  } : undefined;
+  return { b, grid, track, pit };
+}
+
+/**
+ * Whole races, as the web game runs them: a weekend's field drawn from its seed (race.ts's drawWeekend), every car
+ * driven by the AI (yours too, on a plain line), lights to flag. The C# side draws the same field from the same seed
+ * and runs the same race; each car's state every second, and every race event, must match.
+ */
+function goldenRaces() {
+  const races = [
+    { id: 'crescent-park', seed: 12345, laps: 5, weather: 'dry' },
+    { id: 'suzuka', seed: 777, laps: 3, weather: 'changeable' },
+    { id: 'dust-bowl', seed: 4242, laps: 3, weather: 'wet' },
+    { id: 'harbour', seed: 2, laps: 5, weather: 'damp' },
+    { id: 'royal-park', seed: 3, laps: 5, weather: 'dry' },
+    { id: 'twin-lakes', seed: 5, laps: 5, weather: 'dry' },
+    { id: 'jade-spiral', seed: 6, laps: 5, weather: 'dry' },
+    { id: 'oasis', seed: 13, laps: 5, weather: 'dry', difficulty: 'hard' },
+  ] as const;
+  const out = races.map((spec) => {
+    const { b, grid, track, pit } = loadRace(spec.id);
+    const seed = spec.seed;
+    const level = DIFFICULTIES.find((d) => d.id === ('difficulty' in spec ? spec.difficulty : 'normal'))!;
+    // (drawWeekend, as race.ts has it: 10 opponents, your team the first, the first seat)
+    const rng = seededRandom(seed);
+    const total = Math.min(b.slots.length, 1 + 10);
+    const youDriver = Math.floor(total / 2);
+    const teams = teamGrid(TEAMS[0], total, youDriver, rng);
+    const seats = driverSeats(teams, youDriver, 0);
+    const ranks = paceRanks(total, rng);
+    const boxes = [...new Set(teams)];
+    const drivers = teams.map((livery, k) => {
+      const style = styleOf(livery.drivers[seats[k]]);
+      const ai: AiDriver | undefined = k === youDriver ? undefined : {
+        lane: ((k * 7) % 11) - 5, pace: aiPaceFor(level, ranks[k], total, 1), craft: aiCraftFor(level, rng, style.aggression),
+        mistakes: aiMistakesFor(level, style.consistency), rng: seededRandom(Math.floor(rng() * 4294967296)),
+        incidents: aiIncidentsFor(level, style.aggression),
+      };
+      if (ai) ai.reaction = aiReaction(seededRandom(((seed * 2654435761) ^ ((k + 1) * 40503)) >>> 0 || 1), ai.craft ?? 0.6, style.consistency);
+      return { livery, seat: seats[k], ai, box: boxes.indexOf(livery) };
+    });
+    const lightsOut = 0.3 + rng() * 0.7;
+    const draw = { teams: teams.map((t) => t.id), seats, ranks, lightsOut, drivers: drivers.map((d) => d.ai ? { lane: d.ai.lane, pace: d.ai.pace, craft: d.ai.craft ?? -1, mistakes: d.ai.mistakes ?? 0, incidents: d.ai.incidents ?? 0, reaction: d.ai.reaction ?? 0 } : null) };
+    // (you on the AI too, on a plain line: the golden's own, not the game's)
+    drivers[youDriver].ai = { lane: 0, pace: 0.94 };
+    const field = drivers.map((d, i) => ({ car: newCar(f1, b.slots[i].x, b.slots[i].y, b.slots[i].heading), ai: d.ai, box: d.box }));
+    const weather = spec.weather === 'changeable' ? changeableForecast(seed, (spec.laps * track.length) / 300) : spec.weather;
+    const race = newRace(track, grid, handlingFor(level), spec.laps, field, lightsOut, pit, weather);
+    const plans = race.entrants.map((e) => (e.plan ? { stints: e.plan.plan.stints.map((s) => [s.compound, s.laps]), stopAt: e.plan.stopAt ?? -1 } : null));
+    const states: number[][][] = [];
+    const events: (string | number)[][] = [];
+    const kinds: Record<string, number> = {};
+    let step = 0;
+    const most = Math.round(((spec.laps + 2) * track.length) / 150 / DT);
+    while (step < most) {
+      const r = stepRace(race, DT);
+      step++;
+      for (const ev of r.race) {
+        kinds[ev.kind] = (kinds[ev.kind] ?? 0) + 1;
+        if (ev.kind === 'contact') continue;
+        events.push([step, ev.kind, 'who' in ev ? ev.who : -1]);
+      }
+      if (step % 60 === 0) {
+        states.push(race.entrants.map((e) => [
+          e.car.x, e.car.y, e.car.heading, e.car.vx, e.car.vy, e.car.health, e.car.z,
+          e.progress.lap, e.progress.idx, e.progress.penalty, e.progress.retired ? 1 : 0, e.progress.finished ?? -1,
+          e.tyres.wear, ['slick', 'hard', 'inter', 'wet', 'dirt'].indexOf(e.tyres.compound), e.stops, e.pit ? ['in', 'stopped', 'out', 'garage'].indexOf(e.pit.phase) : -1,
+        ]));
+      }
+      if (race.entrants.every((e) => e.progress.retired || e.inLap?.parked || (e.progress.finished !== undefined && !pit))) break;
+    }
+    const finish = race.entrants.map((e) => e.progress.finished ?? -1);
+    console.log(`race ${spec.id}: ${step} steps, ${JSON.stringify(kinds)}`);
+    return { ...spec, difficulty: level.id, weather: spec.weather, seed, steps: step, draw, plans, practice: race.practice ?? null, states, events, finish, wetness: race.wetness };
+  });
+  writeFileSync('unity/Tests~/Core.Tests/races.json', JSON.stringify({ dt: DT, races: out }));
+}
+
+/** V8's Math.sin, cos, atan, atan2 and exp on inputs like the game's (headings, angles, slopes, grip): JsMath.cs must give the same bits. */
+function goldenMath() {
+  const rng = seededRandom(99);
+  const xs: number[] = [];
+  for (let i = 0; i < 6000; i++) {
+    const r = rng();
+    xs.push(i % 4 === 0 ? (r - 0.5) * 100 : i % 4 === 1 ? (r - 0.5) * 8 : i % 4 === 2 ? (r - 0.5) * 1e-3 : Math.round((r - 0.5) * 64) * (Math.PI / 4) + (rng() - 0.5) * 1e-9);
+  }
+  const pairs: number[][] = [];
+  for (let i = 0; i < 6000; i++) pairs.push([(rng() - 0.5) * (i % 3 ? 600 : 2), (rng() - 0.5) * (i % 5 ? 600 : 1e-4)]);
+  pairs.push([0, 1], [0, -1], [1, 0], [-1, 0], [0, 0], [3, 1], [1e-300, 5], [5, 1e-300]);
+  const es = Array.from({ length: 5000 }, (_, i) => (rng() - 0.75) * (i % 2 ? 8 : 0.2));
+  es.push(1, 0, -1, 0.5, 700, -700);
+  writeFileSync('unity/Tests~/Core.Tests/math.json', JSON.stringify({
+    sin: xs.map((x) => [x, Math.sin(x)]), cos: xs.map((x) => [x, Math.cos(x)]), atan: xs.map((x) => [x, Math.atan(x)]),
+    atan2: pairs.map(([y, x]) => [y, x, Math.atan2(y, x)]), exp: es.map((x) => [x, Math.exp(x)]),
+  }));
+}
+
 if (process.argv[1]?.endsWith('golden.mjs')) {
+  goldenMath();
   goldenAll();
   goldenCritters();
+  goldenRaces();
 }

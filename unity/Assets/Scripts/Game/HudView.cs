@@ -2,14 +2,18 @@
 // game.css's .desktop rules), in its pixel font (Silkscreen, Resources/Fonts, OFL), drawn with IMGUI:
 //   - the readout, top left: a 7 x 7 pixel icon, a label and a value a line (LAP, LAST, BEST, REC, CAR as five blocks)
 //     on a dark rounded panel, the columns lined up;
-//   - the lap, top centre, in gold on the strip with its pink edge;
-//   - the minimap, top right: the track in white, the pit lane thin and grey, you a gold square;
-//   - the banner, a third of the way down: the start lights as red dots (one every 0.6 s), GO!, WRONG WAY, FINISHED;
+//   - your place and the lap, top centre, in gold on the strip with its pink edge;
+//   - the minimap, top right: the track in white, the pit lane thin and grey, the field in white, you a gold square;
+//   - the timing tower under it (towerView.ts): the top three, then the cars round you, with their gaps;
+//   - the banner, a third of the way down: the start lights as red dots (one every 0.6 s), GO!, WRONG WAY, FINISHED,
+//     and the race's calls (SAFETY CAR, a penalty, blue flags, your stop);
 //     and under the lights your team's card;
 //   - the controls along the bottom left, the keys (or the pad's buttons) as keycaps;
 //   - the pause screen: the race dimmed behind PAUSED and its buttons.
 // Sizes are the web game's CSS px at 720 px high, scaled with the screen.
 using CornerCutters.Core;
+using System.Linq;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CornerCutters.Game
@@ -33,6 +37,27 @@ namespace CornerCutters.Game
             public double CarX, CarY;
             public InputSource Source;
             public string Team, Difficulty, Weather;
+            /// <summary>your place in the race, of how many</summary>
+            public int Place, Cars;
+            /// <summary>the timing tower (null: not shown)</summary>
+            public List<TowerRow> Tower;
+            /// <summary>your tyres: compound and how much is left, in its colour</summary>
+            public string Tyre;
+            public Color TyreColor;
+            /// <summary>a call of the race's (SAFETY CAR, a penalty...), or null</summary>
+            public string Notice;
+            public Color NoticeColor;
+            /// <summary>the other cars, for the minimap</summary>
+            public List<(double x, double y)> Others;
+        }
+
+        /// <summary>A row of the timing tower (towerView.ts): its place, the team's colours, the name, the gap; Gap null: the ··· between the top three and you.</summary>
+        public struct TowerRow
+        {
+            public int Place;
+            public Color Body, Trim;
+            public string Name, Gap;
+            public bool You, Out, Blue;
         }
 
         public enum PauseChoice { None, Resume, Restart, NextCircuit }
@@ -109,6 +134,7 @@ namespace CornerCutters.Game
             Readout(s);
             LapStrip(s, w);
             Minimap(s, w);
+            TowerView(s, w);
             Banner(s, w, h);
             Controls(s, h);
             return s.Paused ? Pause(w, h) : PauseChoice.None;
@@ -125,6 +151,7 @@ namespace CornerCutters.Game
                 ("watch", "LAP", Fmt(s.LapTime)), ("lap", "LAST", Fmt(s.Last)), ("star", "BEST", Fmt(s.Best)), ("cup", "REC", Fmt(s.Record)),
                 ("car", "CAR", s.Wrecked ? "WRECKED" : null),
             };
+            if (s.Tyre != null) rows = rows.Append(("lap", "TYRE", s.Tyre)).ToArray();
             const float icon = 8, gap = 4, line = 15, padX = 6, padY = 2;
             float labelW = 0, valueW = 5 * 7 + 4 * 2;
             foreach (var r in rows)
@@ -140,7 +167,12 @@ namespace CornerCutters.Game
                 Icon(rows[i].icon, x0 + padX, y + (line - icon) / 2, icon, Muted);
                 Text(x0 + padX + icon + gap, y, labelW, line, rows[i].label, st);
                 float vx = x0 + padX + icon + gap + labelW + gap;
-                if (rows[i].value != null) Text(vx, y, valueW, line, rows[i].value, st);
+                if (rows[i].label == "TYRE")
+                {
+                    var ts = Style(12, s.TyreColor);
+                    Text(vx, y, valueW, line, rows[i].value, ts);
+                }
+                else if (rows[i].value != null) Text(vx, y, valueW, line, rows[i].value, st);
                 else
                 {
                     // five blocks, the health's share of them filled (■ and □)
@@ -159,7 +191,7 @@ namespace CornerCutters.Game
         void LapStrip(State s, float w)
         {
             var st = Style(17, Gold, TextAnchor.MiddleCenter);
-            string text = $"LAP {Mathf.Clamp(s.Lap, 1, s.Laps)}/{s.Laps}";
+            string text = (s.Cars > 1 ? $"P{s.Place}/{s.Cars}   " : "") + $"LAP {Mathf.Clamp(s.Lap, 1, s.Laps)}/{s.Laps}";
             float tw = Width(text, st), bw = tw + 32, x = w / 2 - bw / 2;
             Fill(R(x, 12, bw, 36), Strip, 8 * k, Mathf.Max(1, k), Line);
             // (the 3 px pink edge on its left)
@@ -174,8 +206,42 @@ namespace CornerCutters.Game
             Fill(R(x, y, miniW, miniH), MiniBg, 6 * k);
             GUI.DrawTexture(R(x, y, miniW, miniH), mini, ScaleMode.StretchToFill, true);
             // (canvas px are half a screen px: the dot is 7 of them)
+            if (s.Others != null)
+                foreach (var (ox, oy) in s.Others)
+                {
+                    float ex = (float)(4 + ox * miniScale) / 2, ey = (float)(4 + oy * miniScale) / 2;
+                    Fill(R(x + ex - 1.25f, y + ey - 1.25f, 2.5f, 2.5f), Ink);
+                }
             float dx = (float)(4 + s.CarX * miniScale) / 2, dy = (float)(4 + s.CarY * miniScale) / 2;
             Fill(R(x + dx - 1.75f, y + dy - 1.75f, 3.5f, 3.5f), Gold);
+        }
+
+        /// <summary>Under the minimap: the timing tower, as on TV (towerView.ts): place, a bar in the team's colours, name, gap; your row in gold.</summary>
+        void TowerView(State s, float w)
+        {
+            if (s.Tower == null || s.Tower.Count == 0) return;
+            const float line = 12, pad = 2;
+            float tw = Mathf.Max(96, miniW), x = w - 6 - tw, y = 40 + miniH + 6;
+            Fill(R(x, y, tw, pad * 2 + line * s.Tower.Count), Panel, 6 * k);
+            var dim = Hex(0x6c6a88);
+            for (int i = 0; i < s.Tower.Count; i++)
+            {
+                var r = s.Tower[i];
+                float ry = y + pad + i * line;
+                if (r.Gap == null)
+                {
+                    Text(x, ry, tw, line, "···", Style(10, dim, TextAnchor.MiddleCenter));
+                    continue;
+                }
+                if (r.You) Fill(R(x, ry, tw, line), Rgba(242, 193, 78, 0.18f));
+                var ink = r.You ? Gold : r.Out ? Hex(0x6c707a) : Ink;
+                Text(x + 4, ry, 16, line, r.Place.ToString(), Style(10, ink));
+                // the team's bar: its colour, its trim along the bottom
+                Fill(R(x + 24, ry + (line - 9) / 2, 3, 9), r.Body);
+                Fill(R(x + 24, ry + (line - 9) / 2 + 7, 3, 2), r.Trim);
+                Text(x + 31, ry, 28, line, r.Name, Style(10, ink));
+                Text(x + 31, ry, tw - 31 - 6, line, r.Gap, Style(10, r.Blue ? Hex(0x4fa3ff) : Muted, TextAnchor.MiddleRight));
+            }
         }
 
         /// <summary>A third of the way down: the lights, then the most urgent message (banner.ts); the team card under the lights.</summary>
@@ -207,6 +273,7 @@ namespace CornerCutters.Game
             if (s.Finished) { text = $"FINISHED · {Fmt(s.RaceTime)}"; color = Gold; }
             else if (s.WrongWay > 1) { text = "WRONG WAY"; color = Red; }
             else if (!double.IsNaN(s.SinceGo) && s.SinceGo < 1.2) { text = "GO!"; color = Cyan; }
+            else if (s.Notice != null) { text = s.Notice; color = s.NoticeColor; }
             if (text == null) return;
             Text(0, y, w, 30, text, Style(20, color, TextAnchor.MiddleCenter), Shadow);
         }

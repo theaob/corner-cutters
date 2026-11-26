@@ -8,6 +8,8 @@
 /[Uu]ser[Ss]ettings/
 /[Mm]emoryCaptures/
 *.csproj
+# (but the test runner's own, which a fresh clone needs to run the tests)
+!Tests~/Core.Tests/Core.Tests.csproj
 *.sln
 *.slnx
 *.pidb.meta

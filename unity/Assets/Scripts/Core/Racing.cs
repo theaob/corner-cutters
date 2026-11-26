@@ -12,6 +12,12 @@ namespace CornerCutters.Core
         public double Spacing;
         public double Length;
         public int Count => X.Length;
+        /// <summary>a dirt circuit (off-road tyres, softer knocks)</summary>
+        public bool Dirt;
+        /// <summary>× the tyres' wear here</summary>
+        public double TyreWear = 1;
+        /// <summary>a bridge (null: none)</summary>
+        public Levels Levels;
     }
 
     public sealed class RaceProgress
@@ -26,6 +32,10 @@ namespace CornerCutters.Core
         public List<double> LapTimes = new List<double>();
         public double? Finished;
         public double WrongWay;
+        /// <summary>seconds added to the finish time (passing under the safety car, track limits)</summary>
+        public double Penalty;
+        /// <summary>out of the race (wrecked, and cleared off the track): classified last</summary>
+        public bool Retired;
 
         public RaceProgress Clone()
         {
@@ -102,6 +112,39 @@ namespace CornerCutters.Core
             return next;
         }
 
+        /// <summary>Race order (indexes into racers): finishers by time (penalties added), then by laps done, then by distance
+        /// round the current lap; retired cars last.</summary>
+        public static List<int> Standings(IList<RaceProgress> racers, Track track)
+        {
+            int n = track.Count;
+            double Score(RaceProgress p) => !p.LapStart.HasValue ? p.Idx - n : p.Lap * n + p.Idx;
+            var order = new List<int>();
+            for (int i = 0; i < racers.Count; i++) order.Add(i);
+            JsMath.StableSort(order, (a, b) =>
+            {
+                var pa = racers[a];
+                var pb = racers[b];
+                if (pa.Retired || pb.Retired)
+                {
+                    if (!pa.Retired) return -1;
+                    if (!pb.Retired) return 1;
+                    return Math.Sign(Score(pb) - Score(pa));
+                }
+                if (pa.Finished.HasValue || pb.Finished.HasValue)
+                {
+                    if (!pa.Finished.HasValue) return 1;
+                    if (!pb.Finished.HasValue) return -1;
+                    return Math.Sign(pa.Finished.Value + pa.Penalty - (pb.Finished.Value + pb.Penalty));
+                }
+                return Math.Sign(Score(pb) - Score(pa));
+            });
+            return order;
+        }
+
+        /// <summary>The lateral offset (px, + = right of the centreline) of point (x, y) near sample i.</summary>
+        public static double LateralOffset(Track track, int i, double x, double y)
+            => (x - track.X[i]) * JsMath.Cos(track.Dir[i]) + (y - track.Y[i]) * JsMath.Sin(track.Dir[i]);
+
         // ---- the player's wheel ----
 
         /// <summary>Keys and gamepads drive the car itself: steering (-1 left … 1 right), gas and brake (0…1), and drift.</summary>
@@ -129,7 +172,7 @@ namespace CornerCutters.Core
         public static DriveInput WheelInput(WheelPad w, Car car)
         {
             double turn = Math.Sign(w.Turn) * Math.Pow(Math.Min(1, Math.Abs(w.Turn)), 1.5) * WheelLock;
-            double forward = car.Vx * Math.Sin(car.Heading) - car.Vy * Math.Cos(car.Heading);
+            double forward = car.Vx * JsMath.Sin(car.Heading) - car.Vy * JsMath.Cos(car.Heading);
             bool braking = w.Brake > 0.2;
             if (braking && w.Gas < 0.1 && forward < ReverseBelow)
                 return new DriveInput { Wheel = new WheelCmd { Turn = turn, Gas = 0, Reverse = true }, Handbrake = w.Drift };

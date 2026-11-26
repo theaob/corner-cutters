@@ -49,6 +49,9 @@ Core verified against the web game (7,666 checks). Unity layer unverified in-edi
 safety car and blue flags, pit lane and tyres, qualifying and the grid, weather. Port `racing.ts` AI, `raceControl.ts`,
 `pits.ts`, `tyres.ts` with golden traces for each (a seeded 5-lap race's standings and lap times, from the web game).
 Includes a settings model and difficulty. *The longest pure-logic phase; entirely testable without Unity.*
+*Status (2026-11-26): the AI, contact, standings, race control (safety car, VSC, blue flags, track limits, penalties,
+retirements), pits, tyres, strategy, the weather's rules and difficulty are in, and eight whole races match the web
+game's bit for bit. Left: qualifying and the grid it sets, the results, the weather on screen, settings.*
 
 **Phase 3: look and feel.** URP, the HD-2D grade (tilt-shift, colour grading, shadows), scenery per circuit (trees,
 stands, town, water, night lights), cars with team liveries, crash debris and fire, camera work, audio (music, engine,
