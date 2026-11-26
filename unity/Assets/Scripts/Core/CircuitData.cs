@@ -32,6 +32,15 @@ namespace CornerCutters.Core
         public double x, y, dir, len;
         public int side;
         public bool atStart;
+        /// <summary>its crowd, as the web game's crowd3d places it</summary>
+        public BakedCrowd crowd;
+    }
+
+    /// <summary>Spectators in a stand's own space (px): x toward its back (the track is at -x), z along it, the floor they stand on, and each one's own phase.</summary>
+    [Serializable]
+    public class BakedCrowd
+    {
+        public double[] x, z, floor, phase;
     }
 
     /// <summary>The barriers as the web game stands them, as tile indices (j * width + i).</summary>

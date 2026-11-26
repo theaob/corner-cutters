@@ -12,9 +12,10 @@ Keyboard and gamepad. No AI, pits, tyres, weather, menus, audio, saves or shop y
 **Look.** Crescent Park has had a first look pass toward the web game's: its camera (north up, 26 degree lens, 52 degree
 pitch), the web game's own ground picture on every circuit (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane,
 grid boxes, chequered line: baked from its painter, one texel per map pixel, nearest-neighbour), the barriers where the
-web game stands them (tyre stacks, a street circuit's steel, hay bales on dirt), the pit garages and the pit wall (`PitView`), the web game's trees and grandstands (baked from its own placement code),
+web game stands them (tyre stacks, a street circuit's steel, hay bales on dirt), the pit garages and the pit wall (`PitView`), the web game's trees (baked from its own placement code), its grandstands on every circuit (`StandView`: back wall with
+the painted crowd, canopy, terraces, flags, and the blocky crowd that sways and cheers as the car passes),
 blob shadows, a blocky livery car and a tilt-shift blur with saturation and vignette (`TiltShift` shader). The other 18
-circuits get the ground, barriers and camera but no trees or stands yet (`SCENERY` in `tools/unity/bake.ts`). Still placeholder:
+circuits get the ground, barriers, pits, stands and camera but no trees yet (`SCENERY` in `tools/unity/bake.ts`). Still placeholder:
 HUD (IMGUI, no pixel font), the banking's catch fence, other cars, crowd animation, weather, sky, sound, night lamps.
 
 ## Open it

@@ -17,6 +17,7 @@ import { handlingFor } from '../../src/f1/difficulty';
 import { DIFFICULTIES } from '../../src/f1/difficulty';
 import { treesOf } from '../../src/f1/forest3d';
 import { standsOf } from '../../src/f1/stands';
+import { spectatorsOf } from '../../src/f1/crowd3d';
 import { barrierTiles, garageSpots, roofOrder } from '../../src/f1/circuitScene';
 import { PIT, between } from '../../src/f1/pits';
 import { LANE_IN, PIT_WALL } from '../../src/f1/circuit';
@@ -77,7 +78,11 @@ export function bakeAll() {
       tyreWear: layout.tyreWear ?? 1,
       /** trees: parallel arrays (map px; height px; kind index into spruce/broadleaf/palm/rock/blossom; crown colour 0xRRGGBB) */
       trees: SCENERY.has(layout.id) ? (() => { const t = treesOf(c); return { x: t.map((q) => round(q.x, 1)), y: t.map((q) => round(q.y, 1)), h: t.map((q) => round(q.h, 1)), kind: t.map((q) => KINDS.indexOf(q.kind)), color: t.map((q) => q.color) }; })() : { x: [], y: [], h: [], kind: [], color: [] },
-      stands: SCENERY.has(layout.id) ? standsOf(c).map((q) => ({ x: round(q.x, 1), y: round(q.y, 1), dir: round(q.dir, 5), side: q.side, len: q.len, atStart: q.at === 'start' })) : [],
+      /** every circuit's grandstands (standsOf), each with its crowd as crowd3d places it (stand-local px: x toward its back, z along it; floor px up; phase) */
+      stands: standsOf(c).map((q, k) => {
+        const people = spectatorsOf(q, k * 7919 + 13);
+        return { x: round(q.x, 2), y: round(q.y, 2), dir: round(q.dir, 6), side: q.side, len: q.len, atStart: q.at === 'start', crowd: { x: people.map((p) => round(p.x, 2)), z: people.map((p) => round(p.z, 2)), floor: people.map((p) => round(p.floor, 2)), phase: people.map((p) => round(p.phase, 4)) } };
+      }),
       /** the barriers as the web game stands them (tile indices j*width+i): tyre walls, the banking's concrete, the Wall of Champions */
       barriers: (() => { const b = barrierTiles(c); const ix = (l: [number, number][]) => l.map(([i, j]) => j * c.width + i); return { walls: ix(b.walls), bank: ix(b.bankWall), champions: ix(b.champions) }; })(),
       /** what the tyre walls are on this circuit: tyres (stacks), steel (a street circuit's) or bales (on dirt) */

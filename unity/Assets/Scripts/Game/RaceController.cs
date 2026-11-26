@@ -24,6 +24,7 @@ namespace CornerCutters.Game
         CarView carView;
         GameObject circuitView;
         StartLights lights;
+        StandView stands;
         CircuitData circuit;
         Grid grid;
         Track track;
@@ -71,6 +72,7 @@ namespace CornerCutters.Game
             circuitView.transform.SetParent(transform, false);
             SceneryView.Build(circuitView, circuit);
             PitView.Build(circuitView, circuit);
+            stands = StandView.Build(circuitView, circuit);
             lights = new StartLights(circuitView.transform, circuit);
             bestLap = double.NaN;
             Restart();
@@ -156,6 +158,8 @@ namespace CornerCutters.Game
             double h = ph + Driving.AngleDiff(ch, ph) * alpha;
             var pos = Units.ToWorld(x, y, z);
             carView.Root.transform.SetPositionAndRotation(pos, Units.Rotation(car, grid, h));
+            // (the crowds sway on while paused, as the web game's: frame is 0 then only if the clock stops)
+            if (stands != null) stands.Step(frame, x, y);
             float speed01 = Mathf.Clamp01((float)(Driving.SpeedOf(car) / car.Cls.TopSpeed));
             // look a little ahead of where the car is going (the web game's lead: about 40 px at full speed)
             var lead = new Vector3((float)(car.Vx / car.Cls.TopSpeed * 2.5), 0, (float)(-car.Vy / car.Cls.TopSpeed * 2.5));
