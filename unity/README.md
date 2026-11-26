@@ -5,16 +5,21 @@ A port of the web game to Unity, for desktop now and Nintendo Switch later. It l
 
 ## What works
 
-A five-lap race on any of the 19 circuits, you mid-grid against ten AI rivals in their team liveries, run by the web
+A weekend on any of the 19 circuits: qualifying first, one flying lap on your own from the run-up (track limits delete
+the lap, and the next one is timed afresh; the AI's times come from a reference lap and each driver's pace, as the web
+game's do), its times as a table, then a five-lap race from the grid they set against ten AI rivals in their team liveries, run by the web
 game's own race rules (`Core/RaceControl.cs`): start lights and each driver's reaction off them; the AI's racing (passing,
 defending, giving room, mistakes into bends, misjudged dives); contact; tyre wear and each car's strategy (SOFTs or HARDs,
 one stop or two, as the web game's crews plan them); pit stops for tyres and repairs (drive into the pit entry and the car
 takes itself down the lane); the slipstream; blue flags; track limits and penalties; the safety car and the virtual one;
-wrecks cleared and retired; after the flag a cool-down lap and home to the garages. Restart replays the same weekend (its
-seed), a new circuit draws a new one. HUD: your place, the timing tower with gaps, your tyres, the race's calls. Lap and
+wrecks cleared and retired; after the flag a cool-down lap and home to the garages, and the results (your race in five
+boxes, the table with places made, gaps, best laps, the fastest lap in purple, stops and penalties), live as the others
+finish. Weather: F (or Select, or the pause screen) picks dry, damp, wet or changeable for a new weekend; the race runs to
+its forecast (showers, a drying track, rain setting in), qualifying in the weather it starts in; the rain falls over the
+picture, the track darkens as it wets, the light greys, and the cars throw up spray. Restart replays the session (the race
+from the same grid); SKIP QUALIFYING on the pause screen starts you mid-grid; a new circuit draws a new weekend. HUD: your place, the timing tower with gaps, your tyres, the race's calls. Lap and
 best-lap times, wrong-way warning, damage, pause, next/previous circuit, three cameras (C: the web game's classic view,
-chase, top-down). Keyboard and gamepad. Not yet: qualifying, results and podium, weather on screen (the rules have it),
-menus, audio, saves, shop.
+chase, top-down). Keyboard and gamepad. Not yet: the grid walk, the podium, the crash replay, menus, audio, saves, shop.
 
 **Look.** The camera is the web game's (north up, 26 degree lens, 52 degree pitch). Each circuit's ground is the web
 game's own picture (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane, grid boxes, chequered line: baked from its
@@ -29,14 +34,16 @@ the yeti waits up the road, roars and gives chase. The crowds and flags are `Sta
 wide-screen layout in its pixel font (`HudView`). Finish: its glow, tilt-shift, grade and tone mapping (`TiltShift` shader).
 
 Known gaps: the scene is lit for day on every circuit (night circuits like Vegas show their neon but not the dark).
-Still placeholder: weather, sky, sound.
+Still placeholder: sound. The weather's light is one change of light over the whole scene, so lamps and
+glowing signs grey a little with it (the web game's stay bright).
 
 ## Layout
 
 - `Assets/Scripts/Core/`: the game's rules in plain C# (no `UnityEngine`; asmdef `noEngineReferences`): driving, ground and
   walls, lap and sector timing, the wheel, the gamepad reader, the fixed-step clock; the AI (`Ai.cs`), race control
   (`RaceControl.cs`), tyres, strategy, pits, the smaller rules (`RaceRules.cs`: slipstream, blue flags, track limits,
-  weather, bridges), the field (`Field.cs`: teams, drivers, difficulties, a weekend drawn from its seed) and timing gaps.
+  weather, bridges), the field (`Field.cs`: teams, drivers, difficulties, a weekend drawn from its seed), timing gaps,
+  qualifying (`Qualifying.cs`), the results' rows (`Results.cs`) and the weather's look (`WeatherLook.cs`).
   Ported from the web game's TypeScript. `JsMath.cs` holds JavaScript's arithmetic where C#'s differs (V8's sin, cos,
   atan, atan2 and exp, which are fdlibm's; Math.hypot; Math.round; a stable sort; the seeded random numbers), so the
   port makes the same decisions from the same numbers, on every platform.
@@ -50,7 +57,7 @@ Still placeholder: weather, sky, sound.
   `<id>.moving.txt`, and `<id>-planes.bytes` where there's an airport), **generated** from the web game's createCircuitScene
   by the same command (`npm run unity:grounds -- --scenery-only [id ...]`). The file format is at the top of
   `tools/unity/scenery.ts`. About 45 MB for all 19. `node tools/unity/preview.mjs` renders one without Unity, as a check.
-- `Tests~/Core.Tests/`: the core's tests; `golden.json`, `critters.json`, `races.json` and `math.json` are **generated**
+- `Tests~/Core.Tests/`: the core's tests; `golden.json`, `critters.json`, `races.json`, `qualifying.json` and `math.json` are **generated**
   from the web game (`npm run unity:golden`).
 
 ## Keeping the port honest
@@ -65,7 +72,9 @@ replays those inputs through the C# and compares positions, speeds, health, lap 
 and the yeti beside a scripted car against the web game's (`critters.json`). It also runs whole races (`races.json`):
 eight weekends on different circuits (pit stops, rain, dirt, a bridge, HARD, the virtual safety car), each field drawn
 from its seed, lights to flag, every car's state every second and every race event compared, and they match **bit for
-bit**. JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
+bit**, as do their results tables. Qualifying (`qualifying.json`) is checked the same way: the reference lap in dry, damp
+and wet, the AI's times off it, the grid and its table, where the session starts; and the weather's look at nine
+wetness and rain mixes. JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
 (The player's wheel still uses .NET's `Math.Pow`, a last bit off now and then: the recorded lap drifts about 2e-12 px.) If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
 and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.)
 

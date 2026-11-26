@@ -9,7 +9,10 @@
 //     and the race's calls (SAFETY CAR, a penalty, blue flags, your stop);
 //     and under the lights your team's card;
 //   - the controls along the bottom left, the keys (or the pad's buttons) as keycaps;
-//   - the pause screen: the race dimmed behind PAUSED and its buttons.
+//   - the pause screen: the race dimmed behind PAUSED and its buttons;
+//   - the rain, falling over the picture (screenFx.ts createRain: streaks, as many as it's raining hard);
+//   - qualifying's times and the results at the flag (resultsView.ts: the rows from Core.Results), as tables on a
+//     panel in the middle, your row in gold, with their buttons.
 // Sizes are the web game's CSS px at 720 px high, scaled with the screen.
 using CornerCutters.Core;
 using System.Linq;
@@ -49,6 +52,14 @@ namespace CornerCutters.Game
             public Color NoticeColor;
             /// <summary>the other cars, for the minimap</summary>
             public List<(double x, double y)> Others;
+            /// <summary>the lap strip's own text (qualifying: QUALI · OUT LAP...), or null for place and lap</summary>
+            public string Strip;
+            /// <summary>how hard it's raining, 0…1</summary>
+            public double Rain;
+            /// <summary>in qualifying (the pause screen offers to skip it)</summary>
+            public bool Quali;
+            /// <summary>the weather picked, on its pause button</summary>
+            public string WeatherChoice;
         }
 
         /// <summary>A row of the timing tower (towerView.ts): its place, the team's colours, the name, the gap; Gap null: the ··· between the top three and you.</summary>
@@ -60,7 +71,26 @@ namespace CornerCutters.Game
             public bool You, Out, Blue;
         }
 
-        public enum PauseChoice { None, Resume, Restart, NextCircuit }
+        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, NextCircuit }
+
+        /// <summary>Qualifying's table: the title, the rows, where you start, the record line.</summary>
+        public sealed class QualiTable
+        {
+            public string Title, Start, Note;
+            public bool NoteNew;
+            public List<QualifyingRow> Rows;
+        }
+
+        /// <summary>The results: the title, your race at a glance, the rows, the record lines.</summary>
+        public sealed class ResultsTable
+        {
+            public string Title;
+            public List<SummaryBox> Summary;
+            public List<ResultRow> Rows;
+            public List<(string text, bool isNew)> Notes;
+        }
+
+        public enum TableChoice { None, Go, Again }
 
         // the web game's colours (game.css :root, hud.ts)
         static readonly Color Panel = Rgba(21, 20, 31, 0.75f), Strip = Rgba(21, 20, 31, 0.82f), MiniBg = Rgba(21, 20, 31, 0.6f);
@@ -131,13 +161,60 @@ namespace CornerCutters.Game
             k = Screen.height / 720f;
             if (font != null && font.material != null && font.material.mainTexture != null) font.material.mainTexture.filterMode = FilterMode.Point;
             float w = Screen.width / k, h = Screen.height / k;
+            Rain(s.Rain, s.Paused);
             Readout(s);
             LapStrip(s, w);
             Minimap(s, w);
             TowerView(s, w);
             Banner(s, w, h);
             Controls(s, h);
-            return s.Paused ? Pause(w, h) : PauseChoice.None;
+            return s.Paused ? Pause(s, w, h) : PauseChoice.None;
+        }
+
+        // ---- the rain (screenFx.ts createRain): 90 drops, as many falling as it's raining hard ----
+
+        struct Drop { public float X, Y, V; }
+        readonly Drop[] drops = Enumerable.Range(0, 90).Select(_ => new Drop { X = Random.value, Y = Random.value, V = 0.9f + Random.value * 0.6f }).ToArray();
+        Texture2D streak;
+
+        void Rain(double rain, bool paused)
+        {
+            int falling = Mathf.RoundToInt(drops.Length * (float)rain);
+            if (falling <= 0 || Event.current.type != EventType.Repaint) return;
+            if (streak == null) streak = Streak();
+            float dt = paused ? 0 : Time.unscaledDeltaTime;
+            // (in screen px: the web game's are CSS px, a stroke from the drop 4 across and 16 up)
+            float sw = 5 * k, sh = 17 * k;
+            for (int i = 0; i < falling; i++)
+            {
+                ref var d = ref drops[i];
+                d.Y += d.V * dt * 1.6f;
+                d.X -= d.V * dt * 0.25f;
+                if (d.Y > 1) { d.Y -= 1; d.X = Random.value + 0.1f; }
+                if (d.X < 0) d.X += 1.1f;
+                GUI.DrawTexture(new Rect(d.X * Screen.width, d.Y * Screen.height - sh, sw, sh), streak, ScaleMode.StretchToFill, true);
+            }
+        }
+
+        /// <summary>A drop's streak: a 1 px line 4 across and 16 up, rgba(210,220,236,.45).</summary>
+        static Texture2D Streak()
+        {
+            const int W = 5, H = 17;
+            var px = new Color32[W * H];
+            for (int y = 0; y < H; y++)
+            {
+                // (row y counted up from the bottom, where the line starts at x 0)
+                float x = y * 4f / 16f;
+                for (int i = 0; i < W; i++)
+                {
+                    float a = Mathf.Clamp01(1 - Mathf.Abs(i + 0.5f - (x + 0.5f)));
+                    px[y * W + i] = new Color32(210, 220, 236, (byte)Mathf.RoundToInt(255 * 0.45f * a));
+                }
+            }
+            var t = new Texture2D(W, H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, name = "rain" };
+            t.SetPixels32(px);
+            t.Apply(false, true);
+            return t;
         }
 
         static string Fmt(double t) => double.IsNaN(t) ? "–" : $"{(int)(t / 60)}:{(t % 60):00.00}";
@@ -191,7 +268,7 @@ namespace CornerCutters.Game
         void LapStrip(State s, float w)
         {
             var st = Style(17, Gold, TextAnchor.MiddleCenter);
-            string text = (s.Cars > 1 ? $"P{s.Place}/{s.Cars}   " : "") + $"LAP {Mathf.Clamp(s.Lap, 1, s.Laps)}/{s.Laps}";
+            string text = s.Strip ?? (s.Cars > 1 ? $"P{s.Place}/{s.Cars}   " : "") + $"LAP {Mathf.Clamp(s.Lap, 1, s.Laps)}/{s.Laps}";
             float tw = Width(text, st), bw = tw + 32, x = w / 2 - bw / 2;
             Fill(R(x, 12, bw, 36), Strip, 8 * k, Mathf.Max(1, k), Line);
             // (the 3 px pink edge on its left)
@@ -304,14 +381,18 @@ namespace CornerCutters.Game
         }
 
         /// <summary>The pause screen: the race dimmed, PAUSED in gold, and its buttons.</summary>
-        PauseChoice Pause(float w, float h)
+        PauseChoice Pause(State s, float w, float h)
         {
             Fill(new Rect(0, 0, Screen.width, Screen.height), Rgba(14, 13, 22, 0.55f));
-            float y = h / 2 - 110;
+            var list = new List<(string label, PauseChoice c)> { ("RESUME", PauseChoice.Resume), ("RESTART", PauseChoice.Restart) };
+            if (s.Quali) list.Add(("SKIP QUALIFYING", PauseChoice.SkipQualifying));
+            list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
+            list.Add(("NEXT CIRCUIT", PauseChoice.NextCircuit));
+            float y = h / 2 - 25 * (list.Count + 1) - 10;
             Text(0, y, w, 34, "PAUSED", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
             y += 50;
             var choice = PauseChoice.None;
-            (string label, PauseChoice c)[] buttons = { ("RESUME", PauseChoice.Resume), ("RESTART", PauseChoice.Restart), ("NEXT CIRCUIT", PauseChoice.NextCircuit) };
+            var buttons = list;
             float bw = Mathf.Min(w * 0.6f, 360);
             var st = Style(14, Ink, TextAnchor.MiddleCenter);
             foreach (var b in buttons)
@@ -324,6 +405,174 @@ namespace CornerCutters.Game
                 y += 50;
             }
             return choice;
+        }
+
+        // ---- qualifying's times and the results (resultsView.ts renderQualifying, renderResults) ----
+
+        static readonly Color Purple = Hex(0xb36bff), Dim = Hex(0x6c6a88);
+
+        /// <summary>A button on a table's panel; true when clicked.</summary>
+        bool Button(float x, float y, float bw, float bh, string label, string key)
+        {
+            var r = R(x, y, bw, bh);
+            bool over = r.Contains(Event.current.mousePosition);
+            Fill(r, over ? Hex(0x2e2b47) : KeyBg, 8 * k, Mathf.Max(1, k), KeyEdge);
+            Text(x, y, bw, bh, key == null ? label : $"{label}  ({key})", Style(12, Ink, TextAnchor.MiddleCenter));
+            return GUI.Button(r, GUIContent.none, GUIStyle.none);
+        }
+
+        float RowIn(int place, float since) => Mathf.Clamp01((since - 0.15f - (place - 1) * 0.07f) / 0.35f);
+
+        /// <summary>Qualifying's times: the title, the table (your row in gold), where you start, the record, RACE.</summary>
+        public TableChoice DrawQualifying(QualiTable t, float since, InputSource source)
+        {
+            k = Screen.height / 720f;
+            float w = Screen.width / k, h = Screen.height / k;
+            const float line = 15, pw = 380;
+            float ph = 40 + 16 + line * t.Rows.Count + 20 + 18 + 18 + 48;
+            float x = w / 2 - pw / 2, y = h / 2 - ph / 2;
+            Fill(R(x, y, pw, ph), Rgba(21, 20, 31, 0.9f), 10 * k, Mathf.Max(1, k), KeyEdge);
+            Text(x, y + 12, pw, 20, t.Title, Style(15, Gold, TextAnchor.MiddleCenter));
+            float ty = y + 40;
+            var head = Style(10, Muted);
+            float c0 = x + 18, c1 = c0 + 26, c2 = c1 + 70, c3 = x + pw - 110, c4 = x + pw - 18;
+            Text(c1, ty, 60, line, "NAME", head);
+            Text(c2, ty, 50, line, "TEAM", head);
+            Text(c3 - 80, ty, 80, line, "TIME", Style(10, Muted, TextAnchor.MiddleRight));
+            Text(c4 - 80, ty, 80, line, "GAP", Style(10, Muted, TextAnchor.MiddleRight));
+            ty += 16;
+            foreach (var r in t.Rows)
+            {
+                float a = RowIn(r.Place, since);
+                var ink = r.You ? Gold : Ink;
+                ink.a = a;
+                if (r.You) Fill(R(x + 8, ty, pw - 16, line), Rgba(242, 193, 78, 0.14f * a));
+                float dx = (1 - a) * 12;
+                Text(c0 - 20 + dx, ty, 32, line, r.Place.ToString(), Style(12, ink, TextAnchor.MiddleRight));
+                Text(c1 + dx, ty, 70, line, r.Name, Style(12, ink));
+                Text(c2 + dx, ty, 60, line, r.Team, Style(12, ink));
+                Text(c3 - 90 + dx, ty, 90, line, r.Time, Style(12, ink, TextAnchor.MiddleRight));
+                Text(c4 - 80 + dx, ty, 80, line, r.Gap, Style(12, ink, TextAnchor.MiddleRight));
+                ty += line;
+            }
+            ty += 10;
+            Text(x, ty, pw, 18, t.Start, Style(12, Gold, TextAnchor.MiddleCenter));
+            ty += 18;
+            NoteLine(x, ty, pw, t.Note, t.NoteNew);
+            ty += 26;
+            return Button(w / 2 - 110, ty, 220, 30, "RACE", source == InputSource.Gamepad ? "A" : "ENTER") ? TableChoice.Go : TableChoice.None;
+        }
+
+        void NoteLine(float x, float y, float pw, string text, bool isNew)
+        {
+            var st = Style(12, isNew ? Gold : Ink);
+            string s = isNew ? text + " · NEW!" : text;
+            float tw = Width(s, st) + 12;
+            Icon("cup", x + pw / 2 - tw / 2, y + 5, 8, isNew ? Gold : Ink);
+            Text(x + pw / 2 - tw / 2 + 12, y, tw, 18, s, st);
+        }
+
+        /// <summary>The results: the title, your race in five boxes, the table, the key, the records, and the buttons.</summary>
+        public TableChoice DrawResults(ResultsTable t, float since, InputSource source)
+        {
+            k = Screen.height / 720f;
+            float w = Screen.width / k, h = Screen.height / k;
+            const float line = 15, pw = 460;
+            float ph = 36 + (t.Summary.Count > 0 ? 50 : 0) + 16 + line * t.Rows.Count + 22 + 18 * t.Notes.Count + 48;
+            float x = w / 2 - pw / 2, y = Mathf.Max(8, h / 2 - ph / 2);
+            Fill(R(x, y, pw, ph), Rgba(21, 20, 31, 0.9f), 10 * k, Mathf.Max(1, k), KeyEdge);
+            Text(x, y + 10, pw, 20, t.Title, Style(15, Gold, TextAnchor.MiddleCenter));
+            float ty = y + 36;
+            if (t.Summary.Count > 0)
+            {
+                const float bw = 80, gap = 5;
+                float bx = w / 2 - (bw * t.Summary.Count + gap * (t.Summary.Count - 1)) / 2;
+                foreach (var b in t.Summary)
+                {
+                    Fill(R(bx, ty, bw, 42), Rgba(255, 255, 255, 0.05f), 6 * k, Mathf.Max(1, k), KeyEdge);
+                    var hs = Style(8, Muted);
+                    float lw = Width(b.Label, hs) + 10;
+                    Icon(b.Icon, bx + bw / 2 - lw / 2, ty + 7, 7, Muted);
+                    Text(bx + bw / 2 - lw / 2 + 10, ty + 4, lw, 12, b.Label, hs);
+                    ArrowText(bx, ty + 20, bw, 18, b.Value, Style(13, b.Color < 0 ? Ink : Hex(b.Color), TextAnchor.MiddleCenter));
+                    bx += bw + gap;
+                }
+                ty += 50;
+            }
+            // place, ▲▼ moved, NAME, TEAM, TIME, BEST, notes
+            float c0 = x + 30, c1 = x + 38, c2 = x + 76, c3 = x + 146, c4 = x + 290, c5 = x + 370, c6 = x + 380;
+            Text(c2, ty, 60, line, "NAME", Style(10, Muted));
+            Text(c3, ty, 60, line, "TEAM", Style(10, Muted));
+            Text(c4 - 80, ty, 80, line, "TIME", Style(10, Muted, TextAnchor.MiddleRight));
+            Text(c5 - 70, ty, 70, line, "BEST", Style(10, Muted, TextAnchor.MiddleRight));
+            ty += 16;
+            foreach (var r in t.Rows)
+            {
+                float a = RowIn(r.Place, since), dx = (1 - a) * 12;
+                Color A(Color c) { c.a = a; return c; }
+                var ink = A(r.You ? Gold : Ink);
+                if (r.You) Fill(R(x + 8, ty, pw - 16, line), Rgba(242, 193, 78, 0.14f * a));
+                Text(c0 - 30 + dx, ty, 30, line, r.Place.ToString(), Style(12, ink, TextAnchor.MiddleRight));
+                if (r.Moved != 0)
+                {
+                    var mc = A(r.Moved > 0 ? Cyan : Red);
+                    Icon(r.Moved > 0 ? "up" : "down", c1 + dx, ty + 4, 7, mc);
+                    Text(c1 + 9 + dx, ty, 24, line, System.Math.Abs(r.Moved).ToString(), Style(12, mc));
+                }
+                else Text(c1 + dx, ty, 24, line, "–", Style(12, A(Dim)));
+                Text(c2 + dx, ty, 70, line, r.Name, Style(12, ink));
+                Text(c3 + dx, ty, 60, line, r.Team, Style(12, ink));
+                Text(c4 - 120 + dx, ty, 120, line, r.Time, Style(12, ink, TextAnchor.MiddleRight));
+                Text(c5 - 80 + dx, ty, 80, line, r.Best, Style(12, r.Fastest ? A(Purple) : ink, TextAnchor.MiddleRight));
+                float nx = c6 + dx;
+                if (r.Stops > 0)
+                {
+                    Icon("wrench", nx, ty + 4, 7, ink);
+                    Text(nx + 9, ty, 20, line, r.Stops.ToString(), Style(12, ink));
+                    nx += 22;
+                }
+                if (r.Penalty != 0)
+                {
+                    var pc = A(Red);
+                    Icon("warn", nx, ty + 4, 7, pc);
+                    Text(nx + 9, ty, 40, line, $"+{r.Penalty:0}S", Style(12, pc));
+                }
+                ty += line;
+            }
+            ty += 6;
+            // the key: ▲▼ FROM THE GRID · wrench STOPS · warn PENALTY
+            {
+                var ks = Style(10, Muted);
+                string a = "FROM THE GRID ·", b = "STOPS ·", c = "PENALTY";
+                float tw = 16 + Width(a, ks) + 14 + Width(b, ks) + 14 + Width(c, ks), kx = w / 2 - tw / 2;
+                Icon("up", kx, ty + 4, 7, Muted); Icon("down", kx + 7, ty + 4, 7, Muted); kx += 18;
+                Text(kx, ty, 200, 15, a, ks); kx += Width(a, ks) + 4;
+                Icon("wrench", kx, ty + 4, 7, Muted); kx += 10;
+                Text(kx, ty, 200, 15, b, ks); kx += Width(b, ks) + 4;
+                Icon("warn", kx, ty + 4, 7, Muted); kx += 10;
+                Text(kx, ty, 200, 15, c, ks);
+            }
+            ty += 18;
+            foreach (var n in t.Notes) { NoteLine(x, ty, pw, n.text, n.isNew); ty += 18; }
+            ty += 6;
+            bool pad = source == InputSource.Gamepad;
+            if (Button(w / 2 - 205, ty, 200, 30, "RACE AGAIN", pad ? "Y" : "R")) return TableChoice.Again;
+            if (Button(w / 2 + 5, ty, 200, 30, "NEXT CIRCUIT", pad ? "A" : "ENTER")) return TableChoice.Go;
+            return TableChoice.None;
+        }
+
+        /// <summary>A value that may hold ▲ or ▼ (the font has neither): the arrows drawn as icons in its colour.</summary>
+        void ArrowText(float x, float y, float bw, float bh, string text, GUIStyle st)
+        {
+            int at = text.IndexOfAny(new[] { '▲', '▼' });
+            if (at < 0) { Text(x, y, bw, bh, text, st); return; }
+            string head = text.Substring(0, at).TrimEnd(), tail = text.Substring(at + 1);
+            float hw = Width(head, st), tw = Width(tail, st), total = hw + 4 + 8 + tw;
+            float x0 = x + bw / 2 - total / 2;
+            var left = new GUIStyle(st) { alignment = TextAnchor.MiddleLeft };
+            Text(x0, y, hw + 4, bh, head, left);
+            Icon(text[at] == '▲' ? "up" : "down", x0 + hw + 4, y + bh / 2 - 3.5f, 7, st.normal.textColor);
+            Text(x0 + hw + 13, y, tw + 4, bh, tail, left);
         }
 
         // ---- the minimap's picture (circuitScene.ts minimap) ----
@@ -379,6 +628,12 @@ namespace CornerCutters.Game
             ["cup"] = new[] { "#######", "#.###.#", "#.###.#", ".#####.", "...#...", "...#...", ".#####." },
             ["car"] = new[] { ".#####.", "##.#.##", "...#...", "..###..", "##.#.##", "##.#.##", ".#####." },
             ["tyre"] = new[] { "..###..", ".#...#.", "#..#..#", "#.###.#", "#..#..#", ".#...#.", "..###.." },
+            ["warn"] = new[] { "...#...", "..###..", "..#.#..", ".##.##.", ".#####.", "##.#.##", "#######" },
+            ["wrench"] = new[] { ".#..#..", ".#..#..", ".####..", "..##...", "..##...", "..##...", "..##..." },
+            ["flag"] = new[] { "#.#.#..", "##.#.#.", "#.#.#..", "##.#.#.", "#......", "#......", "#......" },
+            // (▲ and ▼: the pixel font has neither)
+            ["up"] = new[] { ".......", "...#...", "..###..", ".#####.", "#######", ".......", "......." },
+            ["down"] = new[] { ".......", ".......", "#######", ".#####.", "..###..", "...#...", "......." },
         };
         static readonly System.Collections.Generic.Dictionary<string, Texture2D> made = new System.Collections.Generic.Dictionary<string, Texture2D>();
 

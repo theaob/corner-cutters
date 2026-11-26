@@ -1,8 +1,12 @@
 // A race on one circuit: you and the AI field, lights to flag, with the web game's race rules (CornerCutters.Core's
 // RaceControl, checked bit for bit against the web game's own races): rivals in their team liveries, contact, pit
 // stops for tyres and repairs, the safety car and the virtual one, track limits and penalties, blue flags, the
-// cool-down lap and home to the garages. This class wires input, the fixed-step clock, the views and the HUD (the
-// timing tower, your place, the race's calls). Restart replays the same weekend; a new circuit draws a new one.
+// cool-down lap and home to the garages. A weekend is qualifying first (one flying lap on your own: Core.Qualifying;
+// the AI's times off a reference lap; the grid they make, as a table), then the race from that grid, then the results
+// at the flag (Core.Results), live as the others finish. The weather is picked (F: dry, damp, wet or changeable) and
+// the race runs to its forecast, the rain falling, the track darkening and the cars throwing up spray as it wets.
+// This class wires input, the fixed-step clock, the views and the HUD (the timing tower, your place, the race's
+// calls). Restart replays the session; a new circuit, or a new weather, draws a new weekend.
 using System.Collections.Generic;
 using System.Linq;
 using CornerCutters.Core;
@@ -37,8 +41,32 @@ namespace CornerCutters.Game
         IReadOnlyList<string> ids;
         double bestLap = double.NaN;
 
-        // the weekend: its seed (restart replays it), the field drawn from it, the race
+        enum Session { Qualifying, QualiOver, Race }
+
+        // the weekend: its seed (restart replays it), the field drawn from it, its weather, the session on now
         uint seed;
+        Session session;
+        WeatherChoice weatherChoice = WeatherChoice.Dry;
+        ForecastPlan forecast;
+        WeatherView weatherView;
+        Camera cam;
+        /// <summary>the driver (an index into weekend.Drivers) in each entrant's place: qualifying just you; the race the grid</summary>
+        List<int> driverOf = new List<int>();
+        // qualifying: your lap, whether you're on it, the AI's reference lap (once a weekend), its times and grid
+        QualiLap qualiLap;
+        bool flying;
+        double? reference;
+        double?[] qualiTimes;
+        List<int> qualiGrid;
+        bool newQualiRecord;
+        HudView.QualiTable qualiTable;
+        // the race: its fastest lap, the laps seen of each car, your flag, the results
+        (double time, int who)? fastest;
+        int[] lapsSeen = new int[0];
+        double? flagAt;
+        bool newLapRecord;
+        HudView.ResultsTable results;
+        float tableUp;
         readonly Team team = Field.Teams[0];
         readonly Difficulty difficulty = Field.Normal;
         Weekend weekend;
@@ -69,6 +97,9 @@ namespace CornerCutters.Game
             camGo.tag = "MainCamera";
             camGo.AddComponent<AudioListener>();
             chase = new ChaseCamera(cam);
+            this.cam = cam;
+            weatherView = new WeatherView();
+            weatherChoice = (WeatherChoice)Mathf.Clamp(PlayerPrefs.GetInt("weather", 0), 0, 3);
             safetyCar = new SafetyCarView();
             safetyCar.Root.transform.SetParent(transform, false);
             safetyCar.Root.SetActive(false);
@@ -106,23 +137,95 @@ namespace CornerCutters.Game
             hud = new HudView(circuit);
             record = PlayerPrefs.HasKey("rec." + circuit.id) ? PlayerPrefs.GetFloat("rec." + circuit.id) : double.NaN;
             bestLap = double.NaN;
-            // a new weekend: a new seed, so new rivals and a new grid (restart replays this one)
-            seed = (uint)Random.Range(1, int.MaxValue);
-            Restart();
+            weatherView.Forget();
+            NewWeekend();
         }
 
-        /// <summary>The weekend's race from the lights: the field drawn from its seed, each car in its own slot.</summary>
+        /// <summary>A new weekend here: a new seed (new rivals, a new grid), its weather's forecast, and qualifying.</summary>
+        void NewWeekend()
+        {
+            seed = (uint)Random.Range(1, int.MaxValue);
+            weekend = Field.DrawWeekend(seed, circuit.slots.Length, team, difficulty);
+            // (a changeable weekend's forecast timed to the race: its laps at a typical pace)
+            double raceSeconds = Laps * track.Length / 300;
+            forecast = weatherChoice == WeatherChoice.Changeable ? Forecast.Changeable(seed, raceSeconds) : Forecast.Fixed(WeatherLooks.Fixed(weatherChoice));
+            reference = null;
+            StartQualifying();
+        }
+
+        /// <summary>The weather for a session on your own (it doesn't change there): the race's at the start.</summary>
+        Weather SessionWeather => Forecast.ConditionOf(forecast.Start);
+
+        /// <summary>The session again: qualifying from the run-up, or the race from the same grid.</summary>
         void Restart()
         {
-            weekend = Field.DrawWeekend(seed, circuit.slots.Length, team, difficulty);
-            you = weekend.YouDriver;
-            var field = new List<FieldEntry>();
-            for (int k = 0; k < weekend.Drivers.Count; k++)
+            if (session == Session.Race) StartRace(driverOf);
+            else StartQualifying();
+        }
+
+        /// <summary>Qualifying: you on your own, on the run-up to a flying lap.</summary>
+        void StartQualifying()
+        {
+            session = Session.Qualifying;
+            race = Qualifying.NewQualifying(track, grid, difficulty.Handling(), SessionWeather);
+            qualiLap = new QualiLap();
+            flying = false;
+            qualiTable = null;
+            Begin(new List<int> { weekend.YouDriver });
+            Notice("QUALIFYING · ONE FLYING LAP", TrackView.Hex(0xf2c14e), 3);
+        }
+
+        /// <summary>Qualifying's over: your time (none if you wrecked) against the AI's, the grid they make, up until A.</summary>
+        void EndQualifying(double? time)
+        {
+            reference ??= Qualifying.ReferenceLap(track, grid, difficulty.Handling(), SessionWeather);
+            qualiTimes = Qualifying.AiTimes(weekend.Drivers.Select(d => d.Ai == null ? (double?)null : d.Ai.Pace).ToList(), reference.Value, new SeededRandom(seed + 1));
+            qualiTimes[weekend.YouDriver] = time;
+            newQualiRecord = false;
+            string key = "quali." + circuit.id + "." + WeatherLooks.Name(weatherChoice);
+            double best = PlayerPrefs.HasKey(key) ? PlayerPrefs.GetFloat(key) : double.NaN;
+            if (time.HasValue && (double.IsNaN(best) || time.Value < best)) { best = time.Value; newQualiRecord = true; PlayerPrefs.SetFloat(key, (float)best); }
+            qualiGrid = Qualifying.GridOrder(qualiTimes);
+            var rows = Results.QualifyingRows(qualiGrid, qualiTimes, weekend.Drivers.Select((d, k) => DriverName(k)).ToList(), weekend.Drivers.Select(d => d.Team.Code).ToList(), weekend.YouDriver);
+            int place = rows.First(r => r.You).Place;
+            qualiTable = new HudView.QualiTable
             {
-                var slot = circuit.slots[k];
-                field.Add(new FieldEntry { Car = new Car(CarClass.F1(), slot.x, slot.y, slot.heading), Ai = weekend.Drivers[k].Ai, Box = weekend.Drivers[k].Box });
+                Title = $"QUALIFYING · {difficulty.Name} · {WeatherLooks.Name(weatherChoice)}", Rows = rows,
+                Start = place == 1 ? "POLE POSITION!" : $"YOU START P{place}",
+                Note = $"QUALIFYING RECORD {Results.FormatTime(double.IsNaN(best) ? (double?)null : best)}", NoteNew = newQualiRecord,
+            };
+            session = Session.QualiOver;
+            tableUp = 0;
+        }
+
+        string DriverName(int k) => k == weekend.YouDriver ? "YOU" : weekend.Drivers[k].Code;
+
+        /// <summary>The race from the lights: the drivers in `slots` order on the grid (null: as drawn, you mid-grid).</summary>
+        void StartRace(List<int> slots)
+        {
+            session = Session.Race;
+            slots ??= Enumerable.Range(0, weekend.Drivers.Count).ToList();
+            var field = new List<FieldEntry>();
+            for (int i = 0; i < slots.Count; i++)
+            {
+                var slot = circuit.slots[i];
+                var d = weekend.Drivers[slots[i]];
+                field.Add(new FieldEntry { Car = new Car(CarClass.F1(), slot.x, slot.y, slot.heading), Ai = d.Ai, Box = d.Box });
             }
-            race = RaceControl.NewRace(track, grid, difficulty.Handling(), Laps, field, weekend.LightsOut, pit, Weather.Dry);
+            race = RaceControl.NewRace(track, grid, difficulty.Handling(), Laps, field, weekend.LightsOut, pit, Weather.Dry, forecast);
+            fastest = null;
+            flagAt = null;
+            newLapRecord = false;
+            results = null;
+            Begin(new List<int>(slots));
+            lapsSeen = new int[race.Entrants.Count];
+        }
+
+        /// <summary>A session's cars on the screen, `drivers` in the entrants' places, and a clean slate for the rest.</summary>
+        void Begin(List<int> drivers)
+        {
+            driverOf = drivers;
+            you = drivers.IndexOf(weekend.YouDriver);
             foreach (var e in race.Entrants) e.Car.Z = Sim.GroundAt(grid, e.Car.X, e.Car.Y).H;
             gaps = new GapTimer(race.Entrants.Count);
             foreach (var v in views) Destroy(v.Root);
@@ -135,6 +238,7 @@ namespace CornerCutters.Game
             notice = null;
             sinceStart = 0;
             paused = false;
+            weatherView.Clear();
             clock.Carry = 0;
             input.ResetWheel();
             chase.Snap();
@@ -143,7 +247,7 @@ namespace CornerCutters.Game
         /// <summary>Entrant k's car, in its team's livery, on the tyres it's on (built again when they change).</summary>
         void AddView(int k)
         {
-            var d = weekend.Drivers[k];
+            var d = weekend.Drivers[driverOf[k]];
             var tyres = race.Entrants[k].Tyres.Compound;
             var view = new CarView(Livery.FromTeam(d.Team, d.Seat), Tyres.Color(tyres));
             view.Root.transform.SetParent(transform, false);
@@ -170,6 +274,12 @@ namespace CornerCutters.Game
             if (input.PausePressed) paused = !paused;
             if (input.RestartPressed) Restart();
             if (input.CircuitStep != 0) LoadCircuit(circuitIndex + input.CircuitStep);
+            if (input.WeatherPressed) NextWeather();
+            if (input.AcceptPressed && !paused)
+            {
+                if (session == Session.QualiOver) StartRace(qualiGrid);
+                else if (results != null) LoadCircuit(circuitIndex + 1);
+            }
             if (input.CameraPressed) chase.Cycle();
 
             float frame = Time.unscaledDeltaTime;
@@ -184,6 +294,35 @@ namespace CornerCutters.Game
             {
                 Draw(1, frame);
             }
+            if (session == Session.Race) UpdateResults();
+            if (qualiTable != null || results != null) tableUp += frame;
+        }
+
+        /// <summary>The next weather (dry, damp, wet, changeable), remembered, and a new weekend in it.</summary>
+        void NextWeather()
+        {
+            weatherChoice = (WeatherChoice)(((int)weatherChoice + 1) % 4);
+            PlayerPrefs.SetInt("weather", (int)weatherChoice);
+            NewWeekend();
+        }
+
+        /// <summary>After your flag (4 s on) or, if you're out, once the rest are home: the results, live as the others finish.</summary>
+        void UpdateResults()
+        {
+            var p = Me.Progress;
+            if (p.Finished.HasValue && flagAt == null) flagAt = sinceStart;
+            bool show = results != null || (flagAt.HasValue && sinceStart - flagAt.Value >= 4) || (p.Retired && RaceControl.Settled(race));
+            if (!show) return;
+            if (results == null) tableUp = 0;
+            var order = RaceControl.Order(race);
+            var names = driverOf.Select(DriverName).ToList();
+            var teams = driverOf.Select(k => weekend.Drivers[k].Team.Code).ToList();
+            var rows = Results.ResultRows(race, order, names, teams, you, fastest?.who);
+            results = new HudView.ResultsTable
+            {
+                Title = $"CHEQUERED FLAG · {difficulty.Name} · {WeatherLooks.Name(weatherChoice)}", Rows = rows, Summary = Results.RaceSummary(rows),
+                Notes = new List<(string, bool)> { ($"LAP RECORD {Results.FormatTime(double.IsNaN(record) ? (double?)null : record)}", newLapRecord) },
+            };
         }
 
         void Step()
@@ -195,16 +334,20 @@ namespace CornerCutters.Game
             var wheel = input.Wheel(dt);
             int lapsBefore = Me.Progress.Lap;
             bool scWasOut = race.Sc != null;
+            // (qualifying over: your car rolls to a stop while the table's up)
+            if (session == Session.QualiOver) wheel = new Racing.WheelPad();
             var result = RaceControl.StepRace(race, dt, e => Racing.WheelInput(wheel, e.Car));
             if (race.Phase == RacePhase.Racing) gaps.Step(race.Entrants.Select(e => e.Progress).ToList(), track, race.Clock);
-            // your laps: the best this race, and the circuit's record
+            // your laps: the best this weekend, and (race laps only: qualifying keeps its own) the circuit's record
             if (Me.Progress.Lap > lapsBefore && Me.Progress.LapTimes.Count > 0)
             {
                 double t = Me.Progress.LapTimes[Me.Progress.LapTimes.Count - 1];
-                if (double.IsNaN(bestLap) || t < bestLap) bestLap = t;
-                if (double.IsNaN(record) || t < record) { record = t; PlayerPrefs.SetFloat("rec." + circuit.id, (float)t); }
+                if (session != Session.QualiOver && (double.IsNaN(bestLap) || t < bestLap)) bestLap = t;
+                if (session == Session.Race && (double.IsNaN(record) || t < record)) { record = t; newLapRecord = true; PlayerPrefs.SetFloat("rec." + circuit.id, (float)t); }
             }
             foreach (var ev in result.Race) Call(ev);
+            if (session == Session.Qualifying) JudgeQualifying(result.Race);
+            if (session == Session.Race) FastestLap();
             for (int k = 0; k < race.Entrants.Count; k++) now[k] = PoseOf(race.Entrants[k].Car);
             int sc = race.Entrants.Count;
             if (race.Sc != null)
@@ -212,6 +355,39 @@ namespace CornerCutters.Game
                 // (just out: drawn where it joins, not swept there from the last place it was)
                 now[sc] = PoseOf(race.Sc.Car);
                 if (!scWasOut) was[sc] = now[sc];
+            }
+        }
+
+        /// <summary>Qualifying this step: a cut (track limits, or all four wheels off anywhere) deletes the lap you're on; a good lap, or a wreck, ends it.</summary>
+        void JudgeQualifying(List<RaceEvent> events)
+        {
+            bool cut = events.Any(e => (e.Kind == RaceEventKind.TrackLimits || e.Kind == RaceEventKind.OffTrack) && e.Who == you);
+            var verdict = Qualifying.JudgeLap(qualiLap, Me.Progress, cut, out double time);
+            if (verdict == QualiCall.Deleted) Notice("LAP DELETED · TRACK LIMITS", TrackView.Hex(0xd8323c), 3);
+            else if (verdict == QualiCall.Void) Notice("FLYING LAP · GO AGAIN", TrackView.Hex(0xf2c14e), 2);
+            else if (verdict == QualiCall.Time) EndQualifying(time);
+            else if (Me.Car.Wrecked) EndQualifying(null);
+            else if (!flying && Me.Progress.LapStart.HasValue)
+            {
+                // over the line from the run-up: the clock's running
+                flying = true;
+                Notice("FLYING LAP", TrackView.Hex(0x5fe0d0), 1.5);
+            }
+        }
+
+        /// <summary>The race's fastest lap: announced as it falls (not the first lap anyone completes), purple in the results.</summary>
+        void FastestLap()
+        {
+            for (int i = 0; i < race.Entrants.Count; i++)
+            {
+                var times = race.Entrants[i].Progress.LapTimes;
+                if (times.Count <= lapsSeen[i]) continue;
+                double lap = times[times.Count - 1];
+                lapsSeen[i] = times.Count;
+                if (fastest.HasValue && lap >= fastest.Value.time) continue;
+                bool first = fastest == null;
+                fastest = (lap, i);
+                if (!first && sinceStart >= noticeUntil) Notice($"FASTEST LAP · {DriverName(driverOf[i])} {Results.FormatTime(lap)}", TrackView.Hex(0xb36bff), 2.5);
             }
         }
 
@@ -236,7 +412,11 @@ namespace CornerCutters.Game
                 case RaceEventKind.Blue when mine: Notice("BLUE FLAG · LET THEM BY", blue, 3); break;
                 case RaceEventKind.PitStop when mine: Notice($"PIT STOP · {ev.Seconds:0.0}S · {Tyres.Name(Me.Tyres.Compound)}", ink, 3); break;
                 case RaceEventKind.Wreck when mine: Notice("WRECKED", red, 4); break;
-                case RaceEventKind.Retired when !mine: Notice($"{weekend.Drivers[ev.Who].Code} OUT", ink, 3); break;
+                case RaceEventKind.Retired when !mine: Notice($"{DriverName(driverOf[ev.Who])} OUT", ink, 3); break;
+                case RaceEventKind.Rain: Notice(ev.On ? "RAIN · THE TRACK IS GETTING WET" : "THE RAIN HAS STOPPED · THE TRACK WILL DRY", TrackView.Hex(0x8fb8e8), 2.5); break;
+                case RaceEventKind.TrackCondition when sinceStart >= noticeUntil:
+                    Notice($"TRACK {ev.Condition.ToString().ToUpperInvariant()} · {Tyres.Name(Tyres.TyreFor(Tyres.WetnessOf(ev.Condition), track.Dirt))}", TrackView.Hex(0x8fb8e8), 2);
+                    break;
             }
         }
 
@@ -277,6 +457,9 @@ namespace CornerCutters.Game
                 safetyCar.Root.transform.SetPositionAndRotation(Units.ToWorld(p.X, p.Y, p.Z), Units.Rotation(race.Sc.Car, grid, p.H));
                 safetyCar.Step(frame);
             }
+            weatherView.Show(race.Wetness, race.Rain, cam);
+            if (!paused) weatherView.Spray(race.Entrants, race.Rain, frame);
+            weatherView.Step(paused ? 0 : frame, cam);
             var me = Between(you, alpha);
             var car = Me.Car;
             var pos = Units.ToWorld(me.X, me.Y, me.Z);
@@ -304,13 +487,13 @@ namespace CornerCutters.Game
             {
                 if (i < 0) { rows.Add(new HudView.TowerRow { Gap = null }); continue; }
                 var e = race.Entrants[i];
-                var d = weekend.Drivers[i];
+                var d = weekend.Drivers[driverOf[i]];
                 int place = order.IndexOf(i) + 1;
                 string gap = e.Progress.Retired ? "OUT" : e.Pit != null ? "PIT" : e.Blue != null ? "BLUE"
                     : Tower.Gap(place, gaps.Between(lead, i), System.Math.Max(0, (int)System.Math.Floor((Along(lead) - Along(i)) / n)));
                 rows.Add(new HudView.TowerRow
                 {
-                    Place = place, Body = TrackView.Hex(d.Team.Body), Trim = TrackView.Hex(d.Team.Trim), Name = i == you ? "YOU" : d.Code, Gap = gap,
+                    Place = place, Body = TrackView.Hex(d.Team.Body), Trim = TrackView.Hex(d.Team.Trim), Name = DriverName(driverOf[i]), Gap = gap,
                     You = i == you, Out = e.Progress.Retired, Blue = e.Blue != null,
                 });
             }
@@ -322,7 +505,8 @@ namespace CornerCutters.Game
             if (race == null || hud == null) return;
             var p = Me.Progress;
             bool racing = race.Phase == RacePhase.Racing;
-            bool finished = p.Finished.HasValue;
+            bool quali = session != Session.Race;
+            bool finished = p.Finished.HasValue && session == Session.Race;
             var order = RaceControl.Order(race);
             double lapNow = p.LapStart.HasValue && racing && !finished ? race.Clock - p.LapStart.Value : double.NaN;
             string held = Me.Held.HasValue ? (race.Sc != null ? "SAFETY CAR" : "VSC") : null;
@@ -339,17 +523,21 @@ namespace CornerCutters.Game
                 Lights = race.Phase == RacePhase.Lights,
                 Lit = StartLights.LitAt(race.Clock + RaceControl.Lights),
                 AllLit = race.Phase == RacePhase.Lights && race.Clock >= 0,
-                SinceGo = racing ? race.Clock : double.NaN,
+                SinceGo = racing && !quali ? race.Clock : double.NaN,
                 WrongWay = p.WrongWay,
                 Finished = finished,
                 RaceTime = (p.Finished ?? 0) + p.Penalty,
                 Paused = paused,
                 CarX = now[you].X, CarY = now[you].Y,
                 Source = input.Source,
-                Team = team.Name.ToUpperInvariant(), Difficulty = difficulty.Name, Weather = "DRY",
+                Team = team.Name.ToUpperInvariant(), Difficulty = difficulty.Name, Weather = forecast.Name,
                 Place = order.IndexOf(you) + 1,
                 Cars = order.Count,
-                Tower = racing ? TowerRows(order) : null,
+                Tower = racing && !quali ? TowerRows(order) : null,
+                Strip = quali ? "QUALI   " + (p.LapStart == null ? "OUT LAP" : qualiLap.Deleted ? "LAP DELETED" : "FLYING LAP") : null,
+                Rain = race.Rain,
+                Quali = session == Session.Qualifying,
+                WeatherChoice = WeatherLooks.Name(weatherChoice),
                 Tyre = $"{Tyres.Short(Me.Tyres.Compound)} {System.Math.Round((1 - Me.Tyres.Wear) * 100):0}%",
                 TyreColor = TrackView.Hex(Tyres.Color(Me.Tyres.Compound)),
                 Notice = sinceStart < noticeUntil ? notice : held,
@@ -358,7 +546,21 @@ namespace CornerCutters.Game
             });
             if (choice == HudView.PauseChoice.Resume) paused = false;
             else if (choice == HudView.PauseChoice.Restart) Restart();
+            else if (choice == HudView.PauseChoice.SkipQualifying) StartRace(null);
+            else if (choice == HudView.PauseChoice.Weather) NextWeather();
             else if (choice == HudView.PauseChoice.NextCircuit) LoadCircuit(circuitIndex + 1);
+            if (paused) return;
+            // qualifying's times, then the results at the flag
+            if (session == Session.QualiOver && qualiTable != null)
+            {
+                if (hud.DrawQualifying(qualiTable, tableUp, input.Source) == HudView.TableChoice.Go) StartRace(qualiGrid);
+            }
+            else if (results != null)
+            {
+                var pick = hud.DrawResults(results, tableUp, input.Source);
+                if (pick == HudView.TableChoice.Again) StartRace(driverOf);
+                else if (pick == HudView.TableChoice.Go) LoadCircuit(circuitIndex + 1);
+            }
         }
     }
 }

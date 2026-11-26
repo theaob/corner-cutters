@@ -48,6 +48,7 @@ static class Program
         MathBits(root);
         Critters(root);
         Races(root);
+        QualifyingSessions(root);
         PlayerRace(root);
 
         Console.WriteLine(failures == 0 ? $"OK  {checks} checks" : $"{failures} of {checks} checks FAILED");
@@ -245,9 +246,109 @@ static class Program
             }
             Check(firstOff < 0, $"{id}: race matches the web game's to the flag" + (firstOff < 0 ? "" : $" (first off at step {firstOff} of {steps}, {firstOff * dt:F1} s: {offWhat})"));
             if (firstOff < 0) Check(!evMore, $"{id}: every event seen");
+            if (firstOff < 0) ResultsOf(id, race, w, spec.GetProperty("results"));
             checks += stateChecks + evCount;
             Console.WriteLine($"race {id}: {(firstOff < 0 ? "matched" : $"off at {firstOff * dt:F1} s")}, {evCount} events, {stateChecks} state checks");
         }
+    }
+
+    /// <summary>A finished race's results (Core/Results.cs) against the web game's: the order, the rows, your summary.</summary>
+    static void ResultsOf(string id, Race race, Weekend w, JsonElement want)
+    {
+        var names = w.Drivers.Select((d, k) => k == w.YouDriver ? "YOU" : d.Code).ToList();
+        var teams = w.Drivers.Select(d => d.Team.Code).ToList();
+        int? fastest = null;
+        double best = double.PositiveInfinity;
+        for (int i = 0; i < race.Entrants.Count; i++) foreach (double t in race.Entrants[i].Progress.LapTimes) if (t < best) { best = t; fastest = i; }
+        var order = RaceControl.Order(race);
+        Check(order.SequenceEqual(want.GetProperty("order").EnumerateArray().Select(x => x.GetInt32())), $"{id}: results order");
+        Check((fastest ?? -1) == want.GetProperty("fastest").GetInt32(), $"{id}: fastest lap");
+        var rows = Results.ResultRows(race, order, names, teams, w.YouDriver, fastest);
+        int k = 0;
+        foreach (var r in want.GetProperty("rows").EnumerateArray())
+        {
+            var g = rows[k++];
+            string got = $"{g.Place}|{g.Moved}|{g.Name}|{g.Team}|{g.Time}|{g.Best}|{g.Fastest}|{g.Notes}|{g.Out}|{g.Finished}|{g.You}";
+            string exp = $"{r.GetProperty("place")}|{r.GetProperty("moved")}|{r.GetProperty("name").GetString()}|{r.GetProperty("team").GetString()}|{r.GetProperty("time").GetString()}|"
+                + $"{r.GetProperty("best").GetString()}|{r.GetProperty("fastest").GetBoolean()}|{r.GetProperty("notes").GetString()}|{r.GetProperty("out").GetBoolean()}|{r.GetProperty("finished").GetBoolean()}|{r.GetProperty("you").GetBoolean()}";
+            Check(got == exp, $"{id}: result row {k}: got {got}, want {exp}");
+        }
+        var summary = Results.RaceSummary(rows);
+        k = 0;
+        foreach (var b in want.GetProperty("summary").EnumerateArray())
+        {
+            var g = summary[k++];
+            string color = g.Color < 0 ? "" : "#" + g.Color.ToString("x6");
+            Check(g.Icon == b[0].GetString() && g.Label == b[1].GetString() && g.Value == b[2].GetString() && color == b[3].GetString(),
+                $"{id}: summary box {k}: got {g.Icon} {g.Label} {g.Value} {color}, want {b}");
+        }
+    }
+
+    /// <summary>Qualifying (Core/Qualifying.cs) against the web game's (qualifying.json): the reference lap, the AI's
+    /// times off it, the grid, its rows, and where a session starts.</summary>
+    static void QualifyingSessions(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/qualifying.json"))).RootElement;
+        var opts = new JsonSerializerOptions { IncludeFields = true };
+        foreach (var f in g.GetProperty("formats").EnumerateArray())
+            Check(Results.FormatTime(f[0].GetDouble()) == f[1].GetString(), $"format {f[0]}: got {Results.FormatTime(f[0].GetDouble())}, want {f[1].GetString()}");
+        foreach (var spec in g.GetProperty("sessions").EnumerateArray())
+        {
+            string id = spec.GetProperty("id").GetString();
+            uint seed = (uint)spec.GetProperty("seed").GetInt64();
+            string wid = spec.GetProperty("weather").GetString();
+            var weather = wid == "wet" ? Weather.Wet : wid == "damp" ? Weather.Damp : Weather.Dry;
+            var circuit = JsonSerializer.Deserialize<CircuitData>(File.ReadAllText(Path.Combine(root, $"Assets/Resources/Circuits/{id}.json")), opts);
+            var grid = circuit.ToGrid();
+            var track = circuit.ToTrack();
+            var handling = Field.Normal.Handling();
+            double reference = Qualifying.ReferenceLap(track, grid, handling, weather);
+            Check(BitConverter.DoubleToInt64Bits(reference) == BitConverter.DoubleToInt64Bits(D(spec, "reference")), $"{id}: reference lap: got {reference:R}, want {D(spec, "reference"):R}");
+            var w = Field.DrawWeekend(seed, circuit.slots.Length, Field.Teams[0], Field.Normal);
+            var paces = w.Drivers.Select(d => d.Ai == null ? (double?)null : d.Ai.Pace).ToList();
+            var times = Qualifying.AiTimes(paces, D(spec, "reference"), new SeededRandom(seed + 1));
+            var you = spec.GetProperty("you");
+            times[w.YouDriver] = you.ValueKind == JsonValueKind.Null ? (double?)null : you.GetDouble();
+            int k = 0;
+            foreach (var t in spec.GetProperty("times").EnumerateArray())
+            {
+                var mine = times[k++];
+                Check(t.ValueKind == JsonValueKind.Null ? mine == null : mine != null && BitConverter.DoubleToInt64Bits(mine.Value) == BitConverter.DoubleToInt64Bits(t.GetDouble()), $"{id}: time {k - 1}");
+            }
+            var order = Qualifying.GridOrder(times);
+            Check(order.SequenceEqual(spec.GetProperty("order").EnumerateArray().Select(x => x.GetInt32())), $"{id}: grid order");
+            var rows = Results.QualifyingRows(order, times, w.Drivers.Select((d, i) => i == w.YouDriver ? "YOU" : d.Code).ToList(), w.Drivers.Select(d => d.Team.Code).ToList(), w.YouDriver);
+            k = 0;
+            foreach (var r in spec.GetProperty("rows").EnumerateArray())
+            {
+                var q = rows[k++];
+                string got = $"{q.Place}|{q.Name}|{q.Team}|{q.Time}|{q.Gap}|{q.You}";
+                string exp = $"{r.GetProperty("place")}|{r.GetProperty("name").GetString()}|{r.GetProperty("team").GetString()}|{r.GetProperty("time").GetString()}|{r.GetProperty("gap").GetString()}|{r.GetProperty("you").GetBoolean()}";
+                Check(got == exp, $"{id}: qualifying row {k}: got {got}, want {exp}");
+            }
+            var session = Qualifying.NewQualifying(track, grid, handling, weather);
+            var st = spec.GetProperty("start");
+            var c = session.Entrants[0].Car;
+            Check(c.X == D(st, "x") && c.Y == D(st, "y") && c.Heading == D(st, "heading") && session.Entrants[0].Progress.Idx == st.GetProperty("idx").GetInt32(), $"{id}: flying start");
+            Console.WriteLine($"qualifying {id}: reference {reference:F3} s, pole {rows[0].Name} {rows[0].Time}");
+        }
+        foreach (var l in g.GetProperty("looks").EnumerateArray())
+        {
+            var a = WeatherLooks.At(l[0].GetDouble(), l[1].GetDouble());
+            double[] got = { a.Sky.Background, a.Sky.Sky, a.Sky.Ground, a.Sky.Key, a.Sky.Ambient, a.Sky.KeyIntensity, a.GroundTint, a.Spray ? 1 : 0 };
+            for (int c = 0; c < got.Length; c++) Check(got[c] == l[c + 2].GetDouble(), $"weather look {l[0]} {l[1]} field {c}: got {got[c]}, want {l[c + 2]}");
+        }
+        // judging the lap: a cut on the run-up doesn't count, one on the lap deletes it, the next is timed afresh
+        var q2 = new QualiLap();
+        var p2 = Racing.NewProgress(0);
+        Check(Qualifying.JudgeLap(q2, p2, true, out _) == QualiCall.None, "a cut on the run-up doesn't count");
+        p2.LapStart = 1;
+        Check(Qualifying.JudgeLap(q2, p2, true, out _) == QualiCall.Deleted, "a cut on the lap deletes it");
+        Check(Qualifying.JudgeLap(q2, p2, true, out _) == QualiCall.None, "deleted once");
+        p2.LapTimes.Add(80);
+        Check(Qualifying.JudgeLap(q2, p2, false, out _) == QualiCall.Void, "a deleted lap ends void");
+        p2.LapTimes.Add(79);
+        Check(Qualifying.JudgeLap(q2, p2, false, out double t2) == QualiCall.Time && t2 == 79, "a good lap is timed");
     }
 
     /// <summary>The gopher and the yeti (Core/Critters.cs) against the web game's (critters.json): the same car, the same poses.</summary>

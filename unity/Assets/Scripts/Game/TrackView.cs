@@ -17,6 +17,9 @@ namespace CornerCutters.Game
         const float BarrierHeight = 0.9f;
         static readonly Vector3 Sun = new Vector3(-0.45f, 0.8f, 0.4f).normalized;
 
+        /// <summary>the last ground built's own material (its picture), for the weather's tint; null without a picture</summary>
+        public static Material Ground { get; private set; }
+
         /// <summary>The ground; with barriers false, no barriers (the baked scenery has them).</summary>
         public static GameObject Build(CircuitData c, bool barriers = true)
         {
@@ -30,6 +33,7 @@ namespace CornerCutters.Game
                 picture.wrapMode = TextureWrapMode.Clamp;
                 groundMat = new Material(mat) { name = "Ground " + c.id, mainTexture = picture };
             }
+            Ground = groundMat;
             int row = c.width + 1;
             float H(int cx, int cy) => (float)(c.heights[cy * row + cx] * Units.PerPx);
             char At(int tx, int ty) => tx < 0 || ty < 0 || tx >= c.width || ty >= c.height ? 'W' : c.cells[ty * c.width + tx];

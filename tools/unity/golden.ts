@@ -16,7 +16,11 @@ import { driverSeats, teamGrid, TEAMS } from '../../src/f1/teams';
 import { styleOf } from '../../src/f1/drivers';
 import { seededRandom } from '../../src/engine/rng';
 import { changeableForecast } from '../../src/f1/forecast';
-import { newRace, stepRace, type RaceEvent } from '../../src/f1/raceControl';
+import { newRace, stepRace, order as raceOrder, type RaceEvent } from '../../src/f1/raceControl';
+import { aiTimes, gridOrder, newQualifying, referenceLap } from '../../src/f1/qualifying';
+import { qualifyingRows, raceSummary, resultRows } from '../../src/f1/race/resultsView';
+import { formatTime } from '../../src/f1/records';
+import { lookAt } from '../../src/f1/weather';
 import type { PitLane } from '../../src/f1/pits';
 import type { AiDriver } from '../../src/f1/racing';
 import { keysWheel, newProgress, nearestSample, stepProgress, wheelInput, stickWheel, type Track, type WheelPad } from '../../src/f1/racing';
@@ -254,10 +258,58 @@ function goldenRaces() {
       if (race.entrants.every((e) => e.progress.retired || e.inLap?.parked || (e.progress.finished !== undefined && !pit))) break;
     }
     const finish = race.entrants.map((e) => e.progress.finished ?? -1);
+    // the results as the web game words them (names: the drivers' codes, yours YOU)
+    const named = drivers.map((d, k) => ({ name: k === youDriver ? 'YOU' : d.livery.drivers[d.seat], team: { code: d.livery.code } }));
+    let fastest: { time: number; who: number } | undefined;
+    race.entrants.forEach((e, i) => e.progress.lapTimes.forEach((t) => { if (!fastest || t < fastest.time) fastest = { time: t, who: i }; }));
+    const order = raceOrder(race);
+    const rows = resultRows(race, order, named, youDriver, fastest?.who);
+    const results = { order, fastest: fastest?.who ?? -1, rows, summary: raceSummary(rows).map((b) => [b.icon, b.label, b.value, b.color ?? '']) };
     console.log(`race ${spec.id}: ${step} steps, ${JSON.stringify(kinds)}`);
-    return { ...spec, difficulty: level.id, weather: spec.weather, seed, steps: step, draw, plans, practice: race.practice ?? null, states, events, finish, wetness: race.wetness };
+    return { ...spec, difficulty: level.id, weather: spec.weather, seed, steps: step, draw, plans, practice: race.practice ?? null, states, events, finish, wetness: race.wetness, results };
   });
   writeFileSync('unity/Tests~/Core.Tests/races.json', JSON.stringify({ dt: DT, races: out }));
+}
+
+/**
+ * Qualifying, as race.ts runs it: the reference lap (one AI car alone on a flying lap) in each weather, the AI's
+ * times off it from the weekend's seed (seed + 1), the grid they make with your time in, and the rows it shows; and
+ * a session's start (flyingStart) and its first few seconds driven flat out.
+ */
+function goldenQualifying() {
+  const specs = [
+    { id: 'crescent-park', seed: 12345, weather: 'dry', you: 80.5 },
+    { id: 'suzuka', seed: 777, weather: 'damp', you: undefined },
+    { id: 'dust-bowl', seed: 4242, weather: 'wet', you: 1 },
+    { id: 'harbour', seed: 2, weather: 'dry', you: 1e9 },
+  ] as const;
+  const out = specs.map((spec) => {
+    const { b, grid, track } = loadRace(spec.id);
+    const reference = referenceLap(track, grid, handling, spec.weather);
+    const rng = seededRandom(spec.seed);
+    const total = Math.min(b.slots.length, 1 + 10);
+    const youDriver = Math.floor(total / 2);
+    const teams = teamGrid(TEAMS[0], total, youDriver, rng);
+    const seats = driverSeats(teams, youDriver, 0);
+    const ranks = paceRanks(total, rng);
+    const level = DIFFICULTIES.find((d) => d.id === 'normal')!;
+    const paces = teams.map((_, k) => (k === youDriver ? undefined : aiPaceFor(level, ranks[k], total, 1)));
+    const times = aiTimes(paces, reference, seededRandom(spec.seed + 1));
+    times[youDriver] = spec.you;
+    const order = gridOrder(times);
+    const named = teams.map((t, k) => ({ name: k === youDriver ? 'YOU' : t.drivers[seats[k]], team: { code: t.code } }));
+    const rows = qualifyingRows(order, times, named, youDriver);
+    const race = newQualifying(track, grid, handling, spec.weather);
+    const start = { x: race.entrants[0].car.x, y: race.entrants[0].car.y, heading: race.entrants[0].car.heading, idx: race.entrants[0].progress.idx };
+    return { ...spec, you: spec.you ?? null, reference, paces: paces.map((p) => p ?? null), times: times.map((t) => t ?? null), order, rows, start };
+  });
+  const formats = [0, 0.004, 59.996, 61.234, 83.125, 125.5, 3600.01].map((t) => [t, formatTime(t)]);
+  const looks = [[0, 0], [0.3, 0], [0.5, 0.2], [1, 0], [1, 1], [1.37, 0.4], [2, 1], [2, 0], [0.04, 0.75]].map(([w, r]) => {
+    const l = lookAt(w, r);
+    return [w, r, l.sky.background, l.sky.sky, l.sky.ground, l.sky.key, l.sky.ambient, l.sky.keyIntensity, l.groundTint, l.spray ? 1 : 0];
+  });
+  writeFileSync('unity/Tests~/Core.Tests/qualifying.json', JSON.stringify({ sessions: out, formats, looks }));
+  console.log(`qualifying: ${out.map((q) => `${q.id} ${q.reference.toFixed(3)}`).join(', ')}`);
 }
 
 /** V8's Math.sin, cos, atan, atan2 and exp on inputs like the game's (headings, angles, slopes, grip): JsMath.cs must give the same bits. */
@@ -284,4 +336,5 @@ if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenAll();
   goldenCritters();
   goldenRaces();
+  goldenQualifying();
 }

@@ -8,7 +8,8 @@
 //    GamepadReader the web game uses (dead zone, rescale), from the standard layout, so Xbox, PlayStation and Switch pads
 //    (and Joy-Cons / Pro Controller on desktop) all arrive alike.
 //  * Both at once are fine: the device used last drives, and the on-screen hints follow it.
-//  * Menus/pausing: Esc or Start pause, R or Y restart, [ ] / Tab or the bumpers change circuit, C or B changes camera.
+//  * Menus/pausing: Esc or Start pause, R or Y restart, [ ] / Tab or the bumpers change circuit, C or B changes camera,
+//    F or Select the weather (a new weekend in it), Enter or A on from qualifying's table and the results.
 using CornerCutters.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -28,6 +29,8 @@ namespace CornerCutters.Game
         readonly InputAction nextCircuit = new InputAction("NextCircuit", InputActionType.Button);
         readonly InputAction prevCircuit = new InputAction("PrevCircuit", InputActionType.Button);
         readonly InputAction camera = new InputAction("Camera", InputActionType.Button);
+        readonly InputAction accept = new InputAction("Accept", InputActionType.Button);
+        readonly InputAction weather = new InputAction("Weather", InputActionType.Button);
         readonly InputAction[] all;
 
         readonly SteeringSmoother smoother = new SteeringSmoother();
@@ -42,6 +45,10 @@ namespace CornerCutters.Game
         public bool RestartPressed { get; private set; }
         public int CircuitStep { get; private set; }
         public bool CameraPressed { get; private set; }
+        /// <summary>on to what's next: the race from qualifying's table, the next circuit from the results</summary>
+        public bool AcceptPressed { get; private set; }
+        /// <summary>the next weather (a new weekend in it)</summary>
+        public bool WeatherPressed { get; private set; }
 
         public GameInput()
         {
@@ -68,7 +75,12 @@ namespace CornerCutters.Game
             prevCircuit.AddBinding("<Gamepad>/leftShoulder");
             camera.AddBinding("<Keyboard>/c");
             camera.AddBinding("<Gamepad>/buttonEast");
-            all = new[] { steerKeys, gasKey, brakeKey, drift, pause, restart, nextCircuit, prevCircuit, camera };
+            accept.AddBinding("<Keyboard>/enter");
+            accept.AddBinding("<Keyboard>/numpadEnter");
+            accept.AddBinding("<Gamepad>/buttonSouth");
+            weather.AddBinding("<Keyboard>/f");
+            weather.AddBinding("<Gamepad>/select");
+            all = new[] { steerKeys, gasKey, brakeKey, drift, pause, restart, nextCircuit, prevCircuit, camera, accept, weather };
         }
 
         public void Enable() { foreach (var a in all) a.Enable(); }
@@ -84,6 +96,8 @@ namespace CornerCutters.Game
             PausePressed = pause.WasPressedThisFrame();
             RestartPressed = restart.WasPressedThisFrame();
             CameraPressed = camera.WasPressedThisFrame();
+            AcceptPressed = accept.WasPressedThisFrame();
+            WeatherPressed = weather.WasPressedThisFrame();
             CircuitStep = (nextCircuit.WasPressedThisFrame() ? 1 : 0) - (prevCircuit.WasPressedThisFrame() ? 1 : 0);
 
             var g = Gamepad.current;
@@ -126,7 +140,7 @@ namespace CornerCutters.Game
         public void ResetWheel() => smoother.Reset();
 
         public string Hints => Source == InputSource.Gamepad
-            ? "L-STICK steer   RT gas   LT brake / reverse   A drift   Y restart   START pause   LB/RB circuit   B camera"
-            : "A/D steer   W gas   S brake / reverse   SPACE drift   R restart   ESC pause   [ ] circuit   C camera";
+            ? "L-STICK steer   RT gas   LT brake / reverse   A drift   Y restart   START pause   LB/RB circuit   B camera   SELECT weather"
+            : "A/D steer   W gas   S brake / reverse   SPACE drift   R restart   ESC pause   [ ] circuit   C camera   F weather";
     }
 }

@@ -13,6 +13,8 @@ namespace CornerCutters.Game
     {
         /// <summary>the web game's HD2D_VIEW blur</summary>
         public float Amount = 1.2f;
+        /// <summary>the light on flat ground, linear (the weather's: WeatherView); the dry day's to start</summary>
+        public static Vector4 Light = new Vector4(0.8375f, 0.7537f, 0.7039f, 0);
         Material mat;
 
         void OnEnable()
@@ -38,6 +40,7 @@ namespace CornerCutters.Game
             }
 
             // the picture in linear light, lit
+            mat.SetVector("_Light", Light);
             var lit = Temp(W, H);
             Graphics.Blit(src, lit, mat, 2);
 
