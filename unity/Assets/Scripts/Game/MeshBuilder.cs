@@ -99,7 +99,7 @@ namespace CornerCutters.Game
         }
 
         /// <summary>A many-sided cylinder with its axle along X (a wheel), from -width/2 to +width/2; faces shaded by their turn.</summary>
-        public void CylinderX(Vector3 centre, float radius, float width, int segments, Color color)
+        public void CylinderX(Vector3 centre, float radius, float width, int segments, Color color, bool openEnded = false)
         {
             float x0 = -width / 2, x1 = width / 2;
             for (int i = 0; i < segments; i++)
@@ -110,7 +110,8 @@ namespace CornerCutters.Game
                 float s = 0.55f + 0.45f * Mathf.Clamp01(Mathf.Sin((a0 + a1) * 0.5f) * 0.5f + 0.5f);
                 Color32 c = (Color)new Color(color.r * s, color.g * s, color.b * s, 1f);
                 Quad(centre + p0 + new Vector3(x0, 0, 0), centre + p0 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x0, 0, 0), c);
-                // the two faces
+                // the two faces (none on an open tube: a tyre's compound band is a ring round its tread, not a disc over its side)
+                if (openEnded) continue;
                 Color32 cap = (Color)new Color(color.r * 0.8f, color.g * 0.8f, color.b * 0.8f, 1f);
                 Quad(centre + new Vector3(x1, 0, 0), centre + p0 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x1, 0, 0), cap);
                 Quad(centre + new Vector3(x0, 0, 0), centre + p1 + new Vector3(x0, 0, 0), centre + p0 + new Vector3(x0, 0, 0), centre + p0 + new Vector3(x0, 0, 0), cap);

@@ -109,7 +109,7 @@ namespace CornerCutters.Game
                 {
                     var hub = new Vector3(sx * half * K, r * K, -z * K);
                     mb.CylinderX(hub, r * K, w * K, 12, rubber);
-                    mb.CylinderX(hub + new Vector3(sx * (w / 2 - 0.4f) * K, 0, 0), (r + 0.12f) * K, 0.8f * K, 12, band);
+                    mb.CylinderX(hub + new Vector3(sx * (w / 2 - 0.4f) * K, 0, 0), (r + 0.12f) * K, 0.8f * K, 12, band, openEnded: true);
                 }
 
             var body3d = new GameObject("body");
