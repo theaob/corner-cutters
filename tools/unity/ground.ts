@@ -11,7 +11,7 @@ import { createCircuitScene, roofLetters } from '../../src/f1/circuitScene';
 
 import { bakeScenery } from './scenery';
 
-declare global { interface Window { groundIds: string[]; paintGround: (id: string) => string; paintRoof: (id: string) => string; scenery: (id: string) => { file: string; planes?: string; textures: string[]; moving: string[]; stats: string }; groundReady: boolean } }
+declare global { interface Window { groundIds: string[]; paintGround: (id: string) => string; paintRoof: (id: string) => string; scenery: (id: string) => { file: string; planes?: string; gopher?: string; yeti?: string; textures: string[]; moving: string[]; stats: string }; groundReady: boolean } }
 
 window.groundIds = LAYOUTS.map((l) => l.id);
 function circuitOf(id: string) {
@@ -53,7 +53,7 @@ window.scenery = (id: string) => {
     for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
     return btoa(bin);
   };
-  return { file: b64(r.file), planes: r.planes && b64(r.planes), textures: r.textures, moving: r.moving, stats: r.stats };
+  return { file: b64(r.file), planes: r.planes && b64(r.planes), gopher: r.gopher && b64(r.gopher), yeti: r.yeti && b64(r.yeti), textures: r.textures, moving: r.moving, stats: r.stats };
 };
 
 window.groundReady = true;

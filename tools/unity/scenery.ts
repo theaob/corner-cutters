@@ -31,11 +31,22 @@
 //   waitMore, first, speed arrive, depart, alt arrive, depart, sink, climb, lead, beyond, aside), float arrivals,
 //   int models (one per tail colour); per model: int parts; per part: int role (0 body, 1 gear, 2 strobe), the part as
 //   above, float12 matrix (in the plane, facing +x).
+//
+// The gopher (Maple Island) and the yeti (Glacier Pass) react to the car, so the port runs them itself too (Critters, a
+// copy of gopher.ts's GopherRun and yeti.ts's YetiRun; CritterView draws them): Resources/Scenery/<id>-gopher.bytes and
+// <id>-yeti.bytes,
+//   "CCR1", int bytes + UTF-8 JSON of the numbers ({kind, gopher|yeti: GOPHER|YETI, halfWidth, avoid: [{x, y, r}]}),
+//   int meshes; per mesh: int role (the gopher: 0 body, 1-4 feet, 5 a star, 6 a hole; the yeti: 0 body, 1 mouth,
+//   2-3 arms, 4-5 legs), float3 pivot (where that piece hangs on the body, at rest), the part as above, float12 matrix
+//   (in that piece).
 import * as THREE from 'three';
 import { createCircuitScene } from '../../src/f1/circuitScene';
 import { DRY } from '../../src/f1/weather';
 import { PLANES, planeModel } from '../../src/f1/planes';
 import { HIDES } from '../../src/f1/town3d';
+import { GOPHER, gopherModel } from '../../src/f1/gopher';
+import { YETI, yetiAvoids, yetiModel } from '../../src/f1/yeti';
+import { HALF_WIDTH } from '../../src/f1/circuit';
 import type { Circuit } from '../../src/f1/circuit';
 
 /** the web game's light on a face (its sky, a hemisphere at 1.35, and sun at 2.6; Lambert): BakedScenery does the same in C# */
@@ -119,7 +130,7 @@ interface Place { m: THREE.Matrix4; tint: THREE.Color }
 interface Proto { tex: number; flags: number; opacity: number; emissive: THREE.Color; pos: number[]; nor: number[]; col: number[]; uv: number[]; idx: number[]; places: Place[] }
 
 /** The web game's scene for circuit `c`, as the Unity file, and what moves, by name. */
-export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): { file: ArrayBuffer; planes?: ArrayBuffer; textures: string[]; moving: string[]; stats: string } {
+export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): { file: ArrayBuffer; planes?: ArrayBuffer; gopher?: ArrayBuffer; yeti?: ArrayBuffer; textures: string[]; moving: string[]; stats: string } {
   const scene = createCircuitScene(c, DRY);
   const tick = ticker(scene, c);
   const moving = movers(scene, tick);
@@ -272,6 +283,17 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
     return m;
   };
 
+  // (the gopher and the yeti, their holes and stars: the port runs those itself, Critters)
+  const critterMats = new Set<string>();
+  for (const m of [gopherModel().group, yetiModel().group]) m.traverse((o) => (o as THREE.Mesh).isMesh && critterMats.add(((o as THREE.Mesh).material as THREE.Material).uuid));
+  const critter = (mesh: THREE.Mesh) => {
+    const g = mesh.geometry as THREE.BufferGeometry & { parameters?: Record<string, number> };
+    const p = g.parameters;
+    const mat = mesh.material as THREE.MeshBasicMaterial;
+    if (critterMats.has(mat.uuid)) return true;
+    if (g.type === 'CylinderGeometry' && p && p.radiusTop === 4.2 && p.radiusBottom === 5 && p.height === 1) return true;
+    return g.type === 'OctahedronGeometry' && !!p && p.radius === 1.5 && mat.color?.getHex() === 0xffe14a;
+  };
   // (no airliner overhead as the scene's taken: the port flies those itself, ScenePlanes)
   for (let n = 0; n < 200 && scene.planes?.flights.length; n++) tick();
   scene.scene.traverse((o) => {
@@ -281,6 +303,7 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
     const img0 = mat0?.map?.image as HTMLCanvasElement | undefined;
     // (the ground: the port has its picture already)
     if (img0 && img0.width === groundSize.w && img0.height === groundSize.h) return;
+    if (critter(mesh)) return;
     const inst = (mesh as THREE.InstancedMesh).isInstancedMesh ? (mesh as THREE.InstancedMesh) : undefined;
     if (moving.has(mesh)) {
       if (standViews(mesh)) return;
@@ -441,9 +464,69 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
     }
     planes = pe.done();
   }
+  // the gopher and the yeti: their numbers, and their pieces
+  const rig = (numbers: object, pieces: { role: number; node: THREE.Object3D; pivot: THREE.Vector3; root: THREE.Object3D }[]) => {
+    const re = new Encoder();
+    re.str('CCR1');
+    const json = new TextEncoder().encode(JSON.stringify(numbers));
+    re.int(json.length);
+    for (const b of json) re.byte(b);
+    const out: { role: number; pivot: THREE.Vector3; p: Proto; m: THREE.Matrix4 }[] = [];
+    for (const { role, node, pivot, root } of pieces) {
+      root.updateMatrixWorld(true);
+      const inv = node.matrixWorld.clone().invert();
+      const walk = (o: THREE.Object3D) => {
+        // (a piece's own pieces are their own: an arm isn't the body's)
+        if (o !== node && pieces.some((q) => q.node === o)) return;
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh) for (const p of partsOf(mesh, false, [])) if (p.idx.length) out.push({ role, pivot, p, m: inv.clone().multiply(mesh.matrixWorld) });
+        o.children.forEach(walk);
+      };
+      walk(node);
+    }
+    re.int(out.length);
+    for (const { role, pivot, p, m } of out) {
+      re.int(role);
+      re.flt(pivot.x); re.flt(pivot.y); re.flt(pivot.z);
+      writePart(re, p);
+      writePlace(re, { m, tint: new THREE.Color(1, 1, 1) });
+    }
+    return re.done();
+  };
+  let gopher: ArrayBuffer | undefined;
+  if (c.layout.gophers) {
+    const g = gopherModel();
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), new THREE.MeshBasicMaterial({ color: 0xffe14a }));
+    // (its hole, as buildGopher digs it: a dark hole in a ring of dug earth)
+    const hole = new THREE.Group();
+    const mound = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 5, 1, 10), new THREE.MeshLambertMaterial({ color: 0x5e4630 }));
+    mound.position.y = 0.3;
+    const pit = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.2, 10), new THREE.MeshLambertMaterial({ color: 0x2a1a10 }));
+    pit.position.y = 0.85;
+    hole.add(mound, pit);
+    const zero = new THREE.Vector3();
+    gopher = rig({ kind: 'gopher', gopher: GOPHER, halfWidth: HALF_WIDTH, avoid: [] }, [
+      { role: 0, node: g.body, pivot: zero, root: g.group },
+      ...g.feet.map((f, k) => ({ role: 1 + k, node: f, pivot: f.position.clone(), root: g.group })),
+      { role: 5, node: star, pivot: zero, root: star },
+      { role: 6, node: hole, pivot: zero, root: hole },
+    ]);
+  }
+  let yeti: ArrayBuffer | undefined;
+  if (c.layout.yeti) {
+    const y = yetiModel();
+    yeti = rig({ kind: 'yeti', yeti: YETI, halfWidth: HALF_WIDTH, avoid: yetiAvoids(c) }, [
+      { role: 0, node: y.body, pivot: new THREE.Vector3(), root: y.group },
+      { role: 1, node: y.mouth, pivot: y.mouth.position.clone(), root: y.group },
+      ...y.arms.map((a, k) => ({ role: 2 + k, node: a, pivot: a.position.clone(), root: y.group })),
+      ...y.legs.map((l, k) => ({ role: 4 + k, node: l, pivot: l.position.clone(), root: y.group })),
+    ]);
+  }
   return {
     file,
     planes,
+    gopher,
+    yeti,
     textures,
     moving: [...movingNames].sort(),
     stats: `${list.length} parts in ${placed} places, ${verts} vertices placed, ${moverParts.length} moving parts (${copies} copies on ${used.length} tracks), ${textures.length} textures, ${(file.byteLength / 1048576).toFixed(1)} MB`,

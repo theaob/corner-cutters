@@ -40,6 +40,7 @@ namespace CornerCutters.Game
         bool paused;
         SceneryMovers movers;
         ScenePlanes planes;
+        CritterView critters;
         int circuitIndex;
         IReadOnlyList<string> ids;
         double bestLap = double.NaN;
@@ -82,6 +83,7 @@ namespace CornerCutters.Game
             circuitView.transform.SetParent(transform, false);
             movers = baked ? BakedScenery.Build(circuitView, circuit) : null;
             planes = baked ? ScenePlanes.Load(circuit.id) : null;
+            critters = baked ? CritterView.Load(circuit) : null;
             if (!baked)
             {
                 SceneryView.Build(circuitView, circuit);
@@ -181,6 +183,7 @@ namespace CornerCutters.Game
             if (stands != null) stands.Step(frame, x, y);
             movers?.Step(frame);
             planes?.Step(frame, x, y, car.Vx, car.Vy);
+            critters?.Step(frame, x, y, car.Vx, car.Vy);
             float speed01 = Mathf.Clamp01((float)(Driving.SpeedOf(car) / car.Cls.TopSpeed));
             // look a little ahead of where the car is going (the web game's lead: about 40 px at full speed)
             var lead = new Vector3((float)(car.Vx / car.Cls.TopSpeed * 2.5), 0, (float)(-car.Vy / car.Cls.TopSpeed * 2.5));

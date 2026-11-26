@@ -16,12 +16,13 @@ own code and baked (`BakedScenery`): towns and cities, custom buildings and land
 bridges, lakes, the coast and the volcano, each face lit as the web game lights it. What moves in that scene (monster
 trucks, kangaroos, moose and geese, boats, the tramway, petals...) is recorded from the web game's own animation as a
 40 s loop and played back (`SceneryMovers`); the airliners over Crescent Park are flown as the web game flies them, over
-wherever you are (`ScenePlanes`). The crowds and flags are `StandView`'s and cheer as the car passes. HUD: the web game's
+wherever you are (`ScenePlanes`), and the gopher at Maple Island and the yeti at Glacier Pass react to your car as they
+do in the web game (`Core/Critters.cs`, drawn by `CritterView`): the gopher freezes, bolts, or gets flung and sits dazed;
+the yeti waits up the road, roars and gives chase. The crowds and flags are `StandView`'s and cheer as the car passes. HUD: the web game's
 wide-screen layout in its pixel font (`HudView`). Finish: its glow, tilt-shift, grade and tone mapping (`TiltShift` shader).
 
-Known gaps: the scene is lit for day on every circuit (night circuits like Vegas show their neon but not the dark), and
-recorded animals react to a recorded car going round, not to yours (the gopher and the yeti). Still placeholder: other
-cars, weather, sky, sound.
+Known gaps: the scene is lit for day on every circuit (night circuits like Vegas show their neon but not the dark).
+Still placeholder: other cars, weather, sky, sound.
 
 ## Layout
 
@@ -47,7 +48,8 @@ resulting car state. Then:
 
     cd unity/Tests~/Core.Tests && dotnet run
 
-replays those inputs through the C# and compares positions, speeds, health, lap counts and lap times. Today: 7,666 checks,
+replays those inputs through the C# and compares positions, speeds, health, lap counts and lap times, and runs the gopher
+and the yeti beside a scripted car against the web game's (`critters.json`). Today: 11,286 checks,
 worst difference about 3e-12 px over two laps. If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
 and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.)
 

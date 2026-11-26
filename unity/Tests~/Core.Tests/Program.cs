@@ -44,9 +44,72 @@ static class Program
         GamepadMapping(golden.GetProperty("gamepad"));
         Smoother();
         Clock();
+        Critters(root);
 
         Console.WriteLine(failures == 0 ? $"OK  {checks} checks" : $"{failures} of {checks} checks FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>The gopher and the yeti (Core/Critters.cs) against the web game's (critters.json): the same car, the same poses.</summary>
+    static void Critters(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/critters.json"))).RootElement;
+        var opts = new JsonSerializerOptions { IncludeFields = true };
+        double dt = D(g, "dt"), half = D(g, "halfWidth");
+        Track TrackOf(string id) => JsonSerializer.Deserialize<CircuitData>(File.ReadAllText(Path.Combine(root, $"Assets/Resources/Circuits/{id}.json")), opts).ToTrack();
+        double[] Row(JsonElement e) { var a = new double[e.GetArrayLength()]; int i = 0; foreach (var v in e.EnumerateArray()) a[i++] = v.GetDouble(); return a; }
+
+        var go = g.GetProperty("gopher");
+        var gopher = new GopherRun(TrackOf("maple-island"), JsonSerializer.Deserialize<GopherTuning>(go.GetProperty("tuning").GetRawText(), opts), half);
+        var cars = new List<CritterCar>();
+        var poses = new List<JsonElement>(go.GetProperty("poses").EnumerateArray());
+        int f = 0;
+        foreach (var c in go.GetProperty("cars").EnumerateArray())
+        {
+            var k = Row(c);
+            cars.Clear();
+            cars.Add(new CritterCar { X = k[0], Y = k[1], Vx = k[2], Vy = k[3] });
+            gopher.Step(dt, cars, k[0], k[1]);
+            if (f % 6 == 5)
+            {
+                var want = poses[f / 6];
+                bool has = gopher.Pose(out var p);
+                Check(has == (want.ValueKind != JsonValueKind.Null), $"gopher frame {f}: out of its hole");
+                if (has && want.ValueKind != JsonValueKind.Null)
+                {
+                    var w = Row(want);
+                    var got = new[] { p.X, p.Y, p.Z, p.Heading, p.Up, p.Step, p.Tumble, p.Running ? 1 : 0, p.Dazed ? 1 : 0 };
+                    for (int i = 0; i < w.Length; i++) Near(got[i], w[i], 1e-6, $"gopher frame {f} [{i}]");
+                }
+            }
+            f++;
+        }
+        Check(gopher.Crossings == go.GetProperty("crossings").GetInt32() && gopher.Bolts == go.GetProperty("bolts").GetInt32() && gopher.Hits == go.GetProperty("hits").GetInt32(),
+            $"gopher: {gopher.Crossings} crossings, {gopher.Bolts} bolts, {gopher.Hits} hits");
+
+        var ye = g.GetProperty("yeti");
+        var yeti = new YetiRun(TrackOf("glacier-pass"), JsonSerializer.Deserialize<YetiTuning>(ye.GetProperty("tuning").GetRawText(), opts), half, new Avoid[0]);
+        poses = new List<JsonElement>(ye.GetProperty("poses").EnumerateArray());
+        f = 0;
+        foreach (var c in ye.GetProperty("cars").EnumerateArray())
+        {
+            var k = Row(c);
+            yeti.Step(dt, k[0], k[1]);
+            if (f % 6 == 5)
+            {
+                var want = poses[f / 6];
+                var p = yeti.Pose;
+                Check((p != null) == (want.ValueKind != JsonValueKind.Null), $"yeti frame {f}: out");
+                if (p != null && want.ValueKind != JsonValueKind.Null)
+                {
+                    var w = Row(want);
+                    var got = new[] { p.X, p.Y, p.Heading, (double)(int)p.Phase, p.T, p.Step };
+                    for (int i = 0; i < w.Length; i++) Near(got[i], w[i], 1e-6, $"yeti frame {f} [{i}]");
+                }
+            }
+            f++;
+        }
+        Check(yeti.Chases == ye.GetProperty("chases").GetInt32(), $"yeti: {yeti.Chases} chases");
     }
 
     static string FindRoot()

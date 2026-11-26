@@ -7,6 +7,9 @@ import { carClass, newCar, stepCar, angleDiff, type Car } from '../../src/engine
 import { readGamepad } from '../../src/engine/controls';
 import type { Grid } from '../../src/engine/sim';
 import { handlingFor, DIFFICULTIES } from '../../src/f1/difficulty';
+import { GOPHER, GopherRun } from '../../src/f1/gopher';
+import { YETI, YetiRun } from '../../src/f1/yeti';
+import { HALF_WIDTH } from '../../src/f1/circuit';
 import { keysWheel, newProgress, nearestSample, stepProgress, wheelInput, stickWheel, type Track, type WheelPad } from '../../src/f1/racing';
 
 const TILE_OF = (id: string) => JSON.parse(readFileSync(`unity/Assets/Resources/Circuits/${id}.json`, 'utf8'));
@@ -106,4 +109,55 @@ export function goldenAll() {
   console.log(`golden: lap checks ${lap.checks.length}, laps ${lap.lapTimes.length} (${lap.lapTimes.map((t) => t.toFixed(2)).join(', ')}), crash checks ${crash.checks.length}, final health ${crash.checks.at(-1)!.health}`);
 }
 
-if (process.argv[1]?.endsWith('golden.mjs')) goldenAll();
+/**
+ * The gopher's crossings (Maple Island) and the yeti's chases (Glacier Pass), with a scripted car going round weaving
+ * across the track (so it catches and hits the gopher): the car each frame, and the critter's pose every 6th
+ * (critters.json, checked by Core.Tests against Core/Critters.cs).
+ */
+function goldenCritters() {
+  const dt = 1 / 30;
+  const frames = 3600;
+  const drive = (track: Track) => {
+    const cars: number[][] = [];
+    let along = 0;
+    for (let f = 0; f < frames; f++) {
+      const t = f * dt;
+      const v = 220 + 80 * Math.sin(t * 0.13);
+      along = (along + (v * dt) / track.spacing) % track.samples.length;
+      const p = track.samples[Math.floor(along)];
+      const off = 32 * Math.sin(t * 0.9);
+      cars.push([p.x + Math.cos(p.dir) * off, p.y + Math.sin(p.dir) * off, Math.sin(p.dir) * v, -Math.cos(p.dir) * v]);
+    }
+    return cars;
+  };
+  const r = (x: number) => Math.round(x * 1e9) / 1e9;
+  const g = load('maple-island').track;
+  const gCars = drive(g);
+  const gopher = new GopherRun(g);
+  const gPoses: (number[] | null)[] = [];
+  gCars.forEach(([x, y, vx, vy], f) => {
+    gopher.step(dt, [{ x, y, vx, vy }], { x, y });
+    const p = gopher.pose();
+    if (f % 6 === 5) gPoses.push(p ? [p.x, p.y, p.z, p.heading, p.up, p.step, p.tumble, p.running ? 1 : 0, p.dazed ? 1 : 0].map(r) : null);
+  });
+  const y = load('glacier-pass').track;
+  const yCars = drive(y);
+  const yeti = new YetiRun(y, []);
+  const phases = ['wait', 'roar', 'chase', 'leave'];
+  const yPoses: (number[] | null)[] = [];
+  yCars.forEach(([x, yy], f) => {
+    yeti.step(dt, { x, y: yy });
+    const p = yeti.pose;
+    if (f % 6 === 5) yPoses.push(p ? [p.x, p.y, p.heading, phases.indexOf(p.phase), p.t, p.step].map(r) : null);
+  });
+  writeFileSync('unity/Tests~/Core.Tests/critters.json', JSON.stringify({
+    dt, halfWidth: HALF_WIDTH, gopher: { tuning: GOPHER, cars: gCars, poses: gPoses, crossings: gopher.crossings, bolts: gopher.bolts, hits: gopher.hits },
+    yeti: { tuning: YETI, cars: yCars, poses: yPoses, chases: yeti.chases },
+  }));
+  console.log(`critters: gopher ${gopher.crossings} crossings, ${gopher.bolts} bolts, ${gopher.hits} hits; yeti ${yeti.chases} chases`);
+}
+
+if (process.argv[1]?.endsWith('golden.mjs')) {
+  goldenAll();
+  goldenCritters();
+}
