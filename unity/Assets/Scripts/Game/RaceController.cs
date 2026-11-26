@@ -46,10 +46,11 @@ namespace CornerCutters.Game
             var camGo = new GameObject("Camera");
             camGo.transform.SetParent(transform, false);
             var cam = camGo.AddComponent<Camera>();
+            camGo.AddComponent<TiltShiftEffect>();
             camGo.tag = "MainCamera";
             camGo.AddComponent<AudioListener>();
             chase = new ChaseCamera(cam);
-            carView = new CarView(new Color(0.85f, 0.1f, 0.1f));
+            carView = new CarView(new Color(0.12f, 0.2f, 0.5f), new Color(0.96f, 0.72f, 0.12f));
             carView.Root.transform.SetParent(transform, false);
             ids = CircuitLoader.Ids();
             circuitIndex = Mathf.Max(0, new List<string>(ids).IndexOf(PlayerPrefs.GetString("circuit", "crescent-park")));
@@ -68,6 +69,7 @@ namespace CornerCutters.Game
             track = circuit.ToTrack();
             circuitView = TrackView.Build(circuit);
             circuitView.transform.SetParent(transform, false);
+            SceneryView.Build(circuitView, circuit);
             lights = new StartLights(circuitView.transform, circuit);
             bestLap = double.NaN;
             Restart();
@@ -154,7 +156,9 @@ namespace CornerCutters.Game
             var pos = Units.ToWorld(x, y, z);
             carView.Root.transform.SetPositionAndRotation(pos, Units.Rotation(car, grid, h));
             float speed01 = Mathf.Clamp01((float)(Driving.SpeedOf(car) / car.Cls.TopSpeed));
-            chase.Follow(pos, Units.Yaw(h), speed01, frame);
+            // look a little ahead of where the car is going (the web game's lead: about 40 px at full speed)
+            var lead = new Vector3((float)(car.Vx / car.Cls.TopSpeed * 2.5), 0, (float)(-car.Vy / car.Cls.TopSpeed * 2.5));
+            chase.Follow(pos, Units.Yaw(h), speed01, lead, frame);
         }
 
         // ---- placeholder HUD (IMGUI: no UI assets yet) ----

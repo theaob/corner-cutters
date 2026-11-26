@@ -44,7 +44,7 @@ namespace CornerCutters.Game
                 go.transform.SetParent(root.transform, false);
                 go.transform.localPosition = new Vector3((i - (Count - 1) / 2f) * 1.1f, 5.2f, 0);
                 go.AddComponent<MeshFilter>().sharedMesh = bulbMesh;
-                bulbs[i] = new Material(Shader.Find("Sprites/Default")) { color = Off };
+                bulbs[i] = new Material(MeshBuilder.VertexColorMaterial()) { color = Off };
                 go.AddComponent<MeshRenderer>().sharedMaterial = bulbs[i];
             }
         }

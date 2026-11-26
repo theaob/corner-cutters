@@ -1,31 +1,18 @@
-// Builds the circuit's ground from the baked tiles: one flat-coloured, slope-shaded quad per tile at the baked corner
-// heights, walls as raised blocks, in chunks (so the camera can cull them). Placeholder art: the aim of this phase is a
-// readable, correctly-shaped circuit to drive; the web game's scenery (trees, stands, pits, night lights) is a later phase.
+// Builds the circuit's ground from the baked tiles with the pixel atlas: mown grass in two greens, gravel, dark asphalt
+// with white edge lines where it meets something else, red and white kerbs, tyre barriers where the run-off ends,
+// and the flat ground beyond them; shaded by slope against a sun, in chunks so the camera can cull them.
+// Scenery (trees, stands) is SceneryView.
 using CornerCutters.Core;
 using UnityEngine;
+using Grid = CornerCutters.Core.Grid;
 
 namespace CornerCutters.Game
 {
     public static class TrackView
     {
         const int Chunk = 48;
-        const float WallHeight = 1.4f;
+        const float BarrierHeight = 0.9f;
         static readonly Vector3 Sun = new Vector3(-0.45f, 0.8f, 0.4f).normalized;
-
-        static Color Base(char c, int tx, int ty)
-        {
-            switch (c)
-            {
-                case 'T': return new Color(0.27f, 0.28f, 0.30f);
-                case 'K': return ((tx / 2 + ty / 2) & 1) == 0 ? new Color(0.85f, 0.15f, 0.15f) : new Color(0.92f, 0.92f, 0.92f);
-                case 'G': return new Color(0.22f, 0.45f, 0.20f);
-                case 'V': return new Color(0.70f, 0.62f, 0.42f);
-                case 'A': return new Color(0.50f, 0.50f, 0.52f);
-                case 'P': return new Color(0.40f, 0.42f, 0.48f);
-                case 'Q': case 'W': return new Color(0.78f, 0.78f, 0.80f);
-                default: return Color.magenta;
-            }
-        }
 
         public static GameObject Build(CircuitData c)
         {
@@ -33,11 +20,16 @@ namespace CornerCutters.Game
             var mat = MeshBuilder.VertexColorMaterial();
             int row = c.width + 1;
             float H(int cx, int cy) => (float)(c.heights[cy * row + cx] * Units.PerPx);
-            bool Wall(int tx, int ty)
+            char At(int tx, int ty) => tx < 0 || ty < 0 || tx >= c.width || ty >= c.height ? 'W' : c.cells[ty * c.width + tx];
+            bool IsWall(char k) => k == 'W' || k == 'Q';
+            bool TrackLike(char k) => k == 'T' || k == 'K';
+            // a wall tile is a barrier only where the open ground meets it: the rest, out beyond, is flat ground
+            bool Barrier(int tx, int ty)
             {
-                if (tx < 0 || ty < 0 || tx >= c.width || ty >= c.height) return true;
-                char k = c.cells[ty * c.width + tx];
-                return k == 'W' || k == 'Q';
+                char k = At(tx, ty);
+                if (k == 'Q') return true;
+                if (k != 'W') return false;
+                return !IsWall(At(tx - 1, ty)) || !IsWall(At(tx + 1, ty)) || !IsWall(At(tx, ty - 1)) || !IsWall(At(tx, ty + 1));
             }
 
             for (int cy0 = 0; cy0 < c.height; cy0 += Chunk)
@@ -49,32 +41,48 @@ namespace CornerCutters.Game
                     {
                         for (int tx = cx0; tx < System.Math.Min(c.width, cx0 + Chunk); tx++)
                         {
-                            char k = c.cells[ty * c.width + tx];
+                            char k = At(tx, ty);
                             float h00 = H(tx, ty), h10 = H(tx + 1, ty), h01 = H(tx, ty + 1), h11 = H(tx + 1, ty + 1);
                             var nw = new Vector3(tx, h00, -ty);
                             var ne = new Vector3(tx + 1, h10, -ty);
                             var sw = new Vector3(tx, h01, -(ty + 1));
                             var se = new Vector3(tx + 1, h11, -(ty + 1));
-                            var col = Base(k, tx, ty);
-                            bool wall = k == 'W' || k == 'Q';
-                            if (wall)
+
+                            int cell;
+                            switch (k)
                             {
-                                // a block standing on the ground at its lowest corner's height... up to a flat top
-                                float top = (h00 + h10 + h01 + h11) * 0.25f + WallHeight;
+                                case 'T':
+                                    int mask = (TrackLike(At(tx, ty - 1)) ? 0 : 1) | (TrackLike(At(tx + 1, ty)) ? 0 : 2) | (TrackLike(At(tx, ty + 1)) ? 0 : 4) | (TrackLike(At(tx - 1, ty)) ? 0 : 8);
+                                    cell = PixelAtlas.AsphaltEdges + mask;
+                                    break;
+                                case 'K': cell = ((tx + ty) & 1) == 0 ? PixelAtlas.KerbRed : PixelAtlas.KerbWhite; break;
+                                case 'G': cell = (((tx >> 2) + (ty >> 2)) & 1) == 0 ? PixelAtlas.GrassA : PixelAtlas.GrassB; break;
+                                case 'V': cell = PixelAtlas.Gravel; break;
+                                case 'A': cell = PixelAtlas.Apron; break;
+                                case 'P': cell = PixelAtlas.Pit; break;
+                                default: cell = PixelAtlas.Beyond; break;
+                            }
+
+                            if (Barrier(tx, ty))
+                            {
+                                // a tyre barrier: a low block of red and white drums standing on the ground
+                                float top = (h00 + h10 + h01 + h11) * 0.25f + BarrierHeight;
+                                int bc = ((tx + ty) & 1) == 0 ? PixelAtlas.BarrierRed : PixelAtlas.BarrierWhite;
                                 var tnw = new Vector3(tx, top, -ty); var tne = new Vector3(tx + 1, top, -ty);
                                 var tsw = new Vector3(tx, top, -(ty + 1)); var tse = new Vector3(tx + 1, top, -(ty + 1));
-                                mb.Quad(tnw, tne, tse, tsw, Shade(col, 1.0f));
-                                if (!Wall(tx, ty - 1)) mb.Quad(nw, ne, tne, tnw, Shade(col, 0.8f));
-                                if (!Wall(tx, ty + 1)) mb.Quad(se, sw, tsw, tse, Shade(col, 0.7f));
-                                if (!Wall(tx - 1, ty)) mb.Quad(sw, nw, tnw, tsw, Shade(col, 0.6f));
-                                if (!Wall(tx + 1, ty)) mb.Quad(ne, se, tse, tne, Shade(col, 0.9f));
+                                mb.Quad(tnw, tne, tse, tsw, (Color32)new Color(0.8f, 0.8f, 0.8f), bc);
+                                if (!IsWall(At(tx, ty - 1))) mb.Quad(tnw, tne, ne, nw, (Color32)new Color(0.85f, 0.85f, 0.85f), bc);
+                                if (!IsWall(At(tx, ty + 1))) mb.Quad(tse, tsw, sw, se, (Color32)new Color(0.7f, 0.7f, 0.7f), bc);
+                                if (!IsWall(At(tx - 1, ty))) mb.Quad(tsw, tnw, nw, sw, (Color32)new Color(0.75f, 0.75f, 0.75f), bc);
+                                if (!IsWall(At(tx + 1, ty))) mb.Quad(tne, tse, se, ne, (Color32)new Color(0.9f, 0.9f, 0.9f), bc);
                                 continue;
                             }
+
                             // shaded by the tile's slope against the sun
                             var n = Vector3.Cross(sw - nw, ne - nw).normalized;
                             if (n.y < 0) n = -n;
-                            float shade = Mathf.Clamp(0.62f + 0.55f * Vector3.Dot(n, Sun), 0.35f, 1.15f);
-                            mb.Quad(nw, ne, se, sw, Shade(col, shade));
+                            float shade = Mathf.Clamp(0.74f + 0.4f * Vector3.Dot(n, Sun), 0.55f, 1.1f);
+                            mb.Quad(nw, ne, se, sw, (Color32)new Color(Mathf.Clamp01(shade), Mathf.Clamp01(shade), Mathf.Clamp01(shade), 1f), cell);
                         }
                     }
                     if (mb.VertexCount == 0) continue;
@@ -89,24 +97,34 @@ namespace CornerCutters.Game
             return root;
         }
 
-        static Color Shade(Color c, float s) => new Color(Mathf.Clamp01(c.r * s), Mathf.Clamp01(c.g * s), Mathf.Clamp01(c.b * s), 1f);
-
-        /// <summary>A white line across the track at sample 0.</summary>
+        /// <summary>A chequered line across the track at sample 0, and the grid slots' marks behind it.</summary>
         static void AddStartLine(GameObject root, CircuitData c, Material mat)
         {
             double x = c.samples.x[0], y = c.samples.y[0], dir = c.samples.dir[0];
-            // across the track: perpendicular to the direction of travel
             double ax = System.Math.Cos(dir), ay = System.Math.Sin(dir);
-            double z = Sim.GroundAt(c.ToGrid(), x, y).H;
+            var grid = c.ToGrid();
+            double z = Sim.GroundAt(grid, x, y).H;
             var mb = new MeshBuilder();
             var half = 40.0;
             var fwd = Driving.ForwardOf(dir);
-            Vector3 P(double dx, double dy) => Units.ToWorld(x + dx, y + dy, z) + new Vector3(0, 0.04f, 0);
+            Vector3 P(double dx, double dy) => Units.ToWorld(x + dx, y + dy, z) + new Vector3(0, 0.03f, 0);
             for (int i = 0; i < 10; i++)
             {
                 double a0 = -half + i * (2 * half / 10), a1 = a0 + 2 * half / 10;
-                var col = i % 2 == 0 ? Color.white : new Color(0.1f, 0.1f, 0.1f);
-                mb.Quad(P(ax * a0 - fwd.X * 3, ay * a0 - fwd.Y * 3), P(ax * a1 - fwd.X * 3, ay * a1 - fwd.Y * 3), P(ax * a1 + fwd.X * 3, ay * a1 + fwd.Y * 3), P(ax * a0 + fwd.X * 3, ay * a0 + fwd.Y * 3), col);
+                // two rows of squares: the chequer cell is 4 px squares, so each 8 x 8 px patch is 2 x 2 of them
+                mb.Quad(P(ax * a0 - fwd.X * 4, ay * a0 - fwd.Y * 4), P(ax * a1 - fwd.X * 4, ay * a1 - fwd.Y * 4), P(ax * a1 + fwd.X * 4, ay * a1 + fwd.Y * 4), P(ax * a0 + fwd.X * 4, ay * a0 + fwd.Y * 4), Color.white, PixelAtlas.Chequer);
+            }
+            // grid boxes: a pale slot mark behind the line for each starting position
+            foreach (var s in c.slots)
+            {
+                double sz = Sim.GroundAt(grid, s.x, s.y).H;
+                var f = Driving.ForwardOf(s.heading);
+                double rx = System.Math.Cos(s.heading), ry = System.Math.Sin(s.heading);
+                Vector3 Q(double along, double across) => Units.ToWorld(s.x + f.X * along + rx * across, s.y + f.Y * along + ry * across, sz) + new Vector3(0, 0.03f, 0);
+                var pale = new Color32(214, 206, 196, 255);
+                mb.Quad(Q(17, -9), Q(17, 9), Q(15, 9), Q(15, -9), pale);   // the box's front line
+                mb.Quad(Q(17, -9), Q(17, -8), Q(5, -8), Q(5, -9), pale);   // its sides
+                mb.Quad(Q(17, 8), Q(17, 9), Q(5, 9), Q(5, 8), pale);
             }
             var go = new GameObject("start line");
             go.transform.SetParent(root.transform, false);

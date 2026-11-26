@@ -6,8 +6,15 @@ A port of the web game to Unity, for desktop now and Nintendo Switch later. It l
 ## What works (phase 1)
 
 One F1 car on any of the 19 circuits, three laps against the clock: start lights, lap and best-lap times, wrong-way
-warning, damage, restart, pause, next/previous circuit, chase and top-down cameras. Keyboard and gamepad. Placeholder
-art (flat colours, slope-shaded ground, box car) and an IMGUI HUD. No AI, pits, tyres, weather, menus, audio, saves or shop yet.
+warning, damage, restart, pause, next/previous circuit, three cameras (C: the web game's classic view, chase, top-down).
+Keyboard and gamepad. No AI, pits, tyres, weather, menus, audio, saves or shop yet.
+
+**Look.** Crescent Park has had a first look pass toward the web game's: its camera (north up, 26 degree lens, 52 degree
+pitch), a pixel-art ground drawn in code (`PixelAtlas`: mown grass, speckled asphalt with white edge lines, kerbs, gravel,
+tyre barriers, chequered line, grid boxes), the web game's trees and grandstands (baked from its own placement code),
+blob shadows, a blocky livery car and a tilt-shift blur with saturation and vignette (`TiltShift` shader). The other 18
+circuits get the ground and camera but no trees or stands yet (`SCENERY` in `tools/unity/bake.ts`). Still placeholder:
+HUD (IMGUI, no pixel font), the pit lane's garages, other cars, crowd animation, weather, sky, sound, night lamps.
 
 ## Open it
 
@@ -31,7 +38,7 @@ Desktop builds: `Unity -batchmode -quit -projectPath unity -executeMethod Corner
 | Pause | Esc or P | Start |
 | Restart | R | Y (north) |
 | Next / previous circuit | Tab or ] / [ | RB / LB |
-| Camera | C | B (east) |
+| Camera (classic / chase / top-down) | C | B (east) |
 
 What changed from the web game's controls (`src/engine/controls.ts`, a handheld with a D-pad and A/B/START/SELECT):
 

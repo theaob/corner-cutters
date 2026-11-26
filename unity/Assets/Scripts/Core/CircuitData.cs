@@ -17,6 +17,23 @@ namespace CornerCutters.Core
         public double x, y, heading;
     }
 
+    /// <summary>Trees as parallel arrays: map px, px tall, kind (0 spruce, 1 broadleaf, 2 palm, 3 rock, 4 blossom), crown colour 0xRRGGBB.</summary>
+    [Serializable]
+    public class BakedTrees
+    {
+        public double[] x, y, h;
+        public int[] kind, color;
+    }
+
+    /// <summary>A grandstand: its middle (map px), the track's direction beside it, which side of the track it is on, px long.</summary>
+    [Serializable]
+    public class BakedStand
+    {
+        public double x, y, dir, len;
+        public int side;
+        public bool atStart;
+    }
+
     [Serializable]
     public class CircuitData
     {
@@ -32,6 +49,9 @@ namespace CornerCutters.Core
         public BakedSlot[] slots;
         public double tyreWear;
         public bool bridge;
+        /// <summary>scenery baked so far (empty for circuits not yet given their look pass)</summary>
+        public BakedTrees trees;
+        public BakedStand[] stands;
 
         public Grid ToGrid()
         {
