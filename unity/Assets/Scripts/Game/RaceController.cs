@@ -23,6 +23,7 @@ namespace CornerCutters.Game
         ChaseCamera chase;
         CarView carView;
         GameObject circuitView;
+        StartLights lights;
         CircuitData circuit;
         Grid grid;
         Track track;
@@ -67,6 +68,7 @@ namespace CornerCutters.Game
             track = circuit.ToTrack();
             circuitView = TrackView.Build(circuit);
             circuitView.transform.SetParent(transform, false);
+            lights = new StartLights(circuitView.transform, circuit);
             bestLap = double.NaN;
             Restart();
         }
@@ -146,6 +148,7 @@ namespace CornerCutters.Game
 
         void Draw(double alpha, float frame)
         {
+            lights.Show(phase == Phase.Lights ? StartLights.LitAt(phaseTime) : 0);
             double x = px + (cx - px) * alpha, y = py + (cy - py) * alpha, z = pz + (cz - pz) * alpha;
             double h = ph + Driving.AngleDiff(ch, ph) * alpha;
             var pos = Units.ToWorld(x, y, z);
@@ -182,8 +185,14 @@ namespace CornerCutters.Game
 
             if (phase == Phase.Lights)
             {
-                int left = Mathf.CeilToInt((float)(LightsSeconds - phaseTime));
-                GUI.Label(new Rect(0, h * 0.25f, w, 80), left > 0 ? left.ToString() : "GO", big);
+                // the five lights, coming on one by one, all out for the start
+                int lit = StartLights.LitAt(phaseTime);
+                for (int i = 0; i < StartLights.Count; i++)
+                {
+                    GUI.color = i < lit ? new Color(1f, 0.08f, 0.05f) : new Color(0.25f, 0.05f, 0.05f);
+                    GUI.DrawTexture(new Rect(w / 2 - 125 + i * 52, h * 0.2f, 42, 42), Texture2D.whiteTexture);
+                }
+                GUI.color = Color.white;
             }
             else if (phase == Phase.Racing && phaseTime < 1.0) GUI.Label(new Rect(0, h * 0.25f, w, 80), "GO", big);
             else if (phase == Phase.Finished)
