@@ -1,56 +1,132 @@
-// A blocky F1 car in the web game's style, seen mostly from above: livery body with an accent engine cover, a white
-// front wing and a rear wing, a helmet, wheels with a red rim round black, and a soft shadow. One mesh, faces +Z at yaw 0 (north).
+// The web game's F1 car, box for box (src/engine/render/vehicles3d.ts createCarMesh, in its px, scaled to units): a narrow
+// tub with a long nose, sidepods, cockpit, helmet, intake and T-camera, engine cover carrying the team's pattern, front and
+// rear wings with end plates, and fat 12-sided tyres (bigger at the back) with a red soft-compound band. Facing +Z (north)
+// at yaw 0. One mesh and a soft shadow.
 using UnityEngine;
 
 namespace CornerCutters.Game
 {
+    /// <summary>How the second colour runs over the top of the car (the web game's LiveryPattern).</summary>
+    public enum LiveryPattern { Plain, Stripe, Twin, Band, Chevron, Halves, Split, Nose }
+
+    public sealed class Livery
+    {
+        public Color Body, Trim;
+        public Color? Accent;
+        public LiveryPattern Pattern = LiveryPattern.Plain;
+        /// <summary>the T-camera: null = carbon (a team's first car), bright green marks the second</summary>
+        public Color? TCam;
+
+        static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
+
+        /// <summary>Milk Energy, the web game's first team: navy with gold nose and wings (src/f1/teams.ts).</summary>
+        public static Livery MilkEnergy() => new Livery { Body = Hex(0x1e2b5c), Trim = Hex(0xf2c14e), Pattern = LiveryPattern.Nose };
+    }
+
     public sealed class CarView
     {
         public readonly GameObject Root;
+        const float K = Units.PerPx;
+        // the car's numbers (web: driving.ts f1 class): px
+        const float W = 14, L = 30;
 
-        public CarView(Color body, Color accent)
+        /// <summary>Is the point (u across 0..1, v from the front 0..1) of a w x h px surface in the pattern's second colour?</summary>
+        static bool Second(LiveryPattern p, float u, float v, float w, float h)
+        {
+            float x = u * w, y = v * h;
+            switch (p)
+            {
+                case LiveryPattern.Stripe: return u >= 0.36f && u <= 0.64f;
+                case LiveryPattern.Twin: return (u >= 0.14f && u <= 0.32f) || (u >= 0.68f && u <= 0.86f);
+                case LiveryPattern.Band: return v >= 0.12f && ((v - 0.12f) % 0.3f) < 0.12f;
+                case LiveryPattern.Chevron:
+                    {
+                        float t = y - Mathf.Abs(x - w / 2) - 0.2f * h;
+                        float m = ((t % (0.34f * h)) + 0.34f * h) % (0.34f * h);
+                        return m < 0.18f * w * 1.4f;
+                    }
+                case LiveryPattern.Halves: return v < 0.5f;
+                case LiveryPattern.Split: return u >= 0.5f;
+                case LiveryPattern.Nose: return v < 0.34f;
+                default: return false;
+            }
+        }
+
+        // a box in the web game's frame (x across, y up, z along with the nose at -z; px) as a box here (z flipped, scaled)
+        static void Box(MeshBuilder mb, float w, float h, float l, float y, float z, Color sides, float x = 0, Color? top = null)
+        {
+            var c = new Vector3(x * K, y * K, -z * K);
+            var s = new Vector3(w * K, h * K, l * K);
+            if (top.HasValue) mb.Box(c, s, sides, top.Value); else mb.Box(c, s, sides);
+        }
+
+        /// <summary>A box whose top face is painted with the livery's pattern: a grid of small patches.</summary>
+        static void PatternBox(MeshBuilder mb, float w, float h, float l, float y, float z, Color body, Color second, LiveryPattern p, Color sides)
+        {
+            Box(mb, w, h, l, y, z, sides, 0, body);
+            if (p == LiveryPattern.Plain) return;
+            int nu = Mathf.Max(1, Mathf.RoundToInt(w / 1f)), nv = Mathf.Max(1, Mathf.RoundToInt(l / 1f));
+            float top = (y + h / 2 + 0.02f) * K;
+            for (int j = 0; j < nv; j++)
+                for (int i = 0; i < nu; i++)
+                {
+                    float u = (i + 0.5f) / nu, v = (j + 0.5f) / nv;   // v from the front (nose) backward
+                    if (!Second(p, u, v, w, l)) continue;
+                    float x0 = (-w / 2 + w * i / nu) * K, x1 = (-w / 2 + w * (i + 1) / nu) * K;
+                    // the front is at -z in the web frame: z there = z - l/2 + l*v ... here flipped
+                    float zf0 = -(z - l / 2 + l * j / nv) * K, zf1 = -(z - l / 2 + l * (j + 1) / nv) * K;
+                    mb.Quad(new Vector3(x0, top, zf0), new Vector3(x1, top, zf0), new Vector3(x1, top, zf1), new Vector3(x0, top, zf1), (Color32)second);
+                }
+        }
+
+        public CarView(Livery look)
         {
             Root = new GameObject("Car");
             var mb = new MeshBuilder();
-            var dark = new Color(0.08f, 0.08f, 0.09f);
-            var white = new Color(0.94f, 0.94f, 0.96f);
-            var red = new Color(0.82f, 0.12f, 0.1f);
-            mb.Box(new Vector3(0, 0.26f, -0.1f), new Vector3(0.5f, 0.2f, 1.1f), body);                // body
-            mb.Box(new Vector3(0, 0.22f, 0.65f), new Vector3(0.26f, 0.13f, 0.6f), body);              // nose
-            mb.Box(new Vector3(-0.4f, 0.22f, -0.1f), new Vector3(0.22f, 0.16f, 0.6f), body);          // sidepods
-            mb.Box(new Vector3(0.4f, 0.22f, -0.1f), new Vector3(0.22f, 0.16f, 0.6f), body);
-            mb.Box(new Vector3(0, 0.4f, -0.3f), new Vector3(0.2f, 0.16f, 0.62f), accent);             // engine cover
-            mb.Box(new Vector3(0, 0.42f, 0.12f), new Vector3(0.16f, 0.14f, 0.16f), white);             // helmet
-            mb.Box(new Vector3(0, 0.09f, 0.98f), new Vector3(0.95f, 0.05f, 0.22f), white);             // front wing
-            mb.Box(new Vector3(0, 0.09f, 0.98f), new Vector3(0.3f, 0.055f, 0.22f), accent);
-            mb.Box(new Vector3(0, 0.52f, -0.78f), new Vector3(0.8f, 0.05f, 0.24f), white);             // rear wing
-            mb.Box(new Vector3(0, 0.52f, -0.78f), new Vector3(0.3f, 0.055f, 0.24f), accent);
-            mb.Box(new Vector3(0, 0.36f, -0.74f), new Vector3(0.06f, 0.25f, 0.12f), dark);             // wing mount
-            foreach (float sx in new[] { -1f, 1f })
-            {
-                Wheel(mb, new Vector3(sx * 0.5f, 0.18f, 0.6f), 0.22f, 0.5f, red, dark);      // front
-                Wheel(mb, new Vector3(sx * 0.52f, 0.2f, -0.6f), 0.28f, 0.54f, red, dark);    // rear
-            }
+            var body = look.Body;
+            var trim = look.Trim;
+            var pods = look.Accent ?? body;
+            var carbon = new Color(0.106f, 0.106f, 0.149f);
+            var dark = new Color(0.07f, 0.07f, 0.07f);
+
+            PatternBox(mb, 5, 3.5f, L - 6, 3.5f, 1, body, trim, look.Pattern, body);       // tub, the pattern along its top
+            Box(mb, 3, 2.5f, 8, 3, -(L / 2 - 6), body, 0, trim);                              // nose (its top in the trim colour)
+            foreach (float sx in new[] { -4f, 4f }) Box(mb, 3, 3, 9, 3, 3, pods, sx);         // sidepods
+            Box(mb, 3.5f, 1.5f, 5, 5.8f, 0, carbon);                                          // cockpit
+            if (look.Pattern != LiveryPattern.Plain) PatternBox(mb, 11, 0.6f, 8, 5.4f, 7, body, trim, look.Pattern, pods); // engine cover
+            Box(mb, 2.6f, 2.4f, 3, 7.6f, 2.6f, body);                                         // air intake
+            Box(mb, 4.2f, 1, 1.6f, 9.3f, 2.4f, look.TCam ?? carbon);                          // T-camera
+            mb.Sphere(new Vector3(0, 7.2f * K, -0.5f * K), 1.7f * K, new Color(0.91f, 0.91f, 0.93f)); // helmet
+            Box(mb, W, 0.8f, 3, 1.4f, -(L / 2 - 1.5f), trim);                                 // front wing
+            Box(mb, W - 3, 0.8f, 2.5f, 8.5f, L / 2 - 1.5f, trim, 0, body);                    // rear wing
+            foreach (float sx in new[] { -(W - 3) / 2, (W - 3) / 2 }) Box(mb, 0.6f, 5, 3, 6.5f, L / 2 - 1.5f, carbon, sx); // end plates
+
+            // wheels: [z, radius, width, half-track] per axle; the compound band (soft: red) round the outer edge
+            var rubber = new Color(0.082f, 0.082f, 0.082f);
+            var band = new Color(0.86f, 0.12f, 0.1f);
+            foreach (var (z, r, w, half) in new[] { (-(L / 2 - 8), 3.2f, 3f, W / 2 - 1.5f), (L / 2 - 6, 3.8f, 3.6f, W / 2 - 1.2f) })
+                foreach (float sx in new[] { -1f, 1f })
+                {
+                    var hub = new Vector3(sx * half * K, r * K, -z * K);
+                    mb.CylinderX(hub, r * K, w * K, 12, rubber);
+                    mb.CylinderX(hub + new Vector3(sx * (w / 2 - 0.4f) * K, 0, 0), (r + 0.12f) * K, 0.8f * K, 12, band);
+                }
+
             var body3d = new GameObject("body");
             body3d.transform.SetParent(Root.transform, false);
             body3d.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh("car");
             body3d.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.VertexColorMaterial();
 
-            // a soft shadow on the ground under it, a little to the lower right (it stays flat: the car's own tilt is not applied)
+            // a soft shadow on the ground, a little to the lower right
             var sh = new MeshBuilder();
-            var c = new Color(0, 0, 0, 0.32f);
-            sh.Quad(new Vector3(-0.2f, 0, 1.2f), new Vector3(1.0f, 0, 1.2f), new Vector3(1.0f, 0, -1.3f), new Vector3(-0.2f, 0, -1.3f), c);
+            var c = new Color(0, 0, 0, 0.3f);
+            float hw = W * 0.6f * K, hl = L * 0.55f * K, ox = 0.12f, oz = -0.1f;
+            sh.Quad(new Vector3(ox - hw, 0, oz + hl), new Vector3(ox + hw, 0, oz + hl), new Vector3(ox + hw, 0, oz - hl), new Vector3(ox - hw, 0, oz - hl), c);
             var shadow = new GameObject("shadow");
             shadow.transform.SetParent(Root.transform, false);
             shadow.transform.localPosition = new Vector3(0, 0.03f, 0);
             shadow.AddComponent<MeshFilter>().sharedMesh = sh.ToMesh("car shadow");
             shadow.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.ShadowMaterial();
-        }
-
-        static void Wheel(MeshBuilder mb, Vector3 at, float width, float length, Color rim, Color tyre)
-        {
-            mb.Box(at, new Vector3(width, 0.36f, length), rim);
-            mb.Box(at + new Vector3(0, 0.01f, 0), new Vector3(width + 0.02f, 0.36f, length * 0.62f), tyre);
         }
     }
 }

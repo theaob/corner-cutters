@@ -50,7 +50,7 @@ namespace CornerCutters.Game
             camGo.tag = "MainCamera";
             camGo.AddComponent<AudioListener>();
             chase = new ChaseCamera(cam);
-            carView = new CarView(new Color(0.12f, 0.2f, 0.5f), new Color(0.96f, 0.72f, 0.12f));
+            carView = new CarView(Livery.MilkEnergy());
             carView.Root.transform.SetParent(transform, false);
             ids = CircuitLoader.Ids();
             circuitIndex = Mathf.Max(0, new List<string>(ids).IndexOf(PlayerPrefs.GetString("circuit", "crescent-park")));

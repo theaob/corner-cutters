@@ -53,6 +53,55 @@ namespace CornerCutters.Game
             Quad(p(1, -1, 1), p(1, -1, -1), p(1, 1, -1), p(1, 1, 1), shade(0.75f));     // right
         }
 
+        /// <summary>A box with its top face a different colour (a livery's stripe on the top, body colour round the sides).</summary>
+        public void Box(Vector3 centre, Vector3 size, Color sides, Color top)
+        {
+            Vector3 h = size * 0.5f;
+            Vector3 p(float x, float y, float z) => centre + new Vector3(x * h.x, y * h.y, z * h.z);
+            Color32 shade(Color c, float s) => (Color)new Color(c.r * s, c.g * s, c.b * s, 1f);
+            Quad(p(-1, 1, -1), p(-1, 1, 1), p(1, 1, 1), p(1, 1, -1), shade(top, 1.0f));
+            Quad(p(-1, -1, -1), p(1, -1, -1), p(1, -1, 1), p(-1, -1, 1), shade(sides, 0.45f));
+            Quad(p(-1, -1, 1), p(1, -1, 1), p(1, 1, 1), p(-1, 1, 1), shade(sides, 0.85f));
+            Quad(p(1, -1, -1), p(-1, -1, -1), p(-1, 1, -1), p(1, 1, -1), shade(sides, 0.7f));
+            Quad(p(-1, -1, -1), p(-1, -1, 1), p(-1, 1, 1), p(-1, 1, -1), shade(sides, 0.6f));
+            Quad(p(1, -1, 1), p(1, -1, -1), p(1, 1, -1), p(1, 1, 1), shade(sides, 0.75f));
+        }
+
+        /// <summary>A flat patch on the ground or a surface: corners a, b, c, d, one colour.</summary>
+        public void Patch(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color color) => Quad(a, b, c, d, color);
+
+        /// <summary>A many-sided cylinder with its axle along X (a wheel), from -width/2 to +width/2; faces shaded by their turn.</summary>
+        public void CylinderX(Vector3 centre, float radius, float width, int segments, Color color)
+        {
+            float x0 = -width / 2, x1 = width / 2;
+            for (int i = 0; i < segments; i++)
+            {
+                float a0 = i * Mathf.PI * 2f / segments, a1 = (i + 1) * Mathf.PI * 2f / segments;
+                var p0 = new Vector3(0, Mathf.Sin(a0) * radius, Mathf.Cos(a0) * radius);
+                var p1 = new Vector3(0, Mathf.Sin(a1) * radius, Mathf.Cos(a1) * radius);
+                float s = 0.55f + 0.45f * Mathf.Clamp01(Mathf.Sin((a0 + a1) * 0.5f) * 0.5f + 0.5f);
+                Color32 c = (Color)new Color(color.r * s, color.g * s, color.b * s, 1f);
+                Quad(centre + p0 + new Vector3(x0, 0, 0), centre + p0 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x0, 0, 0), c);
+                // the two faces
+                Color32 cap = (Color)new Color(color.r * 0.8f, color.g * 0.8f, color.b * 0.8f, 1f);
+                Quad(centre + new Vector3(x1, 0, 0), centre + p0 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x1, 0, 0), centre + p1 + new Vector3(x1, 0, 0), cap);
+                Quad(centre + new Vector3(x0, 0, 0), centre + p1 + new Vector3(x0, 0, 0), centre + p0 + new Vector3(x0, 0, 0), centre + p0 + new Vector3(x0, 0, 0), cap);
+            }
+        }
+
+        /// <summary>A small low-poly ball (a helmet), 8 segments by 5 rings.</summary>
+        public void Sphere(Vector3 centre, float radius, Color color)
+        {
+            const int seg = 8, rings = 5;
+            Vector3 P(int i, int j) { float a = i * Mathf.PI * 2f / seg, b = Mathf.PI * j / rings; return centre + new Vector3(Mathf.Cos(a) * Mathf.Sin(b), Mathf.Cos(b), Mathf.Sin(a) * Mathf.Sin(b)) * radius; }
+            for (int j = 0; j < rings; j++)
+                for (int i = 0; i < seg; i++)
+                {
+                    float s = 0.7f + 0.3f * Mathf.Cos(Mathf.PI * (j + 0.5f) / rings);
+                    Quad(P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1), (Color)new Color(color.r * s, color.g * s, color.b * s, 1f));
+                }
+        }
+
         public Mesh ToMesh(string name)
         {
             var m = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
