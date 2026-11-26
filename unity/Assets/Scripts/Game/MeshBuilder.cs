@@ -39,6 +39,15 @@ namespace CornerCutters.Game
             tris.Add(i); tris.Add(i + 2); tris.Add(i + 3);
         }
 
+        /// <summary>A quad with its own texture coordinates and a colour per corner (nw, ne, se, sw): the ground, under its baked picture.</summary>
+        public void QuadUv(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector2 ua, Vector2 ub, Vector2 uc, Vector2 ud, Color32 ca, Color32 cb, Color32 cc, Color32 cd)
+        {
+            int i = verts.Count;
+            Add(a, ca, ua); Add(b, cb, ub); Add(c, cc, uc); Add(d, cd, ud);
+            tris.Add(i); tris.Add(i + 1); tris.Add(i + 2);
+            tris.Add(i); tris.Add(i + 2); tris.Add(i + 3);
+        }
+
         /// <summary>An axis-aligned box centred at <paramref name="centre"/>; faces shaded by direction.</summary>
         public void Box(Vector3 centre, Vector3 size, Color baseColor)
         {

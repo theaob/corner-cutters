@@ -10,10 +10,10 @@ warning, damage, restart, pause, next/previous circuit, three cameras (C: the we
 Keyboard and gamepad. No AI, pits, tyres, weather, menus, audio, saves or shop yet.
 
 **Look.** Crescent Park has had a first look pass toward the web game's: its camera (north up, 26 degree lens, 52 degree
-pitch), a pixel-art ground drawn in code (`PixelAtlas`: mown grass, speckled asphalt with white edge lines, kerbs, gravel,
-tyre barriers, chequered line, grid boxes), the web game's trees and grandstands (baked from its own placement code),
+pitch), the web game's own ground picture on every circuit (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane,
+grid boxes, chequered line: baked from its painter, one texel per map pixel, nearest-neighbour), tyre barriers, the web game's trees and grandstands (baked from its own placement code),
 blob shadows, a blocky livery car and a tilt-shift blur with saturation and vignette (`TiltShift` shader). The other 18
-circuits get the ground and camera but no trees or stands yet (`SCENERY` in `tools/unity/bake.ts`). Still placeholder:
+circuits get the ground, barriers and camera but no trees or stands yet (`SCENERY` in `tools/unity/bake.ts`). Still placeholder:
 HUD (IMGUI, no pixel font), the pit lane's garages, other cars, crowd animation, weather, sky, sound, night lamps.
 
 ## Open it
@@ -58,6 +58,9 @@ What changed from the web game's controls (`src/engine/controls.ts`, a handheld 
 - `Assets/Scripts/Game/`: the Unity side: input, track and car meshes, camera, race flow, HUD.
 - `Assets/Scripts/Editor/`: scene setup and command-line builds.
 - `Assets/Resources/Circuits/*.json`: the circuits, **generated** from the web game (`npm run unity:bake`). Don't edit by hand.
+- `Assets/Resources/Grounds/*.png`: each circuit's ground picture, **generated** from the web game's painter
+  (`npm run unity:grounds [id ...]`; needs Playwright, e.g. `npm i -g playwright && npx playwright install chromium`).
+  `Editor/GroundImport.cs` imports them full size, point-filtered, uncompressed. About 28 MB for all 19.
 - `Tests~/Core.Tests/`: the core's tests; `golden.json` is **generated** from the web game (`npm run unity:golden`).
 
 ## Keeping the port honest

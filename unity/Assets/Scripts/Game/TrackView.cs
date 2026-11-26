@@ -1,6 +1,9 @@
-// Builds the circuit's ground from the baked tiles with the pixel atlas: mown grass in two greens, gravel, dark asphalt
-// with white edge lines where it meets something else, red and white kerbs, tyre barriers where the run-off ends,
-// and the flat ground beyond them; shaded by slope against a sun, in chunks so the camera can cull them.
+// Builds the circuit's ground, in chunks so the camera can cull them, shaded by slope against a sun.
+// The ground's picture is the web game's own (Resources/Grounds/<id>.png, from `npm run unity:grounds`): its painter's
+// asphalt, white edge lines, red and white kerbs, mown grass, gravel, pit lane, grid boxes and chequered line, one texel
+// per map pixel, nearest-neighbour, draped over the height field the way the web game drapes it. Tyre barriers stand
+// on the wall tiles that meet the run-off. Without a baked picture, the tiles are drawn from the pixel atlas instead
+// (coarse: a tile per cell, so curves step).
 // Scenery (trees, stands) is SceneryView.
 using CornerCutters.Core;
 using UnityEngine;
@@ -18,6 +21,14 @@ namespace CornerCutters.Game
         {
             var root = new GameObject("Circuit " + c.id);
             var mat = MeshBuilder.VertexColorMaterial();
+            var picture = Resources.Load<Texture2D>("Grounds/" + c.id);
+            Material groundMat = null;
+            if (picture != null)
+            {
+                picture.filterMode = FilterMode.Point;
+                picture.wrapMode = TextureWrapMode.Clamp;
+                groundMat = new Material(mat) { name = "Ground " + c.id, mainTexture = picture };
+            }
             int row = c.width + 1;
             float H(int cx, int cy) => (float)(c.heights[cy * row + cx] * Units.PerPx);
             char At(int tx, int ty) => tx < 0 || ty < 0 || tx >= c.width || ty >= c.height ? 'W' : c.cells[ty * c.width + tx];
@@ -32,11 +43,23 @@ namespace CornerCutters.Game
                 return !IsWall(At(tx - 1, ty)) || !IsWall(At(tx + 1, ty)) || !IsWall(At(tx, ty - 1)) || !IsWall(At(tx, ty + 1));
             }
 
+            // the light at a tile corner, from the ground's slope there (smooth across tiles, so the picture shows no seams)
+            Color32 Light(int cx, int cy)
+            {
+                int x0 = System.Math.Max(0, cx - 1), x1 = System.Math.Min(c.width, cx + 1);
+                int y0 = System.Math.Max(0, cy - 1), y1 = System.Math.Min(c.height, cy + 1);
+                float dx = (H(x1, cy) - H(x0, cy)) / (x1 - x0), dy = (H(cx, y1) - H(cx, y0)) / (y1 - y0);
+                var n = new Vector3(-dx, 1f, dy).normalized;
+                float shade = Mathf.Clamp01(Mathf.Clamp(0.74f + 0.4f * Vector3.Dot(n, Sun), 0.55f, 1.1f));
+                return new Color(shade, shade, shade, 1f);
+            }
+
             for (int cy0 = 0; cy0 < c.height; cy0 += Chunk)
             {
                 for (int cx0 = 0; cx0 < c.width; cx0 += Chunk)
                 {
                     var mb = new MeshBuilder();
+                    var gb = new MeshBuilder();
                     for (int ty = cy0; ty < System.Math.Min(c.height, cy0 + Chunk); ty++)
                     {
                         for (int tx = cx0; tx < System.Math.Min(c.width, cx0 + Chunk); tx++)
@@ -47,6 +70,15 @@ namespace CornerCutters.Game
                             var ne = new Vector3(tx + 1, h10, -ty);
                             var sw = new Vector3(tx, h01, -(ty + 1));
                             var se = new Vector3(tx + 1, h11, -(ty + 1));
+
+                            if (picture != null)
+                            {
+                                // the baked picture: (0,0) is its top left, the map's top left; texture v runs up
+                                float u0 = (float)tx / c.width, u1 = (float)(tx + 1) / c.width;
+                                float v0 = 1f - (float)ty / c.height, v1 = 1f - (float)(ty + 1) / c.height;
+                                gb.QuadUv(nw, ne, se, sw, new Vector2(u0, v0), new Vector2(u1, v0), new Vector2(u1, v1), new Vector2(u0, v1),
+                                    Light(tx, ty), Light(tx + 1, ty), Light(tx + 1, ty + 1), Light(tx, ty + 1));
+                            }
 
                             int cell;
                             switch (k)
@@ -77,6 +109,7 @@ namespace CornerCutters.Game
                                 if (!IsWall(At(tx + 1, ty))) mb.Quad(tne, tse, se, ne, (Color32)new Color(0.9f, 0.9f, 0.9f), bc);
                                 continue;
                             }
+                            if (picture != null) continue;
 
                             // shaded by the tile's slope against the sun
                             var n = Vector3.Cross(sw - nw, ne - nw).normalized;
@@ -85,15 +118,21 @@ namespace CornerCutters.Game
                             mb.Quad(nw, ne, se, sw, (Color32)new Color(Mathf.Clamp01(shade), Mathf.Clamp01(shade), Mathf.Clamp01(shade), 1f), cell);
                         }
                     }
-                    if (mb.VertexCount == 0) continue;
-                    var go = new GameObject($"ground {cx0 / Chunk},{cy0 / Chunk}");
-                    go.transform.SetParent(root.transform, false);
-                    go.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh(go.name);
-                    go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+                    void Emit(MeshBuilder b, string name, Material m)
+                    {
+                        if (b.VertexCount == 0) return;
+                        var go = new GameObject($"{name} {cx0 / Chunk},{cy0 / Chunk}");
+                        go.transform.SetParent(root.transform, false);
+                        go.AddComponent<MeshFilter>().sharedMesh = b.ToMesh(go.name);
+                        go.AddComponent<MeshRenderer>().sharedMaterial = m;
+                    }
+                    Emit(gb, "ground", groundMat);
+                    Emit(mb, picture != null ? "barriers" : "ground", mat);
                 }
             }
 
-            AddStartLine(root, c, mat);
+            // (the baked picture has the line and the grid boxes painted on)
+            if (picture == null) AddStartLine(root, c, mat);
             return root;
         }
 
