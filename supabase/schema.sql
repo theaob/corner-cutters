@@ -13,7 +13,7 @@ create table if not exists public.events (
   -- the random id the device made for itself
   player uuid not null,
   kind text not null,
-  platform text check (platform in ('web', 'android', 'ios')),
+  platform text check (platform in ('web', 'android', 'ios', 'windows', 'macos', 'linux', 'switch')),
   version text check (char_length(version) <= 40),
   circuit text check (char_length(circuit) <= 40),
   mode text check (char_length(mode) <= 20),
@@ -28,9 +28,10 @@ alter table public.events add column if not exists seconds real check (seconds >
 alter table public.events drop constraint if exists events_kind_check;
 alter table public.events add constraint events_kind_check
   check (kind in ('launch', 'race_start', 'race_finish', 'drive', 'share', 'daily_submit', 'session', 'error'));
--- (the iOS app reports as 'ios'; run again on a project made before, which only knew 'web' and 'android')
+-- (the iOS app reports as 'ios', and the Unity build as the computer or console it runs on; run again on a project
+-- made before, which only knew 'web' and 'android', then 'ios')
 alter table public.events drop constraint if exists events_platform_check;
-alter table public.events add constraint events_platform_check check (platform in ('web', 'android', 'ios'));
+alter table public.events add constraint events_platform_check check (platform in ('web', 'android', 'ios', 'windows', 'macos', 'linux', 'switch'));
 create index if not exists events_at on public.events (at);
 create index if not exists events_kind on public.events (kind);
 -- (the dashboard's totals look events up by kind and day, and by player)
@@ -588,8 +589,9 @@ grant execute on function public.retention_stats() to anon;
 -- (src/stats/schemaVersion.ts has the number it expects; tests/schema.test.ts keeps the two equal). Raise it with every
 -- change that something in the game or the dashboard depends on.
 --   1: the first (no schema_version function at all)   2: the guards, the reports' guess limit, the cached totals
+--   3: the Unity build's platforms in the play stats (windows, macos, linux, switch)
 create or replace function public.schema_version() returns int
-language sql immutable as $$ select 2 $$;
+language sql immutable as $$ select 3 $$;
 revoke all on function public.schema_version() from public;
 grant execute on function public.schema_version() to anon;
 
