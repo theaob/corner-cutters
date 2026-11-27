@@ -43,6 +43,17 @@ Known gaps: the scene is lit for day on every circuit (night circuits like Vegas
 Still placeholder: sound. The weather's light is one change of light over the whole scene, so lamps and
 glowing signs grey a little with it (the web game's stay bright).
 
+**Play stats and world boards.** As the web game (`metrics.ts`, `boards.ts`), on the same Supabase project, only when
+the build has its address and public key (`Game/Backend.cs`: `Assets/Resources/Backend.json`, `{ "url": "…", "key": "…" }`,
+kept out of git, or the `SUPABASE_URL` / `SUPABASE_ANON_KEY` environment variables). Without them it all stays off and the
+game plays offline. The stats are the web game's events (launch, race_start, race_finish, drive with km and seconds,
+session time), batched every 20 s by a random player id, STATS on the pause screen turns them off. Rows say version
+`unity-<version>` and no platform, because the events table's check takes only web, android and ios (adding a desktop
+value there would let the dashboard count it apart). The world boards: a new qualifying record of yours in a dry, damp or
+wet weekend goes on that circuit's board with `submit_lap` (it waits on the device until you've picked a NAME on the pause
+screen, as the web game's Time Trial records do), and qualifying's table shows your place on the board and its top three
+from `lap_board`. The laps are the same physics as the web game's, so they share one board.
+
 ## Layout
 
 - `Assets/Scripts/Core/`: the game's rules in plain C# (no `UnityEngine`; asmdef `noEngineReferences`): driving, ground and
@@ -50,7 +61,8 @@ glowing signs grey a little with it (the web game's stay bright).
   (`RaceControl.cs`), tyres, strategy, pits, the smaller rules (`RaceRules.cs`: slipstream, blue flags, track limits,
   weather, bridges), the field (`Field.cs`: teams, drivers, difficulties, a weekend drawn from its seed), timing gaps,
   qualifying (`Qualifying.cs`), the results' rows (`Results.cs`), the weather's look (`WeatherLook.cs`), the replays'
-  recording and the grid walk (`Replay.cs`) and debris (`Debris.cs`).
+  recording and the grid walk (`Replay.cs`), debris (`Debris.cs`), and the play stats' and boards' rows (`Metrics.cs`,
+  `Boards.cs`, written by `Json.cs` as the web game's JSON.stringify writes them).
   Ported from the web game's TypeScript. `JsMath.cs` holds JavaScript's arithmetic where C#'s differs (V8's sin, cos,
   atan, atan2 and exp, which are fdlibm's; Math.hypot; Math.round; a stable sort; the seeded random numbers), so the
   port makes the same decisions from the same numbers, on every platform.
@@ -64,7 +76,7 @@ glowing signs grey a little with it (the web game's stay bright).
   `<id>.moving.txt`, and `<id>-planes.bytes` where there's an airport), **generated** from the web game's createCircuitScene
   by the same command (`npm run unity:grounds -- --scenery-only [id ...]`). The file format is at the top of
   `tools/unity/scenery.ts`. About 45 MB for all 19. `node tools/unity/preview.mjs` renders one without Unity, as a check.
-- `Tests~/Core.Tests/`: the core's tests; `golden.json`, `critters.json`, `races.json`, `qualifying.json`, `fx.json` and `math.json` are **generated**
+- `Tests~/Core.Tests/`: the core's tests; `golden.json`, `critters.json`, `races.json`, `qualifying.json`, `fx.json`, `net.json` and `math.json` are **generated**
   from the web game (`npm run unity:golden`).
 
 ## Keeping the port honest
@@ -82,7 +94,8 @@ from its seed, lights to flag, every car's state every second and every race eve
 bit**, as do their results tables. Qualifying (`qualifying.json`) is checked the same way: the reference lap in dry, damp
 and wet, the AI's times off it, the grid and its table, where the session starts; the weather's look at nine
 wetness and rain mixes; and (`fx.json`) debris flown over hills, the grid walk's path and the replay's recording read
-back between frames, all bit for bit. (`GOLDEN_ONLY=fx npm run unity:golden` remakes that one alone, in a second.) JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
+back between frames, all bit for bit; and (`net.json`) the play stats' batches byte for byte as the web game sends them,
+3,000 numbers as JSON writes them, and the laps waiting for a board as records come in. (`GOLDEN_ONLY=fx npm run unity:golden` remakes that one alone, in a second.) JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
 (The player's wheel still uses .NET's `Math.Pow`, a last bit off now and then: the recorded lap drifts about 2e-12 px.) If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
 and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.)
 

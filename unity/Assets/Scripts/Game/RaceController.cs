@@ -135,12 +135,112 @@ namespace CornerCutters.Game
             ids = CircuitLoader.Ids();
             circuitIndex = Mathf.Max(0, new List<string>(ids).IndexOf(PlayerPrefs.GetString("circuit", "crescent-park")));
             LoadCircuit(circuitIndex);
+            PlayStats.Track("launch");
+            PlayStats.StartClock();
         }
 
         void OnDestroy() => input?.Disable();
 
+        // ---- the play stats (metrics.ts, race.ts): the km you drive and the time on the circuit, by session ----
+
+        /// <summary>px you've driven since the last 'drive' event, and where your car was last frame; s on the circuit since then, not paused</summary>
+        double drivenPx, drivenSecs;
+        (double x, double y)? lastAt;
+        /// <summary>the session the km being counted are driven in</summary>
+        string drivenMode = "race";
+        /// <summary>your race_finish noted</summary>
+        bool finishNoted;
+
+        string StatsMode => session == Session.Race ? "race" : "qualifying";
+
+        /// <summary>Note the km driven and the time on the circuit since the last time.</summary>
+        void NoteDriven()
+        {
+            if (circuit != null && (drivenPx > 0 || drivenSecs >= 1))
+                PlayStats.Track("drive", circuit.id, drivenMode, Metrics.KmOf(drivenPx), data: new JsonObj { { "seconds", JsMath.Round(drivenSecs) } });
+            drivenPx = 0;
+            drivenSecs = 0;
+        }
+
+        /// <summary>A session started: the team and driver you're racing as.</summary>
+        void NoteStart() => PlayStats.Track("race_start", circuit.id, StatsMode, data: new JsonObj { { "team", weekend.Drivers[weekend.YouDriver].Team.Id }, { "driver", weekend.Drivers[weekend.YouDriver].Code } });
+
+        /// <summary>Your car's way this frame, and the time on the circuit (not the replay's, the grid walk's, nor a jump of a restart).</summary>
+        void CountDriven(float frame)
+        {
+            if (!paused && frame < 1) drivenSecs += frame;
+            var c = Me.Car;
+            if (replay == null && !panT.HasValue && !paused && lastAt.HasValue)
+            {
+                double d = JsMath.Hypot(c.X - lastAt.Value.x, c.Y - lastAt.Value.y);
+                if (d < 400) drivenPx += d;
+            }
+            lastAt = (c.X, c.Y);
+            // your flag (or you're out): where you finished, of how many, over how many laps
+            if (!finishNoted && session == Session.Race && race.Phase == RacePhase.Racing && (Me.Progress.Finished.HasValue || Me.Progress.Retired))
+            {
+                finishNoted = true;
+                int pos = RaceControl.Order(race).IndexOf(you) + 1;
+                PlayStats.Track("race_finish", circuit.id, StatsMode, data: new JsonObj { { "place", Me.Progress.Retired ? (object)null : pos }, { "field", race.Entrants.Count }, { "laps", race.Laps } });
+                NoteDriven();
+            }
+        }
+
+        void OnApplicationFocus(bool focused)
+        {
+            if (focused) PlayStats.Back();
+            else Away();
+        }
+
+        void OnApplicationPause(bool paused)
+        {
+            if (paused) Away();
+            else PlayStats.Back();
+        }
+
+        void OnApplicationQuit() => Away();
+
+        void Away()
+        {
+            NoteDriven();
+            PlayStats.Away();
+        }
+
+        // ---- the world boards (boards.ts): your qualifying records on them, and where you are ----
+
+        /// <summary>
+        /// Qualifying's over, in a fixed weather: a new record of yours goes on the circuit's world board (waiting on the
+        /// device till it's sent, with your initials), and the board's read back onto qualifying's table.
+        /// </summary>
+        void BoardLap(double? time, bool newRecord)
+        {
+            string weather = Boards.WeatherOf(weatherChoice);
+            if (weather == null || !Backend.Online) return;
+            if (time.HasValue && newRecord) LapBoards.Queue(circuit.id, weather, time.Value);
+            var table = qualiTable;
+            string id = circuit.id, name = Profile.Initials;
+            if (name == null)
+            {
+                table.Board = "PICK A NAME (PAUSE) FOR THE WORLD BOARD";
+                return;
+            }
+            LapBoards.Send(name, sent => LapBoards.Fetch(id, weather, 3, board =>
+            {
+                if (board == null) return;
+                table.Board = Boards.PlaceLine(board) ?? $"WORLD BOARD · {board.Entries} {(board.Entries == 1 ? "LAP" : "LAPS")}";
+                table.BoardTop = board.Top.Count == 0 ? null : string.Join("   ", board.Top.Select(e => $"{e.Place}. {e.Name} {Results.FormatTime(e.Time)}"));
+                if (board.You.HasValue && newRecord && ReferenceEquals(table, qualiTable))
+                    Notice(Boards.PlaceLine(board), TrackView.Hex(board.You.Value.Place == 1 ? 0xf2c14e : 0x5fe0d0), 3);
+            }));
+        }
+
+        /// <summary>your initials being picked on the pause screen (null: not)</summary>
+        HudView.NameEdit nameEdit;
+
         void LoadCircuit(int index)
         {
+            // (the km on the circuit you're leaving, noted on it)
+            if (race != null) NoteDriven();
             circuitIndex = ((index % ids.Count) + ids.Count) % ids.Count;
             if (circuitView != null) Destroy(circuitView);
             circuit = CircuitLoader.Load(ids[circuitIndex]);
@@ -205,6 +305,8 @@ namespace CornerCutters.Game
             flying = false;
             qualiTable = null;
             Begin(new List<int> { weekend.YouDriver });
+            drivenMode = StatsMode;
+            NoteStart();
             Notice("QUALIFYING · ONE FLYING LAP", TrackView.Hex(0xf2c14e), 3);
         }
 
@@ -229,6 +331,7 @@ namespace CornerCutters.Game
             };
             session = Session.QualiOver;
             tableUp = 0;
+            BoardLap(time, newQualiRecord);
         }
 
         string DriverName(int k) => k == weekend.YouDriver ? "YOU" : weekend.Drivers[k].Code;
@@ -251,6 +354,8 @@ namespace CornerCutters.Game
             newLapRecord = false;
             results = null;
             Begin(new List<int>(slots));
+            drivenMode = StatsMode;
+            NoteStart();
             lapsSeen = new int[race.Entrants.Count];
             // the grid walk first (Enter or A skips it; GRID WALK off in the settings: straight to the lights)
             if (PlayerPrefs.GetInt("gridWalk", 1) != 0)
@@ -263,6 +368,9 @@ namespace CornerCutters.Game
         /// <summary>A session's cars on the screen, `drivers` in the entrants' places, and a clean slate for the rest.</summary>
         void Begin(List<int> drivers)
         {
+            NoteDriven();
+            lastAt = null;
+            finishNoted = false;
             driverOf = drivers;
             you = drivers.IndexOf(weekend.YouDriver);
             foreach (var e in race.Entrants) e.Car.Z = Sim.GroundAt(grid, e.Car.X, e.Car.Y).H;
@@ -324,10 +432,12 @@ namespace CornerCutters.Game
         void Update()
         {
             input.Poll();
-            if (input.PausePressed) paused = !paused;
-            if (input.RestartPressed) Restart();
-            if (input.CircuitStep != 0) LoadCircuit(circuitIndex + input.CircuitStep);
-            if (input.WeatherPressed) NextWeather();
+            // (picking your initials, the keys type them: only the pause screen's buttons close it)
+            bool typing = nameEdit != null && paused;
+            if (input.PausePressed && !typing) paused = !paused;
+            if (input.RestartPressed && !typing) Restart();
+            if (input.CircuitStep != 0 && !typing) LoadCircuit(circuitIndex + input.CircuitStep);
+            if (input.WeatherPressed && !typing) NextWeather();
             if (input.AcceptPressed && !paused)
             {
                 if (session == Session.QualiOver) StartRace(qualiGrid);
@@ -336,9 +446,10 @@ namespace CornerCutters.Game
                 else if (podiumTop != null && results == null) podiumT = Ceremony.Len;
                 else if (results != null) LoadCircuit(circuitIndex + 1);
             }
-            if (input.CameraPressed) chase.Cycle();
+            if (input.CameraPressed && !typing) chase.Cycle();
 
             float frame = Time.unscaledDeltaTime;
+            PlayStats.Tick(frame);
             if (!paused)
             {
                 if (session == Session.Race) Watching(frame);
@@ -358,6 +469,8 @@ namespace CornerCutters.Game
                 Draw(1, frame);
             }
             if (session == Session.Race) UpdateResults();
+            CountDriven(frame);
+            if (!paused) nameEdit = null;
             if (qualiTable != null || results != null) tableUp += frame;
         }
 
@@ -821,6 +934,7 @@ namespace CornerCutters.Game
                 BannerColor = replay != null ? TrackView.Hex(0xd8323c) : bannerColor,
                 Skip = panT.HasValue || replay != null ? "SKIP" : null,
                 GridWalk = PlayerPrefs.GetInt("gridWalk", 1) != 0,
+                Online = Backend.Online, StatsOn = Profile.StatsOn, Name = Profile.Initials, Edit = nameEdit,
                 Tyre = $"{Tyres.Short(Me.Tyres.Compound)} {System.Math.Round((1 - Me.Tyres.Wear) * 100):0}%",
                 TyreColor = TrackView.Hex(Tyres.Color(Me.Tyres.Compound)),
                 Notice = sinceStart < noticeUntil ? notice : held,
@@ -833,6 +947,16 @@ namespace CornerCutters.Game
             else if (choice == HudView.PauseChoice.Weather) NextWeather();
             else if (choice == HudView.PauseChoice.GridWalk) PlayerPrefs.SetInt("gridWalk", PlayerPrefs.GetInt("gridWalk", 1) != 0 ? 0 : 1);
             else if (choice == HudView.PauseChoice.NextCircuit) LoadCircuit(circuitIndex + 1);
+            else if (choice == HudView.PauseChoice.Stats) Profile.StatsOn = !Profile.StatsOn;
+            else if (choice == HudView.PauseChoice.Name) nameEdit = new HudView.NameEdit(Profile.Initials);
+            else if (choice == HudView.PauseChoice.NameCancel) nameEdit = null;
+            else if (choice == HudView.PauseChoice.NameSave)
+            {
+                Profile.Initials = nameEdit.ToString();
+                nameEdit = null;
+                // (laps waiting for a name: on their way now)
+                if (Profile.Initials != null) LapBoards.Send(Profile.Initials, null);
+            }
             if (paused) return;
             // qualifying's times, then the results at the flag
             if (session == Session.QualiOver && qualiTable != null)

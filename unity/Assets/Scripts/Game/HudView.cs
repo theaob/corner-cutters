@@ -67,6 +67,11 @@ namespace CornerCutters.Game
             public string Skip;
             /// <summary>GRID WALK in the settings: the pan down the grid before each race</summary>
             public bool GridWalk;
+            /// <summary>the backend's there (STATS and NAME on the pause screen), STATS on, your initials (null: none yet)</summary>
+            public bool Online, StatsOn;
+            public string Name;
+            /// <summary>your initials being picked on the pause screen (null: not)</summary>
+            public NameEdit Edit;
         }
 
         /// <summary>A row of the timing tower (towerView.ts): its place, the team's colours, the name, the gap; Gap null: the ··· between the top three and you.</summary>
@@ -78,7 +83,23 @@ namespace CornerCutters.Game
             public bool You, Out, Blue;
         }
 
-        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, GridWalk, NextCircuit }
+        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, GridWalk, NextCircuit, Stats, Name, NameSave, NameCancel }
+
+        /// <summary>Initials being picked: three letters or digits, and the one being changed.</summary>
+        public sealed class NameEdit
+        {
+            public const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            public readonly char[] Letters;
+            public int Slot;
+            public NameEdit(string name) { Letters = (name ?? "AAA").ToCharArray(); }
+            public override string ToString() => new string(Letters);
+            public void Turn(int slot, int by)
+            {
+                int i = Chars.IndexOf(Letters[slot]);
+                Letters[slot] = Chars[((i + by) % Chars.Length + Chars.Length) % Chars.Length];
+                Slot = slot;
+            }
+        }
 
         /// <summary>Qualifying's table: the title, the rows, where you start, the record line.</summary>
         public sealed class QualiTable
@@ -86,6 +107,8 @@ namespace CornerCutters.Game
             public string Title, Start, Note;
             public bool NoteNew;
             public List<QualifyingRow> Rows;
+            /// <summary>the world board for this circuit and weather (null: none, or not read yet): your place, and its top</summary>
+            public string Board, BoardTop;
         }
 
         /// <summary>The results: the title, your race at a glance, the rows, the record lines.</summary>
@@ -435,7 +458,13 @@ namespace CornerCutters.Game
             if (s.Quali) list.Add(("SKIP QUALIFYING", PauseChoice.SkipQualifying));
             list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
             list.Add(($"GRID WALK: {(s.GridWalk ? "ON" : "OFF")}", PauseChoice.GridWalk));
+            if (s.Online)
+            {
+                list.Add(($"NAME: {s.Name ?? "---"}", PauseChoice.Name));
+                list.Add(($"STATS: {(s.StatsOn ? "ON" : "OFF")}", PauseChoice.Stats));
+            }
             list.Add(("NEXT CIRCUIT", PauseChoice.NextCircuit));
+            if (s.Edit != null) return Naming(s.Edit, w, h);
             float y = h / 2 - 25 * (list.Count + 1) - 10;
             Text(0, y, w, 34, "PAUSED", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
             y += 50;
@@ -454,6 +483,47 @@ namespace CornerCutters.Game
             }
             return choice;
         }
+
+        /// <summary>Your initials for the world boards: three letters or digits, each turned with its arrows or typed; SAVE or CANCEL.</summary>
+        PauseChoice Naming(NameEdit e, float w, float h)
+        {
+            var ev = Event.current;
+            if (ev.type == EventType.KeyDown)
+            {
+                char c = char.ToUpperInvariant(ev.character);
+                if (NameEdit.Chars.IndexOf(c) >= 0 && c != '\0') { e.Letters[e.Slot] = c; e.Slot = System.Math.Min(2, e.Slot + 1); ev.Use(); }
+                else if (ev.keyCode == KeyCode.Backspace || ev.keyCode == KeyCode.LeftArrow) { e.Slot = System.Math.Max(0, e.Slot - 1); ev.Use(); }
+                else if (ev.keyCode == KeyCode.RightArrow) { e.Slot = System.Math.Min(2, e.Slot + 1); ev.Use(); }
+                else if (ev.keyCode == KeyCode.UpArrow) { e.Turn(e.Slot, 1); ev.Use(); }
+                else if (ev.keyCode == KeyCode.DownArrow) { e.Turn(e.Slot, -1); ev.Use(); }
+                else if (ev.keyCode == KeyCode.Return || ev.keyCode == KeyCode.KeypadEnter) { ev.Use(); return PauseChoice.NameSave; }
+            }
+            float y = h / 2 - 120;
+            Text(0, y, w, 34, "YOUR NAME", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
+            Text(0, y + 34, w, 18, "THREE LETTERS, FOR THE WORLD BOARDS", Style(11, Muted, TextAnchor.MiddleCenter));
+            y += 70;
+            const float cell = 56, gap = 14;
+            float x0 = w / 2 - (cell * 3 + gap * 2) / 2;
+            var big = Style(30, Ink, TextAnchor.MiddleCenter);
+            for (int i = 0; i < 3; i++)
+            {
+                float x = x0 + i * (cell + gap);
+                if (TapAt(x, y, cell, 24)) e.Turn(i, 1);
+                Icon("up", x + cell / 2 - 5, y + 7, 10, Muted);
+                Fill(R(x, y + 26, cell, 64), KeyBg, 8 * k, Mathf.Max(1, k) * (i == e.Slot ? 2 : 1), i == e.Slot ? Gold : KeyEdge);
+                if (TapAt(x, y + 26, cell, 64)) e.Slot = i;
+                Text(x, y + 26, cell, 64, e.Letters[i].ToString(), big);
+                if (TapAt(x, y + 92, cell, 24)) e.Turn(i, -1);
+                Icon("down", x + cell / 2 - 5, y + 99, 10, Muted);
+            }
+            y += 136;
+            float bw = 150;
+            if (Button(w / 2 - bw - 6, y, bw, 34, "SAVE", null)) return PauseChoice.NameSave;
+            if (Button(w / 2 + 6, y, bw, 34, "CANCEL", null)) return PauseChoice.NameCancel;
+            return PauseChoice.None;
+        }
+
+        bool TapAt(float x, float y, float bw, float bh) => GUI.Button(R(x, y, bw, bh), GUIContent.none, GUIStyle.none);
 
         // ---- qualifying's times and the results (resultsView.ts renderQualifying, renderResults) ----
 
@@ -477,7 +547,8 @@ namespace CornerCutters.Game
             k = Screen.height / 720f;
             float w = Screen.width / k, h = Screen.height / k;
             const float line = 15, pw = 380;
-            float ph = 40 + 16 + line * t.Rows.Count + 20 + 18 + 18 + 48;
+            int boardLines = (t.Board != null ? 1 : 0) + (t.BoardTop != null ? 1 : 0);
+            float ph = 40 + 16 + line * t.Rows.Count + 20 + 18 + 18 + 48 + 16 * boardLines;
             float x = w / 2 - pw / 2, y = h / 2 - ph / 2;
             Fill(R(x, y, pw, ph), Rgba(21, 20, 31, 0.9f), 10 * k, Mathf.Max(1, k), KeyEdge);
             Text(x, y + 12, pw, 20, t.Title, Style(15, Gold, TextAnchor.MiddleCenter));
@@ -507,7 +578,10 @@ namespace CornerCutters.Game
             Text(x, ty, pw, 18, t.Start, Style(12, Gold, TextAnchor.MiddleCenter));
             ty += 18;
             NoteLine(x, ty, pw, t.Note, t.NoteNew);
-            ty += 26;
+            ty += 18;
+            if (t.Board != null) { Text(x, ty, pw, 16, t.Board, Style(11, Cyan, TextAnchor.MiddleCenter)); ty += 16; }
+            if (t.BoardTop != null) { Text(x, ty, pw, 16, t.BoardTop, Style(10, Muted, TextAnchor.MiddleCenter)); ty += 16; }
+            ty += 8;
             return Button(w / 2 - 110, ty, 220, 30, "RACE", source == InputSource.Gamepad ? "A" : "ENTER") ? TableChoice.Go : TableChoice.None;
         }
 

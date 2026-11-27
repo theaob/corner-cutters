@@ -50,6 +50,7 @@ static class Program
         Races(root);
         QualifyingSessions(root);
         Fx(root);
+        Net(root);
         PlayerRace(root);
 
         Console.WriteLine(failures == 0 ? $"OK  {checks} checks" : $"{failures} of {checks} checks FAILED");
@@ -619,5 +620,94 @@ static class Program
         c = new FixedClock();
         c.Advance(1.0, out int steps, out double alpha);
         Check(steps == 4 && alpha == 0, "clock: a stalled frame runs at most 4 steps and drops the rest");
+    }
+
+    /// <summary>A golden JSON value as Json.cs's (objects keep their keys' order).</summary>
+    static object Plain(JsonElement e) => e.ValueKind switch
+    {
+        JsonValueKind.Object => e.EnumerateObject().Aggregate(new JsonObj(), (o, p) => { o[p.Name] = Plain(p.Value); return o; }),
+        JsonValueKind.Array => e.EnumerateArray().Select(Plain).ToList(),
+        JsonValueKind.String => e.GetString(),
+        JsonValueKind.Number => e.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        _ => null,
+    };
+
+    /// <summary>The play stats' and boards' wire (net.json): JSON's numbers, the events' batches byte for byte, the laps waiting.</summary>
+    static void Net(string root)
+    {
+        var net = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/net.json"))).RootElement;
+        int off = 0, n = 0;
+        foreach (var x in net.GetProperty("numbers").EnumerateArray())
+        {
+            n++;
+            string got = Json.Number(x[0].GetDouble()), want = x[1].GetString();
+            if (got != want && off++ < 5) Console.WriteLine($"  number {x[0].GetDouble():R}: got {got}, want {want}");
+        }
+        Check(off == 0, $"numbers written as JSON.stringify writes them ({off} of {n} differ)");
+        var events = net.GetProperty("events").EnumerateArray().Select(e =>
+        {
+            string S(string k) => e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            double? N(string k) => e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : (double?)null;
+            return new StatEvent
+            {
+                Player = S("player"), Kind = S("kind"), Platform = S("platform"), Version = S("version"), Circuit = S("circuit"), Mode = S("mode"),
+                Km = N("km"), Seconds = N("seconds"), Data = e.TryGetProperty("data", out var d) ? (JsonObj)Plain(d) : null,
+            };
+        }).ToList();
+        var lists = new[] { events, events.Take(2).ToList(), events.Where(e => e.Kind == "session").ToList() };
+        int b = 0;
+        foreach (var want in net.GetProperty("batches").EnumerateArray())
+        {
+            string got = Json.Write(Metrics.Batches(lists[b]));
+            Check(got == want.GetString(), $"batch set {b} as the web game sends it" + (got == want.GetString() ? "" : $"\n  got  {got}\n  want {want.GetString()}"));
+            b++;
+        }
+        // the queue: offline batches back at the front (not when closing, nor past 200); refused ones dropped
+        var q = new StatsQueue();
+        foreach (var e in events) q.Add(e);
+        var taken = q.Take();
+        Check(taken.Count == 2 && taken[0].Count == 6 && taken[1].Count == 1 && q.Count == 0, "queue: taken in its batches");
+        q.Add(new StatEvent { Kind = "launch" });
+        q.Sent(taken[0], Sent.Offline, false);
+        Check(q.Count == 7 && q.Take()[0][0].Kind == "launch" && true, "queue: an offline batch kept to try again, at the front");
+        q.Sent(taken[0], Sent.Refused, false);
+        q.Sent(taken[1], Sent.Offline, true);
+        Check(q.Count == 0, "queue: refused, or offline as the game closes: dropped");
+        var km = new StatEvent { Kind = "drive", Km = Metrics.KmOf(12345.678) };
+        q.Add(km);
+        Check(km.Km == JsMath.Round(Metrics.KmOf(12345.678) * 1000) / 1000, "queue: km to the metre");
+        Check(Math.Abs(Metrics.KmOf(8800) - 5.9) < 0.05, "a lap of Silver Heath is about 5.9 km");
+        Check(Metrics.LaunchId(new Random(3)).Length == 10, "a launch id: 10 digits");
+
+        // the laps waiting, as records come in (and as they're kept, read back)
+        var pending = new List<PendingLap>();
+        int k = 0;
+        foreach (var step in net.GetProperty("pending").EnumerateArray())
+        {
+            var l = step.GetProperty("lap");
+            pending = Boards.Queue(pending, new PendingLap { Circuit = l[0].GetString(), Weather = l[1].GetString(), Time = l[2].GetDouble() });
+            pending = Boards.Parse(Boards.Write(pending));
+            var want = step.GetProperty("pending").EnumerateArray().Select(x => $"{x.GetProperty("circuit").GetString()}:{x.GetProperty("weather").GetString()}={x.GetProperty("time").GetDouble():R}");
+            var got = pending.Select(x => $"{x.Key}={x.Time:R}");
+            Check(got.SequenceEqual(want), $"pending laps after lap {k}: got {string.Join(", ", got)}, want {string.Join(", ", want)}");
+            k++;
+        }
+        // sent (boards.test.ts): one that didn't go stays; one that came in while they went stays; a quicker one too
+        var tried = new List<PendingLap> { new PendingLap { Circuit = "baku", Weather = "dry", Time = 81.2 }, new PendingLap { Circuit = "suzuka", Weather = "dry", Time = 99 } };
+        var left = Boards.AfterSend(tried, new HashSet<string> { "suzuka:dry" }, tried);
+        Check(left.Count == 1 && left[0].Key == "suzuka:dry", "sent: the one that didn't go stays");
+        var now = new List<PendingLap> { new PendingLap { Circuit = "baku", Weather = "dry", Time = 80 }, tried[1], new PendingLap { Circuit = "monza", Weather = "wet", Time = 90 } };
+        left = Boards.AfterSend(tried, new HashSet<string>(), now);
+        Check(string.Join(",", left.Select(x => $"{x.Key}={x.Time}")) == "baku:dry=80,monza:wet=90", "sent: a quicker lap, and a new one, that came in while they went stay");
+        Check(Boards.Write(new List<PendingLap>()) == null && Boards.Parse("nonsense").Count == 0 && Boards.Parse(null).Count == 0, "no laps: nothing kept; a damaged one read as none");
+        Check(Json.Write(Boards.SubmitArgs(tried[0], "p", "ABC", "1.0")) == "{\"p_circuit\":\"baku\",\"p_weather\":\"dry\",\"p_player\":\"p\",\"p_name\":\"ABC\",\"p_time\":81.2,\"p_version\":\"1.0\"}", "submit_lap's arguments");
+        // a board as lap_board sends it
+        var board = Boards.ParseBoard(Json.Parse("{\"entries\": 12, \"top\": [{\"place\": 1, \"name\": \"ZED\", \"time\": 60.25, \"you\": false}, {\"place\": 2, \"name\": \"ABC\", \"time\": 61.5, \"you\": true}], \"you\": {\"place\": 2, \"name\": \"ABC\", \"time\": 61.5}}"));
+        Check(board != null && board.Entries == 12 && board.Top.Count == 2 && board.Top[1].You && board.You?.Place == 2, "a board read back");
+        Check(Boards.PlaceLine(board) == "WORLD BOARD · #2 OF 12", "your place on it");
+        Check(Boards.ParseBoard(Json.Parse("{\"entries\": 0, \"top\": [], \"you\": null}")).You == null && Boards.ParseBoard(null) == null, "an empty board; none");
+        Check(Json.Write(Json.Parse("[1,\"a\\u00e9\\n\",{\"b\":[true,false,null]},-2.5e-7]")) == "[1,\"a\u00e9\\n\",{\"b\":[true,false,null]},-2.5e-7]", "JSON read and written back");
     }
 }

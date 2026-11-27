@@ -22,3 +22,7 @@ sysinfo.txt
 # the dotnet test runner
 Tests~/**/bin/
 Tests~/**/obj/
+
+# the backend's address and public key (Backend.cs): written by a build, never committed
+/Assets/Resources/Backend.json
+/Assets/Resources/Backend.json.meta

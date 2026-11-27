@@ -25,6 +25,10 @@ import { fling, stepPiece } from '../../src/engine/debris';
 import { panAt, panLength } from '../../src/f1/gridPan';
 import { crashWindow, newReplay, recordReplay, replayPose, replayWindow } from '../../src/f1/replay';
 import type { PitLane } from '../../src/f1/pits';
+import { batchesOf, kmOf, type Event as StatEvent } from '../../src/f1/metrics';
+import { pendingLaps, queueLap } from '../../src/f1/boards';
+import { useSave, type SaveStore } from '../../src/engine/save';
+import { CC_SAVE } from '../../src/f1/save';
 import type { AiDriver } from '../../src/f1/racing';
 import { keysWheel, newProgress, nearestSample, stepProgress, wheelInput, stickWheel, type Track, type WheelPad } from '../../src/f1/racing';
 
@@ -372,9 +376,45 @@ function goldenMath() {
   }));
 }
 
+/**
+ * The play stats' and boards' wire (metrics.ts, boards.ts): numbers as JSON writes them, the events' batches as they're
+ * sent, and the laps waiting to go on a board as records come in.
+ */
+function goldenNet() {
+  const rng = seededRandom(31);
+  const numbers: number[] = [0, -0, 1, -1, 0.1, 0.2, 0.1 + 0.2, 1e21, 1e20, 123456789012345680000, 1e-6, 1e-7, 1.5e-7, 2 ** 53, 2 ** 53 + 2, 5e-324, 1.7976931348623157e308, 81.2, 80.5, 0.67];
+  for (let i = 0; i < 3000; i++) {
+    const r = rng();
+    numbers.push(i % 5 === 0 ? Math.round((r - 0.5) * 1e6) : i % 5 === 1 ? (r - 0.5) * 10 ** Math.floor(rng() * 40 - 20) : i % 5 === 2 ? Math.round(r * 1e6) / 1000 : i % 5 === 3 ? kmOf(r * 50000) : Math.round(kmOf(r * 50000) * 1000) / 1000);
+  }
+  const base = { player: '0b7c3f8e-2c1a-4d5e-9f00-123456789abc', platform: 'web' as const, version: '0.3.1 (abc123)' };
+  const events: StatEvent[] = [
+    { ...base, kind: 'launch' },
+    { ...base, kind: 'race_start', circuit: 'crescent-park', mode: 'qualifying', data: { team: 'falcon', driver: 'VEX' } },
+    { ...base, kind: 'session', seconds: 61, data: { launch: 'k3j9x0a1bq' } },
+    { ...base, kind: 'drive', circuit: 'crescent-park', mode: 'race', km: Math.round(kmOf(12345.678) * 1000) / 1000, data: { seconds: 95 } },
+    { ...base, kind: 'race_finish', circuit: 'maple-island', mode: 'race', data: { place: null, field: 11, laps: 5 } },
+    { ...base, kind: 'race_finish', circuit: 'maple-island', mode: 'race', data: { place: 3, field: 11, laps: 5, note: 'quote " back \\ tab \t é ☃ \u0001' } },
+    { ...base, kind: 'share', circuit: 'baku', mode: 'race' },
+  ];
+  const batches = [events, events.slice(0, 2), events.filter((e) => e.kind === 'session')].map((list) => JSON.stringify(batchesOf(list)));
+  const items = new Map<string, string>();
+  const store: SaveStore = { getItem: (k) => items.get(k) ?? null, setItem: (k, v) => void items.set(k, v), removeItem: (k) => void items.delete(k) };
+  useSave(CC_SAVE, store);
+  const laps = [['baku', 'dry', 81.2], ['baku', 'dry', 82], ['baku', 'wet', 95], ['baku', 'changeable', 70], ['baku', 'dry', 80.5], ['suzuka', 'damp', 99.12345], ['suzuka', 'damp', 4], ['crescent-park', 'dry', 61.0004999], ['baku', 'wet', 94.9999]] as const;
+  const pending = laps.map(([circuit, weather, time]) => {
+    queueLap({ circuit, weather: weather as 'dry', time });
+    return { lap: [circuit, weather, time], pending: pendingLaps() };
+  });
+  writeFileSync('unity/Tests~/Core.Tests/net.json', JSON.stringify({ numbers: numbers.map((x) => [x, JSON.stringify(x)]), events, batches, pending }));
+  console.log(`net: ${numbers.length} numbers, ${batches.length} batches, ${pending.length} laps`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'net') goldenNet();
 else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenMath();
+  goldenNet();
   goldenAll();
   goldenCritters();
   goldenRaces();
