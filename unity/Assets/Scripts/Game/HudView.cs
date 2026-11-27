@@ -21,7 +21,7 @@ using UnityEngine;
 
 namespace CornerCutters.Game
 {
-    public sealed class HudView
+    public sealed partial class HudView
     {
         public struct State
         {
@@ -77,6 +77,8 @@ namespace CornerCutters.Game
             public ShopState Shop;
             /// <summary>s left on the Time Attack's clock (null: no clock, or not started)</summary>
             public double? Clock;
+            /// <summary>the pause screen's button the keys or the pad are on</summary>
+            public int PauseFocus;
         }
 
         /// <summary>A row of the timing tower (towerView.ts): its place, the team's colours, the name, the gap; Gap null: the ··· between the top three and you.</summary>
@@ -88,7 +90,7 @@ namespace CornerCutters.Game
             public bool You, Out, Blue;
         }
 
-        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, GridWalk, NextCircuit, Stats, Name, NameSave, NameCancel, Daily, QuickRace, Shop, ShopClose, ShopPick }
+        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, GridWalk, NextCircuit, Stats, Name, NameSave, NameCancel, Daily, QuickRace, Shop, ShopClose, ShopPick, MainMenu }
 
         /// <summary>The shop: every look, the ones yours, the one picked, and your streak (now and best).</summary>
         public sealed class ShopState
@@ -116,6 +118,12 @@ namespace CornerCutters.Game
             public readonly char[] Letters;
             public int Slot;
             public NameEdit(string name) { Letters = (name ?? "AAA").ToCharArray(); }
+            /// <summary>The keys or the pad: up and down turn the letter, left and right move along. (Letters typed come as they're typed.)</summary>
+            public void Steer(int dx, int dy)
+            {
+                if (dy != 0) Turn(Slot, -dy);
+                if (dx != 0) Slot = System.Math.Max(0, System.Math.Min(2, Slot + dx));
+            }
             public override string ToString() => new string(Letters);
             public void Turn(int slot, int by)
             {
@@ -476,36 +484,32 @@ namespace CornerCutters.Game
         }
 
         /// <summary>The pause screen: the race dimmed, PAUSED in gold, and its buttons.</summary>
+        /// <summary>the pause screen's buttons as last drawn (the keys and the pad pick among them)</summary>
+        public List<PauseChoice> PauseItems { get; } = new List<PauseChoice>();
+
         PauseChoice Pause(State s, float w, float h)
         {
             Fill(new Rect(0, 0, Screen.width, Screen.height), Rgba(14, 13, 22, 0.55f));
             var list = new List<(string label, PauseChoice c)> { ("RESUME", PauseChoice.Resume), ("RESTART", PauseChoice.Restart) };
             if (s.Quali) list.Add(("SKIP QUALIFYING", PauseChoice.SkipQualifying));
-            list.Add(s.Daily ? ("QUICK RACE", PauseChoice.QuickRace) : ("DAILY CHALLENGE", PauseChoice.Daily));
-            list.Add(("SHOP", PauseChoice.Shop));
-            if (!s.Daily) list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
+            if (!s.Daily && !s.Clock.HasValue) list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
             list.Add(($"GRID WALK: {(s.GridWalk ? "ON" : "OFF")}", PauseChoice.GridWalk));
-            if (s.Online)
-            {
-                list.Add(($"NAME: {s.Name ?? "---"}", PauseChoice.Name));
-                list.Add(($"STATS: {(s.StatsOn ? "ON" : "OFF")}", PauseChoice.Stats));
-            }
-            list.Add(("NEXT CIRCUIT", PauseChoice.NextCircuit));
-            if (s.Edit != null) return Naming(s.Edit, w, h);
-            if (s.Shop != null) return ShopPanel(s.Shop, w, h);
+            list.Add(("MAIN MENU", PauseChoice.MainMenu));
+            PauseItems.Clear();
+            PauseItems.AddRange(list.Select(b => b.c));
             float y = h / 2 - 25 * (list.Count + 1) - 10;
             Text(0, y, w, 34, "PAUSED", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
             y += 50;
             var choice = PauseChoice.None;
-            var buttons = list;
             float bw = Mathf.Min(w * 0.6f, 360);
-            var st = Style(14, Ink, TextAnchor.MiddleCenter);
-            foreach (var b in buttons)
+            for (int i = 0; i < list.Count; i++)
             {
+                var b = list[i];
                 var r = R(w / 2 - bw / 2, y, bw, 40);
-                bool over = r.Contains(Event.current.mousePosition);
-                Fill(r, over ? Hex(0x2e2b47) : KeyBg, 10 * k, Mathf.Max(1, k), KeyEdge);
-                Text(w / 2 - bw / 2, y, bw, 40, b.label, st);
+                bool on = i == s.PauseFocus;
+                bool over = r.Contains(Event.current.mousePosition) || on;
+                Fill(r, over ? Hex(0x2e2b47) : KeyBg, 10 * k, Mathf.Max(1, k) * (on ? 2 : 1), on ? Cyan : KeyEdge);
+                Text(w / 2 - bw / 2, y, bw, 40, b.label, Style(14, on ? Cyan : Ink, TextAnchor.MiddleCenter));
                 if (GUI.Button(r, GUIContent.none, GUIStyle.none)) choice = b.c;
                 y += 50;
             }
@@ -520,11 +524,7 @@ namespace CornerCutters.Game
             {
                 char c = char.ToUpperInvariant(ev.character);
                 if (NameEdit.Chars.IndexOf(c) >= 0 && c != '\0') { e.Letters[e.Slot] = c; e.Slot = System.Math.Min(2, e.Slot + 1); ev.Use(); }
-                else if (ev.keyCode == KeyCode.Backspace || ev.keyCode == KeyCode.LeftArrow) { e.Slot = System.Math.Max(0, e.Slot - 1); ev.Use(); }
-                else if (ev.keyCode == KeyCode.RightArrow) { e.Slot = System.Math.Min(2, e.Slot + 1); ev.Use(); }
-                else if (ev.keyCode == KeyCode.UpArrow) { e.Turn(e.Slot, 1); ev.Use(); }
-                else if (ev.keyCode == KeyCode.DownArrow) { e.Turn(e.Slot, -1); ev.Use(); }
-                else if (ev.keyCode == KeyCode.Return || ev.keyCode == KeyCode.KeypadEnter) { ev.Use(); return PauseChoice.NameSave; }
+                else if (ev.keyCode == KeyCode.Backspace) { e.Slot = System.Math.Max(0, e.Slot - 1); ev.Use(); }
             }
             float y = h / 2 - 120;
             Text(0, y, w, 34, "YOUR NAME", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
@@ -552,7 +552,7 @@ namespace CornerCutters.Game
         }
 
         /// <summary>The shop (carShop.ts): your car's looks, earned by your streak, three across; the one you wear in gold, locked ones dim with their days.</summary>
-        PauseChoice ShopPanel(ShopState shop, float w, float h)
+        PauseChoice ShopPanel(ShopState shop, float w, float h, int focus = -1)
         {
             const float tw = 150, th = 64, gap = 10;
             int cols = 3, rows = (shop.Styles.Count + cols - 1) / cols;
@@ -570,8 +570,8 @@ namespace CornerCutters.Game
                 float x = x0 + (i % cols) * (tw + gap), ty = y + (i / cols) * (th + gap);
                 bool owned = shop.Owned.Contains(st.Id), picked = st.Id == shop.Picked;
                 var r = R(x, ty, tw, th);
-                bool over = owned && r.Contains(Event.current.mousePosition);
-                Fill(r, over ? Hex(0x2e2b47) : KeyBg, 8 * k, Mathf.Max(1, k) * (picked ? 2 : 1), picked ? Gold : KeyEdge);
+                bool over = owned && r.Contains(Event.current.mousePosition) || i == focus;
+                Fill(r, over ? Hex(0x2e2b47) : KeyBg, 8 * k, Mathf.Max(1, k) * (picked || i == focus ? 2 : 1), i == focus ? Cyan : picked ? Gold : KeyEdge);
                 // (a swatch of the look: its paint, and its helmet)
                 var body = st.Body >= 0 ? Hex(st.Body) : Hex(0x3a3858);
                 var stripe = st.Stripe >= 0 ? Hex(st.Stripe) : Muted;
@@ -585,6 +585,7 @@ namespace CornerCutters.Game
                 if (owned && !picked && GUI.Button(r, GUIContent.none, GUIStyle.none)) { Picked = st.Id; choice = PauseChoice.ShopPick; }
             }
             y += ph + 16;
+            if (focus == shop.Styles.Count) Fill(R(w / 2 - 77, y - 2, 154, 38), Cyan, 9 * k);
             if (Button(w / 2 - 75, y, 150, 34, "BACK", null)) choice = PauseChoice.ShopClose;
             return choice;
         }
@@ -601,7 +602,7 @@ namespace CornerCutters.Game
             Text(x, 54, bw, 40, text, st, Shadow);
         }
 
-        /// <summary>A Time Attack's end: TIME UP and how far, your best today and streak, the day's board; AGAIN or QUICK RACE.</summary>
+        /// <summary>A Time Attack's end: TIME UP and how far, your best today and streak, the day's board; AGAIN or MENU.</summary>
         public TableChoice DrawAttack(AttackTable t, float since, InputSource source)
         {
             k = Screen.height / 720f;
@@ -621,7 +622,7 @@ namespace CornerCutters.Game
             if (t.BoardTop != null) { Text(x, ty, pw, 18, t.BoardTop, Style(10, Muted, TextAnchor.MiddleCenter)); ty += 20; }
             ty += 12;
             if (Button(w / 2 - 205, ty, 200, 30, "AGAIN", source == InputSource.Gamepad ? "A" : "ENTER")) return TableChoice.Again;
-            if (Button(w / 2 + 5, ty, 200, 30, "QUICK RACE", null)) return TableChoice.Go;
+            if (Button(w / 2 + 5, ty, 200, 30, "MENU", null)) return TableChoice.Go;
             return TableChoice.None;
         }
 
@@ -856,6 +857,10 @@ namespace CornerCutters.Game
             ["wrench"] = new[] { ".#..#..", ".#..#..", ".####..", "..##...", "..##...", "..##...", "..##..." },
             ["flag"] = new[] { "#.#.#..", "##.#.#.", "#.#.#..", "##.#.#.", "#......", "#......", "#......" },
             // (▲ and ▼: the pixel font has neither)
+            ["daily"] = new[] { ".#...#.", "#######", "#.....#", "#######", "#.....#", "#..#..#", "#######" },
+            ["settings"] = new[] { "..#....", "#######", "..#....", ".....#.", "#######", ".....#.", "......." },
+            ["shop"] = new[] { "..###..", ".#...#.", "#######", "#.....#", "#.#.#.#", "#..#..#", "#######" },
+            ["play"] = new[] { ".#.....", ".##....", ".###...", ".####..", ".###...", ".##....", ".#....." },
             ["up"] = new[] { ".......", "...#...", "..###..", ".#####.", "#######", ".......", "......." },
             ["down"] = new[] { ".......", ".......", "#######", ".#####.", "..###..", "...#...", "......." },
         };

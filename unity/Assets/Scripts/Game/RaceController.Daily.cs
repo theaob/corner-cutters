@@ -95,9 +95,11 @@ namespace CornerCutters.Game
         {
             session = Session.Attack;
             var w = daily?.Weather ?? SessionWeather;
-            race = Qualifying.NewQualifying(track, grid, difficulty.Handling(), w);
-            reference ??= Qualifying.ReferenceLap(track, grid, difficulty.Handling(), w);
-            attack = new Attack(reference.Value, difficulty.Id);
+            // (the Daily Challenge is the same for everyone: NORMAL)
+            var level = daily.HasValue ? Field.Normal : difficulty;
+            race = Qualifying.NewQualifying(track, grid, level.Handling(), w);
+            reference ??= Qualifying.ReferenceLap(track, grid, level.Handling(), w);
+            attack = new Attack(reference.Value, level.Id);
             attackRec = new GhostRecorder();
             attackTable = null;
             rival = null;
@@ -148,7 +150,15 @@ namespace CornerCutters.Game
             NoteDriven();
             PlayedToday();
             var table = attackTable = new HudView.AttackTable { Title = $"TIME UP · {Attack.Distance(passed)}" };
-            if (!daily.HasValue) return;
+            if (!daily.HasValue)
+            {
+                // (your best here, in this weather, at this difficulty: kept on the device)
+                string key = $"attack.{circuit.id}.{WeatherLooks.Name(weatherChoice)}.{difficulty.Id}";
+                int had = PlayerPrefs.GetInt(key, -1);
+                if (passed > had) PlayerPrefs.SetInt(key, passed);
+                table.Lines.Add(passed > had && had >= 0 ? ("NEW RECORD!", 0xf2c14e) : ($"BEST · {Attack.Distance(System.Math.Max(passed, had))}", 0xf4f2fa));
+                return;
+            }
             string day = daily.Value.Day;
             var log = LoadDaily();
             var ghost = attackRec.ToGhost(attack.Elapsed).Pack(Ghost.DefaultHz);
@@ -166,7 +176,7 @@ namespace CornerCutters.Game
             string name = Profile.Initials;
             if (name == null)
             {
-                table.Board = "PICK A NAME (PAUSE) FOR THE DAY'S BOARD";
+                table.Board = "PICK A NAME (SETTINGS) FOR THE DAY'S BOARD";
                 return;
             }
             SendDaily(log, name, sent =>

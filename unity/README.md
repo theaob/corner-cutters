@@ -47,21 +47,30 @@ glowing signs grey a little with it (the web game's stay bright).
 the build has its address and public key (`Game/Backend.cs`: `Assets/Resources/Backend.json`, `{ "url": "…", "key": "…" }`,
 kept out of git, or the `SUPABASE_URL` / `SUPABASE_ANON_KEY` environment variables). Without them it all stays off and the
 game plays offline. The stats are the web game's events (launch, race_start, race_finish, drive with km and seconds,
-session time), batched every 20 s by a random player id, STATS on the pause screen turns them off. Rows say version
+session time), batched every 20 s by a random player id, STATS in the settings turns them off. Rows say version
 `unity-<version>` and no platform, because the events table's check takes only web, android and ios (adding a desktop
 value there would let the dashboard count it apart). The world boards: a new qualifying record of yours in a dry, damp or
-wet weekend goes on that circuit's board with `submit_lap` (it waits on the device until you've picked a NAME on the pause
-screen, as the web game's Time Trial records do), and qualifying's table shows your place on the board and its top three
+wet weekend goes on that circuit's board with `submit_lap` (it waits on the device until you've picked a NAME in the
+settings, as the web game's Time Trial records do), and qualifying's table shows your place on the board and its top three
 from `lap_board`. The laps are the same physics as the web game's, so they share one board.
 
+**Menus.** As the web game's (`circuitSelect.ts`, `menuTiles.ts`, `settingsRows.ts`): the title, then the modes as
+tiles (DAILY CHALLENGE with today's circuit and your streak, QUICK RACE, TIME ATTACK; SETTINGS and SHOP small under
+them), a mode's circuit screen (the circuit's outline and name, TEAM, WEATHER, and for a Quick Race QUALIFYING and LAPS),
+the settings (DIFFICULTY, GRID WALK, NAME, STATS, PLAYER ID, the version), the shop and your name. Keys, a pad or the
+mouse: arrows or the d-pad move, left and right change a row, ENTER or A picks, ESC or B goes back. What you pick is
+kept for next time. The pause screen has RESUME, RESTART, SKIP QUALIFYING, WEATHER, GRID WALK and MAIN MENU, with the
+keys and the pad too. (Not yet: the web game's sound, controls, accessibility and language settings, the trophy cabinet,
+the circuits locked until a Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
+
 **Daily Challenge, streak and shop.** As the web game (`daily.ts`, `timeAttack.ts`, `streak.ts`, `carStyle.ts`):
-DAILY CHALLENGE on the pause screen takes you to the day's circuit in the day's weather (drawn from the UTC date, the
+DAILY CHALLENGE on the menu takes you to the day's circuit in the day's weather (drawn from the UTC date, the
 same rotation as the web game's, so the same challenge everyone else has that day), against the clock: it starts at
 the line, each checkpoint adds time, a cut takes 3 s off, TIME UP ends the run. The day's leading run is a gold car to
 chase (`daily_ghost`); your best goes on the day's board with its ghost (`submit_daily`) and the end shows your place
 (`daily_board`). A race finished or a Daily run over keeps your streak going (one missed day a week forgiven), and the
 streak earns the web game's nine looks for your car (helmets, gold wings, black and gold, three whole-car liveries),
-picked in the SHOP on the pause screen. (Not yet: the web game's Time Trial and Time Attack on any circuit, medals,
+picked in the SHOP. (Not yet: the web game's Time Trial and Time Attack on any circuit, medals,
 the day's missions, the 3D previews in the shop, and the Championship, which the shop's purchase is for.)
 
 ## Layout

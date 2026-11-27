@@ -49,6 +49,14 @@ namespace CornerCutters.Game
         public bool AcceptPressed { get; private set; }
         /// <summary>the next weather (a new weekend in it)</summary>
         public bool WeatherPressed { get; private set; }
+        /// <summary>menus: a step left/right (-1, 0, 1) and up/down (up -1), and back (Esc, B)</summary>
+        public int NavX { get; private set; }
+        public int NavY { get; private set; }
+        public bool BackPressed { get; private set; }
+
+        /// <summary>the stick's last menu direction, and when it steps again while held</summary>
+        int stickX, stickY;
+        float stickAgain;
 
         public GameInput()
         {
@@ -122,10 +130,45 @@ namespace CornerCutters.Game
                 padTurn = d.Turn; padGas = d.Gas; padBrake = d.Brake;
                 padActive = buttons.Count > 0 || d.Turn != 0 || d.Gas > 0.05 || d.Brake > 0.05;
             }
+            Nav(g);
             var kb = Keyboard.current;
             bool keysActive = kb != null && kb.anyKey.isPressed;
             if (padActive && !keysActive) Source = InputSource.Gamepad;
             else if (keysActive && !padActive) Source = InputSource.Keyboard;
+        }
+
+        /// <summary>The menus' steps: arrow keys or WASD, the d-pad, or the stick (stepping again while it's held).</summary>
+        void Nav(Gamepad g)
+        {
+            var kb = Keyboard.current;
+            int nx = 0, ny = 0;
+            bool back = false;
+            if (kb != null)
+            {
+                if (kb.leftArrowKey.wasPressedThisFrame || kb.aKey.wasPressedThisFrame) nx--;
+                if (kb.rightArrowKey.wasPressedThisFrame || kb.dKey.wasPressedThisFrame) nx++;
+                if (kb.upArrowKey.wasPressedThisFrame || kb.wKey.wasPressedThisFrame) ny--;
+                if (kb.downArrowKey.wasPressedThisFrame || kb.sKey.wasPressedThisFrame) ny++;
+                back |= kb.escapeKey.wasPressedThisFrame;
+            }
+            if (g != null)
+            {
+                if (g.dpad.left.wasPressedThisFrame) nx--;
+                if (g.dpad.right.wasPressedThisFrame) nx++;
+                if (g.dpad.up.wasPressedThisFrame) ny--;
+                if (g.dpad.down.wasPressedThisFrame) ny++;
+                back |= g.buttonEast.wasPressedThisFrame;
+                float sx = g.leftStick.x.ReadValue(), sy = g.leftStick.y.ReadValue();
+                int dx = sx > 0.6f ? 1 : sx < -0.6f ? -1 : 0, dy = sy > 0.6f ? -1 : sy < -0.6f ? 1 : 0;
+                float now = Time.unscaledTime;
+                if ((dx != stickX || dy != stickY) && (dx != 0 || dy != 0)) { nx += dx; ny += dy; stickAgain = now + 0.4f; }
+                else if ((dx != 0 || dy != 0) && now >= stickAgain) { nx += dx; ny += dy; stickAgain = now + 0.12f; }
+                stickX = dx;
+                stickY = dy;
+            }
+            NavX = System.Math.Sign(nx);
+            NavY = System.Math.Sign(ny);
+            BackPressed = back;
         }
 
         /// <summary>The wheel for one simulation step (dt s): the last-used device's reading.</summary>
