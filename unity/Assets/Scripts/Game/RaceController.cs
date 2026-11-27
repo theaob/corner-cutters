@@ -181,6 +181,8 @@ namespace CornerCutters.Game
             double raceSeconds = Laps * track.Length / 300;
             forecast = weatherChoice == WeatherChoice.Changeable ? Forecast.Changeable(seed, raceSeconds) : Forecast.Fixed(WeatherLooks.Fixed(weatherChoice));
             reference = null;
+            // (a bigger pool of puffs in the wet, and on dirt: every car throws up spray, or mud)
+            particles.Resize(weatherChoice != WeatherChoice.Dry || track.Dirt ? 220 : 90);
             StartQualifying();
         }
 

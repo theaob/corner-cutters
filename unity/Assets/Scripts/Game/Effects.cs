@@ -21,7 +21,7 @@ namespace CornerCutters.Game
             public bool Glow;
         }
 
-        readonly Puff[] pool;
+        Puff[] pool;
         int next;
         readonly Billboards soft, glow;
 
@@ -109,6 +109,14 @@ namespace CornerCutters.Game
         public void Clear()
         {
             for (int i = 0; i < pool.Length; i++) pool[i].Life = 0;
+        }
+
+        /// <summary>A pool of `size` puffs, all gone (race.ts: 90, or 220 in the wet and on dirt, where every car throws up spray or mud).</summary>
+        public void Resize(int size)
+        {
+            if (pool.Length != size) pool = new Puff[size];
+            next = 0;
+            Clear();
         }
 
         /// <summary>A soft round puff (effects.ts puffTexture: 16 px, white, a radial fade from 1 px out to the edge).</summary>
