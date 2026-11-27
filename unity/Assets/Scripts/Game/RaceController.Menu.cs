@@ -12,8 +12,9 @@ namespace CornerCutters.Game
         Menu menu;
         float menuT;
         int pauseFocus;
-        /// <summary>a Time Attack weekend (not the Daily Challenge's)</summary>
-        bool attackMode;
+        /// <summary>the mode being played: "race", "championship", "timeattack" (not the Daily Challenge's), "timetrial"</summary>
+        string playMode = "race";
+        bool attackMode => playMode == "timeattack";
         /// <summary>a Quick Race's laps, and whether it has a qualifying lap first</summary>
         int laps = 5;
         bool qualifying = true;
@@ -53,10 +54,13 @@ namespace CornerCutters.Game
                     else if (input.BackPressed) menu.Open(Menu.Screen.Title);
                     break;
                 case Menu.Screen.Circuit:
-                    menu.Steer(menu.CircuitRows(), input, () => menu.Open(Menu.Screen.Modes, menu.Mode == "race" ? 1 : 2));
+                    menu.Steer(menu.CircuitRows(), input, () => menu.Open(Menu.Screen.Modes, Menu.TileOf(menu.Mode)));
                     break;
                 case Menu.Screen.Settings:
-                    menu.Steer(menu.SettingsRows(), input, () => menu.Open(Menu.Screen.Modes, 3));
+                    menu.Steer(menu.SettingsRows(), input, () => menu.Open(Menu.Screen.Modes, Menu.SettingsTile));
+                    break;
+                case Menu.Screen.Season:
+                    menu.Steer(menu.SeasonRows(), input, () => menu.Open(Menu.Screen.Modes, 2));
                     break;
                 case Menu.Screen.Shop:
                     {
@@ -66,10 +70,10 @@ namespace CornerCutters.Game
                         if (input.NavY != 0) menu.Focus = menu.Focus == n ? (input.NavY < 0 ? n - 1 : n) : Mathf.Clamp(menu.Focus + input.NavY * 3, 0, n);
                         if (input.AcceptPressed)
                         {
-                            if (menu.Focus >= n) menu.Open(Menu.Screen.Modes, 4);
+                            if (menu.Focus >= n) menu.Open(Menu.Screen.Modes, Menu.ShopTile);
                             else if (shop.Owned.Contains(shop.Styles[menu.Focus].Id)) PickStyle(shop.Styles[menu.Focus].Id);
                         }
-                        else if (input.BackPressed) menu.Open(Menu.Screen.Modes, 4);
+                        else if (input.BackPressed) menu.Open(Menu.Screen.Modes, Menu.ShopTile);
                         break;
                     }
                 case Menu.Screen.Name:
@@ -96,13 +100,23 @@ namespace CornerCutters.Game
             menu.Asked = Menu.Go.None;
             menu.Keep();
             ApplyMenu();
+            if (go == Menu.Go.NewSeason)
+            {
+                // (a new season: kept, and the season screen again, its first round next)
+                menu.Season = NewSeason(menu);
+                menu.Open(Menu.Screen.Season, 0);
+                return;
+            }
             int at = menu.Circuit;
-            attackMode = menu.Mode == "timeattack";
+            playMode = go == Menu.Go.Round ? "championship" : menu.Mode;
+            season = go == Menu.Go.Round ? menu.Season : null;
             menu = null;
             daily = null;
             attack = null;
             attackTable = null;
+            trial = null;
             if (go == Menu.Go.Daily) StartDaily();
+            else if (season != null) LoadCircuit(IndexOf(season.Rounds[season.Round]));
             else LoadCircuit(at);
         }
 
@@ -136,11 +150,12 @@ namespace CornerCutters.Game
                     }
                 case Menu.Screen.Circuit:
                 case Menu.Screen.Settings:
+                case Menu.Screen.Season:
                     {
-                        bool onCircuit = menu.At == Menu.Screen.Circuit;
-                        var rows = onCircuit ? menu.CircuitRows() : menu.SettingsRows();
-                        string title = onCircuit ? (menu.Mode == "race" ? "QUICK RACE" : "TIME ATTACK") : "SETTINGS";
-                        int picked = hud.DrawRows(title, rows, menu.Focus, onCircuit ? HudView.Outline(menu.CircuitId) : null, onCircuit ? null : Menu.Version, out int arrow, out int hover);
+                        bool onCircuit = menu.At == Menu.Screen.Circuit, onSeason = menu.At == Menu.Screen.Season;
+                        var rows = onCircuit ? menu.CircuitRows() : onSeason ? menu.SeasonRows() : menu.SettingsRows();
+                        string title = onCircuit ? Menu.TitleOf(menu.Mode) : onSeason ? menu.SeasonTitle() : "SETTINGS";
+                        int picked = hud.DrawRows(title, rows, menu.Focus, onCircuit ? HudView.Outline(menu.CircuitId) : null, menu.At == Menu.Screen.Settings ? Menu.Version : null, out int arrow, out int hover, onSeason ? menu.StandingRows() : null);
                         if (hover >= 0 && MouseMoved()) menu.Focus = hover;
                         if (picked >= 0)
                         {
@@ -156,7 +171,7 @@ namespace CornerCutters.Game
                     {
                         var c = hud.DrawShop(ShopState(), menu.Focus);
                         if (c == HudView.PauseChoice.ShopPick && hud.Picked != null) PickStyle(hud.Picked);
-                        else if (c == HudView.PauseChoice.ShopClose) menu.Open(Menu.Screen.Modes, 4);
+                        else if (c == HudView.PauseChoice.ShopClose) menu.Open(Menu.Screen.Modes, Menu.ShopTile);
                         break;
                     }
                 case Menu.Screen.Name:

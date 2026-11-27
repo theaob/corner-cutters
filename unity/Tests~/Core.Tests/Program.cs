@@ -48,6 +48,7 @@ static class Program
         MathBits(root);
         Critters(root);
         Petals(root);
+        Seasons(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -353,6 +354,59 @@ static class Program
         Check(Qualifying.JudgeLap(q2, p2, false, out _) == QualiCall.Void, "a deleted lap ends void");
         p2.LapTimes.Add(79);
         Check(Qualifying.JudgeLap(q2, p2, false, out double t2) == QualiCall.Time && t2 == 79, "a good lap is timed");
+    }
+
+    /// <summary>Championship seasons and Time Trial's split marks (Core/Championship.cs, Ghost.cs) against the web game's (season.json).</summary>
+    static void Seasons(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/season.json"))).RootElement;
+        var ids = g.GetProperty("rounds").EnumerateArray().Select(e => e.GetString()).ToList();
+        int n = 0;
+        foreach (var w in g.GetProperty("seasons").EnumerateArray())
+        {
+            uint seed = (uint)w.GetProperty("seed").GetDouble();
+            var f = w.GetProperty("field");
+            var team = Field.TeamById(w.GetProperty("team").GetString());
+            int lapsWant = f.GetProperty("laps").GetInt32();
+            var s = Championship.NewSeason(seed, team, f.GetProperty("seat").GetInt32(), f.GetProperty("difficulty").GetString(), f.GetProperty("qualifying").GetBoolean(), ids, 11, lapsWant);
+            int k = 0;
+            foreach (var d in f.GetProperty("drivers").EnumerateArray())
+            {
+                var mine = s.Drivers[k++];
+                Check(mine.Name == d.GetProperty("name").GetString() && mine.Team == d.GetProperty("team").GetString() && mine.Rank == d.GetProperty("rank").GetInt32(), $"season {seed}: driver {k - 1} {mine.Name} {mine.Team} {mine.Rank}, want {d}");
+            }
+            Check(s.You == f.GetProperty("you").GetInt32() && s.Laps == lapsWant, $"season {seed}: you, laps");
+            k = 0;
+            foreach (var r in w.GetProperty("seeds").EnumerateArray()) Check(Championship.RoundSeed(s, k++) == (uint)r.GetDouble(), $"season {seed}: round {k - 1}'s seed");
+            var tables = w.GetProperty("tables").EnumerateArray().ToList();
+            k = 0;
+            foreach (var row in w.GetProperty("places").EnumerateArray())
+            {
+                var places = row.EnumerateArray().Select(x => x.GetInt32()).ToArray();
+                // (the finish order and the DNFs that made these places)
+                var finish = Enumerable.Range(0, places.Length).Where(i => places[i] >= 0).OrderBy(i => places[i]).Concat(Enumerable.Range(0, places.Length).Where(i => places[i] < 0)).ToList();
+                var outs = new HashSet<int>(Enumerable.Range(0, places.Length).Where(i => places[i] < 0));
+                Championship.RecordRound(s, finish, outs);
+                var want = tables[k++].EnumerateArray().Select(t => t.EnumerateArray().Select(x => x.GetInt32()).ToArray()).ToList();
+                var got = Championship.Standings(s);
+                for (int i = 0; i < want.Count; i++) Check(got[i].Driver == want[i][0] && got[i].Points == want[i][1] && got[i].Wins == want[i][2], $"season {seed} round {k}: standing {i}");
+                n++;
+            }
+            Check(s.Over, $"season {seed}: over");
+            var back = Championship.Parse(Championship.Write(s));
+            Check(back != null && Championship.Write(back) == Championship.Write(s), $"season {seed}: saved and read back");
+            var web = Championship.Parse(w.GetProperty("saved").GetString());
+            Check(web != null && Championship.Write(web) == Championship.Write(s), $"season {seed}: the web game's save read");
+        }
+        foreach (var m in g.GetProperty("marks").EnumerateArray())
+        {
+            Ghost G(JsonElement e) => e.ValueKind == JsonValueKind.Null ? null : new Ghost { Time = 90, Splits = e.EnumerateArray().Select(x => x.GetDouble()).ToList() };
+            var mark = Splits.Mark(m[0].GetDouble(), m[1].GetInt32(), G(m[2]), G(m[3]), out var delta);
+            Check(mark.ToString().ToLowerInvariant() == m[5].GetString(), $"split mark {m}: {mark}");
+            if (m[4].ValueKind == JsonValueKind.Null) Check(!delta.HasValue, $"split mark {m}: no delta");
+            else Near(delta ?? double.NaN, m[4].GetDouble(), 1e-12, $"split mark {m}: delta");
+        }
+        Console.WriteLine($"seasons: {n} rounds' standings, {g.GetProperty("marks").GetArrayLength()} split marks");
     }
 
     /// <summary>The cherry blossom's petals (Core/Petals.cs) against the web game's PetalField (petals.json).</summary>

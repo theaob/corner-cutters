@@ -115,18 +115,21 @@
   "id": "glacier-pass",
   "name": "Glacier Pass",
   "about": "clockwise · up the switchbacks, over two jumps",
-  "bridge": false
+  "bridge": false,
+  "free": true
  },
  {
   "id": "dust-bowl",
   "name": "Dust Bowl",
   "about": "clockwise · on dirt, off-road tyres, over the jump",
-  "bridge": false
+  "bridge": false,
+  "free": true
  },
  {
   "id": "volcano-isle",
   "name": "Volcano Isle",
   "about": "clockwise · round a smoking volcano, over the lava",
-  "bridge": false
+  "bridge": false,
+  "free": true
  }
 ]

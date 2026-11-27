@@ -165,6 +165,23 @@ namespace CornerCutters.Core
             var teams = TeamGrid(yours, total, you, rng);
             var seats = DriverSeats(teams, you, yourSeat);
             var ranks = PaceRanks(total, rng);
+            return Draw(seed, rng, teams, seats, ranks, you, difficulty, paceAdjust);
+        }
+
+        /// <summary>A Championship round's field: the season's drivers, their teams and each one's pace all season (race.ts
+        /// drawWeekend with a season), the AI's dice and the lights from the round's seed.</summary>
+        public static Weekend SeasonWeekend(uint seed, Season season, Difficulty difficulty, double paceAdjust = 1)
+        {
+            var rng = new SeededRandom(seed);
+            var teams = season.Drivers.Select(Championship.TeamOf).ToList();
+            var seats = DriverSeats(teams, season.You, season.Seat);
+            var ranks = season.Drivers.Select(d => d.Rank).ToArray();
+            return Draw(seed, rng, teams, seats, ranks, season.You, difficulty, paceAdjust);
+        }
+
+        static Weekend Draw(uint seed, SeededRandom rng, List<Team> teams, int[] seats, int[] ranks, int you, Difficulty difficulty, double paceAdjust)
+        {
+            int total = teams.Count;
             var boxes = teams.Distinct().ToList();
             var drivers = new List<WeekendDriver>();
             for (int k = 0; k < total; k++)

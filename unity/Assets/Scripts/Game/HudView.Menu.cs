@@ -46,18 +46,34 @@ namespace CornerCutters.Game
             float w = Begin(), h = Screen.height / k;
             hover = -1;
             Text(0, h * 0.12f, w, 50, "CORNER CUTTERS", Style(34, Gold, TextAnchor.MiddleCenter), Shadow);
-            const float big = 168, small = 120, gap = 14;
-            float y = h * 0.12f + 80;
+            const float small = 120, gap = 14;
+            float y = h * 0.12f + 70;
             int clicked = -1;
             int bigs = 0, smalls = 0;
             foreach (var t in tiles) if (t.Small) smalls++; else bigs++;
-            float bx = w / 2 - (bigs * big + (bigs - 1) * gap) / 2, sx = w / 2 - (smalls * (big + 40) + (smalls - 1) * gap) / 2;
+            // (the modes three to a row, as big as fit over the small row)
+            int cols = System.Math.Min(Menu.Columns, System.Math.Max(1, bigs)), bigRows = (bigs + cols - 1) / cols;
+            float big = Mathf.Clamp((h - y - 52 - 30 - 70 - gap * (bigRows - 1)) / bigRows, 110, 168);
+            float sx = w / 2 - (smalls * (big + 40) + (smalls - 1) * gap) / 2;
+            int bi = 0;
             for (int i = 0; i < tiles.Count; i++)
             {
                 var t = tiles[i];
                 float tw = t.Small ? big + 40 : big, th = t.Small ? 52 : big;
-                float x = t.Small ? sx : bx, ty = t.Small ? y + big + gap + 30 : y;
-                if (t.Small) sx += tw + gap; else bx += tw + gap;
+                float x, ty;
+                if (t.Small)
+                {
+                    x = sx;
+                    ty = y + bigRows * (big + gap) - gap + 30;
+                    sx += tw + gap;
+                }
+                else
+                {
+                    int row = bi / cols, col = bi % cols, inRow = System.Math.Min(cols, bigs - row * cols);
+                    x = w / 2 - (inRow * big + (inRow - 1) * gap) / 2 + col * (big + gap);
+                    ty = y + row * (big + gap);
+                    bi++;
+                }
                 var r = R(x, ty, tw, th);
                 if (r.Contains(Event.current.mousePosition)) hover = i;
                 bool on = i == focus;
@@ -70,14 +86,16 @@ namespace CornerCutters.Game
                 }
                 else
                 {
-                    Icon(t.Icon == "race" ? "flag" : t.Icon == "timeattack" ? "watch" : t.Icon, x + big / 2 - 22, ty + 30, 44, ink);
-                    Text(x, ty + 92, tw, 24, t.Name, Style(13, ink, TextAnchor.MiddleCenter));
+                    // (laid out for a 168 px tile, scaled to the tile's size)
+                    float u = big / 168f, ic = 44 * u;
+                    Icon(t.Icon == "race" ? "flag" : t.Icon == "timeattack" ? "watch" : t.Icon == "championship" ? "cup" : t.Icon == "timetrial" ? "ghost" : t.Icon, x + big / 2 - ic / 2, ty + 30 * u, ic, ink);
+                    Text(x, ty + 92 * u, tw, 24, t.Name, Style(13, ink, TextAnchor.MiddleCenter));
                     if (t.Line != null)
                     {
                         var st = Style(8, on ? Ink : Muted, TextAnchor.MiddleCenter);
                         st.wordWrap = true;
                         st.clipping = TextClipping.Clip;
-                        GUI.Label(R(x + 8, ty + 118, tw - 16, 40), t.Line, st);
+                        GUI.Label(R(x + 8, ty + 92 * u + 24, tw - 16, big - 92 * u - 26), t.Line, st);
                     }
                 }
                 if (GUI.Button(r, GUIContent.none, GUIStyle.none)) clicked = i;
@@ -90,14 +108,17 @@ namespace CornerCutters.Game
         /// ▶, a line about it; a button row centred. The row clicked (-1: none), an arrow clicked on it (-1, 1; 0: the row),
         /// and the row under the mouse.
         /// </summary>
-        public int DrawRows(string title, List<MenuRow> rows, int focus, Texture2D picture, string footer, out int arrow, out int hover)
+        public int DrawRows(string title, List<MenuRow> rows, int focus, Texture2D picture, string footer, out int arrow, out int hover, List<(string place, string name, string team, string points, bool you)> table = null)
         {
             float w = Begin(), h = Screen.height / k;
             arrow = 0;
             hover = -1;
-            const float rw = 460, rh = 44, gap = 8;
+            const float rw = 460, gap = 8, line = 15;
+            // (a long screen, the season's standings over its rows: the rows a little shorter)
+            float rh = table != null ? 38 : 44;
             float ph = picture != null ? 190 : 0;
-            float total = 46 + ph + rows.Count * (rh + gap);
+            float th = table != null ? 14 + table.Count * line : 0;
+            float total = 46 + ph + th + rows.Count * (rh + gap);
             float y = Mathf.Max(12, h / 2 - total / 2);
             Text(0, y, w, 36, title, Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
             y += 46;
@@ -108,6 +129,22 @@ namespace CornerCutters.Game
                 y += ph;
             }
             float x = w / 2 - rw / 2;
+            if (table != null)
+            {
+                // the drivers' standings: place, name, team, points (you in gold)
+                Fill(R(x, y - 4, rw, th), Rgba(21, 20, 31, 0.8f), 8 * k);
+                float ty = y + 2;
+                foreach (var r in table)
+                {
+                    var ink = r.you ? Gold : Ink;
+                    Text(x + 14, ty, 30, line, r.place, Style(9, r.you ? Gold : Muted, TextAnchor.MiddleRight));
+                    Text(x + 60, ty, 200, line, r.name, Style(9, ink));
+                    Text(x + 260, ty, 80, line, r.team, Style(9, r.you ? Gold : Muted));
+                    Text(x + rw - 94, ty, 80, line, r.points + " PTS", Style(9, ink, TextAnchor.MiddleRight));
+                    ty += line;
+                }
+                y += th + 6;
+            }
             int clicked = -1;
             for (int i = 0; i < rows.Count; i++)
             {
@@ -118,10 +155,16 @@ namespace CornerCutters.Game
                 if (r.Contains(Event.current.mousePosition)) hover = i;
                 if (row.Button)
                 {
-                    float bw = 240;
+                    float bw = row.About != null ? 360 : 240;
                     var br = R(w / 2 - bw / 2, y, bw, rh);
                     Fill(br, on ? Hex(0x2e2b47) : KeyBg, 10 * k, Mathf.Max(1, k) * (on ? 2 : 1), on ? Cyan : KeyEdge);
-                    Text(w / 2 - bw / 2, y, bw, rh, row.Label, Style(14, ink, TextAnchor.MiddleCenter));
+                    if (row.About == null) Text(w / 2 - bw / 2, y, bw, rh, row.Label, Style(14, ink, TextAnchor.MiddleCenter));
+                    else
+                    {
+                        // (a line under its name: the round's circuit and forecast)
+                        Text(w / 2 - bw / 2, y + 3, bw, rh * 0.55f, row.Label, Style(13, ink, TextAnchor.MiddleCenter));
+                        Text(w / 2 - bw / 2, y + rh * 0.55f, bw, rh * 0.4f, row.About, Style(7, on ? Ink : Muted, TextAnchor.MiddleCenter));
+                    }
                     if (GUI.Button(br, GUIContent.none, GUIStyle.none)) clicked = i;
                 }
                 else

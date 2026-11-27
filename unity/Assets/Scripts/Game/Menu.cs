@@ -1,6 +1,6 @@
 // The menus, as the web game has them (src/f1/circuitSelect.ts chooseCircuit, menuTiles.ts, settingsRows.ts,
-// screens/carShop.ts): the title, the modes as tiles (DAILY CHALLENGE, QUICK RACE, TIME ATTACK; SETTINGS and SHOP
-// small under them), a mode's circuit screen (the circuit, then its rows: TEAM, WEATHER, QUALIFYING, LAPS), the
+// screens/carShop.ts, screens/championship.ts): the title, the modes as tiles (DAILY CHALLENGE, QUICK RACE,
+// CHAMPIONSHIP, TIME ATTACK, TIME TRIAL; SETTINGS and SHOP small under them), the Championship's season screen, a mode's circuit screen (the circuit, then its rows: TEAM, WEATHER, QUALIFYING, LAPS), the
 // settings, the shop and your name. Played with the keys, a pad or the mouse: up and down move between the rows, left
 // and right change a row, A or ENTER picks, B or ESC goes back. What's picked is kept (PlayerPrefs) for next time.
 using CornerCutters.Core;
@@ -31,10 +31,10 @@ namespace CornerCutters.Game
 
     public sealed class Menu
     {
-        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name }
+        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season }
 
         /// <summary>What the menu wants done.</summary>
-        public enum Go { None, Play, Daily }
+        public enum Go { None, Play, Daily, Round, NewSeason }
 
         public Screen At = Screen.Title;
         public int Focus;
@@ -62,12 +62,15 @@ namespace CornerCutters.Game
             this.ids = ids;
             Circuit = circuit;
             if (Array.IndexOf(LapChoices, Laps) < 0) Laps = 5;
-            if (Mode != "race" && Mode != "timeattack") Mode = "race";
+            if (Array.IndexOf(Modes, Mode) < 1 || Mode == "championship") Mode = "race";
             var index = Resources.Load<TextAsset>("Circuits/index");
             if (index != null && Json.Parse(index.text) is List<object> list)
                 foreach (var o in list)
                     if (o is Dictionary<string, object> d && d.TryGetValue("id", out var id) && id is string s)
+                    {
                         about[s] = (d.TryGetValue("name", out var n) ? (n as string ?? s) : s, d.TryGetValue("country", out var c) ? c as string : null, d.TryGetValue("about", out var a) ? a as string : null);
+                        if (d.TryGetValue("free", out var f) && f is bool fb && fb) free.Add(s);
+                    }
         }
 
         public string CircuitId => ids[Circuit];
@@ -82,6 +85,8 @@ namespace CornerCutters.Game
             PlayerPrefs.SetInt("menu.qualifying", Qualifying ? 1 : 0);
             PlayerPrefs.SetInt("menu.laps", Laps);
             PlayerPrefs.SetInt("menu.difficulty", Difficulty);
+            PlayerPrefs.SetInt("season.qualifying", SeasonQualifying ? 1 : 0);
+            PlayerPrefs.SetInt("season.laps", SeasonLaps);
         }
 
         public void Open(Screen s, int focus = 0)
@@ -92,7 +97,13 @@ namespace CornerCutters.Game
 
         // ---- the modes ----
 
-        public static readonly string[] Modes = { "daily", "race", "timeattack" };
+        public static readonly string[] Modes = { "daily", "race", "championship", "timeattack", "timetrial" };
+        /// <summary>the tiles' places: the modes (Modes' order), then SETTINGS and SHOP</summary>
+        public const int SettingsTile = 5, ShopTile = 6;
+        /// <summary>a mode's tile</summary>
+        public static int TileOf(string mode) => Math.Max(1, Array.IndexOf(Modes, mode));
+        /// <summary>a mode's name on its screen</summary>
+        public static string TitleOf(string mode) => mode == "timeattack" ? "TIME ATTACK" : mode == "timetrial" ? "TIME TRIAL" : mode == "championship" ? "CHAMPIONSHIP" : "QUICK RACE";
 
         public List<MenuTile> Tiles()
         {
@@ -104,7 +115,9 @@ namespace CornerCutters.Game
             {
                 new MenuTile { Icon = "daily", Name = "DAILY CHALLENGE", Line = $"{NameOf(c.Circuit)} · {w}" + (days > 0 ? $" · STREAK {days}" : "") },
                 new MenuTile { Icon = "race", Name = "QUICK RACE", Line = "ONE RACE AGAINST THE FIELD" },
+                new MenuTile { Icon = "championship", Name = "CHAMPIONSHIP", Line = SeasonLine() },
                 new MenuTile { Icon = "timeattack", Name = "TIME ATTACK", Line = "RACE THE CLOCK" },
+                new MenuTile { Icon = "timetrial", Name = "TIME TRIAL", Line = "CHASE THE GHOST OF YOUR BEST LAP" },
                 new MenuTile { Icon = "settings", Name = "SETTINGS", Small = true },
                 new MenuTile { Icon = "shop", Name = "SHOP", Small = true },
             };
@@ -114,22 +127,38 @@ namespace CornerCutters.Game
         public void PickTile(int i)
         {
             if (i == 0) Asked = Go.Daily;
-            else if (i == 1 || i == 2)
+            else if (i == 2) Open(Screen.Season, Season != null && !Season.Over ? 0 : 1);
+            else if (i >= 1 && i < Modes.Length)
             {
-                Mode = i == 1 ? "race" : "timeattack";
-                if (Mode == "timeattack" && Weather == WeatherChoice.Changeable) Weather = WeatherChoice.Dry;
+                Mode = Modes[i];
+                if (Mode != "race" && Weather == WeatherChoice.Changeable) Weather = WeatherChoice.Dry;
                 Open(Screen.Circuit);
             }
-            else if (i == 3) Open(Screen.Settings);
-            else if (i == 4) Open(Screen.Shop);
+            else if (i == SettingsTile) Open(Screen.Settings);
+            else if (i == ShopTile) Open(Screen.Shop);
         }
 
-        /// <summary>Where the highlight goes on the tiles: three big ones in a row, two small under (menuTiles.ts gridStep's way, by hand).</summary>
+        /// <summary>The big tiles to a row (menuTiles.ts TILE_COLUMNS).</summary>
+        public const int Columns = 3;
+
+        /// <summary>
+        /// Where the highlight goes on the tiles: the five modes three to a row (menuTiles.ts gridStep: left and right along
+        /// a row, wrapping; up and down a row), SETTINGS and SHOP small in a row of their own under them.
+        /// </summary>
         public static int TileStep(int at, int dx, int dy)
         {
-            if (dx != 0) return at < 3 ? (at + dx + 3) % 3 : 3 + ((at - 3 + dx + 2) % 2);
-            if (dy > 0 && at < 3) return at == 2 ? 4 : 3;
-            if (dy < 0 && at >= 3) return at == 3 ? 0 : 2;
+            int bigs = Modes.Length;
+            if (at >= bigs)
+            {
+                // (the small row: along it, or up to the last row of modes)
+                if (dx != 0) return bigs + ((at - bigs + dx + 2) % 2);
+                if (dy < 0) return Math.Min(bigs - 1, (bigs - 1) / Columns * Columns + (at - bigs) * 2);
+                return at;
+            }
+            int row = at / Columns, rowStart = row * Columns, rowLen = Math.Min(Columns, bigs - rowStart);
+            if (dx != 0) return rowStart + ((at - rowStart + dx + rowLen) % rowLen);
+            if (dy > 0) return at + Columns < bigs ? at + Columns : rowStart + Columns >= bigs ? (at % Columns == 0 ? bigs : bigs + 1) : bigs - 1;
+            if (dy < 0) return row > 0 ? at - Columns : at;
             return at;
         }
 
@@ -162,8 +191,81 @@ namespace CornerCutters.Game
                 rows.Add(new MenuRow { Label = "LAPS", Value = $"{Laps}", About = Laps <= 2 ? "A DASH" : Laps <= 5 ? "A SPRINT" : Laps <= 10 ? "A RACE" : "A LONG ONE: TYRES AND STOPS", Left = () => Laps = Turn(LapChoices, Laps, -1), Right = () => Laps = Turn(LapChoices, Laps, 1) });
             }
             rows.Add(new MenuRow { Label = Mode == "race" ? "RACE" : "GO", Button = true, Pick = () => Asked = Go.Play });
-            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => Open(Screen.Modes, Mode == "race" ? 1 : 2) });
+            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => Open(Screen.Modes, TileOf(Mode)) });
             return rows;
+        }
+
+        // ---- the Championship (screens/championship.ts) ----
+
+        /// <summary>the season in progress (or just over), kept on the device; null: none yet</summary>
+        public Season Season = Championship.Parse(PlayerPrefs.GetString("season", ""));
+        /// <summary>a new season's choices: qualifying, each round's laps</summary>
+        public bool SeasonQualifying = PlayerPrefs.GetInt("season.qualifying", 1) != 0;
+        public int SeasonLaps = PlayerPrefs.GetInt("season.laps", Championship.SprintLaps) == Championship.GrandPrixLaps ? Championship.GrandPrixLaps : Championship.SprintLaps;
+        /// <summary>NEW SEASON picked once over a season in progress: picked again, it's thrown away</summary>
+        bool sure;
+
+        /// <summary>The Championship tile's line: the round next, or what it is.</summary>
+        string SeasonLine()
+        {
+            if (Season == null) return "A SEASON ACROSS EVERY CIRCUIT: WIN THE TITLE";
+            if (Season.Over) return "THE SEASON'S OVER: START ANOTHER";
+            return $"ROUND {Season.Round + 1} OF {Season.Rounds.Count} · {NameOf(Season.Rounds[Season.Round])}";
+        }
+
+        /// <summary>The season screen's rows: the next round, then a new season's (team, qualifying, length), and BACK.</summary>
+        public List<MenuRow> SeasonRows()
+        {
+            var rows = new List<MenuRow>();
+            var s = Season;
+            if (s != null && !s.Over)
+            {
+                string next = s.Rounds[s.Round];
+                var w = Forecast.Round(Championship.RoundSeed(s, s.Round), 1);
+                rows.Add(new MenuRow { Label = $"RACE ROUND {s.Round + 1}", Button = true, About = $"{NameOf(next)} · FORECAST: {w.Name}", Pick = () => Asked = Go.Round });
+            }
+            var team = Field.Teams[Team];
+            rows.Add(new MenuRow { Label = "TEAM", Value = team.Name.ToUpperInvariant(), About = "FOR A NEW SEASON", Swatch = new[] { team.Body, team.Trim }.Concat(team.Accent >= 0 ? new[] { team.Accent } : new int[0]).ToArray(),
+                Left = () => Team = (Team + Field.Teams.Length - 1) % Field.Teams.Length, Right = () => Team = (Team + 1) % Field.Teams.Length });
+            rows.Add(new MenuRow { Label = "QUALIFYING", Value = SeasonQualifying ? "ON" : "OFF", About = SeasonQualifying ? "A FLYING LAP BEFORE EACH ROUND" : "START MID-GRID", Left = () => SeasonQualifying = !SeasonQualifying, Right = () => SeasonQualifying = !SeasonQualifying });
+            rows.Add(new MenuRow { Label = "LENGTH", Value = Championship.LengthName(SeasonLaps), About = $"{SeasonLaps} LAPS A ROUND", Left = ToggleLength, Right = ToggleLength });
+            bool running = s != null && !s.Over && s.Round > 0;
+            rows.Add(new MenuRow { Label = sure ? "SURE? PICK AGAIN" : "NEW SEASON", Button = true, Pick = () =>
+            {
+                if (running && !sure) { sure = true; return; }
+                sure = false;
+                Asked = Go.NewSeason;
+            } });
+            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => { sure = false; Open(Screen.Modes, 2); } });
+            return rows;
+        }
+
+        void ToggleLength() => SeasonLaps = SeasonLaps == Championship.GrandPrixLaps ? Championship.SprintLaps : Championship.GrandPrixLaps;
+
+        /// <summary>The rounds of a new season: every circuit but the free ones (layouts.ts CHAMPIONSHIP_LAYOUTS), in order.</summary>
+        public List<string> SeasonRounds() => ids.Where(id => !free.Contains(id)).ToList();
+        readonly HashSet<string> free = new HashSet<string>();
+
+        /// <summary>The standings, as the season screen lists them: place, name, team, points (you in gold).</summary>
+        public List<(string place, string name, string team, string points, bool you)> StandingRows()
+        {
+            var s = Season;
+            if (s == null) return null;
+            return Championship.Standings(s).Select((r, i) =>
+            {
+                var d = s.Drivers[r.Driver];
+                return ($"{i + 1}", r.Driver == s.You ? (Profile.Initials ?? "YOU") : d.Name, Championship.TeamOf(d).Code, $"{r.Points}", r.Driver == s.You);
+            }).ToList();
+        }
+
+        /// <summary>The season screen's title: the round next, or the champion.</summary>
+        public string SeasonTitle()
+        {
+            var s = Season;
+            if (s == null) return "CHAMPIONSHIP";
+            if (!s.Over) return $"CHAMPIONSHIP · ROUND {s.Round + 1} OF {s.Rounds.Count}";
+            var top = Championship.Standings(s)[0];
+            return top.Driver == s.You ? "YOU ARE THE CHAMPION!" : $"CHAMPION: {s.Drivers[top.Driver].Name}";
         }
 
         // ---- the settings ----
@@ -185,7 +287,7 @@ namespace CornerCutters.Game
                 rows.Add(new MenuRow { Label = "STATS", Value = Profile.StatsOn ? "SHARE" : "OFF", About = Profile.StatsOn ? "ANONYMOUS PLAY COUNTS, TO IMPROVE THE GAME" : "NOTHING SENT", Left = ToggleStats, Right = ToggleStats });
                 rows.Add(new MenuRow { Label = "PLAYER ID", Value = Profile.PlayerId.Substring(0, 8).ToUpperInvariant(), About = "QUOTE IT TO HAVE YOUR ENTRIES REMOVED" });
             }
-            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => Open(Screen.Modes, 3) });
+            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => Open(Screen.Modes, SettingsTile) });
             return rows;
         }
 

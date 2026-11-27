@@ -79,6 +79,8 @@ namespace CornerCutters.Game
             public NameEdit Edit;
             /// <summary>the Daily Challenge on (QUICK RACE back on the pause screen); the shop open on it (null: not)</summary>
             public bool Daily;
+            /// <summary>the weather's the weekend's own (a Daily, a Championship round): no WEATHER button</summary>
+            public bool WeatherFixed;
             public ShopState Shop;
             /// <summary>s left on the Time Attack's clock (null: no clock, or not started)</summary>
             public double? Clock;
@@ -155,6 +157,9 @@ namespace CornerCutters.Game
             public List<SummaryBox> Summary;
             public List<ResultRow> Rows;
             public List<(string text, bool isNew)> Notes;
+            /// <summary>the way on (NEXT CIRCUIT; CHAMPIONSHIP in a season), and whether the race can be run again</summary>
+            public string Go = "NEXT CIRCUIT";
+            public bool Again = true;
         }
 
         public enum TableChoice { None, Go, Again }
@@ -541,7 +546,7 @@ namespace CornerCutters.Game
             Fill(new Rect(0, 0, Screen.width, Screen.height), Rgba(14, 13, 22, 0.55f));
             var list = new List<(string label, PauseChoice c)> { ("RESUME", PauseChoice.Resume), ("RESTART", PauseChoice.Restart) };
             if (s.Quali) list.Add(("SKIP QUALIFYING", PauseChoice.SkipQualifying));
-            if (!s.Daily && !s.Clock.HasValue) list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
+            if (!s.Daily && !s.WeatherFixed && !s.Clock.HasValue) list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
             list.Add(($"GRID WALK: {(s.GridWalk ? "ON" : "OFF")}", PauseChoice.GridWalk));
             list.Add(("MAIN MENU", PauseChoice.MainMenu));
             PauseItems.Clear();
@@ -830,8 +835,9 @@ namespace CornerCutters.Game
             foreach (var n in t.Notes) { NoteLine(x, ty, pw, n.text, n.isNew); ty += 18; }
             ty += 6;
             bool pad = source == InputSource.Gamepad;
+            if (!t.Again) return Button(w / 2 - 100, ty, 200, 30, t.Go, pad ? "A" : "ENTER") ? TableChoice.Go : TableChoice.None;
             if (Button(w / 2 - 205, ty, 200, 30, "RACE AGAIN", pad ? "Y" : "R")) return TableChoice.Again;
-            if (Button(w / 2 + 5, ty, 200, 30, "NEXT CIRCUIT", pad ? "A" : "ENTER")) return TableChoice.Go;
+            if (Button(w / 2 + 5, ty, 200, 30, t.Go, pad ? "A" : "ENTER")) return TableChoice.Go;
             return TableChoice.None;
         }
 
@@ -905,6 +911,7 @@ namespace CornerCutters.Game
             ["warn"] = new[] { "...#...", "..###..", "..#.#..", ".##.##.", ".#####.", "##.#.##", "#######" },
             ["wrench"] = new[] { ".#..#..", ".#..#..", ".####..", "..##...", "..##...", "..##...", "..##..." },
             ["flag"] = new[] { "#.#.#..", "##.#.#.", "#.#.#..", "##.#.#.", "#......", "#......", "#......" },
+            ["ghost"] = new[] { "..###..", ".#####.", "##.#.##", "#######", "#######", "#######", "#.#.#.#" },
             // (▲ and ▼: the pixel font has neither)
             ["daily"] = new[] { ".#...#.", "#######", "#.....#", "#######", "#.....#", "#..#..#", "#######" },
             ["settings"] = new[] { "..#....", "#######", "..#....", ".....#.", "#######", ".....#.", "......." },

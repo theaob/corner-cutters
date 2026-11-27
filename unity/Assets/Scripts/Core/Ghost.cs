@@ -80,6 +80,22 @@ namespace CornerCutters.Core
         }
     }
 
+    /// <summary>How a split (or a lap) compares: Record (quicker than your best ever), Better (than the ghost you're chasing), or Worse.</summary>
+    public enum SplitMark { Record, Better, Worse }
+
+    public static class Splits
+    {
+        /// <summary>A split of `t` s at sector k against the ghost's (and against your record's, if that's a different lap): timeTrial.ts markSplit.</summary>
+        public static SplitMark Mark(double t, int k, Ghost ghost, Ghost record, out double? delta)
+        {
+            double? theirs = ghost != null && k < ghost.Splits.Count ? ghost.Splits[k] : (double?)null;
+            double? best = record != null && k < record.Splits.Count ? record.Splits[k] : (double?)null;
+            delta = theirs.HasValue ? t - theirs.Value : (double?)null;
+            if (!best.HasValue || t < best.Value) return SplitMark.Record;
+            return delta.HasValue && delta.Value < 0 ? SplitMark.Better : SplitMark.Worse;
+        }
+    }
+
     /// <summary>A run being recorded.</summary>
     public sealed class GhostRecorder
     {

@@ -10,6 +10,8 @@ import { handlingFor, DIFFICULTIES } from '../../src/f1/difficulty';
 import { GOPHER, GopherRun } from '../../src/f1/gopher';
 import { YETI, YetiRun } from '../../src/f1/yeti';
 import { PETALS, PetalField } from '../../src/f1/petals';
+import { newSeason, recordRound, roundSeed, standings, pointsOf, parseSeason } from '../../src/f1/championship';
+import { markSplit } from '../../src/f1/timeTrial';
 import { groundAt } from '../../src/engine/sim';
 import { HALF_WIDTH } from '../../src/f1/circuit';
 import { aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, paceRanks } from '../../src/f1/difficulty';
@@ -519,7 +521,36 @@ function goldenPetals() {
   console.log(`petals: ${start[0]} on the track at the start, ${marks[marks.length - 1][1]} after a minute (${marks.reduce((a, m) => Math.max(a, m[3]), 0)} in the air at most)`);
 }
 
+/** Championship seasons (newSeason's field from its seed, roundSeed, the standings as rounds are recorded) and Time Trial's split marks. */
+function goldenSeason() {
+  const rng = seededRandom(2027);
+  const ids = LAYOUTS.filter((l) => !l.free).map((l) => l.id);
+  const seasons = [1, 7, 4242, 99991, 2 ** 31 + 5, 4294967295].map((seed, n) => {
+    const team = TEAMS[n % TEAMS.length];
+    const s = newSeason({ seed, team, seat: (n % 2) as 0 | 1, difficulty: (['easy', 'normal', 'hard'] as const)[n % 3], qualifying: n % 2 === 0, rounds: ids, total: 11, laps: n % 2 ? 10 : 5 });
+    const field = JSON.parse(JSON.stringify(s));
+    const seeds = ids.map((_, k) => roundSeed(s, k));
+    const tables: number[][][] = [];
+    for (let k = 0; k < ids.length; k++) {
+      const finish = [...s.drivers.keys()].sort(() => rng() - 0.5);
+      const out = new Set(finish.filter(() => rng() < 0.1));
+      recordRound(s, finish, out);
+      tables.push(standings(s).map((r) => [r.driver, r.points, r.wins]));
+    }
+    return { seed, team: team.id, field, seeds, places: s.places, tables, points: pointsOf(s), saved: JSON.stringify(parseSeason(JSON.parse(JSON.stringify(s)))) };
+  });
+  const g = (time: number, splits: number[]) => ({ time, splits, frames: [0, 0, 0, 0, 1, 1, 0, 1] });
+  const marks = [[30.1, 0], [29.9, 0], [31.5, 1], [45, 1], [60, 2], [10, 3]].flatMap(([t, k]) =>
+    [[g(90, [30, 60]), g(89, [29.95, 61])], [g(90, [30, 60]), undefined], [undefined, undefined], [g(88, [31, 45.5]), g(90, [30, 60])]].map(([gh, rec]) => {
+      const m = markSplit(t, k, gh, rec);
+      return [t, k, gh ? gh.splits : null, rec ? rec.splits : null, m.delta ?? null, m.mark];
+    }));
+  writeFileSync('unity/Tests~/Core.Tests/season.json', JSON.stringify({ rounds: ids, seasons, marks }));
+  console.log(`season: ${seasons.length} seasons of ${ids.length} rounds, ${marks.length} split marks`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'season') goldenSeason();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'petals') goldenPetals();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'net') (goldenNet(), goldenDaily());
 else if (process.argv[1]?.endsWith('golden.mjs')) {
@@ -529,6 +560,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenAll();
   goldenCritters();
   goldenPetals();
+  goldenSeason();
   goldenRaces();
   goldenQualifying();
   goldenFx();

@@ -56,7 +56,7 @@ export function bakeAll() {
   const handling = handlingFor(normal);
   const out = 'unity/Assets/Resources/Circuits';
   mkdirSync(out, { recursive: true });
-  const index: { id: string; name: string; country?: string; about: string; bridge: boolean }[] = [];
+  const index: { id: string; name: string; country?: string; about: string; bridge: boolean; free?: boolean }[] = [];
   for (const layout of LAYOUTS) {
     const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, handling), decel: lineDecel(f1) });
     const t = c.track;
@@ -109,7 +109,7 @@ export function bakeAll() {
       } : null,
     };
     writeFileSync(`${out}/${layout.id}.json`, JSON.stringify(baked));
-    index.push({ id: layout.id, name: layout.name, country: layout.country, about: layout.about, bridge: !!layout.bridge });
+    index.push({ id: layout.id, name: layout.name, country: layout.country, about: layout.about, bridge: !!layout.bridge, ...(layout.free ? { free: true } : {}) });
   }
   writeFileSync(`${out}/index.json`, JSON.stringify(index, null, 1));
   // (JsonUtility can't read a root array: the order the game lists circuits in, as an object)
