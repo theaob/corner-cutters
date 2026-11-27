@@ -33,6 +33,12 @@ the floating thumbstick points the way (or, with DRIVING: STEER in the settings,
 A on the other side does what's next (SKIP, RACE, NEXT, AGAIN) and turns into DRIFT on dirt, RESTART top left and PAUSE (or
 EXIT) top right; STICK puts the stick on the left or right. The HUD takes the phone layout then (readout, minimap, tower,
 banner and radio where game.css puts them), and every menu and table works by tapping.
+Hits feel as on the web (Core/Feel.cs, checked against shake.ts, rumble.ts and quality.ts): the camera shakes and a big
+hit stops time for a moment, a pad's motors or a phone buzz for crashes, landings, grass and kerbs, and the classic camera
+pulls back with speed (less under MOTION: REDUCED) and in a battle. GRAPHICS AUTO steps the finish pass down when the
+frames run slow (no bloom, no tilt-shift blur, then everything at half size) and keeps where it settled for three days;
+HIGH and LOW hold a level, BATTERY SAVER draws 30 frames a second. Each circuit is drawn once whole while it loads, so
+its shaders are ready before the lights.
 
 **Look.** The camera is the web game's (north up, 26 degree lens, 52 degree pitch). Each circuit's ground is the web
 game's own picture (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane, grid boxes, chequered line: baked from its
@@ -64,10 +70,13 @@ from `lap_board`. The laps are the same physics as the web game's, so they share
 **Menus.** As the web game's (`circuitSelect.ts`, `menuTiles.ts`, `settingsRows.ts`): the title, then the modes as
 tiles (DAILY CHALLENGE with today's circuit and your streak, QUICK RACE, TIME ATTACK; SETTINGS and SHOP small under
 them), a mode's circuit screen (the circuit's outline and name, TEAM, WEATHER, and for a Quick Race QUALIFYING and LAPS),
-the settings (DIFFICULTY, GRID WALK, UI SCALE for the HUD and tables, MINIMAP size, NAME, STATS, PLAYER ID, the version), the shop and your name. Keys, a pad or the
+the settings, the shop and your name. The settings are the web game's pages: CONTROLS (KEYS, DRIVING, STICK, VIBRATION),
+GAME (DIFFICULTY, NAME, GRAPHICS, GRID WALK, UI SCALE, MINIMAP), SOUND (SOUND, MUSIC), ACCESSIBILITY (TEXT, COLOURS, MOTION,
+SCREEN SHAKE) and PRIVACY & DATA (the privacy and terms pages, STATS, PLAYER ID). KEYS rebinds the driving keys and pad
+buttons (a control already on the new one swaps; RESET ALL). Keys, a pad or the
 mouse: arrows or the d-pad move, left and right change a row, ENTER or A picks, ESC or B goes back. What you pick is
 kept for next time. The pause screen has RESUME, RESTART, SKIP QUALIFYING, WEATHER, GRID WALK and MAIN MENU, with the
-keys and the pad too. SETTINGS has SOUND and MUSIC (OFF, LOW, MEDIUM, HIGH). (Not yet: the web game's controls, accessibility and language settings, the trophy cabinet,
+keys and the pad too. (Not yet: the language setting, the trophy cabinet,
 the circuits locked until a Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
 
 **Daily Challenge, streak and shop.** As the web game (`daily.ts`, `timeAttack.ts`, `streak.ts`, `carStyle.ts`):

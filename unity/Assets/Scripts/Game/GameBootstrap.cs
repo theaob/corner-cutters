@@ -11,7 +11,8 @@ namespace CornerCutters.Game
         static void Start()
         {
             if (Object.FindFirstObjectByType<RaceController>() != null) return;
-            Application.targetFrameRate = -1;   // vsync decides on desktop; a console build sets its own
+            // (vsync decides on desktop, a phone draws 60 a second, BATTERY SAVER 30; a console build sets its own)
+            Picture.ApplyFrameCap();
             new GameObject("Corner Cutters").AddComponent<RaceController>();
         }
     }

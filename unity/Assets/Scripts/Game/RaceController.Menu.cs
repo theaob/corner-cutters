@@ -24,6 +24,7 @@ namespace CornerCutters.Game
         {
             OneScreen();
             DropOurs();
+            Haptics.Stop();
             menu = new Menu(ids, circuitIndex);
             menu.Open(screen, screen == Menu.Screen.Modes ? 1 : 0);
             menuT = 0;
@@ -60,7 +61,17 @@ namespace CornerCutters.Game
                     menu.Steer(menu.CircuitRows(), input, () => menu.Open(Menu.Screen.Modes, Menu.TileOf(menu.Mode)));
                     break;
                 case Menu.Screen.Settings:
-                    menu.Steer(menu.SettingsRows(), input, () => menu.Open(Menu.Screen.Modes, Menu.SettingsTile));
+                    menu.Steer(menu.SettingsRows(), input, menu.SettingsBack);
+                    break;
+                case Menu.Screen.Keys:
+                    if (menu.Listening >= 0)
+                    {
+                        // (waiting for the new key or button: nothing else moves; Esc or START, or a while, keeps the old one)
+                        if (input.Listen(menu.ListenPad, out string path, out bool cancelled)) { input.Rebind(menu.Listening, menu.ListenPad, path); menu.Listening = -1; }
+                        else if (cancelled || Time.unscaledTime - menu.ListenSince > 8) menu.Listening = -1;
+                        break;
+                    }
+                    menu.Steer(menu.KeyRows(input), input, () => menu.OpenPage("controls", Menu.KeysRow));
                     break;
                 case Menu.Screen.Season:
                     menu.Steer(menu.SeasonRows(), input, () => menu.Open(Menu.Screen.Modes, 2));
@@ -82,7 +93,7 @@ namespace CornerCutters.Game
                 case Menu.Screen.Name:
                     menu.Edit.Steer(input.NavX, input.NavY);
                     if (input.AcceptPressed) SaveName();
-                    else if (input.BackPressed) menu.Open(Menu.Screen.Settings, 4);
+                    else if (input.BackPressed) menu.OpenPage("game", Menu.NameRow);
                     break;
             }
             Asked();
@@ -92,7 +103,7 @@ namespace CornerCutters.Game
         {
             Profile.Initials = menu.Edit.ToString();
             SendWaiting();
-            menu.Open(Menu.Screen.Settings, 4);
+            menu.OpenPage("game", Menu.NameRow);
         }
 
         /// <summary>What the menu asked for: a race or a Time Attack on the circuit picked, or today's challenge.</summary>
@@ -167,11 +178,14 @@ namespace CornerCutters.Game
                 case Menu.Screen.Circuit:
                 case Menu.Screen.Settings:
                 case Menu.Screen.Season:
+                case Menu.Screen.Keys:
                     {
-                        bool onCircuit = menu.At == Menu.Screen.Circuit, onSeason = menu.At == Menu.Screen.Season;
-                        var rows = onCircuit ? menu.CircuitRows() : onSeason ? menu.SeasonRows() : menu.SettingsRows();
-                        string title = onCircuit ? Menu.TitleOf(menu.Mode) : onSeason ? menu.SeasonTitle() : "SETTINGS";
-                        int picked = hud.DrawRows(title, rows, menu.Focus, onCircuit ? HudView.Outline(menu.CircuitId) : null, menu.At == Menu.Screen.Settings ? Menu.Version : null, out int arrow, out int hover, onSeason ? menu.StandingRows() : null);
+                        bool onCircuit = menu.At == Menu.Screen.Circuit, onSeason = menu.At == Menu.Screen.Season, onKeys = menu.At == Menu.Screen.Keys;
+                        var rows = onCircuit ? menu.CircuitRows() : onSeason ? menu.SeasonRows() : onKeys ? menu.KeyRows(input) : menu.SettingsRows();
+                        string title = onCircuit ? Menu.TitleOf(menu.Mode) : onSeason ? menu.SeasonTitle() : onKeys ? "KEYS" : menu.SettingsTitle;
+                        int picked = hud.DrawRows(title, rows, menu.Focus, onCircuit ? HudView.Outline(menu.CircuitId) : null, menu.At == Menu.Screen.Settings && menu.Page == null ? Menu.Version : null, out int arrow, out int hover, onSeason ? menu.StandingRows() : null);
+                        // (waiting for a key: the mouse picks nothing)
+                        if (onKeys && menu.Listening >= 0) break;
                         if (hover >= 0 && MouseMoved()) menu.Focus = hover;
                         if (picked >= 0)
                         {
@@ -194,7 +208,7 @@ namespace CornerCutters.Game
                     {
                         var c = hud.DrawName(menu.Edit);
                         if (c == HudView.PauseChoice.NameSave) SaveName();
-                        else if (c == HudView.PauseChoice.NameCancel) menu.Open(Menu.Screen.Settings, 4);
+                        else if (c == HudView.PauseChoice.NameCancel) menu.OpenPage("game", Menu.NameRow);
                         break;
                     }
             }

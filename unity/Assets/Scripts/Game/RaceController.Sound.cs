@@ -43,10 +43,12 @@ namespace CornerCutters.Game
             double lost = heardHealth - me.Car.Health;
             heardHealth = me.Car.Health;
             bool replaying = replay != null;
+            double landedNow = landed.Length > you ? landed[you] : 0;
+            // (and its vibration and the camera's shake: RaceController.Feel)
+            StepFeel(frame, lost, landedNow, wreckedNow);
             if (!replaying)
             {
                 // hits, and the scrape of metal with the sparks
-                double landedNow = landed.Length > you ? landed[you] : 0;
                 if (wreckedNow) sounds.Hit(1);
                 else if (lost > 0.5) sounds.Hit(System.Math.Min(1, 0.25 + lost / 15));
                 if (lost > 0.5 || landedNow > 160) sounds.Scrape(System.Math.Min(1, 0.3 + System.Math.Max(lost, 0) / 10));

@@ -195,6 +195,8 @@ namespace CornerCutters.Game
         void OnApplicationFocus(bool focused)
         {
             SoundOut.SetHidden(!focused);
+            if (!focused) Haptics.Stop();
+            Picture.Settle = 2;
             if (focused) PlayStats.Back();
             else Away();
         }
@@ -202,6 +204,7 @@ namespace CornerCutters.Game
         void OnApplicationPause(bool paused)
         {
             SoundOut.SetHidden(paused);
+            if (paused) Haptics.Stop();
             if (paused) Away();
             else PlayStats.Back();
         }
@@ -251,6 +254,7 @@ namespace CornerCutters.Game
             // (the km on the circuit you're leaving, noted on it)
             if (race != null) NoteDriven();
             circuitIndex = ((index % ids.Count) + ids.Count) % ids.Count;
+            warmed = false;
             skids?.Dispose();
             deckSkids?.Dispose();
             if (circuitView != null) Destroy(circuitView);
@@ -419,6 +423,7 @@ namespace CornerCutters.Game
             notice = notice2 = null;
             FreshRadio();
             FreshSounds();
+            FreshFeel();
             sinceStart = 0;
             paused = false;
             particles.Clear();
@@ -442,6 +447,28 @@ namespace CornerCutters.Game
             input.ResetWheel();
             chase.Snap();
             chase2.Snap();
+            // (the circuit's first session: drawn once whole while it loads, so nothing hitches the first time it's seen)
+            if (!warmed)
+            {
+                warmed = true;
+                WarmWhole();
+            }
+        }
+
+        bool warmed;
+
+        /// <summary>The circuit drawn once with everything in it, the safety car and the ceremony too (engine/render/warm.ts drawWhole).</summary>
+        void WarmWhole()
+        {
+            bool sc = safetyCar.Root.activeSelf;
+            safetyCar.Root.SetActive(true);
+            ceremony.Show(true);
+            try { Picture.WarmUp(cam); }
+            finally
+            {
+                ceremony.Show(false);
+                safetyCar.Root.SetActive(sc);
+            }
         }
 
         /// <summary>Entrant k's car, in its team's livery, on the tyres it's on (built again when they change).</summary>
@@ -476,6 +503,9 @@ namespace CornerCutters.Game
             DeckFrame();
             input.Poll();
             float frame = Time.unscaledDeltaTime;
+            // (the picture's quality watched, and the pad's buzz ended when it's due)
+            Picture.Step(frame);
+            Haptics.Tick();
             PlayStats.Tick(frame);
             // a menu up: it alone takes the keys, and the circuit behind holds still
             if (menu != null)
@@ -496,6 +526,8 @@ namespace CornerCutters.Game
             if (input.PausePressed && !typing)
             {
                 paused = !paused;
+                Haptics.Stop();
+                Picture.Settle = 1;
                 // (paused: the race kept on the device, to come back to if the game's closed now)
                 if (paused) KeepNow();
             }
@@ -522,7 +554,8 @@ namespace CornerCutters.Game
                 if (panT.HasValue || replay != null) Draw(1, frame);
                 else
                 {
-                    clock.Advance(frame, out int steps, out double alpha);
+                    // (a big hit's hit-stop: the race at a crawl for a moment)
+                    clock.Advance(FeltTime(frame), out int steps, out double alpha);
                     for (int k = 0; k < landed.Length; k++) landed[k] = 0;
                     for (int i = 0; i < steps; i++) Step();
                     alpha = System.Math.Min(1, clock.Carry / clock.Step);
@@ -952,6 +985,7 @@ namespace CornerCutters.Game
             zoom += ((panT.HasValue ? (float)GridPan.Zoom : 1) - zoom) * (1 - Mathf.Exp(-frame * 4));
             chase.Zoom = Split ? zoom * 0.85f : zoom;
             var followed = replaying ? recorder.Pose(replay.Follow, replay.T) : null;
+            FeelCamera(frame, followed == null && !panT.HasValue);
             if (panT.HasValue)
             {
                 var at = GridPan.At(circuit.slots.Take(race.Entrants.Count).Select(q => q.x).ToList(), circuit.slots.Take(race.Entrants.Count).Select(q => q.y).ToList(), panT.Value);

@@ -194,11 +194,13 @@ namespace CornerCutters.Game
         // ---- drawing helpers: rects in the web game's px, scaled ----
 
         float k;
+        /// <summary>the text's size: TEXT: LARGE makes the menus' text and the race's messages (the banner, the radio, the pause screen) a fifth bigger</summary>
+        float ts = 1;
         Rect R(float x, float y, float w, float h) => new Rect(x * k, y * k, w * k, h * k);
 
         GUIStyle Style(float px, Color color, TextAnchor anchor = TextAnchor.MiddleLeft)
         {
-            var st = new GUIStyle { font = font, fontSize = Mathf.Max(1, Mathf.RoundToInt(px * k)), alignment = anchor, clipping = TextClipping.Overflow, wordWrap = false };
+            var st = new GUIStyle { font = font, fontSize = Mathf.Max(1, Mathf.RoundToInt(px * k * ts)), alignment = anchor, clipping = TextClipping.Overflow, wordWrap = false };
             st.normal.textColor = color;
             return st;
         }
@@ -236,6 +238,7 @@ namespace CornerCutters.Game
         public PauseChoice Draw(State s)
         {
             k = UiK();
+            ts = 1;
             if (font != null && font.material != null && font.material.mainTexture != null) font.material.mainTexture.filterMode = FilterMode.Point;
             // (split screen: this player's half, the HUD a little smaller in it, no key hints)
             var area = Area ?? new Rect(0, 0, Screen.width, Screen.height);
@@ -248,9 +251,11 @@ namespace CornerCutters.Game
             ClockView(s, w);
             Minimap(s, w);
             TowerView(s, w);
+            ts = Options.TextScale;
             Banner(s, w, h);
-            if (!s.Split && !Phone) Controls(s, h);
             RadioPanel(s, w, h);
+            ts = 1;
+            if (!s.Split && !Phone) Controls(s, h);
             if (!Phone) SkipHint(s.Skip, s.Source, w, h);
             if (Area.HasValue) GUI.EndGroup();
             return s.Paused ? DrawPause(s) : PauseChoice.None;
@@ -263,7 +268,10 @@ namespace CornerCutters.Game
         public PauseChoice DrawPause(State s)
         {
             k = UiK();
-            return Pause(s, Screen.width / k, Screen.height / k);
+            ts = Options.TextScale;
+            var choice = Pause(s, Screen.width / k, Screen.height / k);
+            ts = 1;
+            return choice;
         }
 
         // ---- the rain (screenFx.ts createRain): 90 drops, as many falling as it's raining hard ----
@@ -580,6 +588,7 @@ namespace CornerCutters.Game
         public void Words(IEnumerable<(Vector2 at, string text, Color color, float px, bool panel)> words, string skip, InputSource source)
         {
             k = UiK();
+            ts = 1;
             foreach (var wd in words)
             {
                 var st = Style(wd.px, wd.color, TextAnchor.MiddleCenter);
@@ -742,7 +751,7 @@ namespace CornerCutters.Game
         /// <summary>A Time Attack's end: TIME UP and how far, your best today and streak, the day's board; AGAIN or MENU.</summary>
         public TableChoice DrawAttack(AttackTable t, float since, InputSource source)
         {
-            k = UiK();
+            k = UiK(); ts = 1;
             float w = Screen.width / k, h = Screen.height / k;
             const float pw = 420;
             int lines = t.Lines.Count + (t.Board != null ? 1 : 0) + (t.BoardTop != null ? 1 : 0);
@@ -784,7 +793,7 @@ namespace CornerCutters.Game
         /// <summary>Qualifying's times: the title, the table (your row in gold), where you start, the record, RACE.</summary>
         public TableChoice DrawQualifying(QualiTable t, float since, InputSource source)
         {
-            k = UiK();
+            k = UiK(); ts = 1;
             float w = Screen.width / k, h = Screen.height / k;
             const float line = 15, pw = 380;
             int boardLines = (t.Board != null ? 1 : 0) + (t.BoardTop != null ? 1 : 0);
@@ -837,7 +846,7 @@ namespace CornerCutters.Game
         /// <summary>The results: the title, your race in five boxes, the table, the key, the records, and the buttons.</summary>
         public TableChoice DrawResults(ResultsTable t, float since, InputSource source)
         {
-            k = UiK();
+            k = UiK(); ts = 1;
             float w = Screen.width / k, h = Screen.height / k;
             const float line = 15, pw = 460;
             float ph = 36 + (t.Summary.Count > 0 ? 50 : 0) + 16 + line * t.Rows.Count + 22 + 18 * t.Notes.Count + 48;

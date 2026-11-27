@@ -21,6 +21,11 @@ import { THUMBSTICK, thumbstick } from '../../src/engine/controls';
 import { FLOAT_MARGIN, SLIDER_DEAD, floatOffset, sliderTurn } from '../../src/engine/deck';
 import { deckLabels, type DeckState } from '../../src/f1/race/deckLabels';
 import { foldTail } from '../../src/engine/music';
+import { SHAKE, newShake, shakeOffset, stepShake, timeScale, zoomOf, ZOOM_OUT } from '../../src/f1/shake';
+import { RUMBLE, newRumble, rumble } from '../../src/f1/rumble';
+import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality, KEEP_QUALITY_DAYS } from '../../src/engine/render/quality';
+import { GRAPHICS_SETTINGS, frameCap, heldLevel } from '../../src/f1/graphics';
+import { splitColor } from '../../src/f1/access';
 import { RADIO, RADIO_LINES, finishLine, newRadio, radioLine, say, stepRadio, type RadioCue } from '../../src/f1/radio';
 import { groundAt } from '../../src/engine/sim';
 import { HALF_WIDTH } from '../../src/f1/circuit';
@@ -680,7 +685,65 @@ function goldenTouch() {
   console.log(`touch: ${sticks.length} sticks, ${floats.length} floats, ${sliders.length} sliders, ${labels.length} deck states`);
 }
 
+function goldenFeel() {
+  const rng = seededRandom(31);
+  // frames of a drive: hits now and then, landings, the grass and the kerbs coming and going
+  const runs: unknown[] = [];
+  for (let r = 0; r < 6; r++) {
+    const shake = newShake(), rum = newRumble();
+    const frames: number[][] = [];
+    let rough = false, kerb = false;
+    for (let i = 0; i < 500; i++) {
+      if (rng() < 0.03) rough = !rough;
+      if (rng() < 0.05) kerb = !kerb;
+      const f = {
+        dt: [1 / 60, 1 / 30, 1 / 144, 0.05][Math.floor(rng() * 4)], speed: rng() * 420, topSpeed: 380,
+        healthLost: rng() < 0.05 ? rng() * 14 : rng() < 0.1 ? rng() * 0.8 : 0, wreckedNow: rng() < 0.004,
+        landed: rng() < 0.03 ? rng() * 300 : 0, onRough: rough, onKerb: kerb,
+      };
+      const ms = rumble(rum, f);
+      stepShake(shake, f);
+      const o = shakeOffset(shake);
+      frames.push([f.dt, f.speed, f.topSpeed, f.healthLost, f.wreckedNow ? 1 : 0, f.landed, f.onRough ? 1 : 0, f.onKerb ? 1 : 0, ms, shake.trauma, shake.t, shake.hold, o.x, o.y, timeScale(shake)]);
+    }
+    runs.push(frames);
+  }
+  const zooms: number[][] = [];
+  for (let i = 0; i < 200; i++) {
+    const top = 100 + rng() * 400, speed = rng() * top * 1.2;
+    zooms.push([speed, top, zoomOf(speed, top)]);
+  }
+  // the governor through frame times: quick, slow, slow then quicker, slow whatever it does
+  const governors: unknown[] = [];
+  const patterns = [(t: number) => 0.016, (t: number) => 0.03, (t: number, l: number) => (l >= 2 ? 0.016 : 0.03), (t: number) => 0.034, (t: number) => (t > 4 && t < 9 ? 0.026 : 0.017)];
+  for (let p = 0; p < patterns.length; p++) for (const start of [undefined, { level: 1, locked: false }, { level: 3, locked: true }]) {
+    const g = new QualityGovernor(DEFAULT_GOVERNOR, start);
+    const trace: number[][] = [];
+    let t = 0;
+    for (let i = 0; i < 900; i++) {
+      const dt = patterns[p](t, g.level) * (0.9 + rng() * 0.2);
+      t += dt;
+      const level = g.sample(dt);
+      trace.push([dt, level, g.locked ? 1 : 0]);
+    }
+    governors.push({ start: start ?? null, trace });
+  }
+  const now = 1_790_000_000_000, day = 86400000;
+  const kept = [
+    [0, false, now - day, 'v1'], [2, true, now - day, 'v1'], [1, false, now - 4 * day, 'v1'], [1, false, now + 1000, 'v1'], [1, false, now - day, 'v2'],
+    [4, false, now - day, 'v1'], [-1, false, now - day, 'v1'], [3, true, now - KEEP_QUALITY_DAYS * day, 'v1'],
+  ].map(([level, locked, at, version]) => {
+    const k = keptQuality({ level, locked, at, version }, now, 'v1');
+    return [level, locked ? 1 : 0, at, version, k ? k.level : -1, k ? (k.locked ? 1 : 0) : -1];
+  });
+  const graphics = GRAPHICS_SETTINGS.map((g) => [g, heldLevel(g) ?? -1, frameCap(g)]);
+  const splits = (['record', 'better', 'worse'] as const).map((m) => [m, splitColor(m, false), splitColor(m, true)]);
+  writeFileSync('unity/Tests~/Core.Tests/feel.json', JSON.stringify({ shake: SHAKE, rumble: RUMBLE, zoomOut: ZOOM_OUT, levels: QUALITY_LEVELS, governor: DEFAULT_GOVERNOR, now, runs, zooms, governors, kept, graphics, splits }));
+  console.log(`feel: ${runs.length} drives, ${zooms.length} zooms, ${governors.length} governor traces, ${kept.length} kept levels`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'feel') goldenFeel();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'touch') goldenTouch();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'sounds') goldenSounds();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'radio') goldenRadio();
@@ -700,6 +763,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenRadio();
   goldenSounds();
   goldenTouch();
+  goldenFeel();
   goldenRaces();
   goldenQualifying();
   goldenFx();

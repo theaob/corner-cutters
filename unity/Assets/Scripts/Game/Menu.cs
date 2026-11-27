@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace CornerCutters.Game
 {
@@ -33,7 +34,7 @@ namespace CornerCutters.Game
 
     public sealed class Menu
     {
-        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season }
+        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season, Keys }
 
         /// <summary>What the menu wants done.</summary>
         public enum Go { None, Play, Daily, Round, NewSeason, Resume }
@@ -169,7 +170,7 @@ namespace CornerCutters.Game
                 if (Mode != "race" && Weather == WeatherChoice.Changeable) Weather = WeatherChoice.Dry;
                 Open(Screen.Circuit);
             }
-            else if (i == SettingsTile) Open(Screen.Settings);
+            else if (i == SettingsTile) { Open(Screen.Settings); Page = null; }
             else if (i == ShopTile) Open(Screen.Shop);
             else if (i == ResumeTile && Kept != null) Asked = Go.Resume;
         }
@@ -311,30 +312,140 @@ namespace CornerCutters.Game
 
         // ---- the settings ----
 
+        /// <summary>the settings' page open (null: the list of them), as the web game's settings pages (settingsRows.ts)</summary>
+        public string Page;
+        public static readonly string[] Pages = { "controls", "game", "sound", "access", "privacy" };
+        static readonly string[] PageNames = { "CONTROLS", "GAME", "SOUND", "ACCESSIBILITY", "PRIVACY & DATA" };
+        static readonly string[] PageAbout = { "KEYS, TOUCH, VIBRATION", "DIFFICULTY, NAME, GRAPHICS, THE SCREEN", "ENGINES AND MUSIC", "TEXT, COLOURS, MOTION, SHAKE", "THE PAGES, STATS, YOUR ID" };
+        /// <summary>the game page's NAME row (the name screen comes back to it)</summary>
+        public const int NameRow = 1;
+        /// <summary>the controls page's KEYS row (the keys screen comes back to it)</summary>
+        public const int KeysRow = 0;
+        public const string PrivacyUrl = "https://theaob.github.io/corner-cutters/privacy.html", TermsUrl = "https://theaob.github.io/corner-cutters/terms.html";
+
+        public string SettingsTitle => Page == null ? "SETTINGS" : PageNames[Array.IndexOf(Pages, Page)];
+
+        /// <summary>B on the settings: from a page back to the list (on that page's row), from the list back to the modes.</summary>
+        public void SettingsBack()
+        {
+            if (Page == null) { Open(Screen.Modes, SettingsTile); return; }
+            int at = Array.IndexOf(Pages, Page);
+            Page = null;
+            Focus = at;
+        }
+
+        /// <summary>Back to the settings' page `page`, on row `row` (from the name or the keys screen).</summary>
+        public void OpenPage(string page, int row)
+        {
+            Open(Screen.Settings, row);
+            Page = page;
+        }
+
         public List<MenuRow> SettingsRows()
         {
-            var d = Field.Difficulties[Difficulty];
-            bool walk = PlayerPrefs.GetInt("gridWalk", 1) != 0;
-            var rows = new List<MenuRow>
+            var rows = new List<MenuRow>();
+            if (Page == null)
             {
-                new MenuRow { Label = "DIFFICULTY", Value = d.Name, About = (d.About ?? "").ToUpperInvariant(), Left = () => Difficulty = (Difficulty + Field.Difficulties.Length - 1) % Field.Difficulties.Length, Right = () => Difficulty = (Difficulty + 1) % Field.Difficulties.Length },
-                new MenuRow { Label = "GRID WALK", Value = walk ? "ON" : "SKIP", About = walk ? "THE CAMERA DOWN THE GRID BEFORE THE LIGHTS" : "STRAIGHT TO THE START LIGHTS", Left = ToggleWalk, Right = ToggleWalk },
-                new MenuRow { Label = "UI SCALE", Value = HudView.UiScale == 0 ? "AUTO" : $"{Mathf.RoundToInt(HudView.UiScale * 100)}%", About = "THE HUD AND THE TABLES: AUTO FITS THE WINDOW", Left = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), -1), Right = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), 1) },
-                new MenuRow { Label = "MINIMAP", Value = HudView.MapScale < 1.25f ? "SMALL" : HudView.MapScale < 1.75f ? "LARGE" : "HUGE", About = "THE MAP AND THE TIMING TOWER, TOP RIGHT", Left = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), -1), Right = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), 1) },
-                new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } },
-                new MenuRow { Label = "SOUND", Value = SoundOut.VolumeName(SoundOut.SoundVolume), About = SoundOut.SoundVolume > 0 ? "ENGINES, TYRES, CRASHES, LIGHTS" : "SILENCE", Left = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, -1), Right = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, 1) },
-                new MenuRow { Label = "MUSIC", Value = SoundOut.VolumeName(SoundOut.MusicVolume), About = SoundOut.MusicVolume > 0 ? "MENU AND RACE TRACKS" : "SILENCE", Left = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, -1), Right = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, 1) },
-                // (the touch screen's: how the thumb drives, and which side the stick sits; the web game's settings.driving and stick side)
-                new MenuRow { Label = "DRIVING", Value = DrivingNames[(int)TouchDeck.Style], About = DrivingAbout[(int)TouchDeck.Style], Left = () => TurnDriving(-1), Right = () => TurnDriving(1) },
-                new MenuRow { Label = "STICK", Value = TouchDeck.StickRight ? "RIGHT" : "LEFT", About = TouchDeck.StickRight ? "THUMBSTICK RIGHT · A AND B LEFT" : "THUMBSTICK LEFT · A AND B RIGHT", Left = () => TouchDeck.StickRight = !TouchDeck.StickRight, Right = () => TouchDeck.StickRight = !TouchDeck.StickRight },
-            };
-            if (Backend.Online)
-            {
-                rows.Add(new MenuRow { Label = "STATS", Value = Profile.StatsOn ? "SHARE" : "OFF", About = Profile.StatsOn ? "ANONYMOUS PLAY COUNTS, TO IMPROVE THE GAME" : "NOTHING SENT", Left = ToggleStats, Right = ToggleStats });
-                rows.Add(new MenuRow { Label = "PLAYER ID", Value = Profile.PlayerId.Substring(0, 8).ToUpperInvariant(), About = "QUOTE IT TO HAVE YOUR ENTRIES REMOVED" });
+                for (int i = 0; i < Pages.Length; i++)
+                {
+                    string page = Pages[i];
+                    rows.Add(new MenuRow { Label = PageNames[i], About = PageAbout[i], Button = true, Pick = () => { Page = page; Focus = 0; } });
+                }
+                rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = SettingsBack });
+                return rows;
             }
-            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => Open(Screen.Modes, SettingsTile) });
+            switch (Page)
+            {
+                case "controls":
+                    rows.Add(new MenuRow { Label = "KEYS", Value = "CHANGE", About = "THE KEYS AND PAD BUTTONS YOU DRIVE WITH", Pick = () => { Open(Screen.Keys); Listening = -1; } });
+                    // (the touch screen's: how the thumb drives, and which side the stick sits; the web game's settings.driving and stick side)
+                    rows.Add(new MenuRow { Label = "DRIVING", Value = DrivingNames[(int)TouchDeck.Style], About = DrivingAbout[(int)TouchDeck.Style], Left = () => TurnDriving(-1), Right = () => TurnDriving(1) });
+                    rows.Add(new MenuRow { Label = "STICK", Value = TouchDeck.StickRight ? "RIGHT" : "LEFT", About = TouchDeck.StickRight ? "THUMBSTICK RIGHT · A AND B LEFT" : "THUMBSTICK LEFT · A AND B RIGHT", Left = () => TouchDeck.StickRight = !TouchDeck.StickRight, Right = () => TouchDeck.StickRight = !TouchDeck.StickRight });
+                    rows.Add(new MenuRow { Label = "VIBRATION", Value = Options.Vibration ? "ON" : "OFF", About = Options.Vibration ? "CRASHES, GRASS, KERBS: THE PAD OR THE PHONE" : "NO BUZZING", Left = ToggleVibration, Right = ToggleVibration });
+                    break;
+                case "game":
+                    {
+                        var d = Field.Difficulties[Difficulty];
+                        bool walk = PlayerPrefs.GetInt("gridWalk", 1) != 0;
+                        var g = Options.Graphics;
+                        rows.Add(new MenuRow { Label = "DIFFICULTY", Value = d.Name, About = (d.About ?? "").ToUpperInvariant(), Left = () => Difficulty = (Difficulty + Field.Difficulties.Length - 1) % Field.Difficulties.Length, Right = () => Difficulty = (Difficulty + 1) % Field.Difficulties.Length });
+                        rows.Add(new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } });
+                        rows.Add(new MenuRow { Label = "GRAPHICS", Value = GraphicsNames[(int)g], About = GraphicsAbout[(int)g], Left = () => Options.Graphics = (GraphicsSetting)(((int)g + 3) % 4), Right = () => Options.Graphics = (GraphicsSetting)(((int)g + 1) % 4) });
+                        rows.Add(new MenuRow { Label = "GRID WALK", Value = walk ? "ON" : "SKIP", About = walk ? "THE CAMERA DOWN THE GRID BEFORE THE LIGHTS" : "STRAIGHT TO THE START LIGHTS", Left = ToggleWalk, Right = ToggleWalk });
+                        rows.Add(new MenuRow { Label = "UI SCALE", Value = HudView.UiScale == 0 ? "AUTO" : $"{Mathf.RoundToInt(HudView.UiScale * 100)}%", About = "THE HUD AND THE TABLES: AUTO FITS THE WINDOW", Left = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), -1), Right = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), 1) });
+                        rows.Add(new MenuRow { Label = "MINIMAP", Value = HudView.MapScale < 1.25f ? "SMALL" : HudView.MapScale < 1.75f ? "LARGE" : "HUGE", About = "THE MAP AND THE TIMING TOWER, TOP RIGHT", Left = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), -1), Right = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), 1) });
+                        break;
+                    }
+                case "sound":
+                    rows.Add(new MenuRow { Label = "SOUND", Value = SoundOut.VolumeName(SoundOut.SoundVolume), About = SoundOut.SoundVolume > 0 ? "ENGINES, TYRES, CRASHES, LIGHTS" : "SILENCE", Left = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, -1), Right = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, 1) });
+                    rows.Add(new MenuRow { Label = "MUSIC", Value = SoundOut.VolumeName(SoundOut.MusicVolume), About = SoundOut.MusicVolume > 0 ? "MENU AND RACE TRACKS" : "SILENCE", Left = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, -1), Right = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, 1) });
+                    break;
+                case "access":
+                    {
+                        var m = Options.Motion;
+                        rows.Add(new MenuRow { Label = "TEXT", Value = Options.LargeText ? "LARGE" : "NORMAL", About = Options.LargeText ? "MENUS AND MESSAGES A SIZE UP" : "THE STANDARD SIZE", Left = ToggleText, Right = ToggleText });
+                        rows.Add(new MenuRow { Label = "COLOURS", Value = Options.ColourSafe ? "COLOUR-SAFE" : "STANDARD", About = Options.ColourSafe ? "SPLITS IN BLUE, WHITE, ORANGE, AND IN WORDS" : "SPLITS IN PURPLE, GREEN, AMBER", Left = ToggleColours, Right = ToggleColours });
+                        rows.Add(new MenuRow { Label = "MOTION", Value = MotionNames[(int)m], About = MotionAbout[(int)m], Left = () => Options.Motion = (MotionSetting)(((int)m + 2) % 3), Right = () => Options.Motion = (MotionSetting)(((int)m + 1) % 3) });
+                        rows.Add(new MenuRow { Label = "SCREEN SHAKE", Value = Options.Shake ? "ON" : "OFF", About = Options.Shake ? "CRASHES, KERBS AND GRASS SHAKE THE CAMERA" : "THE CAMERA STAYS STILL", Left = ToggleShake, Right = ToggleShake });
+                        break;
+                    }
+                case "privacy":
+                    rows.Add(new MenuRow { Label = "PRIVACY", Value = "OPEN", About = "WHAT THE GAME KEEPS, AND WHAT IT SENDS", Pick = () => Application.OpenURL(PrivacyUrl) });
+                    rows.Add(new MenuRow { Label = "TERMS", Value = "OPEN", About = "THE RULES OF PLAYING AND OF THE BOARDS", Pick = () => Application.OpenURL(TermsUrl) });
+                    if (Backend.Online)
+                    {
+                        rows.Add(new MenuRow { Label = "STATS", Value = Profile.StatsOn ? "SHARE" : "OFF", About = Profile.StatsOn ? "ANONYMOUS PLAY COUNTS, TO IMPROVE THE GAME" : "NOTHING SENT", Left = ToggleStats, Right = ToggleStats });
+                        rows.Add(new MenuRow { Label = "PLAYER ID", Value = Profile.PlayerId.Substring(0, 8).ToUpperInvariant(), About = "PICK IT TO COPY IT: QUOTE IT TO HAVE YOUR ENTRIES REMOVED", Pick = () => GUIUtility.systemCopyBuffer = Profile.PlayerId });
+                    }
+                    break;
+            }
+            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = SettingsBack });
             return rows;
+        }
+
+        static readonly string[] GraphicsNames = { "AUTO", "HIGH", "LOW", "BATTERY SAVER" };
+        static readonly string[] GraphicsAbout = { "STEPS DOWN BY ITSELF IF THE DEVICE STRUGGLES", "THE BEST PICTURE, HOWEVER THE DEVICE COPES", "A PLAINER PICTURE, SMOOTHER ON AN OLDER DEVICE", "A PLAINER PICTURE AT 30 FRAMES A SECOND" };
+        static readonly string[] MotionNames = { "AUTO", "REDUCED", "FULL" };
+        static readonly string[] MotionAbout = { "FOLLOWS THE DEVICE'S REDUCE-MOTION SETTING", "LESS MOVEMENT, WHATEVER THE DEVICE SAYS", "ALL THE MOVEMENT, WHATEVER THE DEVICE SAYS" };
+        static void ToggleVibration()
+        {
+            Options.Vibration = !Options.Vibration;
+            // (a buzz to feel it's on)
+            Haptics.Vibrate(40, Gamepad.current != null ? InputSource.Gamepad : InputSource.Touch);
+        }
+        static void ToggleText() => Options.LargeText = !Options.LargeText;
+        static void ToggleColours() => Options.ColourSafe = !Options.ColourSafe;
+        static void ToggleShake() => Options.Shake = !Options.Shake;
+
+        // ---- the keys (GameInput.Binds) ----
+
+        /// <summary>the control waiting for a new key or button (-1: none), and whether on a pad</summary>
+        public int Listening = -1;
+        public bool ListenPad;
+        public float ListenSince;
+
+        public List<MenuRow> KeyRows(GameInput input)
+        {
+            var rows = new List<MenuRow>();
+            for (int i = 0; i < input.Binds.Length; i++)
+            {
+                var b = input.Binds[i];
+                int at = i;
+                bool waiting = Listening == i;
+                string value = waiting ? (ListenPad ? "PRESS A BUTTON" : "PRESS A KEY") : GameInput.Label(b.KeyPath) + (b.PadIndex >= 0 ? "  ·  " + GameInput.Label(b.PadPath) : "");
+                string about = waiting ? (ListenPad ? "START KEEPS IT" : "ESC KEEPS IT") : b.PadIndex >= 0 ? "KEY · PAD BUTTON: PICK WITH THE ONE TO CHANGE" : "KEY: PICK IT TO CHANGE IT";
+                rows.Add(new MenuRow { Label = b.Name, Value = value, About = about, Pick = () => Listen(at, input.Source == InputSource.Gamepad && input.Binds[at].PadIndex >= 0) });
+            }
+            rows.Add(new MenuRow { Label = "RESET ALL", Button = true, Pick = () => input.ResetBinds() });
+            rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => OpenPage("controls", KeysRow) });
+            return rows;
+        }
+
+        void Listen(int i, bool pad)
+        {
+            Listening = i;
+            ListenPad = pad;
+            ListenSince = Time.unscaledTime;
         }
 
         static void ToggleWalk() => PlayerPrefs.SetInt("gridWalk", PlayerPrefs.GetInt("gridWalk", 1) != 0 ? 0 : 1);

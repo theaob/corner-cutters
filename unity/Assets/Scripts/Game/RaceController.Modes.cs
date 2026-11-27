@@ -95,8 +95,11 @@ namespace CornerCutters.Game
 
         string GhostKey => $"ghost.{circuit.id}.{WeatherLooks.Name(weatherChoice)}";
 
-        static readonly Color SplitRecord = TrackView.Hex(0xb36bff), SplitBetter = TrackView.Hex(0x5fe0d0), SplitWorse = TrackView.Hex(0xf2c14e);
-        static Color SplitColor(SplitMark m) => m == SplitMark.Record ? SplitRecord : m == SplitMark.Better ? SplitBetter : SplitWorse;
+        // (the splits' colours as COLOURS says: purple, green, amber, or colour-safe blue, white, orange and in words too)
+        static Color SplitRecord => Options.SplitColor(SplitMark.Record);
+        static Color SplitBetter => Options.SplitColor(SplitMark.Better);
+        static Color SplitWorse => Options.SplitColor(SplitMark.Worse);
+        static Color SplitColor(SplitMark m) => Options.SplitColor(m);
         static string Signed(double d) => $"{(d < 0 ? "-" : "+")}{System.Math.Abs(d):0.00}";
 
         /// <summary>A Time Trial: you on your own, on the run-up to your first flying lap, your record lap's ghost to chase.</summary>
@@ -146,7 +149,7 @@ namespace CornerCutters.Game
                 {
                     int k = p.Sector - 1;
                     var mark = Splits.Mark(t, k, trial.Best ?? trial.Record, trial.Record, out var delta);
-                    Notice($"S{k + 1} {Results.FormatTime(t)}{(delta.HasValue ? " · " + Signed(delta.Value) : "")}", SplitColor(mark), 2);
+                    Notice($"S{k + 1} {Results.FormatTime(t)}{(delta.HasValue ? " · " + Signed(delta.Value) : "")}{Options.SplitWord(mark)}", SplitColor(mark), 2);
                 }
             }
             trial.Rec.Frame(t, me.Car, p.Idx);

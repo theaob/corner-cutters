@@ -17,6 +17,8 @@ namespace CornerCutters.Game
         public static Vector4 Light = new Vector4(0.8375f, 0.7537f, 0.7039f, 0);
         /// <summary>the glow's strength (UnrealBloomPass: 0.35 by day, 0.7 at night)</summary>
         public static float Bloom = 0.35f;
+        /// <summary>the picture's quality level (Picture.cs): the glow, the tilt-shift's blur, and every pass at half the screen's size</summary>
+        public static bool BloomOn = true, BlurOn = true, HalfSize;
         Material mat;
 
         void OnEnable()
@@ -31,7 +33,8 @@ namespace CornerCutters.Game
         void OnRenderImage(RenderTexture src, RenderTexture dst)
         {
             if (mat == null) { Graphics.Blit(src, dst); return; }
-            int W = src.width, H = src.height;
+            // (a lower quality level: every pass at half size, the last stretched over the screen)
+            int W = HalfSize ? Mathf.Max(1, src.width / 2) : src.width, H = HalfSize ? Mathf.Max(1, src.height / 2) : src.height;
             var temps = new System.Collections.Generic.List<RenderTexture>();
             RenderTexture Temp(int w, int h)
             {
@@ -46,27 +49,42 @@ namespace CornerCutters.Game
             var lit = Temp(W, H);
             Graphics.Blit(src, lit, mat, 2);
 
-            // the glow: the bright parts, then five mips, each blurred from the last at half its size
-            var bright = Temp(W, H);
-            Graphics.Blit(lit, bright, mat, 3);
-            RenderTexture input = bright;
-            int mw = Mathf.RoundToInt(W / 2f), mh = Mathf.RoundToInt(H / 2f);
-            for (int i = 0; i < Kernels.Length; i++)
+            // the glow: the bright parts, then five mips, each blurred from the last at half its size (none at a lower level)
+            var glowed = lit;
+            if (BloomOn)
             {
-                var across = Temp(mw, mh);
-                var down = Temp(mw, mh);
-                mat.SetFloat("_Radius", Kernels[i]);
-                mat.SetVector("_Dir", new Vector4(1, 0, 0, 0));
-                Graphics.Blit(input, across, mat, 4);
-                mat.SetVector("_Dir", new Vector4(0, 1, 0, 0));
-                Graphics.Blit(across, down, mat, 4);
-                mat.SetTexture("_Bloom" + i, down);
-                input = down;
-                mw = Mathf.RoundToInt(mw / 2f); mh = Mathf.RoundToInt(mh / 2f);
+                var bright = Temp(W, H);
+                Graphics.Blit(lit, bright, mat, 3);
+                RenderTexture input = bright;
+                int mw = Mathf.RoundToInt(W / 2f), mh = Mathf.RoundToInt(H / 2f);
+                for (int i = 0; i < Kernels.Length; i++)
+                {
+                    var across = Temp(mw, mh);
+                    var down = Temp(mw, mh);
+                    mat.SetFloat("_Radius", Kernels[i]);
+                    mat.SetVector("_Dir", new Vector4(1, 0, 0, 0));
+                    Graphics.Blit(input, across, mat, 4);
+                    mat.SetVector("_Dir", new Vector4(0, 1, 0, 0));
+                    Graphics.Blit(across, down, mat, 4);
+                    mat.SetTexture("_Bloom" + i, down);
+                    input = down;
+                    mw = Mathf.RoundToInt(mw / 2f); mh = Mathf.RoundToInt(mh / 2f);
+                }
+                glowed = Temp(W, H);
+                mat.SetFloat("_BloomStrength", Bloom);
+                Graphics.Blit(lit, glowed, mat, 5);
             }
-            var glowed = Temp(W, H);
-            mat.SetFloat("_BloomStrength", Bloom);
-            Graphics.Blit(lit, glowed, mat, 5);
+
+            // (no blur at a lower level: the grade alone, over the sharp picture)
+            if (!BlurOn)
+            {
+                mat.SetVector("_Res", new Vector4(W, H, 0, 0));
+                mat.SetFloat("_Amount", 0);
+                mat.SetTexture("_Sharp", glowed);
+                Graphics.Blit(glowed, dst, mat, 1);
+                foreach (var t in temps) RenderTexture.ReleaseTemporary(t);
+                return;
+            }
 
             // the tilt-shift: three blurs at half size, the last at full size over the sharp picture, then the grade
             var a = Temp(W / 2, H / 2);

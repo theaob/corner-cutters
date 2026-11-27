@@ -14,6 +14,7 @@ namespace CornerCutters.Game
         {
             if (!d.Shown) return;
             k = UiK();
+            ts = 1;
             if (d.Driving && !d.Steering)
             {
                 // the thumbstick: its well, the four ticks, the knob following the thumb

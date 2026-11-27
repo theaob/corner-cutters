@@ -55,6 +55,7 @@ static class Program
         RaceSoundModels(root);
         SynthSounds();
         TouchControls(root);
+        FeelChecks(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -498,6 +499,79 @@ static class Program
     }
 
     /// <summary>The touch deck against the web game's: the thumbstick, the floating stick, the slider, the deck's labels.</summary>
+    static void FeelChecks(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/feel.json"))).RootElement;
+        var sh = g.GetProperty("shake");
+        Check(Shake.PerHealth == sh.GetProperty("perHealth").GetDouble() && Shake.HitFloor == sh.GetProperty("hitFloor").GetDouble() && Shake.Decay == sh.GetProperty("decay").GetDouble()
+            && Shake.Most == sh.GetProperty("most").GetDouble() && Shake.BigHit == sh.GetProperty("bigHit").GetDouble() && Shake.HoldFor == sh.GetProperty("hold").GetDouble() && Shake.Crawl == sh.GetProperty("crawl").GetDouble(), "feel: shake constants");
+        var ru = g.GetProperty("rumble");
+        Check(Rumble.Wreck == ru.GetProperty("wreck").GetDouble() && Rumble.HitMost == ru.GetProperty("hitMost").GetDouble() && Rumble.RoughEvery == ru.GetProperty("roughEvery").GetDouble() && Rumble.KerbMs == ru.GetProperty("kerbMs").GetDouble(), "feel: rumble constants");
+        var zo = g.GetProperty("zoomOut");
+        Check(Shake.ZoomFrom == zo.GetProperty("from").GetDouble() && Shake.ZoomPullBack == zo.GetProperty("pullBack").GetDouble() && Shake.ZoomCalm == zo.GetProperty("calm").GetDouble(), "feel: zoom constants");
+        int frames = 0;
+        foreach (var run in g.GetProperty("runs").EnumerateArray())
+        {
+            var s = new ShakeState();
+            var r = new RumbleState();
+            foreach (var f in run.EnumerateArray())
+            {
+                var v = Enumerable.Range(0, 15).Select(i => f[i].GetDouble()).ToArray();
+                var frame = new FeelFrame { Dt = v[0], Speed = v[1], TopSpeed = v[2], HealthLost = v[3], WreckedNow = v[4] != 0, Landed = v[5], OnRough = v[6] != 0, OnKerb = v[7] != 0 };
+                double ms = Rumble.Step(r, frame);
+                Shake.Step(s, frame);
+                var o = Shake.Offset(s);
+                Check(Near(ms, v[8]) && Near(s.Trauma, v[9]) && Near(s.T, v[10]) && Near(s.Hold, v[11]) && Near(o.X, v[12]) && Near(o.Y, v[13]) && Shake.TimeScale(s) == v[14], $"feel: frame {frames}");
+                frames++;
+            }
+        }
+        foreach (var z in g.GetProperty("zooms").EnumerateArray()) Check(Near(Shake.ZoomOf(z[0].GetDouble(), z[1].GetDouble()), z[2].GetDouble()), $"zoom at {z[0]}");
+        var levels = g.GetProperty("levels");
+        Check(levels.GetArrayLength() == QualityGovernor.Levels.Length, "quality: as many levels");
+        for (int i = 0; i < QualityGovernor.Levels.Length; i++)
+        {
+            var l = levels[i];
+            var q = QualityGovernor.Levels[i];
+            Check(q.Name == l.GetProperty("name").GetString() && q.Res == l.GetProperty("res").GetInt32() && q.Bloom == l.GetProperty("bloom").GetBoolean() && q.Blur == l.GetProperty("blur").GetBoolean() && q.ShadowMap == l.GetProperty("shadowMap").GetInt32(), $"quality level {q.Name}");
+        }
+        var gp = g.GetProperty("governor");
+        Check(QualityGovernor.SlowMs == gp.GetProperty("slowMs").GetDouble() && QualityGovernor.Patience == gp.GetProperty("patience").GetDouble() && QualityGovernor.Warmup == gp.GetProperty("warmup").GetDouble()
+            && QualityGovernor.Judge == gp.GetProperty("judge").GetDouble() && QualityGovernor.Gain == gp.GetProperty("gain").GetDouble(), "quality: governor constants");
+        int traces = 0;
+        foreach (var t in g.GetProperty("governors").EnumerateArray())
+        {
+            var st = t.GetProperty("start");
+            var gov = st.ValueKind == JsonValueKind.Null ? new QualityGovernor() : new QualityGovernor(st.GetProperty("level").GetInt32(), st.GetProperty("locked").GetBoolean());
+            int k = 0;
+            foreach (var f in t.GetProperty("trace").EnumerateArray())
+            {
+                int level = gov.Sample(f[0].GetDouble());
+                Check(level == f[1].GetInt32() && gov.Locked == (f[2].GetInt32() != 0), $"governor trace {traces} frame {k}");
+                k++;
+            }
+            traces++;
+        }
+        double now = g.GetProperty("now").GetDouble();
+        foreach (var kq in g.GetProperty("kept").EnumerateArray())
+        {
+            bool ok = QualityGovernor.Kept(kq[0].GetInt32(), kq[1].GetInt32() != 0, kq[2].GetDouble(), kq[3].GetString(), now, "v1", out int lv, out bool lk);
+            Check(ok ? lv == kq[4].GetInt32() && (lk ? 1 : 0) == kq[5].GetInt32() : kq[4].GetInt32() == -1, $"kept quality {kq[0]} at {kq[2]}");
+        }
+        var settings = new Dictionary<string, GraphicsSetting> { ["auto"] = GraphicsSetting.Auto, ["high"] = GraphicsSetting.High, ["low"] = GraphicsSetting.Low, ["saver"] = GraphicsSetting.Saver };
+        foreach (var gs in g.GetProperty("graphics").EnumerateArray())
+        {
+            var set = settings[gs[0].GetString()];
+            Check(QualityGovernor.HeldLevel(set) == gs[1].GetInt32() && QualityGovernor.FrameCap(set) == gs[2].GetInt32(), $"graphics {gs[0]}");
+        }
+        var marks = new Dictionary<string, SplitMark> { ["record"] = SplitMark.Record, ["better"] = SplitMark.Better, ["worse"] = SplitMark.Worse };
+        foreach (var sp in g.GetProperty("splits").EnumerateArray())
+        {
+            var m = marks[sp[0].GetString()];
+            Check(Access.SplitColor(m, false) == Convert.ToInt32(sp[1].GetString().Substring(1), 16) && Access.SplitColor(m, true) == Convert.ToInt32(sp[2].GetString().Substring(1), 16), $"split colour {sp[0]}");
+        }
+        Console.WriteLine($"feel: {frames} frames, {traces} governor traces");
+    }
+
     static void TouchControls(string root)
     {
         var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/touch.json"))).RootElement;

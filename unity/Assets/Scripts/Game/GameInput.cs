@@ -1,5 +1,6 @@
 // The new controls, on Unity's Input System. Defined in code (no .inputactions asset to merge or lose) so a binding is a
-// one-line change and a rebinding screen can later override them with InputAction.PerformInteractiveRebinding.
+// one-line change; the KEYS screen in the settings rebinds the driving keys and pad buttons (binding overrides, kept on
+// the device: PlayerPrefs keys.*).
 //
 // Design (see unity/README.md, "Controls"):
 //  * Keyboard: W/Up gas, S/Down brake and reverse, A/D or Left/Right steer, Space or Shift drift. The wheel is eased
@@ -107,6 +108,137 @@ namespace CornerCutters.Game
             weather.AddBinding("<Keyboard>/f");
             weather.AddBinding("<Gamepad>/select");
             all = new[] { steerKeys, gasKey, brakeKey, drift, pause, restart, nextCircuit, prevCircuit, camera, accept, weather };
+            Binds = new[]
+            {
+                new Bind("STEER LEFT", steerKeys, 1, "<Keyboard>/a", -1, null),
+                new Bind("STEER RIGHT", steerKeys, 2, "<Keyboard>/d", -1, null),
+                new Bind("GAS", gasKey, 0, "<Keyboard>/w", -1, null),
+                new Bind("BRAKE", brakeKey, 0, "<Keyboard>/s", -1, null),
+                new Bind("DRIFT", drift, 0, "<Keyboard>/space", 3, "<Gamepad>/buttonSouth"),
+                new Bind("RESTART", restart, 0, "<Keyboard>/r", 1, "<Gamepad>/buttonNorth"),
+                new Bind("CAMERA", camera, 0, "<Keyboard>/c", 1, "<Gamepad>/buttonEast"),
+                new Bind("WEATHER", weather, 0, "<Keyboard>/f", 1, "<Gamepad>/select"),
+            };
+            for (int i = 0; i < Binds.Length; i++)
+            {
+                var b = Binds[i];
+                b.KeyPath = PlayerPrefs.GetString($"keys.{i}.key", b.KeyDefault);
+                if (b.KeyPath != b.KeyDefault) b.Action.ApplyBindingOverride(b.KeyIndex, b.KeyPath);
+                if (b.PadIndex < 0) continue;
+                b.PadPath = PlayerPrefs.GetString($"keys.{i}.pad", b.PadDefault);
+                if (b.PadPath != b.PadDefault) b.Action.ApplyBindingOverride(b.PadIndex, b.PadPath);
+            }
+        }
+
+        // ---- rebinding (the settings' KEYS screen) ----
+
+        /// <summary>A control that can be rebound: its name, its action, and the binding of it on the keys and (some) on a pad.</summary>
+        public sealed class Bind
+        {
+            public readonly string Name, KeyDefault, PadDefault;
+            public readonly InputAction Action;
+            public readonly int KeyIndex, PadIndex;
+            public string KeyPath, PadPath;
+            public Bind(string name, InputAction action, int keyIndex, string keyDefault, int padIndex, string padDefault)
+            {
+                Name = name; Action = action; KeyIndex = keyIndex; KeyDefault = keyDefault; PadIndex = padIndex; PadDefault = padDefault;
+                KeyPath = keyDefault; PadPath = padDefault;
+            }
+        }
+
+        public readonly Bind[] Binds;
+
+        /// <summary>the pad's buttons a control can go on (the d-pad and START stay the menus' and pause's), as paths and as their names</summary>
+        static readonly (string path, string label, System.Func<Gamepad, bool> pressed, System.Func<Gamepad, bool> held)[] PadButtons =
+        {
+            ("<Gamepad>/buttonSouth", "A", g => g.buttonSouth.wasPressedThisFrame, g => g.buttonSouth.isPressed),
+            ("<Gamepad>/buttonEast", "B", g => g.buttonEast.wasPressedThisFrame, g => g.buttonEast.isPressed),
+            ("<Gamepad>/buttonWest", "X", g => g.buttonWest.wasPressedThisFrame, g => g.buttonWest.isPressed),
+            ("<Gamepad>/buttonNorth", "Y", g => g.buttonNorth.wasPressedThisFrame, g => g.buttonNorth.isPressed),
+            ("<Gamepad>/leftShoulder", "LB", g => g.leftShoulder.wasPressedThisFrame, g => g.leftShoulder.isPressed),
+            ("<Gamepad>/rightShoulder", "RB", g => g.rightShoulder.wasPressedThisFrame, g => g.rightShoulder.isPressed),
+            ("<Gamepad>/leftStickPress", "L3", g => g.leftStickButton.wasPressedThisFrame, g => g.leftStickButton.isPressed),
+            ("<Gamepad>/rightStickPress", "R3", g => g.rightStickButton.wasPressedThisFrame, g => g.rightStickButton.isPressed),
+            ("<Gamepad>/select", "SELECT", g => g.selectButton.wasPressedThisFrame, g => g.selectButton.isPressed),
+        };
+
+        /// <summary>A binding's path as a key cap: "&lt;Keyboard&gt;/leftShift" LEFT SHIFT, a pad's button by its name.</summary>
+        public static string Label(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return "-";
+            foreach (var b in PadButtons) if (b.path == path) return b.label;
+            string n = path.Substring(path.LastIndexOf('/') + 1);
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < n.Length; i++)
+            {
+                if (i > 0 && char.IsUpper(n[i]) && !char.IsUpper(n[i - 1])) sb.Append(' ');
+                sb.Append(char.ToUpperInvariant(n[i]));
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>Listening for a new key (or pad button): the one pressed this frame, if any. Esc (START on a pad) gives up.</summary>
+        public bool Listen(bool pad, out string path, out bool cancelled)
+        {
+            path = null;
+            cancelled = false;
+            if (pad)
+            {
+                var g = Gamepad.current;
+                if (g == null) return false;
+                if (g.startButton.wasPressedThisFrame) { cancelled = true; return false; }
+                foreach (var b in PadButtons) if (b.pressed(g)) { path = b.path; return true; }
+                return false;
+            }
+            var kb = Keyboard.current;
+            if (kb == null) return false;
+            if (kb.escapeKey.wasPressedThisFrame) { cancelled = true; return false; }
+            foreach (var key in kb.allKeys)
+                if (key != null && key.wasPressedThisFrame)
+                {
+                    // (Enter stays the menus'; P and Esc pause)
+                    if (key.name == "enter" || key.name == "numpadEnter" || key.name == "p") return false;
+                    path = "<Keyboard>/" + key.name;
+                    return true;
+                }
+            return false;
+        }
+
+        /// <summary>Put control i on `path` (a key, or a pad button), kept; a control already on it swaps to i's old one.</summary>
+        public void Rebind(int i, bool pad, string path)
+        {
+            var b = Binds[i];
+            string old = pad ? b.PadPath : b.KeyPath;
+            if (old == path) return;
+            for (int j = 0; j < Binds.Length; j++)
+            {
+                if (j == i) continue;
+                var o = Binds[j];
+                if (pad ? o.PadIndex >= 0 && o.PadPath == path : o.KeyPath == path) Set(j, pad, old);
+            }
+            Set(i, pad, path);
+        }
+
+        void Set(int i, bool pad, string path)
+        {
+            var b = Binds[i];
+            if (pad) b.PadPath = path; else b.KeyPath = path;
+            b.Action.ApplyBindingOverride(pad ? b.PadIndex : b.KeyIndex, path);
+            PlayerPrefs.SetString($"keys.{i}.{(pad ? "pad" : "key")}", path);
+        }
+
+        /// <summary>Every control back on its own keys and buttons.</summary>
+        public void ResetBinds()
+        {
+            for (int i = 0; i < Binds.Length; i++)
+            {
+                var b = Binds[i];
+                b.KeyPath = b.KeyDefault;
+                b.PadPath = b.PadDefault;
+                PlayerPrefs.DeleteKey($"keys.{i}.key");
+                PlayerPrefs.DeleteKey($"keys.{i}.pad");
+            }
+            foreach (var a in all) a.RemoveAllBindingOverrides();
         }
 
         public void Enable() { foreach (var a in all) a.Enable(); }
@@ -185,12 +317,25 @@ namespace CornerCutters.Game
             return buttons.Count > 0 || d.Turn != 0 || d.Gas > 0.05 || d.Brake > 0.05;
         }
 
-        static bool PadDrift(Gamepad g) => g != null && (g.buttonSouth.isPressed || g.buttonWest.isPressed);
+        /// <summary>A pad's drift: its DRIFT button (A unless rebound) or X.</summary>
+        bool PadDrift(Gamepad g)
+        {
+            if (g == null) return false;
+            if (g.buttonWest.isPressed) return true;
+            string path = Binds[4].PadPath;
+            foreach (var b in PadButtons) if (b.path == path) return b.held(g);
+            return false;
+        }
 
-        static bool KeyDrift()
+        /// <summary>The keys' drift: the DRIFT key (Space unless rebound) or a Shift.</summary>
+        bool KeyDrift()
         {
             var kb = Keyboard.current;
-            return kb != null && (kb.spaceKey.isPressed || kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed);
+            if (kb == null) return false;
+            if (kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed) return true;
+            string name = Binds[4].KeyPath.Substring(Binds[4].KeyPath.LastIndexOf('/') + 1);
+            foreach (var key in kb.allKeys) if (key != null && key.name == name) return key.isPressed;
+            return false;
         }
 
         /// <summary>The menus' steps: arrow keys or WASD, the d-pad, or the stick (stepping again while it's held).</summary>
@@ -242,8 +387,9 @@ namespace CornerCutters.Game
 
         public void ResetWheel() => smoother.Reset();
 
+        /// <summary>The keys along the bottom of the race, as they're bound now.</summary>
         public string Hints => Source == InputSource.Gamepad
-            ? "L-STICK steer   RT gas   LT brake / reverse   A drift   Y restart   START pause   LB/RB circuit   B camera   SELECT weather"
-            : "A/D steer   W gas   S brake / reverse   SPACE drift   R restart   ESC pause   [ ] circuit   C camera   F weather";
+            ? $"L-STICK steer   RT gas   LT brake / reverse   {Label(Binds[4].PadPath)} drift   {Label(Binds[5].PadPath)} restart   START pause   LB/RB circuit   {Label(Binds[6].PadPath)} camera   {Label(Binds[7].PadPath)} weather"
+            : $"{Label(Binds[0].KeyPath)}/{Label(Binds[1].KeyPath)} steer   {Label(Binds[2].KeyPath)} gas   {Label(Binds[3].KeyPath)} brake / reverse   {Label(Binds[4].KeyPath)} drift   {Label(Binds[5].KeyPath)} restart   ESC pause   [ ] circuit   {Label(Binds[6].KeyPath)} camera   {Label(Binds[7].KeyPath)} weather";
     }
 }

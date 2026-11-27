@@ -1,5 +1,6 @@
 // Cameras. Classic is the web game's: north up, a narrow lens (26 degrees) high up at a 52 degree pitch from the south,
-// looking a little ahead of the car, pulling back with speed. Chase sits behind the car; TopDown looks straight down.
+// looking a little ahead of the car, pulling back with speed and in a battle (PullBack), shaken by hits and rough
+// ground (Shake). Chase sits behind the car; TopDown looks straight down.
 using UnityEngine;
 
 namespace CornerCutters.Game
@@ -15,6 +16,11 @@ namespace CornerCutters.Game
         public CameraMode Mode = CameraMode.Classic;
         /// <summary>how much closer than the race's view the camera comes (the grid pan's 1.6)</summary>
         public float Zoom = 1;
+        /// <summary>the classic view's pull back (camera.ts: the speed zoom and a battle's, eased; 0.14 at top speed)</summary>
+        public float PullBack;
+        /// <summary>the shake (px across and up the view, the web game's: f1/shake.ts)</summary>
+        public Vector2 Shake;
+        Vector3 steady;
 
         // the web game's look (src/engine/look.ts HD2D_VIEW), distance chosen to frame the car as the web game does (about 13 units high)
         const float ClassicFov = 26f, ClassicPitch = 52f, ClassicDistance = 29f;
@@ -44,7 +50,7 @@ namespace CornerCutters.Game
             float fov;
             if (Mode == CameraMode.Classic)
             {
-                float d = ClassicDistance * (1f + 0.35f * speed01) / Zoom;
+                float d = ClassicDistance * (1f + PullBack) / Zoom;
                 float p = ClassicPitch * Mathf.Deg2Rad;
                 pos = focus + new Vector3(0, Mathf.Sin(p) * d, -Mathf.Cos(p) * d);
                 rot = Quaternion.LookRotation(focus - pos, Vector3.up);
@@ -65,8 +71,10 @@ namespace CornerCutters.Game
             }
             // (the modes switch by easing, the classic view follows exactly: it is already eased through the focus)
             float k = first ? 1f : (Mode == CameraMode.Classic ? 1f : 1f - Mathf.Exp(-14f * dt));
-            cam.transform.position = Vector3.Lerp(cam.transform.position, pos, k);
+            // (eased from where it was before the shake, then shaken across and up its own view)
+            steady = first ? pos : Vector3.Lerp(steady, pos, k);
             cam.transform.rotation = Quaternion.Slerp(cam.transform.rotation, rot, k);
+            cam.transform.position = steady + (cam.transform.right * Shake.x + cam.transform.up * Shake.y) * Units.PerPx;
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, first ? 1f : 1f - Mathf.Exp(-8f * dt));
         }
     }
