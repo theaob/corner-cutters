@@ -50,6 +50,7 @@ static class Program
         Petals(root);
         Seasons(root);
         MissionsAndLaunches(root);
+        KeptRaces(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -358,6 +359,62 @@ static class Program
     }
 
     /// <summary>Championship seasons and Time Trial's split marks (Core/Championship.cs, Ghost.cs) against the web game's (season.json).</summary>
+    /// <summary>A race kept (RaceSave) and picked up: built afresh from its seed, the state laid over it, it goes on as the
+    /// race it was (the AI's dice rolled afresh alike in both), car for car, step for step.</summary>
+    static void KeptRaces(string root)
+    {
+        var opts = new JsonSerializerOptions { IncludeFields = true };
+        foreach (var (id, seed, laps, weather) in new[] { ("crescent-park", 77u, 5, Weather.Dry), ("harbour", 1234u, 7, Weather.Wet), ("dust-bowl", 9u, 3, Weather.Damp) })
+        {
+            var circuit = JsonSerializer.Deserialize<CircuitData>(File.ReadAllText(Path.Combine(root, $"Assets/Resources/Circuits/{id}.json")), opts);
+            var grid = circuit.ToGrid();
+            var track = circuit.ToTrack();
+            Race Build()
+            {
+                var w = Field.DrawWeekend(seed, circuit.slots.Length, Field.Teams[0], Field.Normal);
+                var field = new List<FieldEntry>();
+                for (int k = 0; k < w.Drivers.Count; k++)
+                    field.Add(new FieldEntry { Car = new Car(CarClass.F1(), circuit.slots[k].x, circuit.slots[k].y, circuit.slots[k].heading), Ai = w.Drivers[k].Ai, Box = w.Drivers[k].Box });
+                return RaceControl.NewRace(track, grid, Field.Normal.Handling(), laps, field, w.LightsOut, circuit.ToPitLane(), weather, Forecast.Changeable(seed, 200));
+            }
+            DriveInput Player(Entrant e)
+            {
+                int idx = e.Progress.Idx, n = track.Count;
+                int t = (idx + 8 + (int)(Driving.SpeedOf(e.Car) / 40)) % n;
+                double want = Math.Atan2(track.X[t] - e.Car.X, -(track.Y[t] - e.Car.Y));
+                double turn = Math.Max(-1, Math.Min(1, Driving.AngleDiff(want, e.Car.Heading) * 2.2));
+                bool slow = Driving.SpeedOf(e.Car) > track.Speed[idx] * 0.85;
+                return Racing.WheelInput(new Racing.WheelPad { Turn = turn, Gas = slow ? 0 : 1, Brake = slow ? 0.6 : 0 }, e.Car);
+            }
+            var a = Build();
+            for (int i = 0; i < 60 * 70; i++) RaceControl.StepRace(a, 1.0 / 60, Player);
+            int you = a.Entrants.FindIndex(e => e.Ai == null);
+            var kept = new KeptRace { At = 1000, Circuit = id, Name = id, Mode = "race", Team = "milk-energy", Difficulty = "normal", Weather = "dry", Laps = laps, Seed = seed, Grid = Enumerable.Range(0, a.Entrants.Count).ToList(), You = you, State = RaceSave.Snapshot(a) };
+            string text = RaceSave.Write(kept);
+            var back = RaceSave.Parse(text, 2000);
+            Check(back != null && back.Seed == seed && back.You == you && back.Grid.Count == a.Entrants.Count, $"{id}: kept race read back");
+            Check(RaceSave.Parse(text, 1000 + RaceSave.MaxAge + 1) == null, $"{id}: a kept race too old is thrown away");
+            var b = Build();
+            Check(RaceSave.Restore(b, back.State, seed), $"{id}: laid over a fresh race");
+            // (the AI's dice afresh in the race that went on too, so both roll alike from here)
+            Check(RaceSave.Restore(a, RaceSave.Parse(text, 2000).State, seed), $"{id}: laid over itself");
+            Check(RaceSave.Write(new KeptRace { State = RaceSave.Snapshot(b) }) == RaceSave.Write(new KeptRace { State = RaceSave.Snapshot(a) }), $"{id}: the same state both ways");
+            int same = 0;
+            for (int i = 0; i < 60 * 60; i++)
+            {
+                RaceControl.StepRace(a, 1.0 / 60, Player);
+                RaceControl.StepRace(b, 1.0 / 60, Player);
+                bool ok = true;
+                for (int k = 0; k < a.Entrants.Count; k++)
+                    ok &= a.Entrants[k].Car.X == b.Entrants[k].Car.X && a.Entrants[k].Car.Y == b.Entrants[k].Car.Y && a.Entrants[k].Progress.Lap == b.Entrants[k].Progress.Lap && a.Entrants[k].Car.Health == b.Entrants[k].Car.Health;
+                if (ok) same++;
+            }
+            Check(same == 60 * 60, $"{id}: picked up, the race goes on as it was ({same} of {60 * 60} steps the same)");
+            Check(RaceSave.Restore(b, new Dictionary<string, object> { { "Entrants", new List<object>() } }, seed) == false, $"{id}: another field's state isn't laid over");
+            Console.WriteLine($"kept race {id}: {text.Length / 1024} kB, {back.LapLine()}, {same} steps the same after");
+        }
+    }
+
     static PlayEvent EventOf(JsonElement e)
     {
         string kind = e.GetProperty("kind").GetString();

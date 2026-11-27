@@ -34,7 +34,7 @@ namespace CornerCutters.Game
         public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season }
 
         /// <summary>What the menu wants done.</summary>
-        public enum Go { None, Play, Daily, Round, NewSeason }
+        public enum Go { None, Play, Daily, Round, NewSeason, Resume }
 
         public Screen At = Screen.Title;
         public int Focus;
@@ -102,7 +102,27 @@ namespace CornerCutters.Game
 
         public static readonly string[] Modes = { "daily", "race", "championship", "timeattack", "timetrial" };
         /// <summary>the tiles' places: the modes (Modes' order), then SETTINGS and SHOP</summary>
-        public const int SettingsTile = 5, ShopTile = 6;
+        public const int SettingsTile = 5, ShopTile = 6, ResumeTile = 7;
+        /// <summary>where the highlight starts on the modes: RESUME RACE if there's a race to go back to, else QUICK RACE</summary>
+        public int FirstTile => Kept != null ? ResumeTile : 1;
+
+        /// <summary>
+        /// the race kept on the device to go back to (raceSave.ts), if it's sound: not too old, and a Championship round's
+        /// still the season's next (else it's thrown away)
+        /// </summary>
+        public readonly KeptRace Kept = LoadKept();
+
+        static KeptRace LoadKept()
+        {
+            var k = RaceSave.Parse(PlayerPrefs.GetString("race.kept", ""), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            if (k != null && k.Mode == "championship")
+            {
+                var s = Championship.Parse(PlayerPrefs.GetString("season", ""));
+                if (s == null || s.Over || s.Round != k.Round || s.Rounds[s.Round] != k.Circuit) k = null;
+            }
+            if (k == null && PlayerPrefs.HasKey("race.kept")) PlayerPrefs.DeleteKey("race.kept");
+            return k;
+        }
         /// <summary>a mode's tile</summary>
         public static int TileOf(string mode) => Math.Max(1, Array.IndexOf(Modes, mode));
         /// <summary>a mode's name on its screen</summary>
@@ -123,7 +143,7 @@ namespace CornerCutters.Game
                 new MenuTile { Icon = "timetrial", Name = "TIME TRIAL", Line = "CHASE THE GHOST OF YOUR BEST LAP" },
                 new MenuTile { Icon = "settings", Name = "SETTINGS", Small = true },
                 new MenuTile { Icon = "shop", Name = "SHOP", Small = true },
-            };
+            }.Concat(Kept != null ? new[] { new MenuTile { Icon = "flag", Name = $"RESUME · {Kept.LapLine()}", Small = true } } : new MenuTile[0]).ToList();
         }
 
         /// <summary>A tile picked.</summary>
@@ -139,6 +159,7 @@ namespace CornerCutters.Game
             }
             else if (i == SettingsTile) Open(Screen.Settings);
             else if (i == ShopTile) Open(Screen.Shop);
+            else if (i == ResumeTile && Kept != null) Asked = Go.Resume;
         }
 
         /// <summary>The big tiles to a row (menuTiles.ts TILE_COLUMNS).</summary>
@@ -148,13 +169,13 @@ namespace CornerCutters.Game
         /// Where the highlight goes on the tiles: the five modes three to a row (menuTiles.ts gridStep: left and right along
         /// a row, wrapping; up and down a row), SETTINGS and SHOP small in a row of their own under them.
         /// </summary>
-        public static int TileStep(int at, int dx, int dy)
+        public static int TileStep(int at, int dx, int dy, int smalls = 2)
         {
             int bigs = Modes.Length;
             if (at >= bigs)
             {
                 // (the small row: along it, or up to the last row of modes)
-                if (dx != 0) return bigs + ((at - bigs + dx + 2) % 2);
+                if (dx != 0) return bigs + ((at - bigs + dx + smalls) % smalls);
                 if (dy < 0) return Math.Min(bigs - 1, (bigs - 1) / Columns * Columns + (at - bigs) * 2);
                 return at;
             }

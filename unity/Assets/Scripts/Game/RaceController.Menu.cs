@@ -23,6 +23,7 @@ namespace CornerCutters.Game
         void OpenMenu(Menu.Screen screen = Menu.Screen.Modes)
         {
             OneScreen();
+            DropOurs();
             menu = new Menu(ids, circuitIndex);
             menu.Open(screen, screen == Menu.Screen.Modes ? 1 : 0);
             menuT = 0;
@@ -48,10 +49,10 @@ namespace CornerCutters.Game
             switch (menu.At)
             {
                 case Menu.Screen.Title:
-                    if (input.AcceptPressed) menu.Open(Menu.Screen.Modes, 1);
+                    if (input.AcceptPressed) menu.Open(Menu.Screen.Modes, menu.FirstTile);
                     break;
                 case Menu.Screen.Modes:
-                    if (input.NavX != 0 || input.NavY != 0) menu.Focus = Menu.TileStep(menu.Focus, input.NavX, input.NavY);
+                    if (input.NavX != 0 || input.NavY != 0) menu.Focus = Menu.TileStep(menu.Focus, input.NavX, input.NavY, menu.Kept != null ? 3 : 2);
                     if (input.AcceptPressed) menu.PickTile(menu.Focus);
                     else if (input.BackPressed) menu.Open(Menu.Screen.Title);
                     break;
@@ -112,13 +113,26 @@ namespace CornerCutters.Game
             int at = menu.Circuit;
             playMode = go == Menu.Go.Round ? "championship" : menu.Mode;
             season = go == Menu.Go.Round ? menu.Season : null;
+            if (go == Menu.Go.Resume && menu.Kept != null)
+            {
+                // (the race kept on the device: its set-up, its weekend built again from its seed, then its state)
+                var k = resuming = menu.Kept;
+                playMode = k.Mode == "championship" ? "championship" : "race";
+                season = k.Mode == "championship" ? menu.Season : null;
+                team = Field.TeamById(k.Team) ?? team;
+                difficulty = Field.DifficultyById(k.Difficulty) ?? difficulty;
+                foreach (WeatherChoice w in System.Enum.GetValues(typeof(WeatherChoice))) if (WeatherLooks.Name(w) == k.Weather) weatherChoice = w;
+                laps = k.Laps;
+                twoPlayers = false;
+                at = IndexOf(k.Circuit);
+            }
             menu = null;
             daily = null;
             attack = null;
             attackTable = null;
             trial = null;
             if (go == Menu.Go.Daily) StartDaily();
-            else if (season != null) LoadCircuit(IndexOf(season.Rounds[season.Round]));
+            else if (season != null && resuming == null) LoadCircuit(IndexOf(season.Rounds[season.Round]));
             else LoadCircuit(at);
         }
 
@@ -141,7 +155,7 @@ namespace CornerCutters.Game
             switch (menu.At)
             {
                 case Menu.Screen.Title:
-                    if (hud.DrawTitle(menuT, src) && menuT > 0.3f) menu.Open(Menu.Screen.Modes, 1);
+                    if (hud.DrawTitle(menuT, src) && menuT > 0.3f) menu.Open(Menu.Screen.Modes, menu.FirstTile);
                     break;
                 case Menu.Screen.Modes:
                     {

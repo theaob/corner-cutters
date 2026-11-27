@@ -182,6 +182,7 @@ namespace CornerCutters.Game
             if (!finishNoted && session == Session.Race && race.Phase == RacePhase.Racing && (Me.Progress.Finished.HasValue || Me.Progress.Retired))
             {
                 finishNoted = true;
+                DropOurs();
                 int pos = RaceControl.Order(race).IndexOf(you) + 1;
                 PlayStats.Track("race_finish", circuit.id, StatsMode, data: new JsonObj { { "place", Me.Progress.Retired ? (object)null : pos }, { "field", race.Entrants.Count }, { "laps", race.Laps } });
                 NoteDriven();
@@ -205,6 +206,7 @@ namespace CornerCutters.Game
 
         void Away()
         {
+            KeepNow();
             NoteDriven();
             PlayStats.Away();
         }
@@ -283,7 +285,7 @@ namespace CornerCutters.Game
         {
             if (!SeasonWeekend())
             {
-                seed = (uint)Random.Range(1, int.MaxValue);
+                seed = resuming?.Seed ?? (uint)Random.Range(1, int.MaxValue);
                 weekend = Field.DrawWeekend(seed, circuit.slots.Length, team, difficulty);
                 // (a changeable weekend's forecast timed to the race: its laps at a typical pace)
                 double raceSeconds = laps * track.Length / 300;
@@ -294,7 +296,8 @@ namespace CornerCutters.Game
             // (a bigger pool of puffs in the wet, and on dirt: every car throws up spray, or mud)
             particles.Resize(forecast.Start > 0 || weatherChoice != WeatherChoice.Dry || track.Dirt ? 220 : 90);
             trial = null;
-            if (daily.HasValue || attackMode) StartAttack();
+            if (resuming != null) ResumeRace();
+            else if (daily.HasValue || attackMode) StartAttack();
             else if (season == null && playMode == "timetrial") StartTrial();
             else if (qualifying && !TwoUp) StartQualifying();
             else StartRace(null);
@@ -306,6 +309,7 @@ namespace CornerCutters.Game
         /// <summary>The session again: qualifying from the run-up, or the race from the same grid.</summary>
         void Restart()
         {
+            DropOurs();
             if (session == Session.Race) StartRace(driverOf);
             else if (session == Session.Attack || session == Session.AttackOver) StartAttack();
             else if (session == Session.Trial) StartTrial();
@@ -471,7 +475,12 @@ namespace CornerCutters.Game
             else if (!paused) pauseFocus = 0;
             // (picking your initials, the keys type them: only the pause screen's buttons close it)
             bool typing = nameEdit != null && paused;
-            if (input.PausePressed && !typing) paused = !paused;
+            if (input.PausePressed && !typing)
+            {
+                paused = !paused;
+                // (paused: the race kept on the device, to come back to if the game's closed now)
+                if (paused) KeepNow();
+            }
             if (input.RestartPressed && !typing) Restart();
             if (input.CircuitStep != 0 && !typing && season == null) { daily = null; LoadCircuit(circuitIndex + input.CircuitStep); }
             if (input.WeatherPressed && !typing && !daily.HasValue && season == null) NextWeather();
@@ -622,6 +631,7 @@ namespace CornerCutters.Game
                 if (session != Session.QualiOver && (double.IsNaN(bestLap) || t < bestLap)) bestLap = t;
                 if (session == Session.Race && (double.IsNaN(record) || t < record)) { record = t; newLapRecord = true; PlayerPrefs.SetFloat("rec." + circuit.id, (float)t); }
                 if (session == Session.Race) Play(new PlayEvent { Kind = PlayKind.Lap });
+                if (session == Session.Race) KeepNow();
             }
             if (Me.Car.Health < healthBefore) scratched = true;
             for (int k = 0; k < result.Cars.Length && k < landed.Length; k++)
