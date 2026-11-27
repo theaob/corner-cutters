@@ -326,9 +326,9 @@ namespace CornerCutters.Game
         public string Page;
         public static readonly string[] Pages = { "controls", "game", "sound", "access", "privacy" };
         static readonly string[] PageNames = { "CONTROLS", "GAME", "SOUND", "ACCESSIBILITY", "PRIVACY & DATA" };
-        static readonly string[] PageAbout = { "KEYS, TOUCH, VIBRATION", "DIFFICULTY, NAME, GRAPHICS, THE SCREEN", "ENGINES AND MUSIC", "TEXT, COLOURS, MOTION, SHAKE", "THE PAGES, STATS, YOUR ID" };
+        static readonly string[] PageAbout = { "KEYS, TOUCH, VIBRATION", "LANGUAGE, DIFFICULTY, NAME, GRAPHICS, THE SCREEN", "ENGINES AND MUSIC", "TEXT, COLOURS, MOTION, SHAKE", "THE PAGES, STATS, YOUR ID" };
         /// <summary>the game page's NAME row (the name screen comes back to it)</summary>
-        public const int NameRow = 1;
+        public const int NameRow = 2;
         /// <summary>the controls page's KEYS row (the keys screen comes back to it)</summary>
         public const int KeysRow = 0;
         public const string PrivacyUrl = "https://theaob.github.io/corner-cutters/privacy.html", TermsUrl = "https://theaob.github.io/corner-cutters/terms.html";
@@ -381,6 +381,8 @@ namespace CornerCutters.Game
                         var d = Field.Difficulties[Difficulty];
                         bool walk = Options.GridWalk;
                         var g = Options.Graphics;
+                        // (first on the page, as the web game's: each language's own name)
+                        rows.Add(new MenuRow { Label = "LANGUAGE", Value = Languages.NameOf(Lang.Current.Code).ToUpperInvariant(), About = "THE LANGUAGE OF THE MENUS", Left = () => Languages.Choose(Languages.Turn(-1)), Right = () => Languages.Choose(Languages.Turn(1)) });
                         rows.Add(new MenuRow { Label = "DIFFICULTY", Value = d.Name, About = (d.About ?? "").ToUpperInvariant(), Left = () => Difficulty = (Difficulty + Field.Difficulties.Length - 1) % Field.Difficulties.Length, Right = () => Difficulty = (Difficulty + 1) % Field.Difficulties.Length });
                         rows.Add(new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } });
                         rows.Add(new MenuRow { Label = "GRAPHICS", Value = GraphicsNames[(int)g], About = GraphicsAbout[(int)g], Left = () => Options.Graphics = (GraphicsSetting)(((int)g + 3) % 4), Right = () => Options.Graphics = (GraphicsSetting)(((int)g + 1) % 4) });

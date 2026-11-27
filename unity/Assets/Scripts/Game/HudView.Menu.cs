@@ -3,6 +3,7 @@
 // highlighted one in cyan. Drawn with IMGUI like the HUD, in the same pixel font; what to show comes from Menu.cs.
 using System.Collections.Generic;
 using System.Linq;
+using CornerCutters.Core;
 using UnityEngine;
 
 namespace CornerCutters.Game
@@ -114,7 +115,7 @@ namespace CornerCutters.Game
                         var st = Style(8, on ? Ink : Muted, TextAnchor.MiddleCenter);
                         st.wordWrap = true;
                         st.clipping = TextClipping.Clip;
-                        GUI.Label(R(x + 8, ty + 92 * u + 24, tw - 16, big - 92 * u - 26), t.Line, st);
+                        GUI.Label(R(x + 8, ty + 92 * u + 24, tw - 16, big - 92 * u - 26), Lang.Say(t.Line), st);
                     }
                 }
                 if (Tapped(r, GUIContent.none, GUIStyle.none)) clicked = i;
@@ -149,7 +150,7 @@ namespace CornerCutters.Game
                 var st = Style(9, ink);
                 st.wordWrap = !wide;
                 st.clipping = TextClipping.Clip;
-                GUI.Label(R(mx + 12, my, cw - 12 - 34, wide ? line : line * 2), m.text, st);
+                GUI.Label(R(mx + 12, my, cw - 12 - 34, wide ? line : line * 2), Lang.Say(m.text), st);
                 Text(mx + cw - 32, my, 32, line, $"{m.progress}/{m.goal}", Style(9, m.done ? Cyan : Muted, TextAnchor.MiddleRight));
             }
         }

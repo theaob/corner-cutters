@@ -116,6 +116,7 @@ namespace CornerCutters.Game
 
         void Start()
         {
+            Languages.Apply();
             input = new GameInput();
             input.Enable();
             var camGo = new GameObject("Camera");
@@ -154,6 +155,7 @@ namespace CornerCutters.Game
         void SaveReplaced()
         {
             input.LoadBinds();
+            Languages.Apply();
             SoundOut.Synth?.SetVolume(SoundOut.SoundVolume);
             SoundOut.Music?.VolumeChanged();
             Picture.ApplyFrameCap();

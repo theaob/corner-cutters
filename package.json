@@ -31,6 +31,7 @@
     "unity:bake": "rolldown tools/unity/bake.ts --banner 'import.meta.env = {};' --platform node --format esm -o node_modules/.cache/bake.mjs && node node_modules/.cache/bake.mjs",
     "unity:flags": "rolldown tools/unity/flags.ts --banner 'import.meta.env = {};' --platform node --format esm -o node_modules/.cache/flags.mjs && node node_modules/.cache/flags.mjs",
     "unity:grounds": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true node tools/unity/grounds.mjs",
+    "unity:lang": "rolldown tools/unity/lang.ts --platform node --format esm -o node_modules/.cache/lang.mjs && node node_modules/.cache/lang.mjs",
     "unity:golden": "rolldown tools/unity/golden.ts --banner 'import.meta.env = {};' --platform node --format esm -o node_modules/.cache/golden.mjs && node node_modules/.cache/golden.mjs"
   },
   "dependencies": {

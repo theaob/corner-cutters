@@ -78,8 +78,8 @@ mouse: arrows or the d-pad move, left and right change a row, ENTER or A picks, 
 kept for next time. The pause screen has RESUME, RESTART, SKIP QUALIFYING, WEATHER, GRID WALK and MAIN MENU, with the
 keys and the pad too. TROPHIES is the web game's cabinet: Championships won, each circuit's Time Trial and Time
 Attack medals, and the 27 achievements (Core/Trophies.cs, checked against medals.ts and achievements.ts); medals,
-achievements, missions done and the streak's days are said in toasts as they come. (Not yet: the language setting,
-the circuits locked until a Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
+achievements, missions done and the streak's days are said in toasts as they come. (Not yet: the circuits locked until a
+Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
 
 **Saves.** Everything the game keeps is the web game's own save document (`engine/save.ts`, `f1/save.ts`):
 `{version: 2, data: {section: {name: value}}}` under `cc:save`, with the same sections, names and values (settings,
@@ -95,6 +95,17 @@ the first start, if nothing's been played yet, for an Android app that hands its
 save is written once a frame when something changed, and to disk as the game's put away. It's in PlayerPrefs for now;
 `Game/Save.cs` is the one place to change for Switch's save data. (Not carried over: saves of this draft from before,
 which were never shipped; the web game's own kept race, whose form is its own.)
+
+**Languages.** The web game's seven (Español, Français, Deutsch, Português, Italiano, Türkçe, 日本語) from its own
+dictionaries (`src/f1/lang`, baked into `Resources/Lang` by `npm run unity:lang`), with the lines only this port has
+(its keys, screen and save settings, split screen) translated beside them in `tools/unity/langExtra.ts`. LANGUAGE is
+first on the GAME page; until it's picked the game follows the device's language. Every line the HUD and menus draw
+goes through one lookup (Core/Lang.cs): the line itself, the web game's lower-case lines in capitals, lines with
+numbers or names in them matched against the dictionary's `{name}` lines (LAP 3/5, YOU START P7), and lines put
+together with " · " part by part; the team radio goes through the web game's `t()`. Capitals follow the language
+(Turkish i to İ). Japanese is drawn in DotGothic16 (SIL OFL), cut down to the characters the game writes by
+`tools/unity/jafont.py`; the tests check it has them all. (Not translated: the keys' hint lines, the drivers' and
+circuits' names, as on the web.)
 
 **Daily Challenge, streak and shop.** As the web game (`daily.ts`, `timeAttack.ts`, `streak.ts`, `carStyle.ts`):
 DAILY CHALLENGE on the menu takes you to the day's circuit in the day's weather (drawn from the UTC date, the

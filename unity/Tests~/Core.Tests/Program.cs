@@ -58,6 +58,7 @@ static class Program
         FeelChecks(root);
         TrophyChecks(root);
         SaveChecks(root);
+        LangChecks(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -510,6 +511,46 @@ static class Program
         _ => e.GetRawText(),
     };
     static string Canon(string json) => json == null ? "null" : Canon(JsonDocument.Parse(json).RootElement);
+
+    static void LangChecks(string root)
+    {
+        string dir = Path.Combine(root, "Assets/Resources/Lang");
+        var index = (List<object>)Json.Parse(File.ReadAllText(Path.Combine(dir, "index.json")));
+        Check(index.Count == 8 && ((Dictionary<string, object>)index[0])["code"] as string == "en", "languages: English first, and seven more");
+        var langs = index.Skip(1).Select(o => Language.Parse(File.ReadAllText(Path.Combine(dir, ((Dictionary<string, object>)o)["code"] + ".json")))).ToList();
+        var keys = langs[0].Words.Keys.ToHashSet();
+        foreach (var l in langs)
+        {
+            Check(l != null && keys.All(l.Words.ContainsKey), $"language {l?.Code}: every line");
+            // (a translation fills the same {name}s as its English)
+            foreach (var kv in l.Words)
+            {
+                var want = System.Text.RegularExpressions.Regex.Matches(kv.Key, @"\{(\w+)\}").Select(m => m.Value).OrderBy(x => x).ToList();
+                var got = System.Text.RegularExpressions.Regex.Matches(kv.Value, @"\{(\w+)\}").Select(m => m.Value).OrderBy(x => x).ToList();
+                Check(want.SequenceEqual(got), $"language {l.Code}: {{names}} of {kv.Key}");
+            }
+        }
+        // (Japanese is drawn in DotGothic16, cut down to what it needs: nothing it needs left out)
+        var ja = langs.First(l => l.Code == "ja");
+        var font = new HashSet<char>(File.ReadAllText(Path.Combine(root, "Assets/Resources/Fonts/DotGothic16.chars.txt")).Trim('\n'));
+        var missing = new HashSet<char>(ja.Words.Values.SelectMany(v => v).Where(c => c > 0x2fff && c < 0xfff0 && !char.IsSurrogate(c) && !font.Contains(c)));
+        Check(missing.Count == 0, $"Japanese font: has {string.Concat(missing)}");
+
+        var tr = langs.First(l => l.Code == "tr");
+        Lang.Use(tr);
+        Check(Lang.T("SETTINGS") == tr.Words["SETTINGS"] && Lang.T("NO SUCH LINE") == "NO SUCH LINE", "lang: t()");
+        Check(Lang.T("DAY {n}", "n", 4) == tr.Words["DAY {n}"].Replace("{n}", "4"), "lang: t() fills {n}");
+        Check(Lang.Say("LAP 3/5") == tr.Words["LAP {lap}/{laps}"].Replace("{lap}", "3").Replace("{laps}", "5"), $"lang: a line with numbers ({Lang.Say("LAP 3/5")})");
+        Check(Lang.Say("PIT") == "PIT" || tr.Words.ContainsKey("PIT"), "lang: P{place} wants a number");
+        Check(Lang.Say("THE LANGUAGE OF THE MENUS") == Lang.Upper(tr.Words["the language of the menus"]), "lang: a lower-case line, in capitals");
+        Check(Lang.Upper("istanbul") == "İSTANBUL", "lang: Turkish capitals");
+        Check(Lang.Say("QUALIFYING · WET") == tr.Words["QUALIFYING"] + " · " + tr.Words["WET"], "lang: the parts of a line");
+        Check(Lang.Say("LEC") == "LEC" && Lang.Say("1:12.34") == "1:12.34", "lang: a name or a time as it is");
+        Lang.Use(null);
+        Check(Lang.Say("SETTINGS") == "SETTINGS" && Lang.Upper("istanbul") == "ISTANBUL", "lang: English");
+        var have = new[] { "en", "es", "tr", "ja" };
+        Check(Lang.Pick("tr", new[] { "ja" }, have) == "tr" && Lang.Pick(null, new[] { "ja-JP" }, have) == "ja" && Lang.Pick("xx", new[] { "nl" }, have) == "en", "lang: the pick");
+    }
 
     static void SaveChecks(string root)
     {

@@ -34,7 +34,8 @@ namespace CornerCutters.Core
             ["wreck"] = new[] { "ARE YOU OK? THE CAR IS DONE.", "YOU OK? WE'RE OUT, I'M SORRY.", "SORRY MATE, THAT'S THE RACE." },
         };
 
-        static string Pick(string[] lines, double roll) => lines[Math.Min(lines.Length - 1, (int)Math.Floor(roll * lines.Length))];
+        /// <summary>(in the language in use, as the web game's t() has it)</summary>
+        static string Pick(string[] lines, double roll) => Lang.T(lines[Math.Min(lines.Length - 1, (int)Math.Floor(roll * lines.Length))]);
 
         /// <summary>A line for `cue`, one of its ways round (picked by `roll`, 0 to 1).</summary>
         public static string Line(string cue, double roll) => Pick(Lines[cue], roll);
@@ -46,7 +47,7 @@ namespace CornerCutters.Core
         /// <summary>What your engineer says at your flag, finishing `place` (1 = the winner) of `of`.</summary>
         public static string FinishLine(int place, int of, double roll)
         {
-            string P(string[] lines) => Pick(lines, roll).Replace("{place}", place.ToString());
+            string P(string[] lines) => Lang.T(lines[Math.Min(lines.Length - 1, (int)Math.Floor(roll * lines.Length))], "place", place);
             if (place == 1) return P(new[] { "YES! GET IN THERE! P1!", "P1! YOU WON IT! WHAT A RACE!", "CHEQUERED FLAG, P1! FANTASTIC!" });
             if (place <= 3) return P(new[] { "P{place}! PODIUM! GREAT JOB.", "PODIUM, P{place}. WELL DONE." });
             if (place <= Math.Min(10, of)) return P(new[] { "P{place}. GOOD POINTS TODAY.", "P{place}, IN THE POINTS. NICE WORK." });

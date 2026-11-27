@@ -176,7 +176,11 @@ namespace CornerCutters.Game
         static readonly Color Muted = Hex(0x9d9ab8), Ink = Hex(0xf4f2fa), Gold = Hex(0xf2c14e), Red = Hex(0xd8323c), Cyan = Hex(0x5fe0d0);
         static readonly Color Accent = Hex(0xff4fd8), Line = Hex(0x2b2940), KeyBg = Hex(0x25233a), KeyEdge = Hex(0x3a3858), Shadow = Hex(0x1b1b26);
 
-        readonly Font font;
+        Font font => Lang.Current.Code == "ja" ? Japanese : Pixel;
+        static Font pixel, japanese;
+        /// <summary>Silkscreen, the web game's; DotGothic16 for Japanese, which Silkscreen hasn't</summary>
+        static Font Pixel => pixel ??= Resources.Load<Font>("Fonts/Silkscreen");
+        static Font Japanese => japanese ??= Resources.Load<Font>("Fonts/DotGothic16") ?? Pixel;
         readonly Texture2D mini;
         readonly int miniW, miniH;
         readonly double miniScale;
@@ -185,7 +189,6 @@ namespace CornerCutters.Game
         public HudView(CircuitData c)
         {
             circuit = c;
-            font = Resources.Load<Font>("Fonts/Silkscreen");
             // the minimap fits the circuit in a 136 x 140 box, whatever its shape; drawn at twice its size, as the web game's canvas
             double s = System.Math.Min(136.0 / c.width, 140.0 / c.height);
             miniW = (int)System.Math.Round(c.width * s);
@@ -207,7 +210,8 @@ namespace CornerCutters.Game
             return st;
         }
 
-        float Width(string text, GUIStyle st) => st.CalcSize(new GUIContent(text)).x / k;
+        /// <summary>(text is measured and drawn in the language in use: Lang.Say)</summary>
+        float Width(string text, GUIStyle st) => st.CalcSize(new GUIContent(Lang.Say(text))).x / k;
 
         static void Fill(Rect r, Color c, float radius = 0, float border = 0, Color? edge = null)
         {
@@ -217,6 +221,7 @@ namespace CornerCutters.Game
 
         void Text(float x, float y, float w, float h, string s, GUIStyle st, Color? shadow = null)
         {
+            s = Lang.Say(s);
             if (shadow.HasValue)
             {
                 var c = st.normal.textColor;
