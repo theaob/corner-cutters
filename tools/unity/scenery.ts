@@ -12,9 +12,10 @@
 //
 // The file (Resources/Scenery/<id>.bytes, little-endian), sizes in the web game's px and its axes (y up, z = map y):
 //   "CCS3", int textures, int parts; per part:
-//     int texture (-1: none), int flags (1 see-through, 2 nearest, 4 repeat, 8 unlit, 16 two-sided, 32 glowing),
-//     float opacity, float3 emissive (linear), [glowing: int glow texture, float4 its uv from the part's (scale u, v,
-//     offset u, v), float2 its scroll (uv a second)], int vertices, int indices,
+//     int texture (-1: none), int flags (1 see-through, 2 nearest, 4 repeat, 8 unlit, 16 two-sided, 32 glowing,
+//     64 scrolling), float opacity, float3 emissive (linear), [glowing: int glow texture, float4 its uv from the part's
+//     (scale u, v, offset u, v), float2 its scroll (uv a second)], [scrolling: per axis (u, v) float5 its texture's offset
+//     over time: drift a second, sway (amp, rad/s, phase), and the offset the uvs carry], int vertices, int indices,
 //     float3 positions, sbyte4 normals (x, y, z, 0; /127), byte4 colours (sRGB, alpha), float2 uvs (textured parts only),
 //     indices (ushort under 65,536 vertices, else int),
 //     int places; per place: float12 matrix (3 rows of 4), byte4 tint (sRGB, 255).
@@ -140,7 +141,11 @@ function standViews(mesh: THREE.Mesh): boolean {
 
 interface Place { m: THREE.Matrix4; tint: THREE.Color }
 interface Glow { tex: number; uv: [number, number, number, number]; rate: [number, number] }
-interface Proto { tex: number; flags: number; opacity: number; emissive: THREE.Color; glow?: Glow; pos: number[]; nor: number[]; col: number[]; uv: number[]; idx: number[]; places: Place[] }
+/** a texture's offset over time: drift (a second) + amp sin(w t + phase), and what it was as the part was taken */
+interface Wave { rate: number; amp: number; w: number; phase: number; at: number }
+interface Scroll { u: Wave; v: Wave }
+const still: Wave = { rate: 0, amp: 0, w: 0, phase: 0, at: 0 };
+interface Proto { tex: number; flags: number; opacity: number; emissive: THREE.Color; glow?: Glow; scroll?: Scroll; pos: number[]; nor: number[]; col: number[]; uv: number[]; idx: number[]; places: Place[] }
 
 /** The web game's scene for circuit `c`, as the Unity file, and what moves, by name. */
 export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): { file: ArrayBuffer; planes?: ArrayBuffer; gopher?: ArrayBuffer; yeti?: ArrayBuffer; blossoms?: string; textures: string[]; moving: string[]; stats: string } {
@@ -159,7 +164,26 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
     glowMaps.forEach((t, i) => glowRate.set(t, [(t.offset.x - at0[i][0]) / FRAME, (t.offset.y - at0[i][1]) / FRAME]));
   }
   const tick = ticker(scene, c);
-  const moving = movers(scene, tick);
+  // (a texture that scrolls as the scene runs, as the neon city's sphere of lights: its offset over the movers' loop,
+  // fitted to a drift and a sway, for the port's shader to run)
+  const maps: THREE.Texture[] = [];
+  scene.scene.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.MeshBasicMaterial | THREE.MeshBasicMaterial[] | undefined;
+    for (const x of Array.isArray(m) ? m : m ? [m] : []) if (x.map && !maps.includes(x.map)) maps.push(x.map);
+  });
+  const offsets = maps.map(() => [] as number[][]);
+  let ticked = 0;
+  const moving = movers(scene, () => {
+    tick();
+    ticked++;
+    maps.forEach((t, k) => offsets[k].push([ticked * FRAME, t.offset.x, t.offset.y]));
+  });
+  const scrolls = new Map<THREE.Texture, Scroll>();
+  maps.forEach((t, k) => {
+    const u = fitScroll(offsets[k].map((q) => [q[0], q[1]]));
+    const v = fitScroll(offsets[k].map((q) => [q[0], q[2]]));
+    if (u || v) scrolls.set(t, { u: u ?? still, v: v ?? still });
+  });
   scene.scene.updateMatrixWorld(true);
 
   const textures: string[] = [];
@@ -226,7 +250,15 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
             flags |= 32;
           }
         }
-        proto = { tex, flags, opacity, emissive, glow, pos: [], nor: [], col: [], uv: [], idx: [], places: [] };
+        // (a scrolling texture: its offset now, which the uvs below carry)
+        let scroll: Scroll | undefined;
+        const sc = map && tex >= 0 ? scrolls.get(map) : undefined;
+        if (sc && map) {
+          const flip = map.flipY ? 1 : -1;
+          scroll = { u: { ...sc.u, at: map.offset.x }, v: { ...sc.v, rate: sc.v.rate * flip, amp: sc.v.amp * flip, at: map.offset.y * flip } };
+          flags |= 64;
+        }
+        proto = { tex, flags, opacity, emissive, glow, scroll, pos: [], nor: [], col: [], uv: [], idx: [], places: [] };
         const remap = new Map<number, number>();
         const end = Math.min(grp.start + grp.count, index ? index.count : pos.count);
         for (let i = grp.start; i < end; i++) {
@@ -250,8 +282,9 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
         }
         if (tex >= 0 && proto.uv.length !== (proto.pos.length / 3) * 2) {
           proto.tex = -1;
-          proto.flags &= ~32;
+          proto.flags &= ~(32 | 64);
           proto.glow = undefined;
+          proto.scroll = undefined;
           proto.uv = [];
         }
         if (still) pool.set(key, proto);
@@ -584,6 +617,7 @@ function writePart(enc: Encoder, p: Proto) {
     for (const x of g.uv) enc.flt(x);
     enc.flt(g.rate[0]); enc.flt(g.rate[1]);
   }
+  if (p.flags & 64) for (const w of [p.scroll!.u, p.scroll!.v]) { enc.flt(w.rate); enc.flt(w.amp); enc.flt(w.w); enc.flt(w.phase); enc.flt(w.at); }
   enc.int(nv); enc.int(p.idx.length);
   for (const x of p.pos) enc.flt(x);
   for (let i = 0; i < p.nor.length; i += 3) {
@@ -635,4 +669,49 @@ function toHalf(v: number): number {
   if (e <= 0) return sign;
   if (e >= 31) return sign | 0x7bff;
   return sign | (e << 10) | (m >>> 13);
+}
+
+/**
+ * A texture offset's samples [t, offset] fitted to a + rate t + amp sin(w t + phase) (least squares, w scanned), or
+ * undefined if it never moves.
+ */
+function fitScroll(q: number[][]): Wave | undefined {
+  if (q.length < 8) return undefined;
+  const vals = q.map((p) => p[1]);
+  if (Math.max(...vals) - Math.min(...vals) < 1e-6) return undefined;
+  /** least squares on the columns given: coefficients and the squared error */
+  const solve = (cols: ((t: number) => number)[]) => {
+    const n = cols.length;
+    const A = Array.from({ length: n }, () => new Array(n + 1).fill(0));
+    for (const [t, y] of q) {
+      const f = cols.map((c) => c(t));
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) A[i][j] += f[i] * f[j];
+        A[i][n] += f[i] * y;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      let best = i;
+      for (let r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[best][i])) best = r;
+      [A[i], A[best]] = [A[best], A[i]];
+      if (Math.abs(A[i][i]) < 1e-12) return undefined;
+      for (let r = 0; r < n; r++) {
+        if (r === i) continue;
+        const k = A[r][i] / A[i][i];
+        for (let j = i; j <= n; j++) A[r][j] -= k * A[i][j];
+      }
+    }
+    const x = A.map((row, i) => row[n] / row[i]);
+    let err = 0;
+    for (const [t, y] of q) err += (cols.reduce((a, c, i) => a + x[i] * c(t), 0) - y) ** 2;
+    return { x, err };
+  };
+  const lin = solve([() => 1, (t) => t])!;
+  if (lin.err / q.length < 1e-10) return { rate: lin.x[1], amp: 0, w: 0, phase: 0, at: 0 };
+  let best: { rate: number; amp: number; w: number; phase: number; err: number } | undefined;
+  for (let w = 0.02; w <= 6; w += 0.005) {
+    const r = solve([() => 1, (t) => t, (t) => Math.sin(w * t), (t) => Math.cos(w * t)]);
+    if (r && (!best || r.err < best.err)) best = { rate: r.x[1], amp: Math.hypot(r.x[2], r.x[3]), w, phase: Math.atan2(r.x[3], r.x[2]), err: r.err };
+  }
+  return best && best.err < lin.err ? best : { rate: lin.x[1], amp: 0, w: 0, phase: 0, at: 0 };
 }

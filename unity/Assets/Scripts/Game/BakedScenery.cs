@@ -15,7 +15,7 @@ namespace CornerCutters.Game
 {
     public static class BakedScenery
     {
-        internal const int SeeThrough = 1, Nearest = 2, Repeat = 4, Unlit = 8, TwoSided = 16, Glowing = 32;
+        internal const int SeeThrough = 1, Nearest = 2, Repeat = 4, Unlit = 8, TwoSided = 16, Glowing = 32, Scrolling = 64;
         const float ChunkUnits = 64;
         const int MaxVerts = 600000;
 
@@ -66,6 +66,12 @@ namespace CornerCutters.Game
             public int GlowTex = -1;
             public Vector4 GlowUv;
             public Vector2 GlowRate;
+            /// <summary>a scrolling part's texture offset over time, per axis: drift a second, sway (amp, rad/s, phase); and the
+            /// offset its uvs carry (u, v)</summary>
+            public Vector4 ScrollU, ScrollV;
+            public Vector2 ScrollAt;
+            /// <summary>drawn by the glowing shader (its own light map, or its texture scrolling)</summary>
+            public bool Own => (Flags & (Glowing | Scrolling)) != 0;
             public Vector3[] Pos, Nor;
             public Color[] Col;
             public Vector2[] Uv;
@@ -81,6 +87,13 @@ namespace CornerCutters.Game
                 p.GlowTex = r.ReadInt32();
                 p.GlowUv = new Vector4(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
                 p.GlowRate = new Vector2(r.ReadSingle(), r.ReadSingle());
+            }
+            if ((p.Flags & Scrolling) != 0)
+            {
+                p.ScrollU = new Vector4(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                float atU = r.ReadSingle();
+                p.ScrollV = new Vector4(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                p.ScrollAt = new Vector2(atU, r.ReadSingle());
             }
             int nv = r.ReadInt32(), ni = r.ReadInt32();
             p.Pos = new Vector3[nv];
@@ -160,12 +173,12 @@ namespace CornerCutters.Game
                     var m = ReadPlace(r, out var tint);
                     // which chunk: by where its first vertex lands (in Unity units)
                     var first = m.MultiplyPoint3x4(p.Pos[p.Idx.Length > 0 ? p.Idx[0] : 0]);
-                    var key = (p.Tex, p.Flags, (p.Flags & Glowing) != 0 ? pi : -1, Mathf.FloorToInt(first.x / 16 / ChunkUnits), Mathf.FloorToInt(first.z / 16 / ChunkUnits));
+                    var key = (p.Tex, p.Flags, p.Own ? pi : -1, Mathf.FloorToInt(first.x / 16 / ChunkUnits), Mathf.FloorToInt(first.z / 16 / ChunkUnits));
                     if (!chunks.TryGetValue(key, out var ch) || ch.Pos.Count + p.Pos.Length > MaxVerts)
                     {
                         ch = new Chunk();
                         chunks[key] = ch;
-                        done.Add(((p.Tex, p.Flags), (p.Flags & Glowing) != 0 ? p : null, ch));
+                        done.Add(((p.Tex, p.Flags), p.Own ? p : null, ch));
                     }
                     Add(ch, p, m, m, tint);
                 }
@@ -197,13 +210,16 @@ namespace CornerCutters.Game
                     gm = new Material(glowing);
                     var main = TexAt(tex, flags);
                     gm.mainTexture = main != null ? (Texture)main : Texture2D.whiteTexture;
-                    // (the flames' texture repeats and is drawn soft, as three.js draws its canvases)
-                    var lights = TexAt(glow.GlowTex, flags | Repeat);
+                    // (the flames' texture repeats, as three.js's does)
+                    var lights = (flags & Glowing) != 0 ? TexAt(glow.GlowTex, flags | Repeat) : null;
                     gm.SetTexture("_GlowTex", lights != null ? (Texture)lights : Texture2D.blackTexture);
+                    gm.SetVector("_ScrollU", glow.ScrollU);
+                    gm.SetVector("_ScrollV", glow.ScrollV);
+                    gm.SetVector("_ScrollAt", new Vector4(glow.ScrollAt.x, glow.ScrollAt.y, 0, 0));
                     gm.SetVector("_GlowUv", glow.GlowUv);
                     gm.SetVector("_GlowRate", new Vector4(glow.GlowRate.x, glow.GlowRate.y, 0, 0));
-                    gm.SetColor("_GlowColor", new Color(glow.Emissive.r / Flat.r, glow.Emissive.g / Flat.g, glow.Emissive.b / Flat.b, 1));
-                    gm.name = $"scenery {tex} glowing {glow.GlowTex}";
+                    gm.SetColor("_GlowColor", (flags & Glowing) != 0 ? new Color(glow.Emissive.r / Flat.r, glow.Emissive.g / Flat.g, glow.Emissive.b / Flat.b, 1) : new Color(0, 0, 0, 1));
+                    gm.name = $"scenery {tex} {((flags & Glowing) != 0 ? "glowing " + glow.GlowTex : "scrolling")}";
                     glows[glow] = gm;
                     return gm;
                 }
@@ -269,7 +285,7 @@ namespace CornerCutters.Game
                 {
                     int t = r.ReadInt32();
                     var local = ReadPlace(r, out var tint);
-                    var key = (t, p.Tex, p.Flags, (p.Flags & Glowing) != 0 ? p : null);
+                    var key = (t, p.Tex, p.Flags, p.Own ? p : null);
                     if (!rides.TryGetValue(key, out var ch)) rides[key] = ch = new Chunk();
                     Add(ch, p, local, firstSeen[t] * local, tint);
                 }
