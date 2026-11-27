@@ -1,0 +1,105 @@
+# The Unity port (unity/, PR #336 and on). Two jobs:
+#  - golden: the web game's rules recorded again from src/ (npm run unity:golden) and the C# core replayed against
+#    them (unity/Tests~/Core.Tests, about 435,000 checks, no Unity needed). A change to the web game's tuning that the
+#    C# doesn't follow fails here, as does a recording that no longer matches what's committed (run
+#    `npm run unity:golden` and commit what it writes).
+#  - build: the desktop and Android players, with Unity itself (game-ci). Only once the repository has a Unity licence
+#    in its secrets (UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD: unity/README.md "Platforms"); skipped until then. The
+#    Android build is signed with the same upload key as the Capacitor app's when its secrets are there.
+name: unity
+
+on:
+  push:
+    branches: [main]
+    paths: ['unity/**', 'tools/unity/**', 'src/**', 'package.json', '.github/workflows/unity.yml']
+  pull_request:
+    paths: ['unity/**', 'tools/unity/**', 'src/**', 'package.json', '.github/workflows/unity.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Record the web game's rules again
+        run: npm run -s unity:golden
+      - name: The recordings committed are the web game's now
+        run: |
+          git add -N unity/Tests~
+          git diff --stat --exit-code -- unity/Tests~ || { echo "::error::the web game's rules changed: run npm run unity:golden and commit unity/Tests~"; exit 1; }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: The C# core against them
+        working-directory: unity/Tests~/Core.Tests
+        run: dotnet run
+
+  build:
+    needs: golden
+    runs-on: ubuntu-latest
+    env:
+      HAS_UNITY: ${{ secrets.UNITY_LICENSE != '' }}
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: StandaloneWindows64
+            method: BuildWindows64
+          - target: StandaloneLinux64
+            method: BuildLinux64
+          - target: Android
+            method: BuildAndroid
+    name: build (${{ matrix.target }})
+    steps:
+      - name: No Unity licence yet
+        if: env.HAS_UNITY != 'true'
+        run: echo "::notice::no UNITY_LICENSE secret yet, so the Unity builds are skipped (unity/README.md, Platforms)"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: env.HAS_UNITY == 'true'
+        with:
+          lfs: true
+      - uses: actions/cache@v4
+        if: env.HAS_UNITY == 'true'
+        with:
+          path: unity/Library
+          key: unity-library-${{ matrix.target }}-${{ hashFiles('unity/Packages/**', 'unity/ProjectSettings/**') }}
+          restore-keys: unity-library-${{ matrix.target }}-
+      - name: The upload key (Android)
+        if: env.HAS_UNITY == 'true' && matrix.target == 'Android' && env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          # (in the project's folder, which the build's container sees; never committed: the runner's thrown away)
+          echo "$KEYSTORE_BASE64" | base64 --decode > unity/release.keystore
+          echo "SIGNING=-ANDROID_KEYSTORE_FILE release.keystore -ANDROID_KEYSTORE_PASSWORD ${{ secrets.ANDROID_KEYSTORE_PASSWORD }} -ANDROID_KEY_ALIAS ${{ secrets.ANDROID_KEY_ALIAS }} -ANDROID_KEY_PASSWORD ${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+      - uses: game-ci/unity-builder@v4
+        if: env.HAS_UNITY == 'true'
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity
+          targetPlatform: ${{ matrix.target }}
+          buildMethod: CornerCutters.Editor.BuildScript.${{ matrix.method }}
+          # (the run number for the Android versionCode, above every Capacitor build's; the upload key's settings)
+          customParameters: -GITHUB_RUN_NUMBER ${{ github.run_number }} ${{ env.SIGNING }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: env.HAS_UNITY == 'true'
+        with:
+          name: corner-cutters-unity-${{ matrix.target }}
+          path: unity/Builds
+          if-no-files-found: error
