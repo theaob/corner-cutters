@@ -220,7 +220,7 @@ namespace CornerCutters.Game
 
         public PauseChoice Draw(State s)
         {
-            k = Screen.height / 720f * UiScale;
+            k = UiK();
             if (font != null && font.material != null && font.material.mainTexture != null) font.material.mainTexture.filterMode = FilterMode.Point;
             float w = Screen.width / k, h = Screen.height / k;
             Rain(s.Rain, s.Paused);
@@ -340,12 +340,27 @@ namespace CornerCutters.Game
             Text(x, 12, bw, 36, text, st);
         }
 
-        /// <summary>UI SCALE in the settings: the HUD and the tables this much over the web game's size on a 720 px high screen.</summary>
-        public static readonly float[] UiScales = { 1f, 1.2f, 1.4f, 1.6f, 1.8f };
+        /// <summary>UI SCALE in the settings: AUTO (0, the default: sized by the window), or the HUD and the tables this much
+        /// over the web game's size on a 720 px high screen.</summary>
+        public static readonly float[] UiScales = { 0f, 1f, 1.2f, 1.4f, 1.6f, 1.8f };
         public static float UiScale
         {
-            get { float v = PlayerPrefs.GetFloat("uiScale", 1.4f); return v >= 0.9f && v <= 2f ? v : 1.4f; }
+            get { float v = PlayerPrefs.GetFloat("uiScale", 0f); return v == 0f || (v >= 0.9f && v <= 2f) ? v : 0f; }
             set => PlayerPrefs.SetFloat("uiScale", value);
+        }
+
+        /// <summary>
+        /// Pixels per UI unit (the web game's px on a 1280 x 720 screen). AUTO: 1.4 x as much as fits the window both ways
+        /// (so a narrow or short window shrinks it, to keep the HUD on the screen), but never under 1 where the window is
+        /// at least 720 high, so text stays readable; otherwise the chosen scale on the window's height.
+        /// </summary>
+        public static float UiK()
+        {
+            float h = Screen.height, w = Screen.width;
+            float s = UiScale;
+            if (s > 0) return h / 720f * s;
+            float fit = Mathf.Min(w / 1280f, h / 720f);
+            return Mathf.Max(fit * 1.4f, Mathf.Min(1f, h / 720f));
         }
         /// <summary>MINIMAP in the settings: its size over the web game's.</summary>
         public static readonly float[] MapScales = { 1f, 1.5f, 2f };
@@ -458,7 +473,7 @@ namespace CornerCutters.Game
         /// <summary>The ceremony's words over the picture (the set has no lettering of its own): each at a screen point (px from top left), in the pixel font.</summary>
         public void Words(IEnumerable<(Vector2 at, string text, Color color, float px, bool panel)> words, string skip, InputSource source)
         {
-            k = Screen.height / 720f * UiScale;
+            k = UiK();
             foreach (var wd in words)
             {
                 var st = Style(wd.px, wd.color, TextAnchor.MiddleCenter);
@@ -621,7 +636,7 @@ namespace CornerCutters.Game
         /// <summary>A Time Attack's end: TIME UP and how far, your best today and streak, the day's board; AGAIN or MENU.</summary>
         public TableChoice DrawAttack(AttackTable t, float since, InputSource source)
         {
-            k = Screen.height / 720f * UiScale;
+            k = UiK();
             float w = Screen.width / k, h = Screen.height / k;
             const float pw = 420;
             int lines = t.Lines.Count + (t.Board != null ? 1 : 0) + (t.BoardTop != null ? 1 : 0);
@@ -663,7 +678,7 @@ namespace CornerCutters.Game
         /// <summary>Qualifying's times: the title, the table (your row in gold), where you start, the record, RACE.</summary>
         public TableChoice DrawQualifying(QualiTable t, float since, InputSource source)
         {
-            k = Screen.height / 720f * UiScale;
+            k = UiK();
             float w = Screen.width / k, h = Screen.height / k;
             const float line = 15, pw = 380;
             int boardLines = (t.Board != null ? 1 : 0) + (t.BoardTop != null ? 1 : 0);
@@ -716,7 +731,7 @@ namespace CornerCutters.Game
         /// <summary>The results: the title, your race in five boxes, the table, the key, the records, and the buttons.</summary>
         public TableChoice DrawResults(ResultsTable t, float since, InputSource source)
         {
-            k = Screen.height / 720f * UiScale;
+            k = UiK();
             float w = Screen.width / k, h = Screen.height / k;
             const float line = 15, pw = 460;
             float ph = 36 + (t.Summary.Count > 0 ? 50 : 0) + 16 + line * t.Rows.Count + 22 + 18 * t.Notes.Count + 48;

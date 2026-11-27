@@ -23,7 +23,7 @@ namespace CornerCutters.Game
 
         float Begin()
         {
-            k = Screen.height / 720f * Mathf.Min(UiScale, 1.25f);
+            k = Mathf.Min(UiK(), Screen.height / 720f * 1.25f);
             if (font != null && font.material != null && font.material.mainTexture != null) font.material.mainTexture.filterMode = FilterMode.Point;
             Fill(new Rect(0, 0, Screen.width, Screen.height), Rgba(14, 13, 22, 0.62f));
             return Screen.width / k;
