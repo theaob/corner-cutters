@@ -28,6 +28,11 @@ winner), then the results. Enter or A skips the walk, a replay or the ceremony. 
 the device: Core/Synth.cs, Core/Sounds.cs), with its three composed tracks in Resources/Music and the menu tune's
 placeholder rendered on the device. Sliding tyres leave skid marks on the ground (Game/SkidLayer.cs), and the
 circuit menu shows each circuit's country flag (drawn from the web game's flags by `npm run unity:flags`).
+On a touch screen it plays as the web game does on a phone (Core/Touch.cs, Game/TouchDeck.cs, Game/HudView.Deck.cs):
+the floating thumbstick points the way (or, with DRIVING: STEER in the settings, a steering slider and GAS and BRAKE pedals),
+A on the other side does what's next (SKIP, RACE, NEXT, AGAIN) and turns into DRIFT on dirt, RESTART top left and PAUSE (or
+EXIT) top right; STICK puts the stick on the left or right. The HUD takes the phone layout then (readout, minimap, tower,
+banner and radio where game.css puts them), and every menu and table works by tapping.
 
 **Look.** The camera is the web game's (north up, 26 degree lens, 52 degree pitch). Each circuit's ground is the web
 game's own picture (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane, grid boxes, chequered line: baked from its

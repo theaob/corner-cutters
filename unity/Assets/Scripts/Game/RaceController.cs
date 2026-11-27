@@ -473,6 +473,7 @@ namespace CornerCutters.Game
 
         void Update()
         {
+            DeckFrame();
             input.Poll();
             float frame = Time.unscaledDeltaTime;
             PlayStats.Tick(frame);
@@ -500,6 +501,7 @@ namespace CornerCutters.Game
             }
             SoundOut.SetPaused(paused);
             if (input.RestartPressed && !typing) Restart();
+            if (input.ExitPressed && !typing) { OpenMenu(); return; }
             if (input.CircuitStep != 0 && !typing && season == null) { daily = null; LoadCircuit(circuitIndex + input.CircuitStep); }
             if (input.WeatherPressed && !typing && !daily.HasValue && season == null) NextWeather();
             if (input.AcceptPressed && !paused)
@@ -1109,6 +1111,7 @@ namespace CornerCutters.Game
             if (OnSet && !paused)
             {
                 CeremonyWords();
+                DeckGUI();
                 return;
             }
             HudView.PauseChoice choice;
@@ -1135,6 +1138,7 @@ namespace CornerCutters.Game
                 choice = hud.Draw(HudState(you));
             }
             if (choice != HudView.PauseChoice.None) ApplyPause(choice);
+            if (!Split && !paused) DeckGUI();
             if (paused) return;
             // qualifying's times, then the results at the flag
             if (session == Session.AttackOver && attackTable != null)

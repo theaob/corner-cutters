@@ -152,7 +152,14 @@ namespace CornerCutters.Core
         {
             public double Turn, Gas, Brake;
             public bool Drift;
+            /// <summary>pointing the way to go instead (the touch stick under POINT: a direction on the map, length 0…1 how hard)</summary>
+            public Vec2? Point;
         }
+
+        /// <summary>The drive input for a pad: pointing the way to go (racing.ts playerInput), or a wheel (WheelInput).</summary>
+        public static DriveInput PadInput(WheelPad w, Car car) => w.Point.HasValue
+            ? new DriveInput { Steer = w.Point.Value.X != 0 || w.Point.Value.Y != 0 ? w.Point : null, Handbrake = w.Drift }
+            : WheelInput(w, car);
 
         /// <summary>How hard the wheel turns at full lock (a share of the car's turn rate).</summary>
         public const double WheelLock = 0.8;

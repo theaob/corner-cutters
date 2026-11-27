@@ -249,9 +249,9 @@ namespace CornerCutters.Game
             Minimap(s, w);
             TowerView(s, w);
             Banner(s, w, h);
-            if (!s.Split) Controls(s, h);
+            if (!s.Split && !Phone) Controls(s, h);
             RadioPanel(s, w, h);
-            SkipHint(s.Skip, s.Source, w, h);
+            if (!Phone) SkipHint(s.Skip, s.Source, w, h);
             if (Area.HasValue) GUI.EndGroup();
             return s.Paused ? DrawPause(s) : PauseChoice.None;
         }
@@ -312,6 +312,23 @@ namespace CornerCutters.Game
             return t;
         }
 
+        /// <summary>the phone's layout (game.css html:not(.desktop), race/hud.ts place): the controls on the screen, the HUD round them</summary>
+        public static bool Phone;
+        /// <summary>a tap on the touch screen this frame (screen px from the top left; TouchDeck), for the buttons</summary>
+        public static Vector2? Tap;
+
+        /// <summary>
+        /// A button: clicked with the mouse, or tapped on the touch screen (TouchDeck's taps, taken once a frame; a touch the
+        /// platform turns into a click is left to them, so a tap never counts twice).
+        /// </summary>
+        static bool Tapped(Rect r, GUIContent c, GUIStyle st)
+        {
+            var e = Event.current;
+            if (Tap.HasValue && e != null && e.type == EventType.Repaint && r.Contains(GUIUtility.ScreenToGUIPoint(Tap.Value))) return true;
+            if (e != null && e.isMouse && e.pointerType == PointerType.Touch) return false;
+            return GUI.Button(r, c, st);
+        }
+
         static string Fmt(double t) => double.IsNaN(t) ? "–" : $"{(int)(t / 60)}:{(t % 60):00.00}";
 
         /// <summary>Top left: icon, label, value a line, in three lined-up columns (readout.ts, readoutView.ts).</summary>
@@ -331,7 +348,7 @@ namespace CornerCutters.Game
                 labelW = Mathf.Max(labelW, Width(r.label, st));
                 if (r.value != null) valueW = Mathf.Max(valueW, Width(r.value, st));
             }
-            float x0 = 6, y0 = 6;
+            float x0 = Phone ? 12 : 6, y0 = Phone ? 48 : 6;
             Fill(R(x0, y0, padX * 2 + icon + gap + labelW + gap + valueW, padY * 2 + line * rows.Length), Panel, 6 * k);
             for (int i = 0; i < rows.Length; i++)
             {
@@ -362,6 +379,17 @@ namespace CornerCutters.Game
         /// <summary>Top centre: the lap, gold, on the strip with its pink left edge (game.css .desktop .strip).</summary>
         void LapStrip(State s, float w)
         {
+            if (Phone)
+            {
+                // the phone's: your lap in a small panel under the minimap (your place is in the tower)
+                string lap = s.Strip ?? $"LAP {Mathf.Clamp(s.Lap, 1, s.Laps)}/{s.Laps}";
+                var ps = Style(12, Ink, TextAnchor.MiddleCenter);
+                var mr = MiniRect(w);
+                float pw = Width(lap, ps) + 16;
+                Fill(R(w / 2 - pw / 2, mr.yMax + 6, pw, 20), Panel, 6 * k);
+                Text(w / 2 - pw / 2, mr.yMax + 6, pw, 20, lap, ps);
+                return;
+            }
             var st = Style(17, Gold, TextAnchor.MiddleCenter);
             string text = s.Strip ?? (s.Cars > 1 ? $"P{s.Place}/{s.Cars}   " : "") + $"LAP {Mathf.Clamp(s.Lap, 1, s.Laps)}/{s.Laps}";
             float tw = Width(text, st), bw = tw + 32, x = w / 2 - bw / 2;
@@ -389,6 +417,8 @@ namespace CornerCutters.Game
         {
             float h = Screen.height, w = Screen.width;
             float s = UiScale;
+            // (on a phone: sized as the web game is on one, its layout drawn for a screen 390 px across, the short way)
+            if (Phone) return Mathf.Min(w, h) / 390f * (s > 0 ? s : 1);
             if (s > 0) return h / 720f * s;
             float fit = Mathf.Min(w / 1280f, h / 720f);
             return Mathf.Max(fit * 1.4f, Mathf.Min(1f, h / 720f));
@@ -402,10 +432,24 @@ namespace CornerCutters.Game
         }
 
         /// <summary>Top right: the minimap, you a gold square (race.ts, ten times a second there; every frame here).</summary>
+        /// <summary>Where the minimap goes (UI px) and its scale: top right; on a phone, top centre between the corners' buttons, as big as fits.</summary>
+        Rect MiniRect(float w) => MiniRect(w, out _);
+
+        Rect MiniRect(float w, out float m)
+        {
+            m = MapScale;
+            if (Phone)
+            {
+                m = Mathf.Min(m, Mathf.Max(0.3f, (w - 2 * (12 + TouchDeck.SysW + 8)) / miniW), 1.2f);
+                return new Rect(w / 2 - miniW * m / 2, 12, miniW * m, miniH * m);
+            }
+            return new Rect(w - 6 - miniW * m, 40, miniW * m, miniH * m);
+        }
+
         void Minimap(State s, float w)
         {
-            float m = MapScale, mw = miniW * m, mh = miniH * m;
-            float x = w - 6 - mw, y = 40;
+            var mr = MiniRect(w, out float m);
+            float mw = mr.width, mh = mr.height, x = mr.x, y = mr.y;
             Fill(R(x, y, mw, mh), MiniBg, 6 * k);
             GUI.DrawTexture(R(x, y, mw, mh), mini, ScaleMode.StretchToFill, true);
             // (canvas px are half a screen px: the dot is 7 of them)
@@ -424,7 +468,7 @@ namespace CornerCutters.Game
         {
             if (s.Tower == null || s.Tower.Count == 0) return;
             const float line = 12, pad = 2;
-            float tw = Mathf.Max(96, miniW * MapScale), x = w - 6 - tw, y = 40 + miniH * MapScale + 6;
+            float tw = Phone ? 116 : Mathf.Max(96, miniW * MapScale), x = Phone ? w - 12 - tw : w - 6 - tw, y = Phone ? 48 : 40 + miniH * MapScale + 6;
             Fill(R(x, y, tw, pad * 2 + line * s.Tower.Count), Panel, 6 * k);
             var dim = Hex(0x6c6a88);
             for (int i = 0; i < s.Tower.Count; i++)
@@ -450,7 +494,7 @@ namespace CornerCutters.Game
         /// <summary>A third of the way down: the lights, then the most urgent message (banner.ts); the team card under the lights.</summary>
         void Banner(State s, float w, float h)
         {
-            float y = h * 0.3f;
+            float y = Phone ? 198 : h * 0.3f;
             if (s.Banner != null)
             {
                 Text(0, y, w, 30, s.Banner, Style(20, s.BannerColor, TextAnchor.MiddleCenter), Shadow);
@@ -507,7 +551,7 @@ namespace CornerCutters.Game
             var label = Style(9, s.RadioColor);
             var text = Style(11, Ink);
             float ph = 4 + 12 + 2 + 15 + 4, bottom = 12 + 30 + 8;
-            float x = 6, y = h - bottom - ph, pw = w - 12;
+            float x = Phone ? 36 : 6, y = Phone ? 236 : h - bottom - ph, pw = Phone ? w - 72 : w - 12;
             Fill(R(x, y, pw, ph), Rgba(21, 20, 31, 0.88f), 6 * k);
             Fill(R(x, y, 3, ph), s.RadioColor);
             // (◉ drawn as a ring and a dot: the pixel font has no circles)
@@ -603,7 +647,7 @@ namespace CornerCutters.Game
                 bool over = r.Contains(Event.current.mousePosition) || on;
                 Fill(r, over ? Hex(0x2e2b47) : KeyBg, 10 * k, Mathf.Max(1, k) * (on ? 2 : 1), on ? Cyan : KeyEdge);
                 Text(w / 2 - bw / 2, y, bw, 40, b.label, Style(14, on ? Cyan : Ink, TextAnchor.MiddleCenter));
-                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) choice = b.c;
+                if (Tapped(r, GUIContent.none, GUIStyle.none)) choice = b.c;
                 y += 50;
             }
             return choice;
@@ -675,7 +719,7 @@ namespace CornerCutters.Game
                 var ink = owned ? (picked ? Gold : Ink) : Dim;
                 Text(x + 52, ty + 10, tw - 58, 22, st.Name, Style(10, ink));
                 Text(x + 52, ty + 32, tw - 58, 20, picked ? "WEARING" : owned ? "PICK" : $"{st.Days}-DAY STREAK", Style(9, picked ? Gold : owned ? Cyan : Dim));
-                if (owned && !picked && GUI.Button(r, GUIContent.none, GUIStyle.none)) { Picked = st.Id; choice = PauseChoice.ShopPick; }
+                if (owned && !picked && Tapped(r, GUIContent.none, GUIStyle.none)) { Picked = st.Id; choice = PauseChoice.ShopPick; }
             }
             y += ph + 16;
             if (focus == shop.Styles.Count) Fill(R(w / 2 - 77, y - 2, 154, 38), Cyan, 9 * k);
@@ -719,7 +763,7 @@ namespace CornerCutters.Game
             return TableChoice.None;
         }
 
-        bool TapAt(float x, float y, float bw, float bh) => GUI.Button(R(x, y, bw, bh), GUIContent.none, GUIStyle.none);
+        bool TapAt(float x, float y, float bw, float bh) => Tapped(R(x, y, bw, bh), GUIContent.none, GUIStyle.none);
 
         // ---- qualifying's times and the results (resultsView.ts renderQualifying, renderResults) ----
 
@@ -731,8 +775,8 @@ namespace CornerCutters.Game
             var r = R(x, y, bw, bh);
             bool over = r.Contains(Event.current.mousePosition);
             Fill(r, over ? Hex(0x2e2b47) : KeyBg, 8 * k, Mathf.Max(1, k), KeyEdge);
-            Text(x, y, bw, bh, key == null ? label : $"{label}  ({key})", Style(12, Ink, TextAnchor.MiddleCenter));
-            return GUI.Button(r, GUIContent.none, GUIStyle.none);
+            Text(x, y, bw, bh, key == null || Phone ? label : $"{label}  ({key})", Style(12, Ink, TextAnchor.MiddleCenter));
+            return Tapped(r, GUIContent.none, GUIStyle.none);
         }
 
         float RowIn(int place, float since) => Mathf.Clamp01((since - 0.15f - (place - 1) * 0.07f) / 0.35f);

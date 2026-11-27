@@ -36,9 +36,9 @@ namespace CornerCutters.Game
             float w = Begin(), h = Screen.height / k;
             Text(0, h * 0.34f, w, 60, "CORNER CUTTERS", Style(44, Gold, TextAnchor.MiddleCenter), Shadow);
             Text(0, h * 0.34f + 62, w, 20, "A RACING GAME OF SHORT CUTS AND LONG CORNERS", Style(11, Muted, TextAnchor.MiddleCenter));
-            if (since % 1.2f < 0.8f) Text(0, h * 0.62f, w, 24, source == InputSource.Gamepad ? "PRESS A" : "PRESS ENTER", Style(16, Ink, TextAnchor.MiddleCenter), Shadow);
+            if (since % 1.2f < 0.8f) Text(0, h * 0.62f, w, 24, source == InputSource.Touch ? "TAP TO START" : source == InputSource.Gamepad ? "PRESS A" : "PRESS ENTER", Style(16, Ink, TextAnchor.MiddleCenter), Shadow);
             Text(0, h - 30, w, 16, Menu.Version, Style(9, Dim, TextAnchor.MiddleCenter));
-            return GUI.Button(new Rect(0, 0, Screen.width, Screen.height), GUIContent.none, GUIStyle.none);
+            return Tapped(new Rect(0, 0, Screen.width, Screen.height), GUIContent.none, GUIStyle.none);
         }
 
         /// <summary>The modes: three big tiles, two small under them; the highlighted one cyan. The one clicked (-1: none), and the one under the mouse.</summary>
@@ -116,7 +116,7 @@ namespace CornerCutters.Game
                         GUI.Label(R(x + 8, ty + 92 * u + 24, tw - 16, big - 92 * u - 26), t.Line, st);
                     }
                 }
-                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) clicked = i;
+                if (Tapped(r, GUIContent.none, GUIStyle.none)) clicked = i;
             }
             return clicked;
         }
@@ -215,7 +215,7 @@ namespace CornerCutters.Game
                         Text(w / 2 - bw / 2, y + 3, bw, rh * 0.55f, row.Label, Style(13, ink, TextAnchor.MiddleCenter));
                         Text(w / 2 - bw / 2, y + rh * 0.55f, bw, rh * 0.4f, row.About, Style(7, on ? Ink : Muted, TextAnchor.MiddleCenter));
                     }
-                    if (GUI.Button(br, GUIContent.none, GUIStyle.none)) clicked = i;
+                    if (Tapped(br, GUIContent.none, GUIStyle.none)) clicked = i;
                 }
                 else
                 {
@@ -228,8 +228,8 @@ namespace CornerCutters.Game
                     {
                         Text(vx, y, 20, rh, "<", Style(14, on ? Cyan : Muted, TextAnchor.MiddleCenter));
                         Text(vx + vw - 20, y, 20, rh, ">", Style(14, on ? Cyan : Muted, TextAnchor.MiddleCenter));
-                        if (GUI.Button(R(vx, y, 30, rh), GUIContent.none, GUIStyle.none)) { clicked = i; arrow = -1; }
-                        else if (GUI.Button(R(vx + vw - 30, y, 30, rh), GUIContent.none, GUIStyle.none)) { clicked = i; arrow = 1; }
+                        if (Tapped(R(vx, y, 30, rh), GUIContent.none, GUIStyle.none)) { clicked = i; arrow = -1; }
+                        else if (Tapped(R(vx + vw - 30, y, 30, rh), GUIContent.none, GUIStyle.none)) { clicked = i; arrow = 1; }
                     }
                     var vst = Style(13, ink, TextAnchor.MiddleCenter);
                     float tw = Width(row.Value ?? "", vst);
@@ -247,7 +247,7 @@ namespace CornerCutters.Game
                         cx += (24 + 6) / 2;
                     }
                     Text(cx - tw / 2 - 4, y, tw + 8, rh, row.Value ?? "", vst);
-                    if (arrow == 0 && GUI.Button(r, GUIContent.none, GUIStyle.none)) clicked = i;
+                    if (arrow == 0 && Tapped(r, GUIContent.none, GUIStyle.none)) clicked = i;
                 }
                 y += rh + gap;
             }
@@ -273,7 +273,7 @@ namespace CornerCutters.Game
         public void MenuHints(InputSource source)
         {
             float w = Screen.width / k, h = Screen.height / k;
-            string text = source == InputSource.Gamepad ? "D-PAD MOVE   A PICK   B BACK" : "ARROWS MOVE   ENTER PICK   ESC BACK";
+            string text = source == InputSource.Touch ? "TAP TO PICK" : source == InputSource.Gamepad ? "D-PAD MOVE   A PICK   B BACK" : "ARROWS MOVE   ENTER PICK   ESC BACK";
             Text(0, h - 52, w, 16, text, Style(9, Muted, TextAnchor.MiddleCenter));
         }
     }

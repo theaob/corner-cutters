@@ -17,6 +17,9 @@ import { stepLaunch, newLaunch } from '../../src/f1/launch';
 import { CROWD, crowdGain, crowdNear, doppler, engineNote, LIMITER_BEEP } from '../../src/f1/sounds';
 import { ENGINE_ORDERS } from '../../src/engine/audio';
 import { menuSong } from '../../src/f1/music';
+import { THUMBSTICK, thumbstick } from '../../src/engine/controls';
+import { FLOAT_MARGIN, SLIDER_DEAD, floatOffset, sliderTurn } from '../../src/engine/deck';
+import { deckLabels, type DeckState } from '../../src/f1/race/deckLabels';
 import { foldTail } from '../../src/engine/music';
 import { RADIO, RADIO_LINES, finishLine, newRadio, radioLine, say, stepRadio, type RadioCue } from '../../src/f1/radio';
 import { groundAt } from '../../src/engine/sim';
@@ -641,7 +644,44 @@ function goldenSounds() {
   console.log(`sounds: ${notes.length} engine notes, ${near.length} crowd points, ${menuSong().notes.length} menu notes`);
 }
 
+/** The touch deck: the thumbstick's reading, where a floating stick rests under a thumb, the slider's turn, and what
+ * each deck button does for every state. */
+function goldenTouch() {
+  const rng = seededRandom(23);
+  const sticks: unknown[] = [];
+  for (let i = 0; i < 400; i++) {
+    const travel = 20 + rng() * 40, dx = (rng() * 2 - 1) * travel * 1.4, dy = (rng() * 2 - 1) * travel * 1.4;
+    const s = thumbstick(dx, dy, travel);
+    sticks.push([dx, dy, travel, s.stick.x, s.stick.y, s.knob.x, s.knob.y, s.dirs]);
+  }
+  sticks.push([0, 0, 30, ...(() => { const s = thumbstick(0, 0, 30); return [s.stick.x, s.stick.y, s.knob.x, s.knob.y, s.dirs]; })()]);
+  const floats: number[][] = [];
+  for (let i = 0; i < 200; i++) {
+    const x = rng() * 500 - 50, y = rng() * 900 - 50, hx = rng() * 400, hy = rng() * 800, r = 40 + rng() * 30;
+    const b = { left: 0, top: rng() * 300, right: 390, bottom: 844 };
+    const o = floatOffset(x, y, hx, hy, r, b);
+    floats.push([x, y, hx, hy, r, b.left, b.top, b.right, b.bottom, o.x, o.y]);
+  }
+  const sliders: number[][] = [];
+  for (let i = 0; i < 200; i++) {
+    const travel = rng() * 60, dx = (rng() * 2 - 1) * 80;
+    sliders.push([dx, travel, sliderTurn(dx, travel)]);
+  }
+  const keys = ['settings', 'resultsUp', 'roundOver', 'qualifyingOver', 'attackOver', 'learnt', 'watching', 'done', 'paused'] as const;
+  const sessions = ['qualifying', 'race', 'timetrial', 'timeattack', 'tutorial'] as const;
+  const labels: unknown[] = [];
+  for (const session of sessions) for (let bits = 0; bits < 1 << keys.length; bits++) {
+    const s = { session } as DeckState;
+    keys.forEach((k, i) => ((s as unknown as Record<string, boolean>)[k] = !!(bits & (1 << i))));
+    const l = deckLabels(s);
+    labels.push([session, bits, l.a, l.b, l.start, l.select]);
+  }
+  writeFileSync('unity/Tests~/Core.Tests/touch.json', JSON.stringify({ thumbstick: THUMBSTICK, floatMargin: FLOAT_MARGIN, sliderDead: SLIDER_DEAD, keys, sticks, floats, sliders, labels }));
+  console.log(`touch: ${sticks.length} sticks, ${floats.length} floats, ${sliders.length} sliders, ${labels.length} deck states`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'touch') goldenTouch();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'sounds') goldenSounds();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'radio') goldenRadio();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'missions') goldenMissions();
@@ -659,6 +699,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenMissions();
   goldenRadio();
   goldenSounds();
+  goldenTouch();
   goldenRaces();
   goldenQualifying();
   goldenFx();

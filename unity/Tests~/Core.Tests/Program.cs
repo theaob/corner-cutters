@@ -54,6 +54,7 @@ static class Program
         TeamRadio(root);
         RaceSoundModels(root);
         SynthSounds();
+        TouchControls(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -494,6 +495,46 @@ static class Program
         var m = Measure(loop);
         Check(loop.Length == (int)Math.Round(Music.MenuSong().Seconds * 8000) && m.finite && Math.Abs(m.peak - 0.9) < 1e-4 && m.rms > 0.05, $"menu placeholder: {loop.Length} samples, peak {m.peak:0.000}, rms {m.rms:0.000}");
         Console.WriteLine($"synth: race rms {race.rms:0.000} peak {race.peak:0.000}; menu loop {Music.MenuSong().Seconds:0.0} s");
+    }
+
+    /// <summary>The touch deck against the web game's: the thumbstick, the floating stick, the slider, the deck's labels.</summary>
+    static void TouchControls(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/touch.json"))).RootElement;
+        var t = g.GetProperty("thumbstick");
+        Check(TouchStick.DeadZone == t.GetProperty("deadZone").GetDouble() && TouchStick.Full == t.GetProperty("full").GetDouble() && TouchStick.Buttons == t.GetProperty("buttons").GetDouble()
+            && TouchStick.FloatMargin == g.GetProperty("floatMargin").GetDouble() && TouchStick.SliderDead == g.GetProperty("sliderDead").GetDouble(), "touch: constants");
+        Dirs DirsOf(JsonElement a)
+        {
+            var d = Dirs.None;
+            foreach (var x in a.EnumerateArray()) d |= x.GetString() switch { "up" => Dirs.Up, "down" => Dirs.Down, "left" => Dirs.Left, _ => Dirs.Right };
+            return d;
+        }
+        foreach (var s in g.GetProperty("sticks").EnumerateArray())
+        {
+            var r = TouchStick.Read(s[0].GetDouble(), s[1].GetDouble(), s[2].GetDouble());
+            Check(Near(r.stick.X, s[3].GetDouble()) && Near(r.stick.Y, s[4].GetDouble()) && Near(r.knob.X, s[5].GetDouble()) && Near(r.knob.Y, s[6].GetDouble()) && r.dirs == DirsOf(s[7]), $"thumbstick at {s[0]}, {s[1]}");
+        }
+        foreach (var f in g.GetProperty("floats").EnumerateArray())
+        {
+            var v = Enumerable.Range(0, 11).Select(i => f[i].GetDouble()).ToArray();
+            var o = TouchStick.FloatOffset(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
+            Check(Near(o.X, v[9]) && Near(o.Y, v[10]), $"float offset at {v[0]}, {v[1]}");
+        }
+        foreach (var s in g.GetProperty("sliders").EnumerateArray()) Check(Near(TouchStick.SliderTurn(s[0].GetDouble(), s[1].GetDouble()), s[2].GetDouble()), $"slider at {s[0]}");
+        var sessions = new Dictionary<string, DeckSession> { ["qualifying"] = DeckSession.Qualifying, ["race"] = DeckSession.Race, ["timetrial"] = DeckSession.TimeTrial, ["timeattack"] = DeckSession.TimeAttack, ["tutorial"] = DeckSession.Tutorial };
+        int n = 0;
+        foreach (var l in g.GetProperty("labels").EnumerateArray())
+        {
+            int bits = l[1].GetInt32();
+            bool B(int i) => (bits & (1 << i)) != 0;
+            var st = new DeckState { Session = sessions[l[0].GetString()], Settings = B(0), ResultsUp = B(1), RoundOver = B(2), QualifyingOver = B(3), AttackOver = B(4), Learnt = B(5), Watching = B(6), Done = B(7), Paused = B(8) };
+            var mine = DeckLabels.For(st);
+            Check(mine.a == l[2].GetString() && mine.b == l[3].GetString() && mine.start == l[4].GetString() && mine.select == l[5].GetString(), $"deck labels {l[0]} {bits}");
+            n++;
+        }
+        Check(TouchStick.PointsOn(true, DriveStyle.Auto) && !TouchStick.PointsOn(false, DriveStyle.Auto) && TouchStick.PointsOn(false, DriveStyle.Point) && !TouchStick.PointsOn(true, DriveStyle.Steer), "points on");
+        Console.WriteLine($"touch: {g.GetProperty("sticks").GetArrayLength()} sticks, {n} deck states");
     }
 
     /// <summary>A race kept (RaceSave) and picked up: built afresh from its seed, the state laid over it, it goes on as the

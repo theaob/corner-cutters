@@ -62,9 +62,9 @@ namespace CornerCutters.Game
         /// <summary>Each player's wheel: the second player's car on their pad, the rest (yours) on yours.</summary>
         System.Func<Entrant, DriveInput> Wheels(Racing.WheelPad wheel, Racing.WheelPad wheel2)
         {
-            if (you2 < 0) return e => Racing.WheelInput(wheel, e.Car);
+            if (you2 < 0) return e => Racing.PadInput(wheel, e.Car);
             var them = race.Entrants[you2];
-            return e => Racing.WheelInput(ReferenceEquals(e, them) ? wheel2 : wheel, e.Car);
+            return e => Racing.PadInput(ReferenceEquals(e, them) ? wheel2 : wheel, e.Car);
         }
 
         /// <summary>Both players home or out (one at least home), a few seconds since the last flag: on to the ceremony.</summary>

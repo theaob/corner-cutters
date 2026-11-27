@@ -250,6 +250,10 @@ namespace CornerCutters.Game
             return $"ROUND {Season.Round + 1} OF {Season.Rounds.Count} · {NameOf(Season.Rounds[Season.Round])}";
         }
 
+        static readonly string[] DrivingNames = { "AUTO", "POINT", "STEER" };
+        static readonly string[] DrivingAbout = { "TOUCH POINTS THE WAY · KEYS AND PADS STEER", "THE CAR GOES WHERE YOU POINT", "TOUCH: A SLIDER, GAS AND BRAKE · KEYS AND PADS STEER" };
+        static void TurnDriving(int by) => TouchDeck.Style = (DriveStyle)(((int)TouchDeck.Style + by + 3) % 3);
+
         /// <summary>The season screen's rows: the next round, then a new season's (team, qualifying, length), and BACK.</summary>
         public List<MenuRow> SeasonRows()
         {
@@ -320,6 +324,9 @@ namespace CornerCutters.Game
                 new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } },
                 new MenuRow { Label = "SOUND", Value = SoundOut.VolumeName(SoundOut.SoundVolume), About = SoundOut.SoundVolume > 0 ? "ENGINES, TYRES, CRASHES, LIGHTS" : "SILENCE", Left = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, -1), Right = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, 1) },
                 new MenuRow { Label = "MUSIC", Value = SoundOut.VolumeName(SoundOut.MusicVolume), About = SoundOut.MusicVolume > 0 ? "MENU AND RACE TRACKS" : "SILENCE", Left = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, -1), Right = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, 1) },
+                // (the touch screen's: how the thumb drives, and which side the stick sits; the web game's settings.driving and stick side)
+                new MenuRow { Label = "DRIVING", Value = DrivingNames[(int)TouchDeck.Style], About = DrivingAbout[(int)TouchDeck.Style], Left = () => TurnDriving(-1), Right = () => TurnDriving(1) },
+                new MenuRow { Label = "STICK", Value = TouchDeck.StickRight ? "RIGHT" : "LEFT", About = TouchDeck.StickRight ? "THUMBSTICK RIGHT · A AND B LEFT" : "THUMBSTICK LEFT · A AND B RIGHT", Left = () => TouchDeck.StickRight = !TouchDeck.StickRight, Right = () => TouchDeck.StickRight = !TouchDeck.StickRight },
             };
             if (Backend.Online)
             {

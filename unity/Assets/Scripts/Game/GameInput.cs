@@ -10,6 +10,9 @@
 //  * Both at once are fine: the device used last drives, and the on-screen hints follow it.
 //  * Two players (split screen): the second drives the last pad plugged in; the first the keyboard and, with two pads or
 //    more, the first pad.
+//  * Touch (a phone or a tablet; TouchDeck): the floating thumbstick points the way to go (DRIVING: STEER, a steering
+//    slider and GAS and BRAKE pedals), A on what's next, RESTART and PAUSE in the top corners; every other tap is a tap
+//    on the screen's buttons. Touching hands the controls to the screen; a key or a pad takes them back.
 //  * Menus/pausing: Esc or Start pause, R or Y restart, [ ] / Tab or the bumpers change circuit, C or B changes camera,
 //    F or Select the weather (a new weekend in it), Enter or A on from qualifying's table and the results.
 using CornerCutters.Core;
@@ -18,7 +21,7 @@ using UnityEngine.InputSystem;
 
 namespace CornerCutters.Game
 {
-    public enum InputSource { Keyboard, Gamepad }
+    public enum InputSource { Keyboard, Gamepad, Touch }
 
     public sealed class GameInput
     {
@@ -51,7 +54,11 @@ namespace CornerCutters.Game
         double keySteer, padTurn, padGas, padBrake, keyGas, keyBrake;
         bool driftHeld;
 
-        public InputSource Source { get; private set; } = InputSource.Keyboard;
+        public InputSource Source { get; private set; } = Application.isMobilePlatform ? InputSource.Touch : InputSource.Keyboard;
+        /// <summary>the touch screen's controls</summary>
+        public readonly TouchDeck Deck = new TouchDeck();
+        /// <summary>EXIT on the touch deck: back to the menu</summary>
+        public bool ExitPressed { get; private set; }
         public bool PausePressed { get; private set; }
         public bool RestartPressed { get; private set; }
         public int CircuitStep { get; private set; }
@@ -138,6 +145,22 @@ namespace CornerCutters.Game
             bool keysActive = kb != null && kb.anyKey.isPressed;
             if (padActive && !keysActive) Source = InputSource.Gamepad;
             else if (keysActive && !padActive) Source = InputSource.Keyboard;
+            // the touch screen: touching hands it the controls, a key or a pad takes them back
+            if (padActive || keysActive) { if (Deck.Used) Deck.Forget(); }
+            Deck.Poll();
+            if (Deck.Used) Source = InputSource.Touch;
+            HudView.Phone = Source == InputSource.Touch;
+            ExitPressed = false;
+            if (Source == InputSource.Touch && !TwoPlayer)
+            {
+                AcceptPressed |= Deck.APressed;
+                RestartPressed |= Deck.StartPressed;
+                if (Deck.SelectPressed)
+                {
+                    if (Deck.LabelSelect == "PAUSE") PausePressed = true;
+                    else ExitPressed = true;
+                }
+            }
         }
 
         /// <summary>A pad's wheel, through the web game's GamepadReader; whether it's being used.</summary>
@@ -208,6 +231,7 @@ namespace CornerCutters.Game
         public Racing.WheelPad Wheel(double dt)
         {
             double eased = smoother.Step(keySteer, dt);
+            if (Source == InputSource.Touch && !TwoPlayer) return Deck.Wheel();
             if (Source == InputSource.Gamepad)
                 return new Racing.WheelPad { Turn = padTurn, Gas = padGas, Brake = padBrake, Drift = driftHeld };
             return new Racing.WheelPad { Turn = eased, Gas = keyGas, Brake = keyBrake, Drift = driftHeld };
