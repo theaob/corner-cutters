@@ -52,6 +52,8 @@ static class Program
         MissionsAndLaunches(root);
         KeptRaces(root);
         TeamRadio(root);
+        RaceSoundModels(root);
+        SynthSounds();
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -381,6 +383,117 @@ static class Program
             k++;
         }
         Console.WriteLine($"radio: {lines.Count} cues, {k} queue steps");
+    }
+
+    static bool Near(double a, double b, double eps = 1e-9) => Math.Abs(a - b) <= eps * Math.Max(1, Math.Abs(b));
+
+    /// <summary>The sounds' models against the web game's: the engine note, the Doppler bend, the crowd, the engine's
+    /// orders, the menu tune's notes, and a loop's tail folded back.</summary>
+    static void RaceSoundModels(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/sounds.json"))).RootElement;
+        foreach (var n in g.GetProperty("notes").EnumerateArray())
+        {
+            var mine = EngineSound.Note(n[0].GetDouble(), n[1].GetDouble(), n[2].GetDouble());
+            Check(Near(mine.freq, n[3].GetDouble()) && Near(mine.gain, n[4].GetDouble()) && Near(mine.brightness, n[5].GetDouble()) && mine.gear == n[6].GetInt32(), $"engine note at {n[0]} of {n[1]}, throttle {n[2]}");
+        }
+        foreach (var d in g.GetProperty("dopplers").EnumerateArray()) Check(Near(EngineSound.Doppler(d[0].GetDouble()), d[1].GetDouble()), $"doppler {d[0]}");
+        var stands = g.GetProperty("stands").EnumerateArray().Select(st => (st.GetProperty("x").GetDouble(), st.GetProperty("y").GetDouble())).ToList();
+        foreach (var p in g.GetProperty("near").EnumerateArray())
+        {
+            double near = Crowd.Near(stands, p[0].GetDouble(), p[1].GetDouble());
+            Check(Near(near, p[2].GetDouble()) && Near(Crowd.Gain(near, p[3].GetDouble()), p[4].GetDouble()), $"crowd at {p[0]}, {p[1]}");
+        }
+        var c = g.GetProperty("crowd");
+        Check(Crowd.Murmur == c.GetProperty("murmur").GetDouble() && Crowd.Cheer == c.GetProperty("cheer").GetDouble() && Crowd.Close == c.GetProperty("close").GetDouble()
+            && Crowd.Reach == c.GetProperty("reach").GetDouble() && Crowd.Everywhere == c.GetProperty("everywhere").GetDouble() && Crowd.Fade == c.GetProperty("fade").GetDouble(), "crowd constants");
+        Check(RaceSounds.LimiterBeep == g.GetProperty("limiterBeep").GetDouble(), "limiter beep");
+        var orders = g.GetProperty("orders").EnumerateArray().Select(x => x.GetDouble()).ToArray();
+        Check(orders.Length == EngineVoice.Orders.Length && orders.Zip(EngineVoice.Orders, (a, b) => Near(a, b)).All(x => x), "engine orders");
+        var menu = g.GetProperty("menu");
+        var song = Music.MenuSong();
+        var notes = menu.GetProperty("notes").EnumerateArray().ToList();
+        Check(song.Bpm == menu.GetProperty("bpm").GetDouble() && song.Bars == menu.GetProperty("bars").GetInt32() && notes.Count == song.Notes.Count, "menu song: bpm, bars, notes");
+        for (int i = 0; i < Math.Min(notes.Count, song.Notes.Count); i++)
+        {
+            var n = notes[i];
+            var m = song.Notes[i];
+            Check(Near(m.At, n.GetProperty("at").GetDouble()) && Near(m.Len, n.GetProperty("len").GetDouble()) && m.Midi == n.GetProperty("midi").GetInt32()
+                && m.Voice.ToString().ToLowerInvariant() == n.GetProperty("voice").GetString() && Near(m.Vel, n.GetProperty("vel").GetDouble()), $"menu note {i}");
+        }
+        var fold = Music.FoldTail(Enumerable.Range(0, 23).Select(i => (float)(i * 0.25 - 2)).ToArray(), 10);
+        Check(fold.Zip(g.GetProperty("fold").EnumerateArray(), (a, b) => Near(a, b.GetDouble(), 1e-6)).All(x => x) && fold.Length == 10, "fold tail");
+        Console.WriteLine($"sounds: {g.GetProperty("notes").GetArrayLength()} engine notes, {notes.Count} menu notes");
+    }
+
+    static (double peak, double rms, bool finite) Measure(float[] d)
+    {
+        double peak = 0, sum = 0;
+        bool finite = true;
+        foreach (float x in d)
+        {
+            if (float.IsNaN(x) || float.IsInfinity(x)) finite = false;
+            peak = Math.Max(peak, Math.Abs(x));
+            sum += x * x;
+        }
+        return (peak, Math.Sqrt(sum / Math.Max(1, d.Length)), finite);
+    }
+
+    /// <summary>The synth does what Web Audio would: silence when nothing plays, filters that pass and stop where they
+    /// should, one-shots that end, voices that stop when told, the limiter in bounds, a pause that's silent.</summary>
+    static void SynthSounds()
+    {
+        const int rate = 48000;
+        var s = new Synth(rate, 0.7, seed: 3);
+        Check(Measure(s.Render(4800)).peak == 0, "synth: silent with nothing playing");
+        Shots.Beep(s, 1000, 0.15, 0.25);
+        var beep = Measure(s.Render(rate / 10));
+        Check(beep.finite && beep.peak > 0.05 && beep.peak <= 1, $"synth: a beep sounds ({beep.peak:0.000})");
+        s.Render(rate / 5);
+        Check(s.Count == 0 && Measure(s.Render(4800)).peak == 0, "synth: a beep ends");
+        // filters (as Web Audio's): a 1 kHz lowpass passes 100 Hz and stops 10 kHz; a bandpass passes its middle
+        double Through(Biquad f, double hz)
+        {
+            double peak = 0;
+            for (int i = 0; i < rate; i++)
+            {
+                double y = f.Next(Math.Sin(2 * Math.PI * hz * i / rate));
+                if (i > rate / 2) peak = Math.Max(peak, Math.Abs(y));
+            }
+            return peak;
+        }
+        Check(Math.Abs(Through(new Biquad(FilterKind.Lowpass, 1000, 0, rate), 100) - 1) < 0.02, "lowpass passes below");
+        Check(Through(new Biquad(FilterKind.Lowpass, 1000, 0, rate), 10000) < 0.02, "lowpass stops above");
+        Check(Through(new Biquad(FilterKind.Highpass, 1000, 0, rate), 100) < 0.02, "highpass stops below");
+        Check(Math.Abs(Through(new Biquad(FilterKind.Bandpass, 1000, 2, rate), 1000) - 1) < 0.02 && Through(new Biquad(FilterKind.Bandpass, 1000, 2, rate), 8000) < 0.1, "bandpass passes its middle only");
+        Check(Near(Limiter.Curve(-20), -20) && Near(Limiter.Curve(0), -10 + 10 / 8.0), "limiter curve");
+        // the race's sounds: an engine through the gears, a rival, the crowd; all finite and in bounds; gone when disposed
+        var rs = new RaceSounds(s, 0.5);
+        double speed = 0;
+        var all = new List<float>();
+        for (int f = 0; f < 300; f++)
+        {
+            speed = f < 200 ? speed + 2.5 : speed - 6;
+            rs.Update(new SoundFrame { Dt = 1 / 60.0, Speed = speed, Top = 500, Slide = f % 50 < 10 ? 150 : 0, OnRough = f % 70 < 5, OnKerb = f % 30 < 3, RivalSpeed = 400, RivalDistance = 100 + f, Tow = 0.5, Crowd = 0.7, Limiter = f > 280 });
+            if (f == 10) rs.Cheer(0.9);
+            if (f == 100) { rs.Hit(1); rs.Scrape(0.8); rs.Radio(); rs.Flag(); }
+            all.AddRange(s.Render(rate / 60));
+        }
+        var race = Measure(all.ToArray());
+        Check(race.finite && race.rms > 0.01 && race.peak <= 1, $"race sounds: finite, heard, in bounds (rms {race.rms:0.000}, peak {race.peak:0.000})");
+        rs.Dispose();
+        s.Render(rate);
+        Check(s.Count == 0, "race sounds: every voice gone once disposed");
+        // a pause: silent, its one-shots not played
+        s.Paused = true;
+        Shots.Beep(s, 800);
+        Check(s.Count == 0 && Measure(s.Render(4800)).peak == 0, "synth: silent and still while paused");
+        s.Paused = false;
+        // the menu's placeholder: a loop of the song's length, peaking at 0.9
+        var loop = Music.Render(Music.MenuSong(), 8000);
+        var m = Measure(loop);
+        Check(loop.Length == (int)Math.Round(Music.MenuSong().Seconds * 8000) && m.finite && Math.Abs(m.peak - 0.9) < 1e-4 && m.rms > 0.05, $"menu placeholder: {loop.Length} samples, peak {m.peak:0.000}, rms {m.rms:0.000}");
+        Console.WriteLine($"synth: race rms {race.rms:0.000} peak {race.peak:0.000}; menu loop {Music.MenuSong().Seconds:0.0} s");
     }
 
     /// <summary>A race kept (RaceSave) and picked up: built afresh from its seed, the state laid over it, it goes on as the

@@ -45,11 +45,16 @@ namespace CornerCutters.Game
                 {
                     finalLapSaid = true;
                     Notice("FINAL LAP", TrackView.Hex(0xf4f4f8), 3, you);
+                    sounds?.FinalLap();
                     SayRadio("final-lap");
                 }
                 if (p.Finished.HasValue && !flagSaid)
                 {
                     flagSaid = true;
+                    sounds?.Flag();
+                    sounds?.Cheer(1);
+                    // the race's music gives way to the menu's, after your flag
+                    SoundOut.Music.Play(Music.Menu, 3);
                     radioQ.Say(Radio.FinishLine(RaceControl.Order(race).IndexOf(you) + 1, race.Entrants.Count, Random.value));
                 }
                 // box, box: once a lap, as the pit wall's call goes up
@@ -63,7 +68,11 @@ namespace CornerCutters.Game
             {
                 if (replay == null || !replay.Crash) radioQ.Clear();
             }
-            else radioQ.Step(frame);
+            else
+            {
+                string line = radioQ.Step(frame);
+                if (line != null) sounds?.Radio(System.Math.Max(0.6, Radio.For(line) - 0.5));
+            }
         }
 
         /// <summary>The radio panel's colour: the brightest of your team's (so it reads on the dark panel).</summary>

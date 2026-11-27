@@ -74,6 +74,14 @@ namespace CornerCutters.Game
             return (float)(seed / 4294967296.0);
         }
 
+        /// <summary>px from (x, y) on the ground to the nearest plane up there (infinity: none in the sky), for its roar.</summary>
+        public double Nearest(double x, double y)
+        {
+            double d = double.PositiveInfinity;
+            foreach (var f in flights) d = System.Math.Min(d, System.Math.Sqrt((f.X - x) * (f.X - x) + (f.Y - y) * (f.Y - y) + f.Z * f.Z));
+            return d;
+        }
+
         /// <summary>dt s on, the camera on (x, y) going (vx, vy) px/s; draws them (call every rendered frame).</summary>
         public void Step(float dt, double x, double y, double vx, double vy)
         {

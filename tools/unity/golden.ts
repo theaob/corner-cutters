@@ -14,6 +14,10 @@ import { newSeason, recordRound, roundSeed, standings, pointsOf, parseSeason } f
 import { markSplit } from '../../src/f1/timeTrial';
 import { MISSION_CIRCUITS, MISSIONS, missionsOn, count as countMission, type PlayEvent } from '../../src/f1/missions';
 import { stepLaunch, newLaunch } from '../../src/f1/launch';
+import { CROWD, crowdGain, crowdNear, doppler, engineNote, LIMITER_BEEP } from '../../src/f1/sounds';
+import { ENGINE_ORDERS } from '../../src/engine/audio';
+import { menuSong } from '../../src/f1/music';
+import { foldTail } from '../../src/engine/music';
 import { RADIO, RADIO_LINES, finishLine, newRadio, radioLine, say, stepRadio, type RadioCue } from '../../src/f1/radio';
 import { groundAt } from '../../src/engine/sim';
 import { HALF_WIDTH } from '../../src/f1/circuit';
@@ -615,7 +619,30 @@ function goldenRadio() {
   console.log(`radio: ${Object.keys(RADIO_LINES).length} cues, ${picks.length} picks, ${finishes.length} finish lines, ${queue.length} queue steps`);
 }
 
+/** The race's sounds' models: the engine note through the gears, the Doppler bend, the crowd's nearness and loudness; the
+ * engine's waveform; the menu's placeholder tune as notes, and the loop's tail folded back. */
+function goldenSounds() {
+  const notes: number[][] = [];
+  for (const top of [400, 520]) for (let speed = 0; speed <= 560; speed += 7) for (const throttle of [0, 0.2, 0.55, 1]) {
+    const n = engineNote(speed, top, throttle);
+    notes.push([speed, top, throttle, n.freq, n.gain, n.brightness, n.gear]);
+  }
+  const dopplers = [-2000, -900, -300, -50, 0, 50, 300, 900, 2000].map((c) => [c, doppler(c)]);
+  const stands = [{ x: 100, y: 200 }, { x: 900, y: 400 }, { x: 500, y: 1200 }];
+  const rng = seededRandom(11);
+  const near: number[][] = [];
+  for (let i = 0; i < 200; i++) {
+    const x = rng() * 1400, y = rng() * 1600, cheer = rng();
+    const n = crowdNear(stands, x, y);
+    near.push([x, y, n, cheer, crowdGain(n, cheer)]);
+  }
+  const fold = Array.from(foldTail(new Float32Array(Array.from({ length: 23 }, (_, i) => i * 0.25 - 2)), 10));
+  writeFileSync('unity/Tests~/Core.Tests/sounds.json', JSON.stringify({ notes, dopplers, stands, near, crowd: CROWD, limiterBeep: LIMITER_BEEP, orders: ENGINE_ORDERS, menu: menuSong(), fold }));
+  console.log(`sounds: ${notes.length} engine notes, ${near.length} crowd points, ${menuSong().notes.length} menu notes`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'sounds') goldenSounds();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'radio') goldenRadio();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'missions') goldenMissions();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'season') goldenSeason();
@@ -631,6 +658,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenSeason();
   goldenMissions();
   goldenRadio();
+  goldenSounds();
   goldenRaces();
   goldenQualifying();
   goldenFx();

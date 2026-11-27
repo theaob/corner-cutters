@@ -166,6 +166,7 @@ namespace CornerCutters.Game
                 trial.Record = g;
                 PlayerPrefs.SetString(GhostKey, Json.Write(g.ToJson()));
                 Notice($"NEW RECORD {Results.FormatTime(g.Time)}{(record != null ? " · " + Signed(g.Time - record.Time) : "")}", SplitRecord, 3);
+                sounds?.Record();
                 // (on to the circuit's world board, as a record lap of qualifying's is)
                 string weather = Boards.WeatherOf(weatherChoice);
                 if (weather != null && Backend.Online)

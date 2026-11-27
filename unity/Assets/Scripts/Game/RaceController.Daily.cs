@@ -157,6 +157,8 @@ namespace CornerCutters.Game
                 string key = $"attack.{circuit.id}.{WeatherLooks.Name(weatherChoice)}.{difficulty.Id}";
                 int had = PlayerPrefs.GetInt(key, -1);
                 if (passed > had) PlayerPrefs.SetInt(key, passed);
+                if (passed > had && had >= 0) sounds?.Record();
+                sounds?.Quiet();
                 table.Lines.Add(passed > had && had >= 0 ? ("NEW RECORD!", 0xf2c14e) : ($"BEST · {Attack.Distance(System.Math.Max(passed, had))}", 0xf4f2fa));
                 return;
             }

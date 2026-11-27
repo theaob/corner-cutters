@@ -192,12 +192,14 @@ namespace CornerCutters.Game
 
         void OnApplicationFocus(bool focused)
         {
+            SoundOut.SetHidden(!focused);
             if (focused) PlayStats.Back();
             else Away();
         }
 
         void OnApplicationPause(bool paused)
         {
+            SoundOut.SetHidden(paused);
             if (paused) Away();
             else PlayStats.Back();
         }
@@ -407,6 +409,7 @@ namespace CornerCutters.Game
             for (int k = 0; k < race.Entrants.Count; k++) was[k] = now[k] = PoseOf(race.Entrants[k].Car);
             notice = notice2 = null;
             FreshRadio();
+            FreshSounds();
             sinceStart = 0;
             paused = false;
             particles.Clear();
@@ -468,6 +471,8 @@ namespace CornerCutters.Game
                 MenuUpdate(frame);
                 if (menu != null)
                 {
+                    SoundOut.SetPaused(false);
+                    MenuSounds();
                     Draw(1, frame);
                     return;
                 }
@@ -482,6 +487,7 @@ namespace CornerCutters.Game
                 // (paused: the race kept on the device, to come back to if the game's closed now)
                 if (paused) KeepNow();
             }
+            SoundOut.SetPaused(paused);
             if (input.RestartPressed && !typing) Restart();
             if (input.CircuitStep != 0 && !typing && season == null) { daily = null; LoadCircuit(circuitIndex + input.CircuitStep); }
             if (input.WeatherPressed && !typing && !daily.HasValue && season == null) NextWeather();
@@ -517,6 +523,7 @@ namespace CornerCutters.Game
             if (session == Session.Race) UpdateResults();
             if (!paused) NextNews();
             if (!paused) StepRadio(frame);
+            if (!paused) StepSounds(frame);
             CountDriven(frame);
             if (!paused) { nameEdit = null; shopOpen = false; }
             if (qualiTable != null || results != null || attackTable != null) tableUp += frame;
@@ -631,7 +638,14 @@ namespace CornerCutters.Game
             {
                 double t = Me.Progress.LapTimes[Me.Progress.LapTimes.Count - 1];
                 if (session != Session.QualiOver && (double.IsNaN(bestLap) || t < bestLap)) bestLap = t;
-                if (session == Session.Race && (double.IsNaN(record) || t < record)) { record = t; newLapRecord = true; PlayerPrefs.SetFloat("rec." + circuit.id, (float)t); }
+                if (session == Session.Race && (double.IsNaN(record) || t < record))
+                {
+                    // (a record beaten, not the first lap ever here: chimed)
+                    if (!double.IsNaN(record)) sounds?.Record();
+                    record = t;
+                    newLapRecord = true;
+                    PlayerPrefs.SetFloat("rec." + circuit.id, (float)t);
+                }
                 if (session == Session.Race) Play(new PlayEvent { Kind = PlayKind.Lap });
                 if (session == Session.Race) KeepNow();
             }
@@ -639,6 +653,7 @@ namespace CornerCutters.Game
             for (int k = 0; k < result.Cars.Length && k < landed.Length; k++)
             {
                 lastEvents[k] = result.Cars[k];
+                if (k == you && result.Cars[k].WreckedNow) wreckedNow = true;
                 landed[k] = System.Math.Max(landed[k], result.Cars[k].Landed);
             }
             foreach (var ev in result.Race) Call(ev);
@@ -697,7 +712,11 @@ namespace CornerCutters.Game
         {
             bool cut = events.Any(e => (e.Kind == RaceEventKind.TrackLimits || e.Kind == RaceEventKind.OffTrack) && e.Who == you);
             var verdict = Qualifying.JudgeLap(qualiLap, Me.Progress, cut, out double time);
-            if (verdict == QualiCall.Deleted) Notice("LAP DELETED · TRACK LIMITS", TrackView.Hex(0xd8323c), 3);
+            if (verdict == QualiCall.Deleted)
+            {
+                Notice("LAP DELETED · TRACK LIMITS", TrackView.Hex(0xd8323c), 3);
+                sounds?.TrackLimits(true);
+            }
             else if (verdict == QualiCall.Void) Notice("FLYING LAP · GO AGAIN", TrackView.Hex(0xf2c14e), 2);
             else if (verdict == QualiCall.Time) EndQualifying(time);
             else if (Me.Car.Wrecked) EndQualifying(null);
@@ -722,7 +741,11 @@ namespace CornerCutters.Game
                 bool first = fastest == null;
                 fastest = (lap, i);
                 if (!first && sinceStart >= noticeUntil) Notice($"FASTEST LAP · {DriverName(driverOf[i])} {Results.FormatTime(lap)}", TrackView.Hex(0xb36bff), 2.5);
-                if (!first && i == you) SayRadio("fastest-lap");
+                if (!first && i == you)
+                {
+                    sounds?.Record();
+                    SayRadio("fastest-lap");
+                }
             }
         }
 
@@ -738,6 +761,11 @@ namespace CornerCutters.Game
             int to = ev.Who;
             switch (ev.Kind)
             {
+                case RaceEventKind.LightsOut:
+                    sounds?.Go();
+                    // (the crowd roars them away)
+                    if (session == Session.Race) sounds?.Cheer(0.9);
+                    break;
                 case RaceEventKind.SafetyCar: Notice("SAFETY CAR", gold, 4); SayRadio("safety-car"); break;
                 case RaceEventKind.Vsc: Notice("VIRTUAL SAFETY CAR", gold, 4); SayRadio("vsc"); break;
                 case RaceEventKind.VscEnding: Notice("VSC ENDING", gold, 3); break;
@@ -745,7 +773,11 @@ namespace CornerCutters.Game
                 case RaceEventKind.Penalty when mine: Notice($"+{ev.Seconds:0}S PENALTY · NO OVERTAKING", red, 4, to); break;
                 case RaceEventKind.TrackLimits when mine:
                     Notice(ev.Seconds > 0 ? $"TRACK LIMITS · +{ev.Seconds:0}S" : $"TRACK LIMITS · WARNING {ev.Strike}", ev.Seconds > 0 ? red : gold, 3, to);
-                    if (ev.Who == you && session == Session.Race) SayRadio(ev.Seconds > 0 ? "penalty" : "warning");
+                    if (ev.Who == you && session == Session.Race)
+                    {
+                        SayRadio(ev.Seconds > 0 ? "penalty" : "warning");
+                        sounds?.TrackLimits(ev.Seconds > 0);
+                    }
                     break;
                 case RaceEventKind.Blue when mine:
                     Notice("BLUE FLAG · LET THEM BY", blue, 3, to);
@@ -763,7 +795,11 @@ namespace CornerCutters.Game
                     Notice("WRECKED", red, 4, to);
                     if (ev.Who == you) SayRadio("wreck");
                     break;
-                case RaceEventKind.Crash: Crashed(ev); break;
+                case RaceEventKind.Crash:
+                    Crashed(ev);
+                    // (a gasp from the stands)
+                    sounds?.Cheer(ev.Wrecked ? 0.55 : 0.3);
+                    break;
                 case RaceEventKind.PitRepaired: debris.Refit(views[ev.Who], race.Clock); break;
                 case RaceEventKind.Retired when !mine: Notice($"{DriverName(driverOf[ev.Who])} OUT", ink, 3); break;
                 case RaceEventKind.Rain:

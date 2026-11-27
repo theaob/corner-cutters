@@ -306,6 +306,8 @@ namespace CornerCutters.Game
                 new MenuRow { Label = "UI SCALE", Value = HudView.UiScale == 0 ? "AUTO" : $"{Mathf.RoundToInt(HudView.UiScale * 100)}%", About = "THE HUD AND THE TABLES: AUTO FITS THE WINDOW", Left = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), -1), Right = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), 1) },
                 new MenuRow { Label = "MINIMAP", Value = HudView.MapScale < 1.25f ? "SMALL" : HudView.MapScale < 1.75f ? "LARGE" : "HUGE", About = "THE MAP AND THE TIMING TOWER, TOP RIGHT", Left = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), -1), Right = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), 1) },
                 new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } },
+                new MenuRow { Label = "SOUND", Value = SoundOut.VolumeName(SoundOut.SoundVolume), About = SoundOut.SoundVolume > 0 ? "ENGINES, TYRES, CRASHES, LIGHTS" : "SILENCE", Left = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, -1), Right = () => SoundOut.SoundVolume = SoundOut.Turn(SoundOut.SoundVolume, 1) },
+                new MenuRow { Label = "MUSIC", Value = SoundOut.VolumeName(SoundOut.MusicVolume), About = SoundOut.MusicVolume > 0 ? "MENU AND RACE TRACKS" : "SILENCE", Left = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, -1), Right = () => SoundOut.MusicVolume = SoundOut.Turn(SoundOut.MusicVolume, 1) },
             };
             if (Backend.Online)
             {

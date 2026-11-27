@@ -24,8 +24,9 @@ screen turns it off). A big crash throws the car's nose, and on a wreck a wheel 
 lie a while; a damaged car smokes, a burning one flames and blackens, a wreck smoulders charred; hits throw sparks; and
 a moment later the crash plays again, slowed through the impact. A few seconds after your flag your finish plays again,
 then the top three spray champagne in parc fermé (trophies, confetti, fireworks, the camera's sweep from third to the
-winner), then the results. Enter or A skips the walk, a replay or the ceremony. Not yet: skid marks, menus, audio,
-saves, shop.
+winner), then the results. Enter or A skips the walk, a replay or the ceremony. Sound is the web game's, made the same way (synthesised on
+the device: Core/Synth.cs, Core/Sounds.cs), with its three composed tracks in Resources/Music and the menu tune's
+placeholder rendered on the device. Not yet: skid marks.
 
 **Look.** The camera is the web game's (north up, 26 degree lens, 52 degree pitch). Each circuit's ground is the web
 game's own picture (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane, grid boxes, chequered line: baked from its
@@ -40,7 +41,7 @@ the yeti waits up the road, roars and gives chase. The crowds and flags are `Sta
 wide-screen layout in its pixel font (`HudView`). Finish: its glow, tilt-shift, grade and tone mapping (`TiltShift` shader).
 
 Known gaps: the scene is lit for day on every circuit (night circuits like Vegas show their neon but not the dark).
-Still placeholder: sound. The weather's light is one change of light over the whole scene, so lamps and
+The weather's light is one change of light over the whole scene, so lamps and
 glowing signs grey a little with it (the web game's stay bright).
 
 **Play stats and world boards.** As the web game (`metrics.ts`, `boards.ts`), on the same Supabase project, only when
@@ -60,7 +61,7 @@ them), a mode's circuit screen (the circuit's outline and name, TEAM, WEATHER, a
 the settings (DIFFICULTY, GRID WALK, UI SCALE for the HUD and tables, MINIMAP size, NAME, STATS, PLAYER ID, the version), the shop and your name. Keys, a pad or the
 mouse: arrows or the d-pad move, left and right change a row, ENTER or A picks, ESC or B goes back. What you pick is
 kept for next time. The pause screen has RESUME, RESTART, SKIP QUALIFYING, WEATHER, GRID WALK and MAIN MENU, with the
-keys and the pad too. (Not yet: the web game's sound, controls, accessibility and language settings, the trophy cabinet,
+keys and the pad too. SETTINGS has SOUND and MUSIC (OFF, LOW, MEDIUM, HIGH). (Not yet: the web game's controls, accessibility and language settings, the trophy cabinet,
 the circuits locked until a Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
 
 **Daily Challenge, streak and shop.** As the web game (`daily.ts`, `timeAttack.ts`, `streak.ts`, `carStyle.ts`):
