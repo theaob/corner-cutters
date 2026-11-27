@@ -22,6 +22,7 @@ namespace CornerCutters.Game
         /// <summary>The menu, at `screen` (the title as the game starts; the modes after).</summary>
         void OpenMenu(Menu.Screen screen = Menu.Screen.Modes)
         {
+            OneScreen();
             menu = new Menu(ids, circuitIndex);
             menu.Open(screen, screen == Menu.Screen.Modes ? 1 : 0);
             menuT = 0;
@@ -37,6 +38,7 @@ namespace CornerCutters.Game
             weatherChoice = menu.Weather;
             laps = menu.Laps;
             qualifying = menu.Qualifying;
+            twoPlayers = menu.TwoPlayers && menu.Mode == "race";
         }
 
         /// <summary>A frame of the menu: the keys or the pad on the screen it's at.</summary>

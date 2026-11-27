@@ -8,6 +8,8 @@
 //    GamepadReader the web game uses (dead zone, rescale), from the standard layout, so Xbox, PlayStation and Switch pads
 //    (and Joy-Cons / Pro Controller on desktop) all arrive alike.
 //  * Both at once are fine: the device used last drives, and the on-screen hints follow it.
+//  * Two players (split screen): the second drives the last pad plugged in; the first the keyboard and, with two pads or
+//    more, the first pad.
 //  * Menus/pausing: Esc or Start pause, R or Y restart, [ ] / Tab or the bumpers change circuit, C or B changes camera,
 //    F or Select the weather (a new weekend in it), Enter or A on from qualifying's table and the results.
 using CornerCutters.Core;
@@ -34,7 +36,16 @@ namespace CornerCutters.Game
         readonly InputAction[] all;
 
         readonly SteeringSmoother smoother = new SteeringSmoother();
-        readonly PadState pad = new PadState();
+        readonly PadState pad = new PadState(), pad2 = new PadState();
+
+        /// <summary>two players, split screen: the second on a pad of its own</summary>
+        public bool TwoPlayer;
+        /// <summary>the second player's pad is there</summary>
+        public bool SecondPad { get; private set; }
+        /// <summary>any pad plugged in (the second player needs one)</summary>
+        public static bool AnyPad => Gamepad.all.Count > 0;
+        double p2Turn, p2Gas, p2Brake;
+        bool p2Drift;
 
         // sampled once a frame (Poll), used by every simulation step of that frame
         double keySteer, padTurn, padGas, padBrake, keyGas, keyBrake;
@@ -109,32 +120,54 @@ namespace CornerCutters.Game
             CircuitStep = (nextCircuit.WasPressedThisFrame() ? 1 : 0) - (prevCircuit.WasPressedThisFrame() ? 1 : 0);
 
             var g = Gamepad.current;
-            bool padActive = false;
-            padTurn = padGas = padBrake = 0;
-            if (g != null)
+            // (two players: the first's pad is the first of two or more, the second's the last)
+            var pads = Gamepad.all;
+            Gamepad mine = g, theirs = null;
+            if (TwoPlayer)
             {
-                var p = pad;
-                p.AxisX = g.leftStick.x.ReadValue();
-                p.AxisY = -g.leftStick.y.ReadValue();   // the web layout has y down
-                p.LeftTrigger = g.leftTrigger.ReadValue();
-                p.RightTrigger = g.rightTrigger.ReadValue();
-                p.Pressed[0] = g.buttonSouth.isPressed;
-                p.Pressed[3] = g.buttonNorth.isPressed;
-                p.Pressed[8] = g.selectButton.isPressed;
-                p.Pressed[9] = g.startButton.isPressed;
-                p.Pressed[12] = g.dpad.up.isPressed;
-                p.Pressed[13] = g.dpad.down.isPressed;
-                p.Pressed[14] = g.dpad.left.isPressed;
-                p.Pressed[15] = g.dpad.right.isPressed;
-                var buttons = GamepadReader.Read(p, out var d);
-                padTurn = d.Turn; padGas = d.Gas; padBrake = d.Brake;
-                padActive = buttons.Count > 0 || d.Turn != 0 || d.Gas > 0.05 || d.Brake > 0.05;
+                mine = pads.Count >= 2 ? pads[0] : null;
+                theirs = pads.Count >= 1 ? pads[pads.Count - 1] : null;
+                driftHeld = KeyDrift() || PadDrift(mine);
             }
+            bool padActive = ReadPad(mine, pad, out padTurn, out padGas, out padBrake);
+            SecondPad = theirs != null;
+            ReadPad(theirs, pad2, out p2Turn, out p2Gas, out p2Brake);
+            p2Drift = PadDrift(theirs);
             Nav(g);
             var kb = Keyboard.current;
             bool keysActive = kb != null && kb.anyKey.isPressed;
             if (padActive && !keysActive) Source = InputSource.Gamepad;
             else if (keysActive && !padActive) Source = InputSource.Keyboard;
+        }
+
+        /// <summary>A pad's wheel, through the web game's GamepadReader; whether it's being used.</summary>
+        static bool ReadPad(Gamepad g, PadState p, out double turn, out double gas, out double brake)
+        {
+            turn = gas = brake = 0;
+            if (g == null) return false;
+            p.AxisX = g.leftStick.x.ReadValue();
+            p.AxisY = -g.leftStick.y.ReadValue();   // the web layout has y down
+            p.LeftTrigger = g.leftTrigger.ReadValue();
+            p.RightTrigger = g.rightTrigger.ReadValue();
+            p.Pressed[0] = g.buttonSouth.isPressed;
+            p.Pressed[3] = g.buttonNorth.isPressed;
+            p.Pressed[8] = g.selectButton.isPressed;
+            p.Pressed[9] = g.startButton.isPressed;
+            p.Pressed[12] = g.dpad.up.isPressed;
+            p.Pressed[13] = g.dpad.down.isPressed;
+            p.Pressed[14] = g.dpad.left.isPressed;
+            p.Pressed[15] = g.dpad.right.isPressed;
+            var buttons = GamepadReader.Read(p, out var d);
+            turn = d.Turn; gas = d.Gas; brake = d.Brake;
+            return buttons.Count > 0 || d.Turn != 0 || d.Gas > 0.05 || d.Brake > 0.05;
+        }
+
+        static bool PadDrift(Gamepad g) => g != null && (g.buttonSouth.isPressed || g.buttonWest.isPressed);
+
+        static bool KeyDrift()
+        {
+            var kb = Keyboard.current;
+            return kb != null && (kb.spaceKey.isPressed || kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed);
         }
 
         /// <summary>The menus' steps: arrow keys or WASD, the d-pad, or the stick (stepping again while it's held).</summary>
@@ -179,6 +212,9 @@ namespace CornerCutters.Game
                 return new Racing.WheelPad { Turn = padTurn, Gas = padGas, Brake = padBrake, Drift = driftHeld };
             return new Racing.WheelPad { Turn = eased, Gas = keyGas, Brake = keyBrake, Drift = driftHeld };
         }
+
+        /// <summary>The second player's wheel for one simulation step: their pad's reading (nothing without one).</summary>
+        public Racing.WheelPad Wheel2(double dt) => new Racing.WheelPad { Turn = p2Turn, Gas = p2Gas, Brake = p2Brake, Drift = p2Drift };
 
         public void ResetWheel() => smoother.Reset();
 

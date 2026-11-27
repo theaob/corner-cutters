@@ -48,6 +48,8 @@ namespace CornerCutters.Game
         public WeatherChoice Weather = (WeatherChoice)Mathf.Clamp(PlayerPrefs.GetInt("weather", 0), 0, 3);
         public bool Qualifying = PlayerPrefs.GetInt("menu.qualifying", 1) != 0;
         public int Laps = PlayerPrefs.GetInt("menu.laps", 5);
+        /// <summary>a Quick Race for two, split screen (the second player on a pad)</summary>
+        public bool TwoPlayers = PlayerPrefs.GetInt("menu.players", 1) == 2;
         public int Difficulty = Mathf.Clamp(PlayerPrefs.GetInt("menu.difficulty", 1), 0, Field.Difficulties.Length - 1);
 
         /// <summary>a Quick Race's laps to choose from (laps.ts LAP_CHOICES)</summary>
@@ -85,6 +87,7 @@ namespace CornerCutters.Game
             PlayerPrefs.SetInt("menu.qualifying", Qualifying ? 1 : 0);
             PlayerPrefs.SetInt("menu.laps", Laps);
             PlayerPrefs.SetInt("menu.difficulty", Difficulty);
+            PlayerPrefs.SetInt("menu.players", TwoPlayers ? 2 : 1);
             PlayerPrefs.SetInt("season.qualifying", SeasonQualifying ? 1 : 0);
             PlayerPrefs.SetInt("season.laps", SeasonLaps);
         }
@@ -187,7 +190,8 @@ namespace CornerCutters.Game
             };
             if (Mode == "race")
             {
-                rows.Add(new MenuRow { Label = "QUALIFYING", Value = Qualifying ? "ON" : "OFF", About = Qualifying ? "ONE FLYING LAP SETS YOUR GRID SLOT" : "START MID-GRID", Left = () => Qualifying = !Qualifying, Right = () => Qualifying = !Qualifying });
+                rows.Add(new MenuRow { Label = "PLAYERS", Value = TwoPlayers ? "2" : "1", About = TwoPlayers ? "SPLIT SCREEN · PLAYER 2 ON A PAD" : "JUST YOU", Left = () => TwoPlayers = !TwoPlayers, Right = () => TwoPlayers = !TwoPlayers });
+                if (!TwoPlayers) rows.Add(new MenuRow { Label = "QUALIFYING", Value = Qualifying ? "ON" : "OFF", About = Qualifying ? "ONE FLYING LAP SETS YOUR GRID SLOT" : "START MID-GRID", Left = () => Qualifying = !Qualifying, Right = () => Qualifying = !Qualifying });
                 rows.Add(new MenuRow { Label = "LAPS", Value = $"{Laps}", About = Laps <= 2 ? "A DASH" : Laps <= 5 ? "A SPRINT" : Laps <= 10 ? "A RACE" : "A LONG ONE: TYRES AND STOPS", Left = () => Laps = Turn(LapChoices, Laps, -1), Right = () => Laps = Turn(LapChoices, Laps, 1) });
             }
             rows.Add(new MenuRow { Label = Mode == "race" ? "RACE" : "GO", Button = true, Pick = () => Asked = Go.Play });

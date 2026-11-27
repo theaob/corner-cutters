@@ -81,6 +81,8 @@ namespace CornerCutters.Game
             public bool Daily;
             /// <summary>the weather's the weekend's own (a Daily, a Championship round): no WEATHER button</summary>
             public bool WeatherFixed;
+            /// <summary>split screen: this HUD is one player's half</summary>
+            public bool Split;
             public ShopState Shop;
             /// <summary>s left on the Time Attack's clock (null: no clock, or not started)</summary>
             public double? Clock;
@@ -232,17 +234,32 @@ namespace CornerCutters.Game
         {
             k = UiK();
             if (font != null && font.material != null && font.material.mainTexture != null) font.material.mainTexture.filterMode = FilterMode.Point;
-            float w = Screen.width / k, h = Screen.height / k;
-            Rain(s.Rain, s.Paused);
+            // (split screen: this player's half, the HUD a little smaller in it, no key hints)
+            var area = Area ?? new Rect(0, 0, Screen.width, Screen.height);
+            if (Area.HasValue) GUI.BeginGroup(area);
+            if (s.Split) k *= 0.85f;
+            float w = area.width / k, h = area.height / k;
+            Rain(s.Rain, s.Paused, area.width, area.height);
             Readout(s);
             LapStrip(s, w);
             ClockView(s, w);
             Minimap(s, w);
             TowerView(s, w);
             Banner(s, w, h);
-            Controls(s, h);
+            if (!s.Split) Controls(s, h);
             SkipHint(s.Skip, s.Source, w, h);
-            return s.Paused ? Pause(s, w, h) : PauseChoice.None;
+            if (Area.HasValue) GUI.EndGroup();
+            return s.Paused ? DrawPause(s) : PauseChoice.None;
+        }
+
+        /// <summary>where on the screen the HUD goes (null: all of it; split screen, a player's half)</summary>
+        public Rect? Area;
+
+        /// <summary>The pause screen alone, over the whole screen.</summary>
+        public PauseChoice DrawPause(State s)
+        {
+            k = UiK();
+            return Pause(s, Screen.width / k, Screen.height / k);
         }
 
         // ---- the rain (screenFx.ts createRain): 90 drops, as many falling as it's raining hard ----
@@ -251,7 +268,7 @@ namespace CornerCutters.Game
         readonly Drop[] drops = Enumerable.Range(0, 90).Select(_ => new Drop { X = Random.value, Y = Random.value, V = 0.9f + Random.value * 0.6f }).ToArray();
         Texture2D streak;
 
-        void Rain(double rain, bool paused)
+        void Rain(double rain, bool paused, float sw0, float sh0)
         {
             int falling = Mathf.RoundToInt(drops.Length * (float)rain);
             if (falling <= 0 || Event.current.type != EventType.Repaint) return;
@@ -266,7 +283,7 @@ namespace CornerCutters.Game
                 d.X -= d.V * dt * 0.25f;
                 if (d.Y > 1) { d.Y -= 1; d.X = Random.value + 0.1f; }
                 if (d.X < 0) d.X += 1.1f;
-                GUI.DrawTexture(new Rect(d.X * Screen.width, d.Y * Screen.height - sh, sw, sh), streak, ScaleMode.StretchToFill, true);
+                GUI.DrawTexture(new Rect(d.X * sw0, d.Y * sh0 - sh, sw, sh), streak, ScaleMode.StretchToFill, true);
             }
         }
 
