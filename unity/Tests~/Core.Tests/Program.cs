@@ -59,6 +59,7 @@ static class Program
         TrophyChecks(root);
         SaveChecks(root);
         LangChecks(root);
+        NightChecks(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -552,6 +553,22 @@ static class Program
         Check(Lang.Pick("tr", new[] { "ja" }, have) == "tr" && Lang.Pick(null, new[] { "ja-JP" }, have) == "ja" && Lang.Pick("xx", new[] { "nl" }, have) == "en", "lang: the pick");
     }
 
+    static void NightChecks(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/night.json"))).RootElement;
+        // (the look the game ships, a: floodlit; b and c were tried on the web with ?look=, and aren't shipped)
+        var a = g.GetProperty("looks").GetProperty("a");
+        Check(WeatherLooks.NightGlow == a.GetProperty("glow").GetProperty("color").GetInt32() && WeatherLooks.NightGlowIntensity == a.GetProperty("glow").GetProperty("intensity").GetDouble(), "night: the lamps' glow on the ground");
+        Check(WeatherLooks.NightTown == Convert.ToInt32(a.GetProperty("town").GetProperty("town").GetString().Substring(1), 16), "night: the town beyond");
+        Check(WeatherLooks.NightBloom == g.GetProperty("night").GetProperty("bloom").GetDouble(), "night: the bloom");
+        void Same(SkyState n, JsonElement w, string what) => Check(n.Background == w.GetProperty("background").GetInt32() && n.Sky == w.GetProperty("sky").GetInt32() && n.Ground == w.GetProperty("ground").GetInt32()
+            && n.Key == w.GetProperty("key").GetInt32() && Near(n.Ambient, w.GetProperty("ambient").GetDouble()) && Near(n.KeyIntensity, w.GetProperty("keyIntensity").GetDouble()), $"night sky: {what}");
+        foreach (var s in g.GetProperty("skies").EnumerateArray())
+            Same(WeatherLooks.Night(WeatherLooks.At(s[0].GetDouble(), s[1].GetDouble()).Sky), s[2], $"wetness {s[0]}, rain {s[1]}");
+        var days = new Dictionary<string, SkyState> { ["dry"] = WeatherLooks.DrySky, ["damp"] = WeatherLooks.DampSky, ["wet"] = WeatherLooks.WetSky };
+        foreach (var w in g.GetProperty("weathers").EnumerateArray()) Same(WeatherLooks.Night(days[w[0].GetString()]), w[1], w[0].GetString());
+    }
+
     static void SaveChecks(string root)
     {
         var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/save.json"))).RootElement;
@@ -603,6 +620,17 @@ static class Program
     static void TrophyChecks(string root)
     {
         var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/trophies.json"))).RootElement;
+        var title = g.GetProperty("title");
+        Check(TitleWin.FireworksS * 1000 == title.GetProperty("fireworks").GetDouble() && TitleWin.HoldS * 1000 == title.GetProperty("hold").GetDouble(), "title card: its timings");
+        foreach (var l in title.GetProperty("lines").EnumerateArray())
+            Check(TitleWin.Line(l[0].GetInt32(), l[1].GetInt32(), l[2].GetInt32()) == l[3].GetString(), $"title card: {l[3].GetString()}");
+        var sky = new TitleSky(1280, 720, 7);
+        int most = 0, bits = 0;
+        for (int i = 0; i < 600; i++) { sky.Step(1 / 60.0); most = Math.Max(most, sky.Sparks.Count); bits = Math.Max(bits, sky.Bits.Count); }
+        // (and all gone by 10 s: the fireworks stop at 7, the last wave of confetti at 9.1)
+        Check(most >= 36 && bits >= 90 && sky.Sparks.Count == 0 && sky.Bits.Count == 0, "title card: fireworks and confetti");
+        for (int i = 0; i < 300; i++) sky.Step(1 / 60.0);
+        Check(sky.Sparks.Count == 0 && sky.Bits.Count == 0, "title card: the sky clears");
         Medal M(JsonElement e) => e.ValueKind == JsonValueKind.Null ? Medal.None : Medals.FromId(e.GetString());
         foreach (var m in Medals.All)
         {

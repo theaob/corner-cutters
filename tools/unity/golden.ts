@@ -42,7 +42,8 @@ import { newRace, stepRace, order as raceOrder, type RaceEvent } from '../../src
 import { aiTimes, gridOrder, newQualifying, referenceLap } from '../../src/f1/qualifying';
 import { qualifyingRows, raceSummary, resultRows } from '../../src/f1/race/resultsView';
 import { formatTime } from '../../src/f1/records';
-import { lookAt } from '../../src/f1/weather';
+import { lookAt, WEATHERS } from '../../src/f1/weather';
+import { NIGHT, NIGHT_LOOKS, nightSky } from '../../src/f1/night';
 import { fling, stepPiece } from '../../src/engine/debris';
 import { panAt, panLength } from '../../src/f1/gridPan';
 import { crashWindow, newReplay, recordReplay, replayPose, replayWindow } from '../../src/f1/replay';
@@ -58,6 +59,7 @@ import { CAR_STYLES } from '../../src/f1/carStyle';
 import { ghostPose, newRecorder, recordFrame, toGhost } from '../../src/f1/timeTrial';
 import { packGhost } from '../../src/f1/boards';
 import { CC_SAVE } from '../../src/f1/save';
+import { FIREWORKS_MS, TITLE_HOLD_MS, titleLine } from '../../src/f1/screens/titleWin';
 import { migrateSave, parseSaveDoc } from '../../src/engine/save';
 import { recordAttack, recordLap, recordQualifying, recordRace, recordsFrom } from '../../src/f1/records';
 import type { AiDriver } from '../../src/f1/racing';
@@ -729,8 +731,10 @@ function goldenTrophies() {
   const parsed = [
     null, 7, 'x', { titles: 2.5 }, { titles: -1 }, { titles: 3, medals: { a: { trial: 'gold', attack: 'tin' }, b: 'no', c: { attack: 'bronze' }, d: {} } },
   ].map((v) => [v, parseTrophies(v)]);
+  // (the title's card: its numbers line, and its timings)
+  const title = { fireworks: FIREWORKS_MS, hold: TITLE_HOLD_MS, lines: [[100, 4, 12], [25, 1, 0], [250, 10, 1], [43, 0, 3]].map(([points, wins, clear]) => [points, wins, clear, titleLine({ points, wins, clear })]) };
   writeFileSync('unity/Tests~/Core.Tests/trophies.json', JSON.stringify({
-    medals: MEDALS, colors: MEDAL_COLOR, pace: MEDAL_PACE, achievements: ACHIEVEMENTS, torpedo: TORPEDO, streak: STREAK_ACHIEVEMENTS, laps, attacks, races, circuits, cabinets, parsed,
+    title, medals: MEDALS, colors: MEDAL_COLOR, pace: MEDAL_PACE, achievements: ACHIEVEMENTS, torpedo: TORPEDO, streak: STREAK_ACHIEVEMENTS, laps, attacks, races, circuits, cabinets, parsed,
   }));
   console.log(`trophies: ${laps.length} laps, ${attacks.length} attack levels, ${races.length} races, ${cabinets.length} cabinets`);
 }
@@ -835,7 +839,21 @@ function goldenSave() {
   console.log(`save: ${texts.length} documents, ${ops.length} records noted`);
 }
 
+/** Neon Strip's night (f1/night.ts): the night of every weather's sky, and the look the game ships (a) beside the two it was tried with. */
+function goldenNight() {
+  const skies: unknown[] = [];
+  for (const wetness of [0, 0.2, 0.5, 0.8, 1, 1.5, 2]) for (const rain of [0, 0.5, 1]) {
+    const day = lookAt(wetness, rain).sky;
+    const n = nightSky(day);
+    skies.push([wetness, rain, { background: n.background, sky: n.sky, ground: n.ground, ambient: n.ambient, key: n.key, keyIntensity: n.keyIntensity }]);
+  }
+  const weathers = WEATHERS.map((w) => [w.id, nightSky(w.sky)]);
+  writeFileSync('unity/Tests~/Core.Tests/night.json', JSON.stringify({ night: NIGHT, looks: NIGHT_LOOKS, skies, weathers }));
+  console.log(`night: ${skies.length} skies, ${Object.keys(NIGHT_LOOKS).length} looks`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'night') goldenNight();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'save') goldenSave();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'feel') goldenFeel();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'trophies') goldenTrophies();
@@ -861,6 +879,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenFeel();
   goldenTrophies();
   goldenSave();
+  goldenNight();
   goldenRaces();
   goldenQualifying();
   goldenFx();

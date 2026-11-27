@@ -35,6 +35,8 @@ namespace CornerCutters.Game
             Ambient = (float)sky.Ambient; SunIntensity = (float)sky.KeyIntensity;
             Flat = LightOn(Vector3.up);
             if (c.night) Flat += NightGlow();
+            // (what the finish pass gives back to the parts' own light: see the vertices' alpha below)
+            TiltShiftEffect.Baked = new Vector4(Flat.r, Flat.g, Flat.b, 0);
         }
 
         /// <summary>The night lamps' glow on the ground, linear (three.js's emissive: not divided by π).</summary>
@@ -162,8 +164,18 @@ namespace CornerCutters.Game
                     lit = new Color(c0.r * L.r / Flat.r, c0.g * L.g / Flat.g, c0.b * L.b / Flat.b);
                 }
                 // (a glowing part's light is its map's, drawn by the shader)
-                if ((flags & Glowing) == 0) lit += new Color(p.Emissive.r / Flat.r, p.Emissive.g / Flat.g, p.Emissive.b / Flat.b, 0);
-                ch.Col.Add(new Color(ToSrgb(Mathf.Clamp01(lit.r)), ToSrgb(Mathf.Clamp01(lit.g)), ToSrgb(Mathf.Clamp01(lit.b)), (flags & SeeThrough) != 0 ? p.Opacity * p.Col[i].a : 1));
+                // the share of it that's the sky's and the sun's light, not its own (a lamp's, a sign's), in an opaque part's
+                // alpha: the finish pass lights that share by the weather and leaves its own light be, so rain greys the
+                // scenery and not the lamps (three.js's emissive, which no light changes)
+                float litShare = 1;
+                if ((flags & Glowing) == 0 && (p.Emissive.r > 0 || p.Emissive.g > 0 || p.Emissive.b > 0))
+                {
+                    var own = new Color(p.Emissive.r / Flat.r, p.Emissive.g / Flat.g, p.Emissive.b / Flat.b, 0);
+                    float all = Mathf.Max(lit.r + own.r, lit.g + own.g, lit.b + own.b);
+                    litShare = all > 0 ? Mathf.Clamp01(1 - Mathf.Max(own.r, own.g, own.b) / all) : 1;
+                    lit += own;
+                }
+                ch.Col.Add(new Color(ToSrgb(Mathf.Clamp01(lit.r)), ToSrgb(Mathf.Clamp01(lit.g)), ToSrgb(Mathf.Clamp01(lit.b)), (flags & SeeThrough) != 0 ? p.Opacity * p.Col[i].a : litShare));
                 ch.Uv.Add(p.Tex >= 0 ? p.Uv[i] : Vector2.zero);
             }
             for (int i = 0; i < p.Idx.Length; i++) ch.Idx.Add(at + p.Idx[i]);

@@ -117,6 +117,7 @@ namespace CornerCutters.Game
         void Start()
         {
             Languages.Apply();
+            SystemMotion.Read();
             input = new GameInput();
             input.Enable();
             var camGo = new GameObject("Camera");
@@ -219,7 +220,7 @@ namespace CornerCutters.Game
             SoundOut.SetHidden(!focused);
             if (!focused) Haptics.Stop();
             Picture.Settle = 2;
-            if (focused) PlayStats.Back();
+            if (focused) { PlayStats.Back(); SystemMotion.Read(); }
             else Away();
         }
 
@@ -1176,7 +1177,9 @@ namespace CornerCutters.Game
             if (race == null || hud == null) return;
             if (menu != null)
             {
-                MenuGUI();
+                // (the title's celebration over the season screen: on its own while it's up, the menu under it as it goes)
+                if (titleCard == null || titleCard.Closing >= 0) MenuGUI();
+                if (titleCard != null) hud.DrawTitleWin(titleCard);
                 return;
             }
             if (OnSet && !paused)

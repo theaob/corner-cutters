@@ -66,6 +66,7 @@ namespace CornerCutters.Game
         /// <summary>The round's result to the season: the drivers in finishing order, those who didn't finish; then the season screen.</summary>
         void FinishRound()
         {
+            HudView.TitleCard won = null;
             if (season != null && !roundDone)
             {
                 roundDone = true;
@@ -78,11 +79,17 @@ namespace CornerCutters.Game
                 // save moved to the phone, where circuits open as a season goes, keeps what's been reached)
                 if (!season.Over && season.Round < season.Rounds.Count) Unlock(season.Rounds[season.Round]);
                 // the season won: into the trophy cabinet
-                if (season.Over && Championship.Standings(season)[0].Driver == season.You) WonTitle();
+                if (season.Over && Championship.Standings(season)[0].Driver == season.You)
+                {
+                    WonTitle();
+                    won = TitleCardOf(season);
+                }
             }
             season = null;
             playMode = "race";
             OpenMenu(Menu.Screen.Season);
+            // (just won: the title's celebration over it all first, the standings under it)
+            if (won != null) ShowTitle(won);
         }
 
         /// <summary>The results' way on: the season screen in a Championship, else the next circuit.</summary>

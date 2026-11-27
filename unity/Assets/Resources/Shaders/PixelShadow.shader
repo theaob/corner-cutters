@@ -8,6 +8,8 @@ Shader "CornerCutters/PixelShadow"
         ZWrite Off
         Offset -2, -2
         Blend SrcAlpha OneMinusSrcAlpha
+        // (the picture\'s alpha is the share the weather lights: left as the opaque part under it set it)
+        ColorMask RGB
         Pass
         {
             CGPROGRAM

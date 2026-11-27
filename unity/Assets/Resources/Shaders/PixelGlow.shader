@@ -53,9 +53,15 @@ Shader "CornerCutters/PixelGlow"
 
             fixed4 frag (v2f i) : SV_Target
             {
-                float3 c = GammaToLinearSpace((tex2D(_MainTex, i.uv) * i.color).rgb);
-                c += GammaToLinearSpace(tex2D(_GlowTex, i.glow).rgb) * _GlowColor.rgb;
-                return fixed4(LinearToGammaSpace(saturate(c)), 1);
+                float3 lit = GammaToLinearSpace((tex2D(_MainTex, i.uv) * i.color).rgb);
+                float3 own = GammaToLinearSpace(tex2D(_GlowTex, i.glow).rgb) * _GlowColor.rgb;
+                float3 c = lit + own;
+                // (alpha: the share the weather's light falls on; the glow's its own, kept whatever the weather)
+                float all = max(c.r, max(c.g, c.b));
+                // (a scrolling part's own light is in its vertex colour, its alpha the lit share of that: BakedScenery)
+                float3 mine = own + lit * (1 - i.color.a);
+                float share = all > 0 ? saturate(1 - max(mine.r, max(mine.g, mine.b)) / all) : 1;
+                return fixed4(LinearToGammaSpace(saturate(c)), share);
             }
             ENDCG
         }

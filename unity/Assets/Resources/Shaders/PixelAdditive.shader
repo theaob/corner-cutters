@@ -11,6 +11,8 @@ Shader "CornerCutters/PixelAdditive"
         Cull Off
         ZWrite Off
         Blend SrcAlpha One
+        // (the picture\'s alpha is the share the weather lights: left as the opaque part under it set it)
+        ColorMask RGB
         Pass
         {
             CGPROGRAM

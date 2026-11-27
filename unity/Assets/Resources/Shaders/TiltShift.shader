@@ -18,6 +18,7 @@ Shader "CornerCutters/TiltShift"
         _Dir ("Direction", Vector) = (1, 0, 0, 0)
         _Res ("Screen size", Vector) = (1280, 720, 0, 0)
         _Light ("Light on flat ground (linear)", Vector) = (0.8375, 0.7537, 0.7039, 0)
+        _Baked ("Light the scenery was baked in (linear)", Vector) = (0.8375, 0.7537, 0.7039, 0)
         _Radius ("Blur kernel radius", Float) = 3
     }
     CGINCLUDE
@@ -25,7 +26,7 @@ Shader "CornerCutters/TiltShift"
     sampler2D _MainTex, _Sharp, _Bloom0, _Bloom1, _Bloom2, _Bloom3, _Bloom4;
     float4 _MainTex_TexelSize;
     float _Amount, _Radius;
-    float4 _Dir, _Res, _Light;
+    float4 _Dir, _Res, _Light, _Baked;
     float _BloomStrength;
 
     float BlurAt(float2 uv) { return smoothstep(0.0, 0.3, max(0.0, abs(uv.y - 0.5) - 0.16)); }
@@ -97,11 +98,16 @@ Shader "CornerCutters/TiltShift"
         }
         Pass
         {
-            // 2: into linear light, lit
+            // 2: into linear light, lit (the picture's alpha the share of a pixel the weather's light falls on: the rest is
+            // its own light, a lamp's or a sign's, kept as it was baked)
             CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment frag
-            float4 frag (v2f_img i) : SV_Target { return float4(ToLinear(saturate(tex2D(_MainTex, i.uv).rgb)) * _Light.rgb, 1); }
+            float4 frag (v2f_img i) : SV_Target
+            {
+                float4 c = tex2D(_MainTex, i.uv);
+                return float4(ToLinear(saturate(c.rgb)) * lerp(_Baked.rgb, _Light.rgb, saturate(c.a)), 1);
+            }
             ENDCG
         }
         Pass

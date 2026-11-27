@@ -37,7 +37,8 @@ Shader "CornerCutters/PixelUnlit"
             fixed4 frag (v2f i) : SV_Target
             {
                 fixed4 c = tex2D(_MainTex, i.uv) * i.color * _Color;
-                return fixed4(c.rgb, 1);
+                // (alpha: the share of it the weather's light falls on, the rest its own light: BakedScenery, TiltShift pass 2)
+                return fixed4(c.rgb, i.color.a);
             }
             ENDCG
         }

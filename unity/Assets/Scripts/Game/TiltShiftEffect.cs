@@ -15,6 +15,11 @@ namespace CornerCutters.Game
         public float Amount = 1.2f;
         /// <summary>the light on flat ground, linear (the weather's: WeatherView); the dry day's to start</summary>
         public static Vector4 Light = new Vector4(0.8375f, 0.7537f, 0.7039f, 0);
+        /// <summary>
+        /// the light the scenery was baked in (BakedScenery's): a pixel's own light (its alpha's the share that isn't: a
+        /// lamp, a lit sign) keeps this whatever the weather, the rest takes Light
+        /// </summary>
+        public static Vector4 Baked = new Vector4(0.8375f, 0.7537f, 0.7039f, 0);
         /// <summary>the glow's strength (UnrealBloomPass: 0.35 by day, 0.7 at night)</summary>
         public static float Bloom = 0.35f;
         /// <summary>the picture's quality level (Picture.cs): the glow, the tilt-shift's blur, and every pass at half the screen's size</summary>
@@ -46,6 +51,7 @@ namespace CornerCutters.Game
 
             // the picture in linear light, lit
             mat.SetVector("_Light", Light);
+            mat.SetVector("_Baked", Baked);
             var lit = Temp(W, H);
             Graphics.Blit(src, lit, mat, 2);
 

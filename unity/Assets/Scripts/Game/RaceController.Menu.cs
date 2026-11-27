@@ -47,6 +47,7 @@ namespace CornerCutters.Game
         void MenuUpdate(float frame)
         {
             menuT += frame;
+            if (TitleFrame()) return;
             switch (menu.At)
             {
                 case Menu.Screen.Title:

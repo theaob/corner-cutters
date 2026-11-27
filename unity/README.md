@@ -52,9 +52,12 @@ do in the web game (`Core/Critters.cs`, drawn by `CritterView`): the gopher free
 the yeti waits up the road, roars and gives chase. The crowds and flags are `StandView`'s and cheer as the car passes. HUD: the web game's
 wide-screen layout in its pixel font (`HudView`). Finish: its glow, tilt-shift, grade and tone mapping (`TiltShift` shader).
 
-Known gaps: the scene is lit for day on every circuit (night circuits like Vegas show their neon but not the dark).
-The weather's light is one change of light over the whole scene, so lamps and
-glowing signs grey a little with it (the web game's stay bright).
+Night circuits (Neon Strip) are lit as the web game's shipped night look: its dark sky in every weather, the town's
+night colour, the glow and the stronger bloom (checked against `NIGHT` and `nightSky`, `night.json`; the two other
+looks behind the web game's `?look=` were try-outs and aren't shipped). The weather's change of light falls on what's
+lit, not on what shines: each baked part carries the share of its colour that is its own light (lamps, windows,
+neon signs), and the finish pass keeps that share at the baked light, so in rain the lamps and signs stay bright as
+the web game's do.
 
 **Play stats and world boards.** As the web game (`metrics.ts`, `boards.ts`), on the same Supabase project, only when
 the build has its address and public key (`Game/Backend.cs`: `Assets/Resources/Backend.json`, `{ "url": "…", "key": "…" }`,
@@ -78,7 +81,13 @@ mouse: arrows or the d-pad move, left and right change a row, ENTER or A picks, 
 kept for next time. The pause screen has RESUME, RESTART, SKIP QUALIFYING, WEATHER, GRID WALK and MAIN MENU, with the
 keys and the pad too. TROPHIES is the web game's cabinet: Championships won, each circuit's Time Trial and Time
 Attack medals, and the 27 achievements (Core/Trophies.cs, checked against medals.ts and achievements.ts); medals,
-achievements, missions done and the streak's days are said in toasts as they come. (Not yet: the circuits locked until a
+achievements, missions done and the streak's days are said in toasts as they come. A Championship won opens the
+web game's title card (`titleWin.ts`) over the standings: the rays, the trophy dropping in, WORLD CHAMPION stamped
+letter by letter, your team on its colours, the season in numbers, fireworks, confetti, the fanfare and a buzz; a
+still card under MOTION: REDUCED. MOTION: AUTO follows the device's own reduce-motion setting (Android's animation
+scale off, iOS Reduce Motion, Windows' animations off, macOS Reduce motion, GNOME's animations off), read as the game
+starts and as it comes back to the front. The menu music is the web game's: `theme.mp3` (its own menu tune is a
+placeholder there too). (Not yet: the circuits locked until a
 Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
 
 **Saves.** Everything the game keeps is the web game's own save document (`engine/save.ts`, `f1/save.ts`):
@@ -161,7 +170,7 @@ wetness and rain mixes; and (`fx.json`) debris flown over hills, the grid walk's
 back between frames, all bit for bit; and (`net.json`) the play stats' batches byte for byte as the web game sends them,
 3,000 numbers as JSON writes them, and the laps waiting for a board as records come in; and (`daily.json`) the Daily Challenge's circuit and weather on
 528 days, the daily log, Time Attack's clock to TIME UP at three difficulties, the streak over 150 days, the car looks,
-and a ghost recorded, read back and packed to send, all as the web game's. (`GOLDEN_ONLY=fx npm run unity:golden` remakes that one alone, in a second.) JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
+and a ghost recorded, read back and packed to send, all as the web game's. (`GOLDEN_ONLY=fx npm run unity:golden` remakes that one alone, in a second.) JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 435,000 checks.
 (The player's wheel still uses .NET's `Math.Pow`, a last bit off now and then: the recorded lap drifts about 2e-12 px.) If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
 and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.)
 

@@ -30,7 +30,7 @@ namespace CornerCutters.Game
             set => Save.Set("settings", "motion", value == MotionSetting.Reduced ? "reduced" : value == MotionSetting.Full ? "full" : "auto");
         }
 
-        /// <summary>The device asks for less motion. (No engine-wide way to ask the system in Unity: none, until a platform reports it.)</summary>
+        /// <summary>The device asks for less motion (Game/SystemMotion.cs asks each platform).</summary>
         public static bool SystemMotionReduced;
 
         /// <summary>Less motion wanted: the setting if it's set, else the device's ask. No screen shake unless turned on, a gentler speed zoom.</summary>
