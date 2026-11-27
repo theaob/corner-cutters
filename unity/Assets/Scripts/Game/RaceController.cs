@@ -19,7 +19,7 @@ using Grid = CornerCutters.Core.Grid;
 
 namespace CornerCutters.Game
 {
-    public sealed class RaceController : MonoBehaviour
+    public sealed partial class RaceController : MonoBehaviour
     {
         /// <summary>the web game's race length (src/f1/laps.ts RACE_LAPS: a SPRINT)</summary>
         const int Laps = 5;
@@ -45,7 +45,7 @@ namespace CornerCutters.Game
         IReadOnlyList<string> ids;
         double bestLap = double.NaN;
 
-        enum Session { Qualifying, QualiOver, Race }
+        enum Session { Qualifying, QualiOver, Race, Attack, AttackOver }
 
         // the weekend: its seed (restart replays it), the field drawn from it, its weather, the session on now
         uint seed;
@@ -137,6 +137,7 @@ namespace CornerCutters.Game
             LoadCircuit(circuitIndex);
             PlayStats.Track("launch");
             PlayStats.StartClock();
+            SendWaiting();
         }
 
         void OnDestroy() => input?.Disable();
@@ -151,7 +152,7 @@ namespace CornerCutters.Game
         /// <summary>your race_finish noted</summary>
         bool finishNoted;
 
-        string StatsMode => session == Session.Race ? "race" : "qualifying";
+        string StatsMode => daily.HasValue ? "daily" : session == Session.Race ? "race" : session == Session.Attack || session == Session.AttackOver ? "timeattack" : "qualifying";
 
         /// <summary>Note the km driven and the time on the circuit since the last time.</summary>
         void NoteDriven()
@@ -183,6 +184,7 @@ namespace CornerCutters.Game
                 int pos = RaceControl.Order(race).IndexOf(you) + 1;
                 PlayStats.Track("race_finish", circuit.id, StatsMode, data: new JsonObj { { "place", Me.Progress.Retired ? (object)null : pos }, { "field", race.Entrants.Count }, { "laps", race.Laps } });
                 NoteDriven();
+                if (Me.Progress.Finished.HasValue) PlayedToday();
             }
         }
 
@@ -279,11 +281,12 @@ namespace CornerCutters.Game
             weekend = Field.DrawWeekend(seed, circuit.slots.Length, team, difficulty);
             // (a changeable weekend's forecast timed to the race: its laps at a typical pace)
             double raceSeconds = Laps * track.Length / 300;
-            forecast = weatherChoice == WeatherChoice.Changeable ? Forecast.Changeable(seed, raceSeconds) : Forecast.Fixed(WeatherLooks.Fixed(weatherChoice));
+            forecast = daily.HasValue ? Forecast.Fixed(daily.Value.Weather) : weatherChoice == WeatherChoice.Changeable ? Forecast.Changeable(seed, raceSeconds) : Forecast.Fixed(WeatherLooks.Fixed(weatherChoice));
             reference = null;
             // (a bigger pool of puffs in the wet, and on dirt: every car throws up spray, or mud)
-            particles.Resize(weatherChoice != WeatherChoice.Dry || track.Dirt ? 220 : 90);
-            StartQualifying();
+            particles.Resize(forecast.Start > 0 || weatherChoice != WeatherChoice.Dry || track.Dirt ? 220 : 90);
+            if (daily.HasValue) StartAttack();
+            else StartQualifying();
         }
 
         /// <summary>The weather for a session on your own (it doesn't change there): the race's at the start.</summary>
@@ -293,6 +296,7 @@ namespace CornerCutters.Game
         void Restart()
         {
             if (session == Session.Race) StartRace(driverOf);
+            else if (session == Session.Attack || session == Session.AttackOver) StartAttack();
             else StartQualifying();
         }
 
@@ -410,7 +414,10 @@ namespace CornerCutters.Game
         {
             var d = weekend.Drivers[driverOf[k]];
             var tyres = race.Entrants[k].Tyres.Compound;
-            var view = new CarView(Livery.FromTeam(d.Team, d.Seat), Tyres.Color(tyres));
+            var look = Livery.FromTeam(d.Team, d.Seat);
+            // (yours in the look you picked in the shop)
+            if (driverOf[k] == weekend.YouDriver) look = Styled(look, MyStyle);
+            var view = new CarView(look, Tyres.Color(tyres));
             view.Root.transform.SetParent(transform, false);
             if (k < views.Count)
             {
@@ -436,11 +443,12 @@ namespace CornerCutters.Game
             bool typing = nameEdit != null && paused;
             if (input.PausePressed && !typing) paused = !paused;
             if (input.RestartPressed && !typing) Restart();
-            if (input.CircuitStep != 0 && !typing) LoadCircuit(circuitIndex + input.CircuitStep);
-            if (input.WeatherPressed && !typing) NextWeather();
+            if (input.CircuitStep != 0 && !typing) { daily = null; LoadCircuit(circuitIndex + input.CircuitStep); }
+            if (input.WeatherPressed && !typing && !daily.HasValue) NextWeather();
             if (input.AcceptPressed && !paused)
             {
                 if (session == Session.QualiOver) StartRace(qualiGrid);
+                else if (session == Session.AttackOver) StartAttack();
                 else if (panT.HasValue) panT = null;
                 else if (replay != null) EndReplay();
                 else if (podiumTop != null && results == null) podiumT = Ceremony.Len;
@@ -470,8 +478,8 @@ namespace CornerCutters.Game
             }
             if (session == Session.Race) UpdateResults();
             CountDriven(frame);
-            if (!paused) nameEdit = null;
-            if (qualiTable != null || results != null) tableUp += frame;
+            if (!paused) { nameEdit = null; shopOpen = false; }
+            if (qualiTable != null || results != null || attackTable != null) tableUp += frame;
         }
 
         /// <summary>
@@ -568,7 +576,7 @@ namespace CornerCutters.Game
             int lapsBefore = Me.Progress.Lap;
             bool scWasOut = race.Sc != null;
             // (qualifying over: your car rolls to a stop while the table's up)
-            if (session == Session.QualiOver) wheel = new Racing.WheelPad();
+            if (session == Session.QualiOver || session == Session.AttackOver) wheel = new Racing.WheelPad();
             var result = RaceControl.StepRace(race, dt, e => Racing.WheelInput(wheel, e.Car));
             if (race.Phase == RacePhase.Racing) gaps.Step(race.Entrants.Select(e => e.Progress).ToList(), track, race.Clock);
             // your laps: the best this weekend, and (race laps only: qualifying keeps its own) the circuit's record
@@ -586,6 +594,7 @@ namespace CornerCutters.Game
             foreach (var ev in result.Race) Call(ev);
             if (session == Session.Race) Record();
             if (session == Session.Qualifying) JudgeQualifying(result.Race);
+            if (session == Session.Attack) StepAttack(result.Race);
             if (session == Session.Race) FastestLap();
             for (int k = 0; k < race.Entrants.Count; k++) now[k] = PoseOf(race.Entrants[k].Car);
             int sc = race.Entrants.Count;
@@ -786,6 +795,7 @@ namespace CornerCutters.Game
                 }
                 safetyCar.Step(frame);
             }
+            DrawRival();
             weatherView.Show(race.Wetness, race.Rain, cam);
             if (!paused && !replaying) weatherView.Spray(race.Entrants, race.Rain, frame, particles);
             particles.Step(dt, cam);
@@ -926,15 +936,17 @@ namespace CornerCutters.Game
                 Place = order.IndexOf(you) + 1,
                 Cars = order.Count,
                 Tower = racing && !quali && !panT.HasValue ? TowerRows(order) : null,
-                Strip = quali ? "QUALI   " + (p.LapStart == null ? "OUT LAP" : qualiLap.Deleted ? "LAP DELETED" : "FLYING LAP") : null,
+                Strip = session == Session.Attack || session == Session.AttackOver ? AttackStrip() : quali ? "QUALI   " + (p.LapStart == null ? "OUT LAP" : qualiLap.Deleted ? "LAP DELETED" : "FLYING LAP") : null,
                 Rain = race.Rain,
                 Quali = session == Session.Qualifying,
-                WeatherChoice = WeatherLooks.Name(weatherChoice),
+                WeatherChoice = daily.HasValue ? WeatherName(daily.Value.Weather) : WeatherLooks.Name(weatherChoice),
                 Banner = PanBanner(out var bannerColor) ?? (replay != null && (Time.unscaledTime * 2 % 2) < 1.4f ? "REPLAY" : null),
                 BannerColor = replay != null ? TrackView.Hex(0xd8323c) : bannerColor,
                 Skip = panT.HasValue || replay != null ? "SKIP" : null,
                 GridWalk = PlayerPrefs.GetInt("gridWalk", 1) != 0,
                 Online = Backend.Online, StatsOn = Profile.StatsOn, Name = Profile.Initials, Edit = nameEdit,
+                Daily = daily.HasValue, Shop = shopOpen ? ShopState() : null,
+                Clock = attack != null && (session == Session.Attack || session == Session.AttackOver) ? attack.Left : null,
                 Tyre = $"{Tyres.Short(Me.Tyres.Compound)} {System.Math.Round((1 - Me.Tyres.Wear) * 100):0}%",
                 TyreColor = TrackView.Hex(Tyres.Color(Me.Tyres.Compound)),
                 Notice = sinceStart < noticeUntil ? notice : held,
@@ -944,9 +956,14 @@ namespace CornerCutters.Game
             if (choice == HudView.PauseChoice.Resume) paused = false;
             else if (choice == HudView.PauseChoice.Restart) Restart();
             else if (choice == HudView.PauseChoice.SkipQualifying) StartRace(null);
-            else if (choice == HudView.PauseChoice.Weather) NextWeather();
+            else if (choice == HudView.PauseChoice.Weather && !daily.HasValue) NextWeather();
+            else if (choice == HudView.PauseChoice.Daily) StartDaily();
+            else if (choice == HudView.PauseChoice.QuickRace) LeaveDaily();
+            else if (choice == HudView.PauseChoice.Shop) shopOpen = true;
+            else if (choice == HudView.PauseChoice.ShopClose) shopOpen = false;
+            else if (choice == HudView.PauseChoice.ShopPick && hud.Picked != null) PickStyle(hud.Picked);
             else if (choice == HudView.PauseChoice.GridWalk) PlayerPrefs.SetInt("gridWalk", PlayerPrefs.GetInt("gridWalk", 1) != 0 ? 0 : 1);
-            else if (choice == HudView.PauseChoice.NextCircuit) LoadCircuit(circuitIndex + 1);
+            else if (choice == HudView.PauseChoice.NextCircuit) { daily = null; LoadCircuit(circuitIndex + 1); }
             else if (choice == HudView.PauseChoice.Stats) Profile.StatsOn = !Profile.StatsOn;
             else if (choice == HudView.PauseChoice.Name) nameEdit = new HudView.NameEdit(Profile.Initials);
             else if (choice == HudView.PauseChoice.NameCancel) nameEdit = null;
@@ -955,11 +972,17 @@ namespace CornerCutters.Game
                 Profile.Initials = nameEdit.ToString();
                 nameEdit = null;
                 // (laps waiting for a name: on their way now)
-                if (Profile.Initials != null) LapBoards.Send(Profile.Initials, null);
+                SendWaiting();
             }
             if (paused) return;
             // qualifying's times, then the results at the flag
-            if (session == Session.QualiOver && qualiTable != null)
+            if (session == Session.AttackOver && attackTable != null)
+            {
+                var pick = hud.DrawAttack(attackTable, tableUp, input.Source);
+                if (pick == HudView.TableChoice.Again) StartAttack();
+                else if (pick == HudView.TableChoice.Go) LeaveDaily();
+            }
+            else if (session == Session.QualiOver && qualiTable != null)
             {
                 if (hud.DrawQualifying(qualiTable, tableUp, input.Source) == HudView.TableChoice.Go) StartRace(qualiGrid);
             }

@@ -28,6 +28,13 @@ import type { PitLane } from '../../src/f1/pits';
 import { batchesOf, kmOf, type Event as StatEvent } from '../../src/f1/metrics';
 import { pendingLaps, queueLap } from '../../src/f1/boards';
 import { useSave, type SaveStore } from '../../src/engine/save';
+import { LAYOUTS } from '../../src/f1/layouts';
+import { challengeOn, logRun, streakOn, type DailyLog } from '../../src/f1/daily';
+import { newAttack, stepAttack, distance, shortDistance } from '../../src/f1/timeAttack';
+import { playedOn, streakNow, addDays, type Streak } from '../../src/f1/streak';
+import { CAR_STYLES } from '../../src/f1/carStyle';
+import { ghostPose, newRecorder, recordFrame, toGhost } from '../../src/f1/timeTrial';
+import { packGhost } from '../../src/f1/boards';
 import { CC_SAVE } from '../../src/f1/save';
 import type { AiDriver } from '../../src/f1/racing';
 import { keysWheel, newProgress, nearestSample, stepProgress, wheelInput, stickWheel, type Track, type WheelPad } from '../../src/f1/racing';
@@ -410,11 +417,75 @@ function goldenNet() {
   console.log(`net: ${numbers.length} numbers, ${batches.length} batches, ${pending.length} laps`);
 }
 
+/** The Daily Challenge (daily.ts), Time Attack's clock, the streak and its looks, and ghosts recorded, read back and packed. */
+function goldenDaily() {
+  const days: string[] = [];
+  for (let d = '2026-09-20'; d < '2028-03-01'; d = addDays(d, 1)) days.push(d);
+  const challenges = days.map((d) => { const c = challengeOn(d); return [d, c.layout.id, c.weather.id]; });
+  const fixedPool = LAYOUTS.slice(2, 7);
+  const pooled = days.slice(0, 60).map((d) => challengeOn(d, fixedPool).layout.id);
+  // the daily log: runs on days in a row, a day missed, better and worse runs, a run of nothing, a fortnight kept
+  const log: DailyLog = { streak: 0, best: {} };
+  const logSteps: unknown[] = [];
+  const rng = seededRandom(17);
+  let day = '2026-11-01';
+  for (let i = 0; i < 40; i++) {
+    day = addDays(day, rng() < 0.15 ? 2 : rng() < 0.4 ? 0 : 1);
+    const run = { score: Math.floor(rng() * 12), time: Math.round(rng() * 9000) / 100 };
+    const best = logRun(log, day, run);
+    logSteps.push({ day, run, best, streak: log.streak, streakOn: streakOn(log, addDays(day, i % 3)), days: Object.keys(log.best).sort(), pending: log.pending ? [log.pending.day, log.pending.score, log.pending.time] : null });
+  }
+  // the clock: a scripted run (checkpoints passed now and then, cuts), stepped at 60 Hz to time up
+  const attacks = [['normal', 31.733], ['easy', 27.4], ['hard', 40.1]].map(([diff, ref]) => {
+    const a = newAttack(ref as number, { id: diff } as never);
+    const r = seededRandom(5);
+    const trace: number[][] = [];
+    let passed = 0;
+    for (let k = 0; k < 60 * 400 && !a.over; k++) {
+      const started = k > 90;
+      if (started && r() < 0.0016) passed++;
+      const cut = started && r() < 0.0008;
+      const st = stepAttack(a, 1 / 60, started, passed, cut);
+      if (k % 7 === 0 || st.started || st.added || st.lost || st.timeUp) trace.push([k, a.left ?? -1, a.passed, a.elapsed, a.lastAt, st.started ? 1 : 0, st.added ?? 0, st.lost ?? 0, st.timeUp ? 1 : 0]);
+    }
+    return { diff, ref, trace };
+  });
+  const distances = Array.from({ length: 13 }, (_, n) => [n, distance(n), shortDistance(n)]);
+  // the streak: played on scripted days (a miss forgiven, a second ending it), and the rewards reached
+  const st: Streak = { days: 0, best: 0 };
+  const streakSteps: unknown[] = [];
+  let sd = '2026-10-01';
+  const gaps = [0, 1, 1, 2, 1, 1, 2, 1, 2, 1, 3, 1, 1, 0, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2];
+  for (let i = 0; i < 150; i++) {
+    sd = addDays(sd, gaps[i % gaps.length]);
+    const step = playedOn(st, sd);
+    streakSteps.push([sd, step.days, step.grew ? 1 : 0, step.forgave ? 1 : 0, step.rewards.map((r) => r.id).join(','), st.best, st.forgiven ?? '', streakNow(st, addDays(sd, i % 4))]);
+  }
+  const styles = CAR_STYLES.map((c) => [c.id, c.name, c.days, JSON.stringify(c.look)]);
+  // a ghost: a car driven round a loop, recorded at 20 Hz from 60 Hz steps, read back between frames, packed to send
+  const rec = newRecorder();
+  const car = { x: 0, y: 0, heading: 0 } as never as Car;
+  for (let k = 0; k <= 60 * 35; k++) {
+    const t = k / 60;
+    (car as { x: number }).x = 400 * Math.cos(t * 0.4) + 3.217 * t;
+    (car as { y: number }).y = 260 * Math.sin(t * 0.4);
+    (car as { heading: number }).heading = ((t * 0.4 + Math.PI) % (2 * Math.PI)) - Math.PI;
+    recordFrame(rec, t, car, k % 977);
+  }
+  const ghost = toGhost(rec, 35);
+  const poses = [-1, 0, 0.01, 1.234, 7.77, 17.5, 34.99, 35, 35.01].map((t) => { const p = ghostPose(ghost, t); return [t, ...(p ? [p.x, p.y, p.heading] : [])]; });
+  const packed = packGhost(ghost, 20)!;
+  const packedPoses = [0, 3.33, 20.05].map((t) => { const p = ghostPose(packed, t); return [t, ...(p ? [p.x, p.y, p.heading] : [])]; });
+  writeFileSync('unity/Tests~/Core.Tests/daily.json', JSON.stringify({ layouts: LAYOUTS.map((l) => l.id), challenges, fixedPool: fixedPool.map((l) => l.id), pooled, logSteps, attacks, distances, streakSteps, styles, ghost: JSON.stringify(ghost), poses, packed: JSON.stringify(packed), packedPoses }));
+  console.log(`daily: ${challenges.length} days, ${logSteps.length} runs, ${attacks.map((a) => a.trace.length).join('/')} clock steps, ${streakSteps.length} streak days`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
-else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'net') goldenNet();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'net') (goldenNet(), goldenDaily());
 else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenMath();
   goldenNet();
+  goldenDaily();
   goldenAll();
   goldenCritters();
   goldenRaces();

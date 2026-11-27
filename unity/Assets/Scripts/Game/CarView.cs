@@ -16,6 +16,8 @@ namespace CornerCutters.Game
         public LiveryPattern Pattern = LiveryPattern.Plain;
         /// <summary>the T-camera: null = carbon (a team's first car), bright green marks the second</summary>
         public Color? TCam;
+        /// <summary>the driver's helmet (null: white; a look from the shop changes it)</summary>
+        public Color? Helmet;
 
         static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
 
@@ -115,7 +117,7 @@ namespace CornerCutters.Game
             if (look.Pattern != LiveryPattern.Plain) PatternBox(mb, 11, 0.6f, 8, 5.4f, 7, body, trim, look.Pattern, pods); // engine cover
             Box(mb, 2.6f, 2.4f, 3, 7.6f, 2.6f, body);                                         // air intake
             Box(mb, 4.2f, 1, 1.6f, 9.3f, 2.4f, look.TCam ?? carbon);                          // T-camera
-            if (helmet) mb.Sphere(new Vector3(0, 7.2f * K, -0.5f * K), 1.7f * K, new Color(0.91f, 0.91f, 0.93f)); // helmet
+            if (helmet) mb.Sphere(new Vector3(0, 7.2f * K, -0.5f * K), 1.7f * K, look.Helmet ?? new Color(0.91f, 0.91f, 0.93f)); // helmet
             Box(nose, W, 0.8f, 3, 1.4f, -(L / 2 - 1.5f) - noseZ, trim);                       // front wing
             Box(mb, W - 3, 0.8f, 2.5f, 8.5f, L / 2 - 1.5f, trim, 0, body);                    // rear wing
             foreach (float sx in new[] { -(W - 3) / 2, (W - 3) / 2 }) Box(mb, 0.6f, 5, 3, 6.5f, L / 2 - 1.5f, carbon, sx); // end plates

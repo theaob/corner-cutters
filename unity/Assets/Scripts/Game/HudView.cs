@@ -72,6 +72,11 @@ namespace CornerCutters.Game
             public string Name;
             /// <summary>your initials being picked on the pause screen (null: not)</summary>
             public NameEdit Edit;
+            /// <summary>the Daily Challenge on (QUICK RACE back on the pause screen); the shop open on it (null: not)</summary>
+            public bool Daily;
+            public ShopState Shop;
+            /// <summary>s left on the Time Attack's clock (null: no clock, or not started)</summary>
+            public double? Clock;
         }
 
         /// <summary>A row of the timing tower (towerView.ts): its place, the team's colours, the name, the gap; Gap null: the ··· between the top three and you.</summary>
@@ -83,7 +88,26 @@ namespace CornerCutters.Game
             public bool You, Out, Blue;
         }
 
-        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, GridWalk, NextCircuit, Stats, Name, NameSave, NameCancel }
+        public enum PauseChoice { None, Resume, Restart, SkipQualifying, Weather, GridWalk, NextCircuit, Stats, Name, NameSave, NameCancel, Daily, QuickRace, Shop, ShopClose, ShopPick }
+
+        /// <summary>The shop: every look, the ones yours, the one picked, and your streak (now and best).</summary>
+        public sealed class ShopState
+        {
+            public List<CarStyle> Styles;
+            public HashSet<string> Owned;
+            public string Picked;
+            public int Streak, Best;
+        }
+
+        /// <summary>the look clicked in the shop (with ShopPick)</summary>
+        public string Picked { get; private set; }
+
+        /// <summary>A Time Attack's end: TIME UP and how far, lines (text, colour), the day's board.</summary>
+        public sealed class AttackTable
+        {
+            public string Title, Board, BoardTop;
+            public List<(string text, int color)> Lines = new List<(string, int)>();
+        }
 
         /// <summary>Initials being picked: three letters or digits, and the one being changed.</summary>
         public sealed class NameEdit
@@ -194,6 +218,7 @@ namespace CornerCutters.Game
             Rain(s.Rain, s.Paused);
             Readout(s);
             LapStrip(s, w);
+            ClockView(s, w);
             Minimap(s, w);
             TowerView(s, w);
             Banner(s, w, h);
@@ -456,7 +481,9 @@ namespace CornerCutters.Game
             Fill(new Rect(0, 0, Screen.width, Screen.height), Rgba(14, 13, 22, 0.55f));
             var list = new List<(string label, PauseChoice c)> { ("RESUME", PauseChoice.Resume), ("RESTART", PauseChoice.Restart) };
             if (s.Quali) list.Add(("SKIP QUALIFYING", PauseChoice.SkipQualifying));
-            list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
+            list.Add(s.Daily ? ("QUICK RACE", PauseChoice.QuickRace) : ("DAILY CHALLENGE", PauseChoice.Daily));
+            list.Add(("SHOP", PauseChoice.Shop));
+            if (!s.Daily) list.Add(($"WEATHER: {s.WeatherChoice}", PauseChoice.Weather));
             list.Add(($"GRID WALK: {(s.GridWalk ? "ON" : "OFF")}", PauseChoice.GridWalk));
             if (s.Online)
             {
@@ -465,6 +492,7 @@ namespace CornerCutters.Game
             }
             list.Add(("NEXT CIRCUIT", PauseChoice.NextCircuit));
             if (s.Edit != null) return Naming(s.Edit, w, h);
+            if (s.Shop != null) return ShopPanel(s.Shop, w, h);
             float y = h / 2 - 25 * (list.Count + 1) - 10;
             Text(0, y, w, 34, "PAUSED", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
             y += 50;
@@ -521,6 +549,80 @@ namespace CornerCutters.Game
             if (Button(w / 2 - bw - 6, y, bw, 34, "SAVE", null)) return PauseChoice.NameSave;
             if (Button(w / 2 + 6, y, bw, 34, "CANCEL", null)) return PauseChoice.NameCancel;
             return PauseChoice.None;
+        }
+
+        /// <summary>The shop (carShop.ts): your car's looks, earned by your streak, three across; the one you wear in gold, locked ones dim with their days.</summary>
+        PauseChoice ShopPanel(ShopState shop, float w, float h)
+        {
+            const float tw = 150, th = 64, gap = 10;
+            int cols = 3, rows = (shop.Styles.Count + cols - 1) / cols;
+            float pw = cols * tw + (cols - 1) * gap, ph = rows * th + (rows - 1) * gap;
+            float y = Mathf.Max(10, h / 2 - (ph + 130) / 2);
+            Text(0, y, w, 34, "SHOP", Style(22, Gold, TextAnchor.MiddleCenter), Shadow);
+            var next = Streaks.NextReward(shop.Best);
+            Text(0, y + 32, w, 18, $"STREAK {shop.Streak} · BEST {shop.Best}" + (next != null ? $" · NEXT: {next.Name} AT {next.Days} DAYS" : ""), Style(11, Muted, TextAnchor.MiddleCenter));
+            y += 60;
+            float x0 = w / 2 - pw / 2;
+            var choice = PauseChoice.None;
+            for (int i = 0; i < shop.Styles.Count; i++)
+            {
+                var st = shop.Styles[i];
+                float x = x0 + (i % cols) * (tw + gap), ty = y + (i / cols) * (th + gap);
+                bool owned = shop.Owned.Contains(st.Id), picked = st.Id == shop.Picked;
+                var r = R(x, ty, tw, th);
+                bool over = owned && r.Contains(Event.current.mousePosition);
+                Fill(r, over ? Hex(0x2e2b47) : KeyBg, 8 * k, Mathf.Max(1, k) * (picked ? 2 : 1), picked ? Gold : KeyEdge);
+                // (a swatch of the look: its paint, and its helmet)
+                var body = st.Body >= 0 ? Hex(st.Body) : Hex(0x3a3858);
+                var stripe = st.Stripe >= 0 ? Hex(st.Stripe) : Muted;
+                var helmet = st.Gold ? Hex(0xe8b830) : st.Led ? Hex(0x7cf6ff) : st.Helmet >= 0 ? Hex(st.Helmet) : Hex(0xe8e8ee);
+                Fill(R(x + 10, ty + 12, 34, 40), body, 4 * k);
+                Fill(R(x + 22, ty + 12, 10, 40), stripe);
+                Fill(R(x + 21, ty + 24, 12, 12), helmet, 6 * k);
+                var ink = owned ? (picked ? Gold : Ink) : Dim;
+                Text(x + 52, ty + 10, tw - 58, 22, st.Name, Style(10, ink));
+                Text(x + 52, ty + 32, tw - 58, 20, picked ? "WEARING" : owned ? "PICK" : $"{st.Days}-DAY STREAK", Style(9, picked ? Gold : owned ? Cyan : Dim));
+                if (owned && !picked && GUI.Button(r, GUIContent.none, GUIStyle.none)) { Picked = st.Id; choice = PauseChoice.ShopPick; }
+            }
+            y += ph + 16;
+            if (Button(w / 2 - 75, y, 150, 34, "BACK", null)) choice = PauseChoice.ShopClose;
+            return choice;
+        }
+
+        /// <summary>Against the clock: the time left, big, under the strip (red in its last five seconds).</summary>
+        void ClockView(State s, float w)
+        {
+            if (!s.Clock.HasValue) return;
+            double left = s.Clock.Value;
+            var st = Style(26, left < 5 ? Red : Cyan, TextAnchor.MiddleCenter);
+            string text = $"{System.Math.Floor(left / 60)}:{(left % 60).ToString("00.0", System.Globalization.CultureInfo.InvariantCulture)}";
+            float bw = 150, x = w / 2 - bw / 2;
+            Fill(R(x, 54, bw, 40), Strip, 8 * k, Mathf.Max(1, k), Line);
+            Text(x, 54, bw, 40, text, st, Shadow);
+        }
+
+        /// <summary>A Time Attack's end: TIME UP and how far, your best today and streak, the day's board; AGAIN or QUICK RACE.</summary>
+        public TableChoice DrawAttack(AttackTable t, float since, InputSource source)
+        {
+            k = Screen.height / 720f;
+            float w = Screen.width / k, h = Screen.height / k;
+            const float pw = 420;
+            int lines = t.Lines.Count + (t.Board != null ? 1 : 0) + (t.BoardTop != null ? 1 : 0);
+            float ph = 50 + 20 * lines + 64;
+            float x = w / 2 - pw / 2, y = h / 2 - ph / 2;
+            float a = Mathf.Clamp01(since / 0.3f);
+            var panel = Rgba(21, 20, 31, 0.9f);
+            panel.a *= a;
+            Fill(R(x, y, pw, ph), panel, 10 * k, Mathf.Max(1, k), KeyEdge);
+            Text(x, y + 12, pw, 26, t.Title, Style(17, Gold, TextAnchor.MiddleCenter), Shadow);
+            float ty = y + 50;
+            foreach (var (text, color) in t.Lines) { Text(x, ty, pw, 18, text, Style(12, Hex(color), TextAnchor.MiddleCenter)); ty += 20; }
+            if (t.Board != null) { Text(x, ty, pw, 18, t.Board, Style(12, Cyan, TextAnchor.MiddleCenter)); ty += 20; }
+            if (t.BoardTop != null) { Text(x, ty, pw, 18, t.BoardTop, Style(10, Muted, TextAnchor.MiddleCenter)); ty += 20; }
+            ty += 12;
+            if (Button(w / 2 - 205, ty, 200, 30, "AGAIN", source == InputSource.Gamepad ? "A" : "ENTER")) return TableChoice.Again;
+            if (Button(w / 2 + 5, ty, 200, 30, "QUICK RACE", null)) return TableChoice.Go;
+            return TableChoice.None;
         }
 
         bool TapAt(float x, float y, float bw, float bh) => GUI.Button(R(x, y, bw, bh), GUIContent.none, GUIStyle.none);

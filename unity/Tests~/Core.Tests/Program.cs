@@ -51,6 +51,7 @@ static class Program
         QualifyingSessions(root);
         Fx(root);
         Net(root);
+        DailyChallenge(root);
         PlayerRace(root);
 
         Console.WriteLine(failures == 0 ? $"OK  {checks} checks" : $"{failures} of {checks} checks FAILED");
@@ -709,5 +710,128 @@ static class Program
         Check(Boards.PlaceLine(board) == "WORLD BOARD · #2 OF 12", "your place on it");
         Check(Boards.ParseBoard(Json.Parse("{\"entries\": 0, \"top\": [], \"you\": null}")).You == null && Boards.ParseBoard(null) == null, "an empty board; none");
         Check(Json.Write(Json.Parse("[1,\"a\\u00e9\\n\",{\"b\":[true,false,null]},-2.5e-7]")) == "[1,\"a\u00e9\\n\",{\"b\":[true,false,null]},-2.5e-7]", "JSON read and written back");
+    }
+
+    static bool Same(double a, double b) => BitConverter.DoubleToInt64Bits(a) == BitConverter.DoubleToInt64Bits(b);
+
+    /// <summary>The Daily Challenge, Time Attack's clock, the streak and its looks, ghosts (daily.json), against the web game's.</summary>
+    static void DailyChallenge(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/daily.json"))).RootElement;
+        Check(g.GetProperty("layouts").EnumerateArray().Select(x => x.GetString()).SequenceEqual(Daily.Layouts), "daily: the web game's circuits, in its order");
+        int off = 0, n = 0;
+        foreach (var c in g.GetProperty("challenges").EnumerateArray())
+        {
+            n++;
+            var got = Daily.On(c[0].GetString());
+            string w = got.Weather == Weather.Dry ? "dry" : got.Weather == Weather.Damp ? "damp" : "wet";
+            if ((got.Circuit != c[1].GetString() || w != c[2].GetString()) && off++ < 5) Console.WriteLine($"  {c[0].GetString()}: got {got.Circuit} {w}, want {c[1].GetString()} {c[2].GetString()}");
+        }
+        Check(off == 0, $"daily: each day's circuit and weather ({off} of {n} days differ)");
+        var pool = g.GetProperty("fixedPool").EnumerateArray().Select(x => x.GetString()).ToList();
+        var days = g.GetProperty("challenges").EnumerateArray().Take(60).Select(c => c[0].GetString()).ToList();
+        Check(days.Select(d => Daily.On(d, pool).Circuit).SequenceEqual(g.GetProperty("pooled").EnumerateArray().Select(x => x.GetString())), "daily: out of a given pool");
+
+        var log = new DailyLog();
+        int k = 0;
+        foreach (var st in g.GetProperty("logSteps").EnumerateArray())
+        {
+            string day = st.GetProperty("day").GetString();
+            var run = new DailyRun { Score = st.GetProperty("run").GetProperty("score").GetInt32(), Time = st.GetProperty("run").GetProperty("time").GetDouble() };
+            bool best = Daily.LogRun(log, day, run);
+            log = Daily.Parse(Daily.Write(log));
+            var pend = st.GetProperty("pending");
+            bool pendOk = pend.ValueKind == JsonValueKind.Null ? log.Pending == null : log.Pending != null && log.Pending.Day == pend[0].GetString() && log.Pending.Run.Score == pend[1].GetInt32() && Same(log.Pending.Run.Time, pend[2].GetDouble());
+            int on = Daily.StreakOn(log, Streaks.AddDays(day, k % 3));
+            Check(best == st.GetProperty("best").GetBoolean() && log.Streak == st.GetProperty("streak").GetInt32() && on == st.GetProperty("streakOn").GetInt32()
+                && log.Best.Keys.SequenceEqual(st.GetProperty("days").EnumerateArray().Select(x => x.GetString())) && pendOk, $"daily log: run {k} on {day}");
+            k++;
+        }
+
+        foreach (var a in g.GetProperty("attacks").EnumerateArray())
+        {
+            string diff = a.GetProperty("diff").GetString();
+            var at = new Attack(a.GetProperty("ref").GetDouble(), diff);
+            var r = new SeededRandom(5);
+            var want = a.GetProperty("trace").EnumerateArray().ToList();
+            int w = 0, bad = 0, passed = 0;
+            for (int step = 0; step < 60 * 400 && !at.Over; step++)
+            {
+                bool started = step > 90;
+                if (started && r.Next() < 0.0016) passed++;
+                bool cut = started && r.Next() < 0.0008;
+                var o = at.Advance(1.0 / 60, started, passed, cut);
+                if (step % 7 == 0 || o.Started || o.Added.HasValue || o.Lost.HasValue || o.TimeUp)
+                {
+                    if (w >= want.Count) { bad++; continue; }
+                    var x = want[w++];
+                    bool ok = x[0].GetInt32() == step && Same(at.Left ?? -1, x[1].GetDouble()) && at.Passed == x[2].GetInt32() && Same(at.Elapsed, x[3].GetDouble()) && Same(at.LastAt, x[4].GetDouble())
+                        && (o.Started ? 1 : 0) == x[5].GetInt32() && Same(o.Added ?? 0, x[6].GetDouble()) && Same(o.Lost ?? 0, x[7].GetDouble()) && (o.TimeUp ? 1 : 0) == x[8].GetInt32();
+                    if (!ok) bad++;
+                }
+            }
+            Check(bad == 0 && w == want.Count && at.Over, $"time attack ({diff}): the clock as the web game's, bit for bit, to TIME UP ({bad} off, {w}/{want.Count})");
+        }
+        foreach (var d in g.GetProperty("distances").EnumerateArray())
+            Check(Attack.Distance(d[0].GetInt32()) == d[1].GetString() && Attack.ShortDistance(d[0].GetInt32()) == d[2].GetString(), $"distance {d[0].GetInt32()}");
+
+        var s = new Streak();
+        k = 0;
+        foreach (var st in g.GetProperty("streakSteps").EnumerateArray())
+        {
+            var o = Streaks.PlayedOn(s, st[0].GetString());
+            s = Streaks.Parse(Streaks.Write(s));
+            Check(o.Days == st[1].GetInt32() && (o.Grew ? 1 : 0) == st[2].GetInt32() && (o.Forgave ? 1 : 0) == st[3].GetInt32() && string.Join(",", o.Rewards.Select(x => x.Id)) == st[4].GetString()
+                && s.Best == st[5].GetInt32() && (s.Forgiven ?? "") == st[6].GetString() && Streaks.Now(s, Streaks.AddDays(st[0].GetString(), k % 4)) == st[7].GetInt32(), $"streak: day {k} ({st[0].GetString()})");
+            k++;
+        }
+        var styles = g.GetProperty("styles").EnumerateArray().ToList();
+        Check(styles.Count == Streaks.Styles.Length, "car looks: as many as the web game's");
+        for (int i = 0; i < styles.Count && i < Streaks.Styles.Length; i++)
+        {
+            var c = Streaks.Styles[i];
+            var look = JsonDocument.Parse(styles[i][3].GetString()).RootElement;
+            string Hex(int v) => v < 0 ? null : "#" + v.ToString("x6");
+            string L(string key) => look.TryGetProperty(key, out var v) ? v.GetString() : null;
+            string helmet = c.Gold ? "gold" : c.Led ? "led" : Hex(c.Helmet);
+            Check(c.Id == styles[i][0].GetString() && c.Name == styles[i][1].GetString() && c.Days == styles[i][2].GetInt32() && helmet == L("helmet")
+                && Hex(c.Body) == L("body") && Hex(c.Stripe) == L("stripe") && Hex(c.Accent) == L("accent") && c.Pattern == L("pattern"), $"car look {c.Id}");
+        }
+        Check(Streaks.StylesFor(14).Select(x => x.Id).SequenceEqual(new[] { "standard", "silver-helmet", "neon-helmet", "gold-wings" }) && Streaks.StyleOf("chequered", 30).Id == "standard", "car looks: earned by the best streak");
+
+        // a ghost recorded as the web game records it, read back between frames, and packed to send
+        var rec = new GhostRecorder();
+        var car = new Car(CarClass.F1(), 0, 0, 0);
+        for (int step = 0; step <= 60 * 35; step++)
+        {
+            double t = step / 60.0;
+            car.X = 400 * JsMath.Cos(t * 0.4) + 3.217 * t;
+            car.Y = 260 * JsMath.Sin(t * 0.4);
+            car.Heading = ((t * 0.4 + Math.PI) % (2 * Math.PI)) - Math.PI;
+            rec.Frame(t, car, step % 977);
+        }
+        var ghost = rec.ToGhost(35);
+        Check(Json.Write(ghost.ToJson()) == g.GetProperty("ghost").GetString(), "ghost: recorded as the web game records it");
+        void Poses(Ghost gh, JsonElement list, string what)
+        {
+            foreach (var p in list.EnumerateArray())
+            {
+                var got = gh.Pose(p[0].GetDouble());
+                bool ok = p.GetArrayLength() == 1 ? got == null : got != null && Same(got.Value.x, p[1].GetDouble()) && Same(got.Value.y, p[2].GetDouble()) && Same(got.Value.heading, p[3].GetDouble());
+                Check(ok, $"{what} at {p[0].GetDouble()} s");
+            }
+        }
+        Poses(ghost, g.GetProperty("poses"), "ghost pose");
+        var packed = ghost.Pack(20);
+        Check(packed != null && Json.Write(packed.ToJson()) == g.GetProperty("packed").GetString(), "ghost: packed to send as the web game packs it");
+        if (packed != null) Poses(packed, g.GetProperty("packedPoses"), "packed ghost pose");
+        Check(Json.Write(Ghost.Parse(Json.Parse(g.GetProperty("packed").GetString())).ToJson()) == g.GetProperty("packed").GetString() && Ghost.Parse(Json.Parse("{\"time\":3,\"splits\":[],\"frames\":[1,2]}")) == null, "ghost: read back; a broken one isn't one");
+        var rival = Daily.ParseRival(Json.Parse("{\"name\":\"ZED\",\"score\":40,\"time\":120.5,\"ghost\":" + g.GetProperty("packed").GetString() + "}"));
+        Check(rival != null && rival.Name == "ZED" && rival.Score == 40 && Daily.ParseRival(Json.Parse("{\"name\":\"ZED\",\"score\":40,\"time\":120.5,\"ghost\":{\"frames\":\"x\"}}")) == null, "the day's leading run to chase");
+        var pending = new DailyPending { Day = "2026-11-27", Run = new DailyRun { Score = 7, Time = 61.23456 }, Ghost = packed };
+        Check(Json.Write(Daily.SubmitArgs(pending, "p", "ABC", false)) == "{\"p_day\":\"2026-11-27\",\"p_player\":\"p\",\"p_name\":\"ABC\",\"p_score\":7,\"p_time\":61.23}" && Daily.SubmitArgs(pending, "p", "ABC", true).Has("p_ghost"), "submit_daily's arguments, with and without the ghost");
+        var board = Daily.ParseBoard(Json.Parse("{\"entries\":3,\"top\":[{\"place\":1,\"name\":\"ZED\",\"score\":9,\"time\":80.1,\"you\":false}],\"you\":{\"place\":3,\"name\":\"ABC\",\"score\":5,\"time\":50}}"));
+        Check(board != null && board.Entries == 3 && board.Top[0].Score == 9 && board.You?.Place == 3, "a day's board read back");
+        Check(Daily.DayOf(new DateTime(2026, 11, 27, 23, 59, 0, DateTimeKind.Utc)) == "2026-11-27" && Daily.DayBefore("2026-03-01") == "2026-02-28" && Daily.UntilNext(new DateTime(2026, 11, 27, 23, 0, 0, DateTimeKind.Utc)) == TimeSpan.FromHours(1), "days, UTC");
     }
 }

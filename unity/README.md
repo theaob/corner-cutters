@@ -54,6 +54,16 @@ wet weekend goes on that circuit's board with `submit_lap` (it waits on the devi
 screen, as the web game's Time Trial records do), and qualifying's table shows your place on the board and its top three
 from `lap_board`. The laps are the same physics as the web game's, so they share one board.
 
+**Daily Challenge, streak and shop.** As the web game (`daily.ts`, `timeAttack.ts`, `streak.ts`, `carStyle.ts`):
+DAILY CHALLENGE on the pause screen takes you to the day's circuit in the day's weather (drawn from the UTC date, the
+same rotation as the web game's, so the same challenge everyone else has that day), against the clock: it starts at
+the line, each checkpoint adds time, a cut takes 3 s off, TIME UP ends the run. The day's leading run is a gold car to
+chase (`daily_ghost`); your best goes on the day's board with its ghost (`submit_daily`) and the end shows your place
+(`daily_board`). A race finished or a Daily run over keeps your streak going (one missed day a week forgiven), and the
+streak earns the web game's nine looks for your car (helmets, gold wings, black and gold, three whole-car liveries),
+picked in the SHOP on the pause screen. (Not yet: the web game's Time Trial and Time Attack on any circuit, medals,
+the day's missions, the 3D previews in the shop, and the Championship, which the shop's purchase is for.)
+
 ## Layout
 
 - `Assets/Scripts/Core/`: the game's rules in plain C# (no `UnityEngine`; asmdef `noEngineReferences`): driving, ground and
@@ -62,7 +72,8 @@ from `lap_board`. The laps are the same physics as the web game's, so they share
   weather, bridges), the field (`Field.cs`: teams, drivers, difficulties, a weekend drawn from its seed), timing gaps,
   qualifying (`Qualifying.cs`), the results' rows (`Results.cs`), the weather's look (`WeatherLook.cs`), the replays'
   recording and the grid walk (`Replay.cs`), debris (`Debris.cs`), and the play stats' and boards' rows (`Metrics.cs`,
-  `Boards.cs`, written by `Json.cs` as the web game's JSON.stringify writes them).
+  `Boards.cs`, written by `Json.cs` as the web game's JSON.stringify writes them), the Daily Challenge (`Daily.cs`),
+  Time Attack's clock (`TimeAttack.cs`), the streak and car looks (`Streak.cs`) and ghosts (`Ghost.cs`).
   Ported from the web game's TypeScript. `JsMath.cs` holds JavaScript's arithmetic where C#'s differs (V8's sin, cos,
   atan, atan2 and exp, which are fdlibm's; Math.hypot; Math.round; a stable sort; the seeded random numbers), so the
   port makes the same decisions from the same numbers, on every platform.
@@ -76,7 +87,7 @@ from `lap_board`. The laps are the same physics as the web game's, so they share
   `<id>.moving.txt`, and `<id>-planes.bytes` where there's an airport), **generated** from the web game's createCircuitScene
   by the same command (`npm run unity:grounds -- --scenery-only [id ...]`). The file format is at the top of
   `tools/unity/scenery.ts`. About 45 MB for all 19. `node tools/unity/preview.mjs` renders one without Unity, as a check.
-- `Tests~/Core.Tests/`: the core's tests; `golden.json`, `critters.json`, `races.json`, `qualifying.json`, `fx.json`, `net.json` and `math.json` are **generated**
+- `Tests~/Core.Tests/`: the core's tests; `golden.json`, `critters.json`, `races.json`, `qualifying.json`, `fx.json`, `net.json`, `daily.json` and `math.json` are **generated**
   from the web game (`npm run unity:golden`).
 
 ## Keeping the port honest
@@ -95,7 +106,9 @@ bit**, as do their results tables. Qualifying (`qualifying.json`) is checked the
 and wet, the AI's times off it, the grid and its table, where the session starts; the weather's look at nine
 wetness and rain mixes; and (`fx.json`) debris flown over hills, the grid walk's path and the replay's recording read
 back between frames, all bit for bit; and (`net.json`) the play stats' batches byte for byte as the web game sends them,
-3,000 numbers as JSON writes them, and the laps waiting for a board as records come in. (`GOLDEN_ONLY=fx npm run unity:golden` remakes that one alone, in a second.) JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
+3,000 numbers as JSON writes them, and the laps waiting for a board as records come in; and (`daily.json`) the Daily Challenge's circuit and weather on
+528 days, the daily log, Time Attack's clock to TIME UP at three difficulties, the streak over 150 days, the car looks,
+and a ghost recorded, read back and packed to send, all as the web game's. (`GOLDEN_ONLY=fx npm run unity:golden` remakes that one alone, in a second.) JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 340,000 checks.
 (The player's wheel still uses .NET's `Math.Pow`, a last bit off now and then: the recorded lap drifts about 2e-12 px.) If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
 and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.)
 
