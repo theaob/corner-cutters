@@ -26,6 +26,9 @@ import { RUMBLE, newRumble, rumble } from '../../src/f1/rumble';
 import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality, KEEP_QUALITY_DAYS } from '../../src/engine/render/quality';
 import { GRAPHICS_SETTINGS, frameCap, heldLevel } from '../../src/f1/graphics';
 import { splitColor } from '../../src/f1/access';
+import { MEDALS, MEDAL_COLOR, MEDAL_PACE, attackMedal, attackTargets, lapMedal, lapTargets, parseTrophies } from '../../src/f1/medals';
+import { ACHIEVEMENTS, TORPEDO, medalAchievements, raceAchievements } from '../../src/f1/achievements';
+import { STREAK_ACHIEVEMENTS } from '../../src/f1/today';
 import { RADIO, RADIO_LINES, finishLine, newRadio, radioLine, say, stepRadio, type RadioCue } from '../../src/f1/radio';
 import { groundAt } from '../../src/engine/sim';
 import { HALF_WIDTH } from '../../src/f1/circuit';
@@ -685,6 +688,51 @@ function goldenTouch() {
   console.log(`touch: ${sticks.length} sticks, ${floats.length} floats, ${sliders.length} sliders, ${labels.length} deck states`);
 }
 
+function goldenTrophies() {
+  const rng = seededRandom(37);
+  const laps: unknown[] = [];
+  for (let i = 0; i < 300; i++) {
+    const reference = 40 + rng() * 80;
+    const t = lapTargets(reference);
+    const time = reference * (0.95 + rng() * 0.3);
+    laps.push([reference, t.bronze, t.silver, t.gold, time, lapMedal(time, reference) ?? null]);
+  }
+  // (exactly on a target counts)
+  laps.push([60, ...(() => { const t = lapTargets(60); return [t.bronze, t.silver, t.gold, t.silver, lapMedal(t.silver, 60) ?? null]; })()]);
+  const attacks: unknown[] = [];
+  for (const generous of [1.08, 1, 0.95]) {
+    const t = attackTargets(generous);
+    const medals: unknown[] = [];
+    for (let passed = 0; passed <= 80; passed++) medals.push(attackMedal(passed, generous) ?? null);
+    attacks.push({ generous, targets: [t.bronze, t.silver, t.gold], medals });
+  }
+  const races: unknown[] = [];
+  for (let i = 0; i < 400; i++) {
+    const field = 4 + Math.floor(rng() * 8);
+    const r = {
+      place: 1 + Math.floor(rng() * field), field, grid: 1 + Math.floor(rng() * field), fastest: rng() < 0.3, damaged: rng() < 0.5, strikes: rng() < 0.6 ? 0 : Math.floor(rng() * 3),
+      laps: [1, 3, 5, 10, 15, 20][Math.floor(rng() * 6)], difficulty: ['easy', 'normal', 'hard'][Math.floor(rng() * 3)], weather: ['dry', 'damp', 'wet'][Math.floor(rng() * 3)],
+      tyresLeft: rng() < 0.1 ? undefined : Math.round(rng() * 100) * (rng() < 0.2 ? 0 : 1), burning: rng() < 0.1, stops: rng() < 0.1 ? undefined : Math.floor(rng() * 3),
+    };
+    races.push([r, raceAchievements(r)]);
+  }
+  const circuits = ['a', 'b', 'c'];
+  const cabinets = [
+    { medals: {}, titles: 0 },
+    { medals: { a: { trial: 'gold' } }, titles: 0 },
+    { medals: { a: { trial: 'gold' }, b: { trial: 'gold', attack: 'silver' }, c: { trial: 'gold' } }, titles: 0 },
+    { medals: { a: { attack: 'gold' }, b: { trial: 'silver' } }, titles: 2 },
+    { medals: { a: { trial: 'gold' }, b: { trial: 'gold' } }, titles: 1 },
+  ].map((t) => [t, medalAchievements(t as never, circuits)]);
+  const parsed = [
+    null, 7, 'x', { titles: 2.5 }, { titles: -1 }, { titles: 3, medals: { a: { trial: 'gold', attack: 'tin' }, b: 'no', c: { attack: 'bronze' }, d: {} } },
+  ].map((v) => [v, parseTrophies(v)]);
+  writeFileSync('unity/Tests~/Core.Tests/trophies.json', JSON.stringify({
+    medals: MEDALS, colors: MEDAL_COLOR, pace: MEDAL_PACE, achievements: ACHIEVEMENTS, torpedo: TORPEDO, streak: STREAK_ACHIEVEMENTS, laps, attacks, races, circuits, cabinets, parsed,
+  }));
+  console.log(`trophies: ${laps.length} laps, ${attacks.length} attack levels, ${races.length} races, ${cabinets.length} cabinets`);
+}
+
 function goldenFeel() {
   const rng = seededRandom(31);
   // frames of a drive: hits now and then, landings, the grass and the kerbs coming and going
@@ -744,6 +792,7 @@ function goldenFeel() {
 
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'feel') goldenFeel();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'trophies') goldenTrophies();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'touch') goldenTouch();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'sounds') goldenSounds();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'radio') goldenRadio();
@@ -764,6 +813,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenSounds();
   goldenTouch();
   goldenFeel();
+  goldenTrophies();
   goldenRaces();
   goldenQualifying();
   goldenFx();

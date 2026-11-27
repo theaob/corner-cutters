@@ -89,6 +89,8 @@ namespace CornerCutters.Game
             public ShopState Shop;
             /// <summary>s left on the Time Attack's clock (null: no clock, or not started)</summary>
             public double? Clock;
+            /// <summary>the next medal here and what it asks for (GOLD: all won), in its colour; null: not a Time Trial or a Time Attack</summary>
+            public (string text, Color color)? Medal;
             /// <summary>the pause screen's button the keys or the pad are on</summary>
             public int PauseFocus;
         }
@@ -739,6 +741,17 @@ namespace CornerCutters.Game
         /// <summary>Against the clock: the time left, big, under the strip (red in its last five seconds).</summary>
         void ClockView(State s, float w)
         {
+            // (the next medal's target, under the clock, or where it would be)
+            if (s.Medal.HasValue)
+            {
+                var m = s.Medal.Value;
+                float my = s.Clock.HasValue ? 98 : 54;
+                var mst = Style(11, m.color, TextAnchor.MiddleCenter);
+                float mw = Width(m.text, mst) + 34;
+                Fill(R(w / 2 - mw / 2, my, mw, 22), Strip, 6 * k);
+                Fill(R(w / 2 - mw / 2 + 8, my + 6, 10, 10), m.color, 5 * k);
+                Text(w / 2 - mw / 2 + 14, my, mw - 14, 22, m.text, mst, Shadow);
+            }
             if (!s.Clock.HasValue) return;
             double left = s.Clock.Value;
             var st = Style(26, left < 5 ? Red : Cyan, TextAnchor.MiddleCenter);

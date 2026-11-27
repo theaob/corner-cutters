@@ -34,7 +34,7 @@ namespace CornerCutters.Game
 
     public sealed class Menu
     {
-        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season, Keys }
+        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season, Keys, Trophies }
 
         /// <summary>What the menu wants done.</summary>
         public enum Go { None, Play, Daily, Round, NewSeason, Resume }
@@ -116,6 +116,8 @@ namespace CornerCutters.Game
         public static readonly string[] Modes = { "daily", "race", "championship", "timeattack", "timetrial" };
         /// <summary>the tiles' places: the modes (Modes' order), then SETTINGS and SHOP</summary>
         public const int SettingsTile = 5, ShopTile = 6, ResumeTile = 7;
+        /// <summary>the trophy cabinet's tile: after RESUME when there's a race to resume</summary>
+        public int TrophiesTile => Kept != null ? 8 : 7;
         /// <summary>where the highlight starts on the modes: RESUME RACE if there's a race to go back to, else QUICK RACE</summary>
         public int FirstTile => Kept != null ? ResumeTile : 1;
 
@@ -156,7 +158,8 @@ namespace CornerCutters.Game
                 new MenuTile { Icon = "timetrial", Name = "TIME TRIAL", Line = "CHASE THE GHOST OF YOUR BEST LAP" },
                 new MenuTile { Icon = "settings", Name = "SETTINGS", Small = true },
                 new MenuTile { Icon = "shop", Name = "SHOP", Small = true },
-            }.Concat(Kept != null ? new[] { new MenuTile { Icon = "flag", Name = $"RESUME · {Kept.LapLine()}", Small = true } } : new MenuTile[0]).ToList();
+            }.Concat(Kept != null ? new[] { new MenuTile { Icon = "flag", Name = $"RESUME · {Kept.LapLine()}", Small = true } } : new MenuTile[0])
+                .Concat(new[] { new MenuTile { Icon = "cup", Name = "TROPHIES", Small = true } }).ToList();
         }
 
         /// <summary>A tile picked.</summary>
@@ -172,6 +175,7 @@ namespace CornerCutters.Game
             }
             else if (i == SettingsTile) { Open(Screen.Settings); Page = null; }
             else if (i == ShopTile) Open(Screen.Shop);
+            else if (i == TrophiesTile) { Open(Screen.Trophies, 0); CabinetAchievements = false; CabinetScroll = 0; }
             else if (i == ResumeTile && Kept != null) Asked = Go.Resume;
         }
 
@@ -416,6 +420,22 @@ namespace CornerCutters.Game
         static void ToggleText() => Options.LargeText = !Options.LargeText;
         static void ToggleColours() => Options.ColourSafe = !Options.ColourSafe;
         static void ToggleShake() => Options.Shake = !Options.Shake;
+
+        // ---- the trophy cabinet ----
+
+        /// <summary>the cabinet's achievements tab up (else the medals), and how far down it</summary>
+        public bool CabinetAchievements;
+        public int CabinetScroll;
+
+        /// <summary>The cabinet: every circuit in the calendar's order, and what's been won (the medals' and titles' achievements filled in quietly).</summary>
+        public HudView.Cabinet Cabinet()
+        {
+            var t = RaceController.LoadTrophies();
+            if (t.Unlock(t.MedalAchievements(ids.ToList())).Count > 0) RaceController.SaveTrophies(t);
+            var c = new HudView.Cabinet { Trophies = t, Achievements = CabinetAchievements, Scroll = CabinetScroll };
+            foreach (var id in ids) c.Circuits.Add((id, NameOf(id), FlagOf(id)));
+            return c;
+        }
 
         // ---- the keys (GameInput.Binds) ----
 

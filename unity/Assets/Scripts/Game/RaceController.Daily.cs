@@ -56,8 +56,14 @@ namespace CornerCutters.Game
             var step = Streaks.PlayedOn(s, Today);
             if (!step.Grew) return;
             PlayerPrefs.SetString("streak", Streaks.Write(s));
-            if (step.Rewards.Count > 0) Notice($"NEW LOOK · {step.Rewards[step.Rewards.Count - 1].Name} · IN THE SHOP", TrackView.Hex(0xf2c14e), 4);
-            else if (step.Days > 1) Notice($"STREAK · {step.Days} DAYS{(step.Forgave ? " · A MISSED DAY FORGIVEN" : "")}", TrackView.Hex(0xf2c14e), 3);
+            // (said in toasts, as the web game's day news: the day, then any look it's earned; and the streak's achievements)
+            var next = Streaks.NextReward(step.Days);
+            HudView.Toast("STREAK", $"DAY {step.Days}", step.Forgave ? "A MISSED DAY FORGIVEN: KEEP IT GOING" : step.Days == 1 ? "PLAY TOMORROW FOR DAY 2" : next != null ? $"{next.Days - step.Days} MORE FOR THE {next.Name}" : "EVERY LOOK EARNED: KEEP IT GOING");
+            foreach (var r in step.Rewards) HudView.Toast("REWARD", r.Name, "YOURS: WEAR IT FROM THE SHOP");
+            var due = new List<string>();
+            if (step.Days >= Trophies.RegularDays) due.Add("regular");
+            if (step.Days >= Trophies.DevotedDays) due.Add("devoted");
+            Achieve(due);
         }
 
         // ---- the Daily Challenge ----
@@ -151,6 +157,10 @@ namespace CornerCutters.Game
             PlayedToday();
             var table = attackTable = new HudView.AttackTable { Title = $"TIME UP · {Attack.Distance(passed)}" };
             foreach (var line in Play(new PlayEvent { Kind = PlayKind.Attack, Passed = passed, Daily = daily.HasValue })) table.Lines.Add((line, 0x5fe0d0));
+            // (a medal better than the one here: on the table too)
+            var medalHad = LoadTrophies().MedalOn(circuit.id, MedalKind.Attack);
+            var medal = AttackMedalWon(passed);
+            if (medal > medalHad) table.Lines.Add(($"{Medals.NameOf(medal)} MEDAL!", Medals.ColorOf(medal)));
             if (!daily.HasValue)
             {
                 // (your best here, in this weather, at this difficulty: kept on the device)

@@ -56,6 +56,7 @@ static class Program
         SynthSounds();
         TouchControls(root);
         FeelChecks(root);
+        TrophyChecks(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -499,6 +500,82 @@ static class Program
     }
 
     /// <summary>The touch deck against the web game's: the thumbstick, the floating stick, the slider, the deck's labels.</summary>
+    static void TrophyChecks(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/trophies.json"))).RootElement;
+        Medal M(JsonElement e) => e.ValueKind == JsonValueKind.Null ? Medal.None : Medals.FromId(e.GetString());
+        foreach (var m in Medals.All)
+        {
+            Check(Medals.PaceOf(m) == g.GetProperty("pace").GetProperty(Medals.IdOf(m)).GetDouble(), $"medal pace {m}");
+            Check(Medals.ColorOf(m) == Convert.ToInt32(g.GetProperty("colors").GetProperty(Medals.IdOf(m)).GetString().Substring(1), 16), $"medal colour {m}");
+        }
+        foreach (var l in g.GetProperty("laps").EnumerateArray())
+        {
+            double reference = l[0].GetDouble();
+            Check(Near(Medals.LapTarget(reference, Medal.Bronze), l[1].GetDouble()) && Near(Medals.LapTarget(reference, Medal.Silver), l[2].GetDouble()) && Near(Medals.LapTarget(reference, Medal.Gold), l[3].GetDouble()), $"lap targets at {reference}");
+            Check(Medals.LapMedal(l[4].GetDouble(), reference) == M(l[5]), $"lap medal {l[4]} of {reference}");
+        }
+        foreach (var a in g.GetProperty("attacks").EnumerateArray())
+        {
+            double generous = a.GetProperty("generous").GetDouble();
+            var t = a.GetProperty("targets");
+            Check(Medals.AttackTarget(Medal.Bronze, generous) == t[0].GetInt32() && Medals.AttackTarget(Medal.Silver, generous) == t[1].GetInt32() && Medals.AttackTarget(Medal.Gold, generous) == t[2].GetInt32(), $"attack targets at {generous}");
+            int passed = 0;
+            foreach (var m in a.GetProperty("medals").EnumerateArray()) { Check(Medals.AttackMedal(passed, generous) == M(m), $"attack medal {passed} at {generous}"); passed++; }
+        }
+        var ach = g.GetProperty("achievements");
+        Check(ach.GetArrayLength() == Trophies.Achievements.Length, "achievements: as many");
+        for (int i = 0; i < Trophies.Achievements.Length; i++)
+        {
+            var a = Trophies.Achievements[i];
+            Check(a.Id == ach[i].GetProperty("id").GetString() && a.Name == ach[i].GetProperty("name").GetString() && a.About == ach[i].GetProperty("about").GetString(), $"achievement {a.Id}");
+        }
+        var tp = g.GetProperty("torpedo");
+        Check(Trophies.TorpedoCircuit == tp.GetProperty("circuit").GetString() && Trophies.TorpedoWindow == tp.GetProperty("window").GetDouble() && Trophies.TorpedoCars == tp.GetProperty("cars").GetInt32(), "torpedo");
+        Check(Trophies.RegularDays == g.GetProperty("streak").GetProperty("regular").GetInt32() && Trophies.DevotedDays == g.GetProperty("streak").GetProperty("devoted").GetInt32(), "streak achievements");
+        int races = 0;
+        foreach (var r in g.GetProperty("races").EnumerateArray())
+        {
+            var o = r[0];
+            int? Opt(string k) => o.TryGetProperty(k, out var v) ? v.GetInt32() : (int?)null;
+            var sum = new RaceSummary
+            {
+                Place = o.GetProperty("place").GetInt32(), Field = o.GetProperty("field").GetInt32(), Grid = o.GetProperty("grid").GetInt32(), Fastest = o.GetProperty("fastest").GetBoolean(),
+                Damaged = o.GetProperty("damaged").GetBoolean(), Strikes = o.GetProperty("strikes").GetInt32(), Laps = o.GetProperty("laps").GetInt32(), Difficulty = o.GetProperty("difficulty").GetString(),
+                Weather = o.GetProperty("weather").GetString(), TyresLeft = Opt("tyresLeft"), Burning = o.GetProperty("burning").GetBoolean(), Stops = Opt("stops"),
+            };
+            var want = r[1].EnumerateArray().Select(x => x.GetString()).ToList();
+            Check(Trophies.RaceAchievements(sum).SequenceEqual(want), $"race achievements {races}");
+            races++;
+        }
+        var circuits = g.GetProperty("circuits").EnumerateArray().Select(x => x.GetString()).ToList();
+        foreach (var c in g.GetProperty("cabinets").EnumerateArray())
+        {
+            var t = Trophies.Parse(c[0].GetRawText());
+            Check(t.MedalAchievements(circuits).SequenceEqual(c[1].EnumerateArray().Select(x => x.GetString())), $"medal achievements {c[0].GetRawText()}");
+        }
+        foreach (var p in g.GetProperty("parsed").EnumerateArray())
+        {
+            var t = Trophies.Parse(p[0].GetRawText());
+            var w = p[1];
+            bool ok = t.Titles == w.GetProperty("titles").GetInt32();
+            var medals = w.GetProperty("medals");
+            ok &= t.Medals.Count == medals.EnumerateObject().Count();
+            foreach (var kv in medals.EnumerateObject())
+                ok &= t.MedalOn(kv.Name, MedalKind.Trial) == (kv.Value.TryGetProperty("trial", out var tr) ? Medals.FromId(tr.GetString()) : Medal.None)
+                    && t.MedalOn(kv.Name, MedalKind.Attack) == (kv.Value.TryGetProperty("attack", out var at) ? Medals.FromId(at.GetString()) : Medal.None);
+            Check(ok, $"trophies parsed from {p[0].GetRawText()}");
+            // (and back: what's written reads the same)
+            var again = Trophies.Parse(t.Write());
+            Check(again.Write() == t.Write(), "trophies written and read again");
+        }
+        // unlocking: once each, in the list's order
+        var tt = new Trophies();
+        Check(tt.Unlock(new[] { "win", "finish", "nonsense" }).Select(a => a.Id).SequenceEqual(new[] { "finish", "win" }) && tt.Unlock(new[] { "win" }).Count == 0, "achievements unlock once");
+        Check(tt.Award("x", MedalKind.Trial, Medal.Silver) && !tt.Award("x", MedalKind.Trial, Medal.Bronze) && tt.Award("x", MedalKind.Trial, Medal.Gold) && tt.MedalOn("x", MedalKind.Attack) == Medal.None, "medals kept at their best");
+        Console.WriteLine($"trophies: {races} races");
+    }
+
     static void FeelChecks(string root)
     {
         var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/feel.json"))).RootElement;

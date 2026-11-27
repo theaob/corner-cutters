@@ -65,6 +65,8 @@ namespace CornerCutters.Game
                 var out_ = new HashSet<int>(order.Where(i => race.Entrants[i].Progress.Retired).Select(i => driverOf[i]));
                 Championship.RecordRound(season, finish, out_);
                 SaveSeason(season);
+                // the season won: into the trophy cabinet
+                if (season.Over && Championship.Standings(season)[0].Driver == season.You) WonTitle();
             }
             season = null;
             playMode = "race";
@@ -110,6 +112,8 @@ namespace CornerCutters.Game
             Ghost record = null;
             try { record = Ghost.Parse(Json.Parse(PlayerPrefs.GetString(GhostKey, ""))); } catch { }
             trial = new TrialState { Record = record };
+            // (the medals' laps are shares of it)
+            reference ??= Qualifying.ReferenceLap(track, grid, difficulty.Handling(), SessionWeather);
             Begin(new List<int> { weekend.YouDriver });
             drivenMode = StatsMode;
             NoteStart();
@@ -181,6 +185,8 @@ namespace CornerCutters.Game
             else if (best == null || g.Time < best.Time) Notice($"BEST LAP {Results.FormatTime(g.Time)} · {Signed(g.Time - record.Time)}", SplitBetter, 3);
             else Notice($"LAP {Results.FormatTime(g.Time)} · {Signed(g.Time - best.Time)}", SplitWorse, 3);
             if (best == null || g.Time < best.Time) trial.Best = g;
+            // a medal here, better than the one you had
+            TrialMedal(g);
         }
 
         /// <summary>The ghost: your record lap from the line, where it was as far into its lap as you are into yours.</summary>

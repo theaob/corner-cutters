@@ -36,10 +36,12 @@ namespace CornerCutters.Game
             foreach (var m in Missions.On(p.Day)) if (Missions.IsDone(p, m)) doneToday++;
             foreach (var m in done)
             {
-                string text = $"MISSION DONE · {Missions.TextOf(m)} · {(all && m == done[done.Count - 1] ? "ALL THREE TODAY" : $"{doneToday} OF 3 TODAY")}";
-                said.Add(text);
-                News(text, MissionColor, 3);
+                bool last = all && m == done[done.Count - 1];
+                said.Add($"MISSION DONE · {Missions.TextOf(m)} · {(last ? "ALL THREE TODAY" : $"{doneToday} OF 3 TODAY")}");
+                // (said in a toast, as the web game's day news)
+                HudView.Toast("MISSION", Missions.TextOf(m), last ? "ALL THREE DONE TODAY" : $"{doneToday} OF 3 DONE TODAY", 0x5fe0d0);
             }
+            if (all) Achieve(new[] { "busy-day" });
             return said;
         }
 
@@ -80,6 +82,7 @@ namespace CornerCutters.Game
             {
                 Me.Progress.Penalty += Launch.JumpPenalty;
                 Notice($"JUMP START · +{Launch.JumpPenalty:0} S", TrackView.Hex(0xd8323c), 3);
+                Achieve(new[] { "too-keen" });
                 SayRadio("jump-start");
             }
             else if (v == LaunchVerdict.Great || v == LaunchVerdict.Good)
@@ -89,6 +92,7 @@ namespace CornerCutters.Game
                 car.Vx += JsMath.Sin(car.Heading) * kick;
                 car.Vy -= JsMath.Cos(car.Heading) * kick;
                 Notice($"{(v == LaunchVerdict.Great ? "GREAT" : "GOOD")} LAUNCH · {launch.Reaction:0.00} S", TrackView.Hex(v == LaunchVerdict.Great ? 0xb36bff : 0x5fe0d0), 2);
+                if (v == LaunchVerdict.Great) Achieve(new[] { "rocket" });
                 Play(new PlayEvent { Kind = PlayKind.Launch, Great = v == LaunchVerdict.Great });
             }
         }
@@ -98,6 +102,7 @@ namespace CornerCutters.Game
         {
             if (raceCounted || session != Session.Race || !Me.Progress.Finished.HasValue || !RaceControl.Settled(race)) return;
             raceCounted = true;
+            RaceTrophies();
             var order = RaceControl.Order(race);
             missionNotes.AddRange(Play(new PlayEvent
             {

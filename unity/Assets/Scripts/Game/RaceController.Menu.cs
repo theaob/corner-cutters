@@ -63,6 +63,14 @@ namespace CornerCutters.Game
                 case Menu.Screen.Settings:
                     menu.Steer(menu.SettingsRows(), input, menu.SettingsBack);
                     break;
+                case Menu.Screen.Trophies:
+                    // (left and right the tabs, up and down the achievements' rows and BACK, A picks, B back to the modes)
+                    if (input.NavX != 0) { menu.Focus = input.NavX < 0 ? 0 : 1; menu.CabinetAchievements = menu.Focus == 1; }
+                    if (input.NavY > 0) { if (menu.CabinetAchievements && menu.Focus != 2) menu.CabinetScroll++; else menu.Focus = 2; }
+                    if (input.NavY < 0) { if (menu.Focus == 2) menu.Focus = menu.CabinetAchievements ? 1 : 0; else if (menu.CabinetAchievements) menu.CabinetScroll = Mathf.Max(0, menu.CabinetScroll - 1); }
+                    if (input.AcceptPressed) { if (menu.Focus == 2) menu.Open(Menu.Screen.Modes, menu.TrophiesTile); else menu.CabinetAchievements = menu.Focus == 1; }
+                    else if (input.BackPressed) menu.Open(Menu.Screen.Modes, menu.TrophiesTile);
+                    break;
                 case Menu.Screen.Keys:
                     if (menu.Listening >= 0)
                     {
@@ -195,6 +203,19 @@ namespace CornerCutters.Game
                             else if (arrow > 0) r.Right?.Invoke();
                             else (r.Pick ?? r.Right)?.Invoke();
                         }
+                        break;
+                    }
+                case Menu.Screen.Trophies:
+                    {
+                        var cabinet = menu.Cabinet();
+                        var c = hud.DrawCabinet(cabinet, menu.Focus);
+                        // (kept within the rows there are)
+                        menu.CabinetScroll = cabinet.Scroll;
+                        if (c == HudView.CabinetChoice.Medals) { menu.CabinetAchievements = false; menu.Focus = 0; }
+                        else if (c == HudView.CabinetChoice.Achievements) { menu.CabinetAchievements = true; menu.Focus = 1; }
+                        else if (c == HudView.CabinetChoice.Down) menu.CabinetScroll++;
+                        else if (c == HudView.CabinetChoice.Up) menu.CabinetScroll = Mathf.Max(0, menu.CabinetScroll - 1);
+                        else if (c == HudView.CabinetChoice.Back) menu.Open(Menu.Screen.Modes, menu.TrophiesTile);
                         break;
                     }
                 case Menu.Screen.Shop:

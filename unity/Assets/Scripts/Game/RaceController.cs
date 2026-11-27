@@ -424,6 +424,7 @@ namespace CornerCutters.Game
             FreshRadio();
             FreshSounds();
             FreshFeel();
+            FreshTrophies();
             sinceStart = 0;
             paused = false;
             particles.Clear();
@@ -805,6 +806,7 @@ namespace CornerCutters.Game
             // (a call for one of the players goes on their half; the race's own on both)
             bool mine = ev.Who == you || (you2 >= 0 && ev.Who == you2);
             int to = ev.Who;
+            TrophyEvent(ev);
             switch (ev.Kind)
             {
                 case RaceEventKind.LightsOut:
@@ -1061,6 +1063,7 @@ namespace CornerCutters.Game
                 Online = Backend.Online, StatsOn = Profile.StatsOn, Name = Profile.Initials, Edit = nameEdit,
                 Daily = daily.HasValue, WeatherFixed = season != null, Shop = shopOpen ? ShopState() : null, PauseFocus = pauseFocus,
                 Clock = attack != null && (session == Session.Attack || session == Session.AttackOver) ? attack.Left : null,
+                Medal = mine && !Split ? MedalLine() : null,
                 Tyre = $"{Tyres.Short(me.Tyres.Compound)} {System.Math.Round((1 - me.Tyres.Wear) * 100):0}%",
                 TyreColor = TrackView.Hex(Tyres.Color(me.Tyres.Compound)),
                 Pit = mine ? PitBanner() : null, TyreNext = tyreNext, TyreNextColor = nextColor,
@@ -1135,6 +1138,13 @@ namespace CornerCutters.Game
         }
 
         void OnGUI()
+        {
+            GuiBody();
+            // (the toasts over everything: achievements, medals, missions, the streak)
+            hud?.DrawToasts();
+        }
+
+        void GuiBody()
         {
             if (race == null || hud == null) return;
             if (menu != null)

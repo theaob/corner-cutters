@@ -76,7 +76,9 @@ SCREEN SHAKE) and PRIVACY & DATA (the privacy and terms pages, STATS, PLAYER ID)
 buttons (a control already on the new one swaps; RESET ALL). Keys, a pad or the
 mouse: arrows or the d-pad move, left and right change a row, ENTER or A picks, ESC or B goes back. What you pick is
 kept for next time. The pause screen has RESUME, RESTART, SKIP QUALIFYING, WEATHER, GRID WALK and MAIN MENU, with the
-keys and the pad too. (Not yet: the language setting, the trophy cabinet,
+keys and the pad too. TROPHIES is the web game's cabinet: Championships won, each circuit's Time Trial and Time
+Attack medals, and the 27 achievements (Core/Trophies.cs, checked against medals.ts and achievements.ts); medals,
+achievements, missions done and the streak's days are said in toasts as they come. (Not yet: the language setting,
 the circuits locked until a Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
 
 **Daily Challenge, streak and shop.** As the web game (`daily.ts`, `timeAttack.ts`, `streak.ts`, `carStyle.ts`):
