@@ -157,6 +157,10 @@ namespace CornerCutters.Game
         {
             var record = trial.Record;
             var best = trial.Best;
+            // (a lap, and a Time Trial lap, towards the day's missions; and it counts as having played today)
+            Play(new PlayEvent { Kind = PlayKind.Lap });
+            Play(new PlayEvent { Kind = PlayKind.TrialLap, Record = record != null && g.Time < record.Time });
+            PlayedToday();
             if (record == null || g.Time < record.Time)
             {
                 trial.Record = g;

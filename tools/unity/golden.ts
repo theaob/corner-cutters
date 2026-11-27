@@ -12,6 +12,8 @@ import { YETI, YetiRun } from '../../src/f1/yeti';
 import { PETALS, PetalField } from '../../src/f1/petals';
 import { newSeason, recordRound, roundSeed, standings, pointsOf, parseSeason } from '../../src/f1/championship';
 import { markSplit } from '../../src/f1/timeTrial';
+import { MISSION_CIRCUITS, MISSIONS, missionsOn, count as countMission, type PlayEvent } from '../../src/f1/missions';
+import { stepLaunch, newLaunch } from '../../src/f1/launch';
 import { groundAt } from '../../src/engine/sim';
 import { HALF_WIDTH } from '../../src/f1/circuit';
 import { aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, paceRanks } from '../../src/f1/difficulty';
@@ -549,7 +551,50 @@ function goldenSeason() {
   console.log(`season: ${seasons.length} seasons of ${ids.length} rounds, ${marks.length} split marks`);
 }
 
+/** The daily missions (missionsOn by the day, each event's count, a day's progress counted up) and the launch off the lights. */
+function goldenMissions() {
+  const rng = seededRandom(31);
+  const days: [string, string[]][] = [];
+  for (let k = 0; k < 400; k++) {
+    const d = new Date(Date.UTC(2026, 0, 1 + k * 3));
+    const day = d.toISOString().slice(0, 10);
+    days.push([day, missionsOn(day).map((m) => m.id)]);
+  }
+  const circuits = ['crescent-park', ...MISSION_CIRCUITS.map((c) => c.id), 'vegas'];
+  const event = (): PlayEvent => {
+    const r = rng();
+    if (r < 0.4) return { kind: 'race', place: 1 + Math.floor(rng() * 11), grid: 1 + Math.floor(rng() * 11), field: 11, fastest: rng() < 0.3, clean: rng() < 0.4, weather: ['dry', 'damp', 'wet'][Math.floor(rng() * 3)], circuit: circuits[Math.floor(rng() * circuits.length)], difficulty: 'normal' };
+    if (r < 0.6) return { kind: 'lap' };
+    if (r < 0.7) return { kind: 'launch', great: rng() < 0.5 };
+    if (r < 0.8) return { kind: 'pit' };
+    if (r < 0.9) return { kind: 'trial-lap', record: rng() < 0.4 };
+    return { kind: 'attack', passed: Math.floor(rng() * 12), daily: rng() < 0.5 };
+  };
+  const counts = Array.from({ length: 200 }, () => { const e = event(); return { e, n: MISSIONS.map((m) => m.count(e)) }; });
+  const runs = days.slice(0, 40).map(([day]) => {
+    const p = { day, progress: {} as Record<string, number> };
+    const steps = Array.from({ length: 30 }, () => { const e = event(); const r = countMission(p, e); return { e, done: r.done.map((m) => m.id), all: r.all, progress: { ...p.progress } }; });
+    return { day, steps };
+  });
+  const launches = Array.from({ length: 300 }, () => {
+    const l = newLaunch();
+    const frames: [boolean, number | null, number, string | null][] = [];
+    const jumpy = rng() < 0.3, held = rng() < 0.2, react = rng() * 1.8;
+    for (let f = -60; f < 120; f++) {
+      const t = f / 60;
+      const lit = t < 0 && t >= -0.5, out = t >= 0 ? t : undefined;
+      const gas = held ? 1 : jumpy && t > -0.2 ? 1 : t >= react ? 1 : 0.1;
+      const v = stepLaunch(l, lit, out, gas);
+      frames.push([lit, out ?? null, gas, v ?? null]);
+    }
+    return { frames, reaction: l.reaction ?? null };
+  });
+  writeFileSync('unity/Tests~/Core.Tests/missions.json', JSON.stringify({ ids: MISSIONS.map((m) => [m.id, m.text, m.goal, !!m.max, m.circuit ?? null]), circuits: MISSION_CIRCUITS, days, counts, runs, launches }));
+  console.log(`missions: ${MISSIONS.length} missions, ${days.length} days, ${runs.length} days counted, ${launches.length} launches`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'missions') goldenMissions();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'season') goldenSeason();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'petals') goldenPetals();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'net') (goldenNet(), goldenDaily());
@@ -561,6 +606,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenCritters();
   goldenPetals();
   goldenSeason();
+  goldenMissions();
   goldenRaces();
   goldenQualifying();
   goldenFx();

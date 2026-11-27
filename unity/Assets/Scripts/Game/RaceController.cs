@@ -373,6 +373,7 @@ namespace CornerCutters.Game
             drivenMode = StatsMode;
             NoteStart();
             lapsSeen = new int[race.Entrants.Count];
+            FreshRace();
             if (you2 >= 0 && !GameInput.AnyPad) Notice("PLAYER 2: PLUG IN A PAD", TrackView.Hex(0xf2c14e), 6);
             // the grid walk first (Enter or A skips it; GRID WALK off in the settings: straight to the lights)
             if (PlayerPrefs.GetInt("gridWalk", 1) != 0)
@@ -504,6 +505,7 @@ namespace CornerCutters.Game
                 Draw(1, frame);
             }
             if (session == Session.Race) UpdateResults();
+            if (!paused) NextNews();
             CountDriven(frame);
             if (!paused) { nameEdit = null; shopOpen = false; }
             if (qualiTable != null || results != null || attackTable != null) tableUp += frame;
@@ -582,6 +584,7 @@ namespace CornerCutters.Game
             bool show = results != null || (podiumTop != null && podiumT >= Ceremony.Len) || (!p.Finished.HasValue && p.Retired && RaceControl.Settled(race));
             if (!show) return;
             if (results == null) tableUp = 0;
+            CountRace();
             var order = RaceControl.Order(race);
             var names = driverOf.Select(DriverName).ToList();
             var teams = driverOf.Select(k => weekend.Drivers[k].Team.Code).ToList();
@@ -592,6 +595,7 @@ namespace CornerCutters.Game
                 Notes = new List<(string, bool)> { ($"LAP RECORD {Results.FormatTime(double.IsNaN(record) ? (double?)null : record)}", newLapRecord) },
                 Go = season != null ? "CHAMPIONSHIP" : "NEXT CIRCUIT", Again = season == null,
             };
+            foreach (var n in missionNotes) results.Notes.Add((n, true));
             if (season != null) results.Title = $"ROUND {season.Round + 1} OF {season.Rounds.Count} · {results.Title}";
         }
 
@@ -607,6 +611,8 @@ namespace CornerCutters.Game
             // (qualifying over: your car rolls to a stop while the table's up)
             if (session == Session.QualiOver || session == Session.AttackOver) wheel = new Racing.WheelPad();
             var wheel2 = session == Session.Race ? input.Wheel2(dt) : new Racing.WheelPad();
+            StepLaunch(wheel);
+            double healthBefore = Me.Car.Health;
             var result = RaceControl.StepRace(race, dt, Wheels(wheel, wheel2));
             if (race.Phase == RacePhase.Racing) gaps.Step(race.Entrants.Select(e => e.Progress).ToList(), track, race.Clock);
             // your laps: the best this weekend, and (race laps only: qualifying keeps its own) the circuit's record
@@ -615,7 +621,9 @@ namespace CornerCutters.Game
                 double t = Me.Progress.LapTimes[Me.Progress.LapTimes.Count - 1];
                 if (session != Session.QualiOver && (double.IsNaN(bestLap) || t < bestLap)) bestLap = t;
                 if (session == Session.Race && (double.IsNaN(record) || t < record)) { record = t; newLapRecord = true; PlayerPrefs.SetFloat("rec." + circuit.id, (float)t); }
+                if (session == Session.Race) Play(new PlayEvent { Kind = PlayKind.Lap });
             }
+            if (Me.Car.Health < healthBefore) scratched = true;
             for (int k = 0; k < result.Cars.Length && k < landed.Length; k++)
             {
                 lastEvents[k] = result.Cars[k];
@@ -726,7 +734,10 @@ namespace CornerCutters.Game
                     Notice(ev.Seconds > 0 ? $"TRACK LIMITS · +{ev.Seconds:0}S" : $"TRACK LIMITS · WARNING {ev.Strike}", ev.Seconds > 0 ? red : gold, 3, to);
                     break;
                 case RaceEventKind.Blue when mine: Notice("BLUE FLAG · LET THEM BY", blue, 3, to); break;
-                case RaceEventKind.PitStop when mine: Notice($"PIT STOP · {ev.Seconds:0.0}S · {Tyres.Name(race.Entrants[ev.Who].Tyres.Compound)}", ink, 3, to); break;
+                case RaceEventKind.PitStop when mine:
+                    Notice($"PIT STOP · {ev.Seconds:0.0}S · {Tyres.Name(race.Entrants[ev.Who].Tyres.Compound)}", ink, 3, to);
+                    if (ev.Who == you && session == Session.Race) Play(new PlayEvent { Kind = PlayKind.Pit });
+                    break;
                 case RaceEventKind.Wreck when mine: Notice("WRECKED", red, 4, to); break;
                 case RaceEventKind.Crash: Crashed(ev); break;
                 case RaceEventKind.PitRepaired: debris.Refit(views[ev.Who], race.Clock); break;

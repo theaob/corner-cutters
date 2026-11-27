@@ -145,7 +145,7 @@ namespace CornerCutters.Game
                     break;
                 case Menu.Screen.Modes:
                     {
-                        int picked = hud.DrawTiles(menu.Tiles(), menu.Focus, out int hover);
+                        int picked = hud.DrawTiles(menu.Tiles(), menu.Focus, out int hover, TodayPanel());
                         if (hover >= 0 && MouseMoved()) menu.Focus = hover;
                         if (picked >= 0) { menu.Focus = picked; menu.PickTile(picked); }
                         break;

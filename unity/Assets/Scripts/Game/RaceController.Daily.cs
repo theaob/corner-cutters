@@ -150,6 +150,7 @@ namespace CornerCutters.Game
             NoteDriven();
             PlayedToday();
             var table = attackTable = new HudView.AttackTable { Title = $"TIME UP · {Attack.Distance(passed)}" };
+            foreach (var line in Play(new PlayEvent { Kind = PlayKind.Attack, Passed = passed, Daily = daily.HasValue })) table.Lines.Add((line, 0x5fe0d0));
             if (!daily.HasValue)
             {
                 // (your best here, in this weather, at this difficulty: kept on the device)

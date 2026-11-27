@@ -49,6 +49,7 @@ static class Program
         Critters(root);
         Petals(root);
         Seasons(root);
+        MissionsAndLaunches(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -357,6 +358,77 @@ static class Program
     }
 
     /// <summary>Championship seasons and Time Trial's split marks (Core/Championship.cs, Ghost.cs) against the web game's (season.json).</summary>
+    static PlayEvent EventOf(JsonElement e)
+    {
+        string kind = e.GetProperty("kind").GetString();
+        var p = new PlayEvent { Kind = kind switch { "race" => PlayKind.Race, "lap" => PlayKind.Lap, "launch" => PlayKind.Launch, "pit" => PlayKind.Pit, "trial-lap" => PlayKind.TrialLap, _ => PlayKind.Attack } };
+        if (p.Kind == PlayKind.Race)
+        {
+            p.Place = e.GetProperty("place").GetInt32(); p.Grid = e.GetProperty("grid").GetInt32(); p.Field = e.GetProperty("field").GetInt32();
+            p.Fastest = e.GetProperty("fastest").GetBoolean(); p.Clean = e.GetProperty("clean").GetBoolean();
+            p.Weather = e.GetProperty("weather").GetString(); p.Circuit = e.GetProperty("circuit").GetString();
+        }
+        if (p.Kind == PlayKind.Launch) p.Great = e.GetProperty("great").GetBoolean();
+        if (p.Kind == PlayKind.TrialLap) p.Record = e.GetProperty("record").GetBoolean();
+        if (p.Kind == PlayKind.Attack) { p.Passed = e.GetProperty("passed").GetInt32(); p.Daily = e.GetProperty("daily").GetBoolean(); }
+        return p;
+    }
+
+    static void MissionsAndLaunches(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/missions.json"))).RootElement;
+        var ids = g.GetProperty("ids").EnumerateArray().ToList();
+        Check(ids.Count == Missions.All.Length, $"missions: {Missions.All.Length}, want {ids.Count}");
+        for (int k = 0; k < ids.Count && k < Missions.All.Length; k++)
+        {
+            var m = Missions.All[k];
+            var w = ids[k];
+            Check(m.Id == w[0].GetString() && m.Text == w[1].GetString() && m.Goal == w[2].GetInt32() && m.Max == w[3].GetBoolean() && m.Circuit == (w[4].ValueKind == JsonValueKind.Null ? null : w[4].GetString()), $"mission {k}: {m.Id}, want {w}");
+        }
+        var circuits = g.GetProperty("circuits").EnumerateArray().Select(c => (c.GetProperty("id").GetString(), c.GetProperty("name").GetString())).ToList();
+        Check(circuits.SequenceEqual(Missions.Circuits), "mission circuits");
+        foreach (var d in g.GetProperty("days").EnumerateArray())
+        {
+            string day = d[0].GetString();
+            var want = d[1].EnumerateArray().Select(x => x.GetString()).ToArray();
+            Check(Missions.On(day).Select(m => m.Id).SequenceEqual(want), $"missions on {day}: {string.Join(",", Missions.On(day).Select(m => m.Id))}, want {string.Join(",", want)}");
+        }
+        foreach (var c in g.GetProperty("counts").EnumerateArray())
+        {
+            var e = EventOf(c.GetProperty("e"));
+            var want = c.GetProperty("n").EnumerateArray().Select(x => x.GetInt32()).ToArray();
+            Check(Missions.All.Select(m => m.Count(e)).SequenceEqual(want), $"counts of {c.GetProperty("e")}");
+        }
+        foreach (var r in g.GetProperty("runs").EnumerateArray())
+        {
+            var p = new DayProgress { Day = r.GetProperty("day").GetString() };
+            foreach (var s in r.GetProperty("steps").EnumerateArray())
+            {
+                var done = Missions.Count(p, EventOf(s.GetProperty("e")), out bool all);
+                var wantDone = s.GetProperty("done").EnumerateArray().Select(x => x.GetString()).ToArray();
+                Check(done.Select(m => m.Id).SequenceEqual(wantDone) && all == s.GetProperty("all").GetBoolean(), $"{p.Day}: done {string.Join(",", done.Select(m => m.Id))}");
+                var wantP = s.GetProperty("progress").EnumerateObject().ToDictionary(x => x.Name, x => x.Value.GetInt32());
+                Check(wantP.Count == p.Progress.Count && wantP.All(kv => p.Progress.TryGetValue(kv.Key, out int n) && n == kv.Value), $"{p.Day}: progress");
+            }
+            var back = Missions.Parse(Missions.Write(p), p.Day);
+            Check(back.Progress.Count == p.Progress.Count && back.Progress.All(kv => p.Progress[kv.Key] == kv.Value), $"{p.Day}: saved and read back");
+        }
+        foreach (var l in g.GetProperty("launches").EnumerateArray())
+        {
+            var launch = new Launch();
+            foreach (var f in l.GetProperty("frames").EnumerateArray())
+            {
+                double? @out = f[1].ValueKind == JsonValueKind.Null ? null : f[1].GetDouble();
+                var v = launch.Step(f[0].GetBoolean(), @out, f[2].GetDouble());
+                string want = f[3].ValueKind == JsonValueKind.Null ? "none" : f[3].GetString();
+                Check(v.ToString().ToLowerInvariant() == want, $"launch: {v}, want {want}");
+            }
+            var rw = l.GetProperty("reaction");
+            Check(rw.ValueKind == JsonValueKind.Null ? launch.Reaction == null : launch.Reaction == rw.GetDouble(), "launch reaction");
+        }
+        Console.WriteLine($"missions: {Missions.All.Length} missions, {g.GetProperty("days").GetArrayLength()} days, {g.GetProperty("launches").GetArrayLength()} launches");
+    }
+
     static void Seasons(string root)
     {
         var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/season.json"))).RootElement;

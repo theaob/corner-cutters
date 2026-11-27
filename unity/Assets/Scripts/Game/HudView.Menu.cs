@@ -2,6 +2,7 @@
 // title in gold, the modes as tiles with an icon over each name, a screen's rows with ◀ ▶ either side of the value, the
 // highlighted one in cyan. Drawn with IMGUI like the HUD, in the same pixel font; what to show comes from Menu.cs.
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace CornerCutters.Game
@@ -41,19 +42,36 @@ namespace CornerCutters.Game
         }
 
         /// <summary>The modes: three big tiles, two small under them; the highlighted one cyan. The one clicked (-1: none), and the one under the mouse.</summary>
-        public int DrawTiles(List<MenuTile> tiles, int focus, out int hover)
+        /// <summary>The menu's TODAY panel (todayPanel.ts): your streak and what it earns next, today's three missions and how far along each is.</summary>
+        public sealed class TodayPanel
+        {
+            public string Streak, Next;
+            public List<(string text, int progress, int goal, bool done)> Missions = new List<(string, int, int, bool)>();
+        }
+
+        public int DrawTiles(List<MenuTile> tiles, int focus, out int hover, TodayPanel today = null)
         {
             float w = Begin(), h = Screen.height / k;
             hover = -1;
             Text(0, h * 0.12f, w, 50, "CORNER CUTTERS", Style(34, Gold, TextAnchor.MiddleCenter), Shadow);
             const float small = 120, gap = 14;
             float y = h * 0.12f + 70;
+            // (TODAY beside the tiles where there's room, else under them: the tiles a little smaller for it)
+            const float tw0 = 230;
+            bool beside = today != null && w >= 3 * 168 + 2 * gap + 2 * (tw0 + 24);
+            float under = today != null && !beside ? 84 : 0;
             int clicked = -1;
             int bigs = 0, smalls = 0;
             foreach (var t in tiles) if (t.Small) smalls++; else bigs++;
             // (the modes three to a row, as big as fit over the small row)
             int cols = System.Math.Min(Menu.Columns, System.Math.Max(1, bigs)), bigRows = (bigs + cols - 1) / cols;
-            float big = Mathf.Clamp((h - y - 52 - 30 - 70 - gap * (bigRows - 1)) / bigRows, 110, 168);
+            float big = Mathf.Clamp((h - y - 52 - 30 - 70 - under - gap * (bigRows - 1)) / bigRows, 110, 168);
+            if (today != null)
+            {
+                float rowsW = cols * big + (cols - 1) * gap;
+                if (beside) DrawToday(today, w / 2 + rowsW / 2 + 24, y, tw0, false);
+                else DrawToday(today, w / 2 - 230, y + bigRows * (big + gap) - gap + 30 + 52 + 12, 460, true);
+            }
             float sx = w / 2 - (smalls * (big + 40) + (smalls - 1) * gap) / 2;
             int bi = 0;
             for (int i = 0; i < tiles.Count; i++)
@@ -101,6 +119,38 @@ namespace CornerCutters.Game
                 if (GUI.Button(r, GUIContent.none, GUIStyle.none)) clicked = i;
             }
             return clicked;
+        }
+
+        /// <summary>The TODAY panel at (x, y), `pw` wide: the streak, then the missions (`wide`: two to a line, under the tiles).</summary>
+        void DrawToday(TodayPanel t, float x, float y, float pw, bool wide)
+        {
+            const float line = 15, pad = 8;
+            int doneCount = t.Missions.Count(m => m.done);
+            int lines = wide ? 1 + (t.Missions.Count + 1) / 2 : 2 + t.Missions.Count * 2;
+            float ph = pad * 2 + 18 + line * lines + (wide ? 0 : 6);
+            Fill(R(x, y, pw, ph), Panel, 8 * k, Mathf.Max(1, k), KeyEdge);
+            float ty = y + pad;
+            Icon("up", x + pad, ty + 4, 8, Gold);
+            Text(x + pad + 12, ty, pw - 2 * pad - 12, 16, t.Streak, Style(11, Gold));
+            Text(x + pad, ty, pw - 2 * pad, 16, t.Next, Style(9, Muted, TextAnchor.MiddleRight));
+            ty += 18;
+            Text(x + pad, ty, pw - 2 * pad, line, "TODAY'S MISSIONS", Style(10, Ink));
+            Text(x + pad, ty, pw - 2 * pad, line, $"{doneCount}/3", Style(10, doneCount == 3 ? Cyan : Muted, TextAnchor.MiddleRight));
+            ty += line + (wide ? 0 : 4);
+            float cw = wide ? (pw - 2 * pad - 12) / 2 : pw - 2 * pad;
+            for (int i = 0; i < t.Missions.Count; i++)
+            {
+                var m = t.Missions[i];
+                float mx = x + pad + (wide ? (i % 2) * (cw + 12) : 0);
+                float my = wide ? ty + (i / 2) * line : ty + i * line * 2;
+                var ink = m.done ? Cyan : Ink;
+                Fill(R(mx, my + 4, 7, 7), m.done ? Cyan : KeyBg, 2 * k, Mathf.Max(1, k), m.done ? Cyan : Muted);
+                var st = Style(9, ink);
+                st.wordWrap = !wide;
+                st.clipping = TextClipping.Clip;
+                GUI.Label(R(mx + 12, my, cw - 12 - 34, wide ? line : line * 2), m.text, st);
+                Text(mx + cw - 32, my, 32, line, $"{m.progress}/{m.goal}", Style(9, m.done ? Cyan : Muted, TextAnchor.MiddleRight));
+            }
         }
 
         /// <summary>
