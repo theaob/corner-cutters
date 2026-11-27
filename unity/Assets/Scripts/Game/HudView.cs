@@ -47,6 +47,11 @@ namespace CornerCutters.Game
             /// <summary>your tyres: compound and how much is left, in its colour</summary>
             public string Tyre;
             public Color TyreColor;
+            /// <summary>your pit stop's banner (BOX, BOX · PITS LEFT; PIT LIMITER; PIT STOP 2.4), or null</summary>
+            public string Pit;
+            /// <summary>your next set, picked on the way to your box (NEXT: SOFT), in its colour; null: no pick</summary>
+            public string TyreNext;
+            public Color TyreNextColor;
             /// <summary>a call of the race's (SAFETY CAR, a penalty...), or null</summary>
             public string Notice;
             public Color NoticeColor;
@@ -448,11 +453,24 @@ namespace CornerCutters.Game
             string text = null;
             Color color = Ink;
             if (s.Finished) { text = $"FINISHED · {Fmt(s.RaceTime)}"; color = Gold; }
+            else if (s.Pit != null) { text = s.Pit; color = Gold; }
             else if (s.WrongWay > 1) { text = "WRONG WAY"; color = Red; }
             else if (!double.IsNaN(s.SinceGo) && s.SinceGo < 1.2) { text = "GO!"; color = Cyan; }
             else if (s.Notice != null) { text = s.Notice; color = s.NoticeColor; }
-            if (text == null) return;
-            Text(0, y, w, 30, text, Style(20, color, TextAnchor.MiddleCenter), Shadow);
+            if (text != null) Text(0, y, w, 30, text, Style(20, color, TextAnchor.MiddleCenter), Shadow);
+            // (your next set, on the way to your box: under the banner, ◀ ▶ either side)
+            if (s.TyreNext != null)
+            {
+                var ts = Style(13, s.TyreNextColor, TextAnchor.MiddleCenter);
+                float tw = Mathf.Max(Width(s.TyreNext, ts) + 24, 150), bw = tw + 2 * 44 + 12, x = w / 2 - bw / 2, ty = y + 40;
+                Fill(R(x, ty, bw, 52), Rgba(18, 17, 28, 0.82f), 14 * k, Mathf.Max(1, k), KeyEdge);
+                var ks = Style(14, Ink, TextAnchor.MiddleCenter);
+                Fill(R(x + 6, ty + 6, 44, 40), Rgba(37, 35, 58, 0.85f), 10 * k, Mathf.Max(1, k), KeyEdge);
+                Text(x + 6, ty + 6, 44, 40, "<", ks);
+                Text(x + 56, ty, tw, 52, s.TyreNext, ts, Shadow);
+                Fill(R(x + bw - 50, ty + 6, 44, 40), Rgba(37, 35, 58, 0.85f), 10 * k, Mathf.Max(1, k), KeyEdge);
+                Text(x + bw - 50, ty + 6, 44, 40, ">", ks);
+            }
         }
 
         /// <summary>Bottom right: what Enter (or A) does now, as a keycap and its word.</summary>

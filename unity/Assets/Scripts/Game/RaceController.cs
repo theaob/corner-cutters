@@ -970,6 +970,7 @@ namespace CornerCutters.Game
                 Clock = attack != null && (session == Session.Attack || session == Session.AttackOver) ? attack.Left : null,
                 Tyre = $"{Tyres.Short(Me.Tyres.Compound)} {System.Math.Round((1 - Me.Tyres.Wear) * 100):0}%",
                 TyreColor = TrackView.Hex(Tyres.Color(Me.Tyres.Compound)),
+                Pit = PitBanner(), TyreNext = TyrePick(out var nextColor), TyreNextColor = nextColor,
                 Notice = sinceStart < noticeUntil ? notice : held,
                 NoticeColor = sinceStart < noticeUntil ? noticeColor : TrackView.Hex(0xf2c14e),
                 Others = race.Entrants.Select((e, i) => (e, i)).Where(t => t.i != you && !t.e.Progress.Retired).Select(t => (t.e.Car.X, t.e.Car.Y)).ToList(),
