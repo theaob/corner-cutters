@@ -21,8 +21,29 @@ namespace CornerCutters.Game
 
         // the web game's light (src/engine/render/daylight.ts at noon): sky and ground of a hemisphere light, and the sun
         static readonly Vector3 SunDir = new Vector3(140, 260, 170).normalized;
-        static readonly Color Sky = Lin(0xb8d4ff), Ground = Lin(0x5a4f48), Sun = Lin(0xffe0b0);
-        static readonly Color Flat = LightOn(Vector3.up);
+        // (at night, night.ts's: the night's sky and the moon; and what the light on flat ground is divided by is the
+        // ground's floodlit light, the night's flat light and the lamps' glow, which the finish pass lights the picture with)
+        static Color Sky = Lin(0xb8d4ff), Ground = Lin(0x5a4f48), Sun = Lin(0xffe0b0);
+        static float Ambient = 1.35f, SunIntensity = 2.6f;
+        static Color Flat = LightOn(Vector3.up);
+
+        /// <summary>The light the circuit's scenery is baked in: the dry day's, or the dry night's.</summary>
+        static void LightFor(CircuitData c)
+        {
+            var sky = c.night ? WeatherLooks.Night(WeatherLooks.DrySky) : WeatherLooks.DrySky;
+            Sky = Lin(sky.Sky); Ground = Lin(sky.Ground); Sun = Lin(sky.Key);
+            Ambient = (float)sky.Ambient; SunIntensity = (float)sky.KeyIntensity;
+            Flat = LightOn(Vector3.up);
+            if (c.night) Flat += NightGlow();
+        }
+
+        /// <summary>The night lamps' glow on the ground, linear (three.js's emissive: not divided by π).</summary>
+        internal static Color NightGlow()
+        {
+            var g = Lin(WeatherLooks.NightGlow);
+            float i = (float)WeatherLooks.NightGlowIntensity;
+            return new Color(g.r * i, g.g * i, g.b * i, 0);
+        }
 
         static Color Lin(int rgb) => new Color(ToLinear(((rgb >> 16) & 255) / 255f), ToLinear(((rgb >> 8) & 255) / 255f), ToLinear((rgb & 255) / 255f), 1);
         static float ToLinear(float c) => c <= 0.04045f ? c / 12.92f : Mathf.Pow((c + 0.055f) / 1.055f, 2.4f);
@@ -31,9 +52,9 @@ namespace CornerCutters.Game
         /// <summary>The light on a face turned to n (the web game's axes: y up), Lambert.</summary>
         static Color LightOn(Vector3 n)
         {
-            float t = 0.5f * n.y + 0.5f, s = 2.6f * Mathf.Max(0, Vector3.Dot(n, SunDir));
+            float t = 0.5f * n.y + 0.5f, s = SunIntensity * Mathf.Max(0, Vector3.Dot(n, SunDir));
             float k = 1f / Mathf.PI;
-            return new Color(((Ground.r + (Sky.r - Ground.r) * t) * 1.35f + Sun.r * s) * k, ((Ground.g + (Sky.g - Ground.g) * t) * 1.35f + Sun.g * s) * k, ((Ground.b + (Sky.b - Ground.b) * t) * 1.35f + Sun.b * s) * k, 1);
+            return new Color(((Ground.r + (Sky.r - Ground.r) * t) * Ambient + Sun.r * s) * k, ((Ground.g + (Sky.g - Ground.g) * t) * Ambient + Sun.g * s) * k, ((Ground.b + (Sky.b - Ground.b) * t) * Ambient + Sun.b * s) * k, 1);
         }
 
         internal sealed class Chunk
@@ -156,6 +177,7 @@ namespace CornerCutters.Game
         {
             var asset = Resources.Load<TextAsset>("Scenery/" + c.id);
             if (asset == null) return null;
+            LightFor(c);
             var r = new BinaryReader(new MemoryStream(asset.bytes));
             if (new string(r.ReadChars(4)) != "CCS3") { Debug.LogWarning($"Scenery/{c.id}: not a scenery file (run npm run unity:scenery)"); return null; }
             int texCount = r.ReadInt32(), partCount = r.ReadInt32();

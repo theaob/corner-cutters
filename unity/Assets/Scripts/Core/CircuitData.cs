@@ -153,6 +153,8 @@ namespace CornerCutters.Core
         public string barrierKind;
         public BakedPits pits;
         public bool dirt;
+        /// <summary>raced at night (Neon Strip)</summary>
+        public bool night;
         public BakedPitLane pitLane;
         public BakedLevels levels;
 

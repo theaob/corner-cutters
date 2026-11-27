@@ -26,6 +26,7 @@ Shader "CornerCutters/TiltShift"
     float4 _MainTex_TexelSize;
     float _Amount, _Radius;
     float4 _Dir, _Res, _Light;
+    float _BloomStrength;
 
     float BlurAt(float2 uv) { return smoothstep(0.0, 0.3, max(0.0, abs(uv.y - 0.5) - 0.16)); }
 
@@ -143,14 +144,14 @@ Shader "CornerCutters/TiltShift"
         }
         Pass
         {
-            // 5: the five mips added to the picture: strength 0.35, each mip's factor lerp(f, 1.2 - f, radius 0.5) = 0.6
+            // 5: the five mips added to the picture: strength 0.35 (0.7 at night), each mip's factor lerp(f, 1.2 - f, radius 0.5) = 0.6
             CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment frag
             float4 frag (v2f_img i) : SV_Target
             {
                 float3 glow = tex2D(_Bloom0, i.uv).rgb + tex2D(_Bloom1, i.uv).rgb + tex2D(_Bloom2, i.uv).rgb + tex2D(_Bloom3, i.uv).rgb + tex2D(_Bloom4, i.uv).rgb;
-                return float4(tex2D(_MainTex, i.uv).rgb + 0.35 * 0.6 * glow, 1);
+                return float4(tex2D(_MainTex, i.uv).rgb + _BloomStrength * 0.6 * glow, 1);
             }
             ENDCG
         }

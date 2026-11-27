@@ -273,6 +273,7 @@ namespace CornerCutters.Game
             hud2 = new HudView(circuit);
             record = PlayerPrefs.HasKey("rec." + circuit.id) ? PlayerPrefs.GetFloat("rec." + circuit.id) : double.NaN;
             bestLap = double.NaN;
+            weatherView.Night = circuit.night;
             weatherView.Forget();
             NewWeekend();
         }

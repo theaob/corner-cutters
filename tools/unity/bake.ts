@@ -93,6 +93,8 @@ export function bakeAll() {
       bridge: !!layout.bridge,
       /** a dirt circuit: off-road tyres, softer knocks */
       dirt: !!layout.dirt,
+      /** raced at night (night.ts): the night's sky and light, the ground floodlit */
+      night: !!layout.night,
       /** the pit lane as race control drives it (pits.ts's buildPitLane): its points one per track sample, entry to exit */
       pitLane: (() => {
         const p = c.pit;

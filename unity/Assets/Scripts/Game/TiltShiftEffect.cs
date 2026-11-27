@@ -15,6 +15,8 @@ namespace CornerCutters.Game
         public float Amount = 1.2f;
         /// <summary>the light on flat ground, linear (the weather's: WeatherView); the dry day's to start</summary>
         public static Vector4 Light = new Vector4(0.8375f, 0.7537f, 0.7039f, 0);
+        /// <summary>the glow's strength (UnrealBloomPass: 0.35 by day, 0.7 at night)</summary>
+        public static float Bloom = 0.35f;
         Material mat;
 
         void OnEnable()
@@ -63,6 +65,7 @@ namespace CornerCutters.Game
                 mw = Mathf.RoundToInt(mw / 2f); mh = Mathf.RoundToInt(mh / 2f);
             }
             var glowed = Temp(W, H);
+            mat.SetFloat("_BloomStrength", Bloom);
             Graphics.Blit(lit, glowed, mat, 5);
 
             // the tilt-shift: three blurs at half size, the last at full size over the sharp picture, then the grade

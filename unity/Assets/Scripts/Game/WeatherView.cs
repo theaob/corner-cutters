@@ -18,6 +18,8 @@ namespace CornerCutters.Game
         static readonly float SunUp = 260f / Mathf.Sqrt(140f * 140f + 260f * 260f + 170f * 170f);
 
         double shownWetness = -1, shownRain = -1;
+        /// <summary>the circuit's raced at night (Neon Strip): every weather's sky its night, the ground floodlit, the glow stronger</summary>
+        public bool Night;
         public WeatherLook Look { get; private set; } = WeatherLooks.At(0, 0);
 
         /// <summary>The look for the track `wetness` wet and the rain `rain` hard, put on the scene if it's changed enough to see.</summary>
@@ -29,12 +31,17 @@ namespace CornerCutters.Game
             Look = WeatherLooks.At(wetness, rain);
             var tint = TrackView.Hex(Look.GroundTint);
             if (TrackView.Ground != null) TrackView.Ground.color = tint;
-            cam.backgroundColor = new Color(Beyond.r * tint.r, Beyond.g * tint.g, Beyond.b * tint.b);
-            // the light on flat ground (the hemisphere's sky, as the face looks straight up, and the sun), linear, / π
-            var sky = Lin(Look.Sky.Sky);
-            var key = Lin(Look.Sky.Key);
-            float amb = (float)Look.Sky.Ambient, ki = (float)Look.Sky.KeyIntensity * SunUp;
-            TiltShiftEffect.Light = new Vector4((sky.r * amb + key.r * ki) / Mathf.PI, (sky.g * amb + key.g * ki) / Mathf.PI, (sky.b * amb + key.b * ki) / Mathf.PI, 0);
+            var beyond = Night ? TrackView.Hex(WeatherLooks.NightTown) : Beyond;
+            cam.backgroundColor = new Color(beyond.r * tint.r, beyond.g * tint.g, beyond.b * tint.b);
+            // the light on flat ground (the hemisphere's sky, as the face looks straight up, and the sun), linear, / π;
+            // at night the night's, and the lamps' glow on top (BakedScenery's scenery is baked against both)
+            var look = Night ? WeatherLooks.Night(Look.Sky) : Look.Sky;
+            var sky = Lin(look.Sky);
+            var key = Lin(look.Key);
+            float amb = (float)look.Ambient, ki = (float)look.KeyIntensity * SunUp;
+            var glow = Night ? BakedScenery.NightGlow() : new Color(0, 0, 0, 0);
+            TiltShiftEffect.Light = new Vector4((sky.r * amb + key.r * ki) / Mathf.PI + glow.r, (sky.g * amb + key.g * ki) / Mathf.PI + glow.g, (sky.b * amb + key.b * ki) / Mathf.PI + glow.b, 0);
+            TiltShiftEffect.Bloom = (float)(Night ? WeatherLooks.NightBloom : WeatherLooks.DayBloom);
         }
 
         /// <summary>Shown afresh on the next Show (a new circuit's ground).</summary>

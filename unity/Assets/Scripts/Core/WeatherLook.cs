@@ -24,6 +24,20 @@ namespace CornerCutters.Core
 
     public static class WeatherLooks
     {
+        /// <summary>
+        /// The night (night.ts, its look "a", floodlit): the road's lamps glow on the ground (`NightGlow`, its colour, at
+        /// NightGlowIntensity), the glow (bloom) at NightBloom; every weather's sky made its night by Night.
+        /// </summary>
+        public const int NightGlow = 0xffe2bc, NightTown = 0x13112c;
+        public const double NightGlowIntensity = 0.3, NightBloom = 0.7, DayBloom = 0.35;
+
+        /// <summary>A sky (a weather's, by day) at night (night.ts nightSky): a dark violet sky, cool moonlight and the city's warm glow, as much darker as the weather is dull.</summary>
+        public static SkyState Night(SkyState sky)
+        {
+            double day = Math.Min(1, sky.KeyIntensity / 2.6);
+            return new SkyState { Background = 0x15133a, Sky = 0x7a7ad0, Ground = 0x6a4658, Ambient = 1.7 + 0.3 * (1 - day), Key = 0xbcc6ff, KeyIntensity = 0.5 + 0.5 * day };
+        }
+
         public static readonly SkyState DrySky = new SkyState { Background = 0x8fb8e8, Sky = 0xb8d4ff, Ground = 0x5a4f48, Ambient = 1.35, Key = 0xffe0b0, KeyIntensity = 2.6 };
         public static readonly SkyState DampSky = new SkyState { Background = 0x9aa6b4, Sky = 0xc0c8d4, Ground = 0x4c4a4c, Ambient = 1.45, Key = 0xe8e4dc, KeyIntensity = 1.5 };
         public static readonly SkyState WetSky = new SkyState { Background = 0x6e7684, Sky = 0xa8b0bc, Ground = 0x3c3a3e, Ambient = 1.5, Key = 0xd0d4dc, KeyIntensity = 0.8 };
