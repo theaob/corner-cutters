@@ -3,6 +3,7 @@
 
 import { loadLanguages } from '../engine/i18n';
 import { useSave } from '../engine/save';
+import { startSaveHandOver } from '../engine/saveHandOver';
 import { useStore } from '../engine/storage';
 import { LANGUAGE_SOURCES } from './lang/sources';
 import { CC_SAVE } from './save';
@@ -11,5 +12,7 @@ export async function prepareGame(): Promise<void> {
   // this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
   useStore('cc:');
   useSave(CC_SAVE);
+  // (the Android app leaves its save where the Unity build can pick it up)
+  startSaveHandOver();
   await loadLanguages(LANGUAGE_SOURCES);
 }
