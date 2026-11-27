@@ -14,6 +14,7 @@ import { newSeason, recordRound, roundSeed, standings, pointsOf, parseSeason } f
 import { markSplit } from '../../src/f1/timeTrial';
 import { MISSION_CIRCUITS, MISSIONS, missionsOn, count as countMission, type PlayEvent } from '../../src/f1/missions';
 import { stepLaunch, newLaunch } from '../../src/f1/launch';
+import { RADIO, RADIO_LINES, finishLine, newRadio, radioLine, say, stepRadio, type RadioCue } from '../../src/f1/radio';
 import { groundAt } from '../../src/engine/sim';
 import { HALF_WIDTH } from '../../src/f1/circuit';
 import { aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, paceRanks } from '../../src/f1/difficulty';
@@ -593,7 +594,29 @@ function goldenMissions() {
   console.log(`missions: ${MISSIONS.length} missions, ${days.length} days, ${runs.length} days counted, ${launches.length} launches`);
 }
 
+/** The team radio: its lines, the one picked by a roll, the finish line, and the queue as lines are said and time passes. */
+function goldenRadio() {
+  const rng = seededRandom(5);
+  const rolls = [0, 0.2, 0.34, 0.5, 0.67, 0.99];
+  const picks = (Object.keys(RADIO_LINES) as RadioCue[]).flatMap((cue) => rolls.map((r) => [cue, r, radioLine(cue, () => r)]));
+  const finishes: [number, number, number, string][] = [];
+  for (const of of [1, 3, 8, 11]) for (let place = 1; place <= of; place++) for (const r of [0, 0.6]) finishes.push([place, of, r, finishLine(place, of, () => r)]);
+  const q = newRadio();
+  const texts = Object.values(RADIO_LINES).flat();
+  const queue: [string | null, number, string | null, string | null, number][] = [];
+  for (let i = 0; i < 600; i++) {
+    const said = rng() < 0.08 ? texts[Math.floor(rng() * texts.length)] : null;
+    if (said) say(q, said);
+    const dt = rng() * 0.2;
+    const up = stepRadio(q, dt) ?? null;
+    queue.push([said, dt, up, q.now?.text ?? null, q.waiting.length]);
+  }
+  writeFileSync('unity/Tests~/Core.Tests/radio.json', JSON.stringify({ lines: RADIO_LINES, radio: RADIO, picks, finishes, queue }));
+  console.log(`radio: ${Object.keys(RADIO_LINES).length} cues, ${picks.length} picks, ${finishes.length} finish lines, ${queue.length} queue steps`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'radio') goldenRadio();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'missions') goldenMissions();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'season') goldenSeason();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'petals') goldenPetals();
@@ -607,6 +630,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenPetals();
   goldenSeason();
   goldenMissions();
+  goldenRadio();
   goldenRaces();
   goldenQualifying();
   goldenFx();

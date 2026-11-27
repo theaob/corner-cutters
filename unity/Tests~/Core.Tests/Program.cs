@@ -51,6 +51,7 @@ static class Program
         Seasons(root);
         MissionsAndLaunches(root);
         KeptRaces(root);
+        TeamRadio(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -359,6 +360,29 @@ static class Program
     }
 
     /// <summary>Championship seasons and Time Trial's split marks (Core/Championship.cs, Ghost.cs) against the web game's (season.json).</summary>
+    /// <summary>The team radio (Core/Radio.cs) against the web game's radio.ts: its lines, a roll's pick, the finish line, the queue.</summary>
+    static void TeamRadio(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/radio.json"))).RootElement;
+        var lines = g.GetProperty("lines").EnumerateObject().ToList();
+        Check(lines.Count == Radio.Lines.Count, "radio: cues");
+        foreach (var c in lines) Check(Radio.Lines.TryGetValue(c.Name, out var mine) && mine.SequenceEqual(c.Value.EnumerateArray().Select(x => x.GetString())), $"radio: {c.Name}'s lines");
+        var r = g.GetProperty("radio");
+        Check(Radio.Least == r.GetProperty("least").GetDouble() && Radio.PerChar == r.GetProperty("perChar").GetDouble() && Radio.Stale == r.GetProperty("stale").GetDouble(), "radio: timing");
+        foreach (var p in g.GetProperty("picks").EnumerateArray()) Check(Radio.Line(p[0].GetString(), p[1].GetDouble()) == p[2].GetString(), $"radio: {p[0]} at {p[1]}");
+        foreach (var f in g.GetProperty("finishes").EnumerateArray()) Check(Radio.FinishLine(f[0].GetInt32(), f[1].GetInt32(), f[2].GetDouble()) == f[3].GetString(), $"radio: finish P{f[0]} of {f[1]}: {Radio.FinishLine(f[0].GetInt32(), f[1].GetInt32(), f[2].GetDouble())}");
+        var q = new RadioQueue();
+        int k = 0;
+        foreach (var s in g.GetProperty("queue").EnumerateArray())
+        {
+            if (s[0].ValueKind == JsonValueKind.String) q.Say(s[0].GetString());
+            string up = q.Step(s[1].GetDouble());
+            Check(up == (s[2].ValueKind == JsonValueKind.Null ? null : s[2].GetString()) && q.Now == (s[3].ValueKind == JsonValueKind.Null ? null : s[3].GetString()) && q.Waiting.Count == s[4].GetInt32(), $"radio queue step {k}");
+            k++;
+        }
+        Console.WriteLine($"radio: {lines.Count} cues, {k} queue steps");
+    }
+
     /// <summary>A race kept (RaceSave) and picked up: built afresh from its seed, the state laid over it, it goes on as the
     /// race it was (the AI's dice rolled afresh alike in both), car for car, step for step.</summary>
     static void KeptRaces(string root)

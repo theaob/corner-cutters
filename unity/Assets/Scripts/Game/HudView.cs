@@ -55,6 +55,9 @@ namespace CornerCutters.Game
             /// <summary>a call of the race's (SAFETY CAR, a penalty...), or null</summary>
             public string Notice;
             public Color NoticeColor;
+            /// <summary>the team radio's line up now (null: none), and your team's brightest colour for its panel</summary>
+            public string Radio;
+            public Color RadioColor;
             /// <summary>the other cars, for the minimap</summary>
             public List<(double x, double y)> Others;
             /// <summary>the lap strip's own text (qualifying: QUALI · OUT LAP...), or null for place and lap</summary>
@@ -247,6 +250,7 @@ namespace CornerCutters.Game
             TowerView(s, w);
             Banner(s, w, h);
             if (!s.Split) Controls(s, h);
+            RadioPanel(s, w, h);
             SkipHint(s.Skip, s.Source, w, h);
             if (Area.HasValue) GUI.EndGroup();
             return s.Paused ? DrawPause(s) : PauseChoice.None;
@@ -493,6 +497,24 @@ namespace CornerCutters.Game
                 Fill(R(x + bw - 50, ty + 6, 44, 40), Rgba(37, 35, 58, 0.85f), 10 * k, Mathf.Max(1, k), KeyEdge);
                 Text(x + bw - 50, ty + 6, 44, 40, ">", ks);
             }
+        }
+
+        /// <summary>The team radio (race/hud.ts): your engineer's line along the bottom (above the key hints), in a dark panel
+        /// edged and labelled in your team's colour.</summary>
+        void RadioPanel(State s, float w, float h)
+        {
+            if (s.Radio == null) return;
+            var label = Style(9, s.RadioColor);
+            var text = Style(11, Ink);
+            float ph = 4 + 12 + 2 + 15 + 4, bottom = 12 + 30 + 8;
+            float x = 6, y = h - bottom - ph, pw = w - 12;
+            Fill(R(x, y, pw, ph), Rgba(21, 20, 31, 0.88f), 6 * k);
+            Fill(R(x, y, 3, ph), s.RadioColor);
+            // (◉ drawn as a ring and a dot: the pixel font has no circles)
+            Fill(R(x + 11, y + 6, 8, 8), new Color(0, 0, 0, 0), 4 * k, Mathf.Max(1, k), s.RadioColor);
+            Fill(R(x + 13.5f, y + 8.5f, 3, 3), s.RadioColor, 1.5f * k);
+            Text(x + 23, y + 4, pw - 31, 12, "RADIO", label);
+            Text(x + 11, y + 4 + 12 + 2, pw - 19, 15, s.Radio, text);
         }
 
         /// <summary>Bottom right: what Enter (or A) does now, as a keycap and its word.</summary>

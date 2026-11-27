@@ -406,6 +406,7 @@ namespace CornerCutters.Game
             now = new Pose[race.Entrants.Count + 1];
             for (int k = 0; k < race.Entrants.Count; k++) was[k] = now[k] = PoseOf(race.Entrants[k].Car);
             notice = notice2 = null;
+            FreshRadio();
             sinceStart = 0;
             paused = false;
             particles.Clear();
@@ -515,6 +516,7 @@ namespace CornerCutters.Game
             }
             if (session == Session.Race) UpdateResults();
             if (!paused) NextNews();
+            if (!paused) StepRadio(frame);
             CountDriven(frame);
             if (!paused) { nameEdit = null; shopOpen = false; }
             if (qualiTable != null || results != null || attackTable != null) tableUp += frame;
@@ -720,6 +722,7 @@ namespace CornerCutters.Game
                 bool first = fastest == null;
                 fastest = (lap, i);
                 if (!first && sinceStart >= noticeUntil) Notice($"FASTEST LAP · {DriverName(driverOf[i])} {Results.FormatTime(lap)}", TrackView.Hex(0xb36bff), 2.5);
+                if (!first && i == you) SayRadio("fastest-lap");
             }
         }
 
@@ -735,24 +738,38 @@ namespace CornerCutters.Game
             int to = ev.Who;
             switch (ev.Kind)
             {
-                case RaceEventKind.SafetyCar: Notice("SAFETY CAR", gold, 4); break;
-                case RaceEventKind.Vsc: Notice("VIRTUAL SAFETY CAR", gold, 4); break;
+                case RaceEventKind.SafetyCar: Notice("SAFETY CAR", gold, 4); SayRadio("safety-car"); break;
+                case RaceEventKind.Vsc: Notice("VIRTUAL SAFETY CAR", gold, 4); SayRadio("vsc"); break;
                 case RaceEventKind.VscEnding: Notice("VSC ENDING", gold, 3); break;
-                case RaceEventKind.Green: Notice("GREEN FLAG", TrackView.Hex(0x3ccf4e), 3); break;
+                case RaceEventKind.Green: Notice("GREEN FLAG", TrackView.Hex(0x3ccf4e), 3); SayRadio("green"); break;
                 case RaceEventKind.Penalty when mine: Notice($"+{ev.Seconds:0}S PENALTY · NO OVERTAKING", red, 4, to); break;
                 case RaceEventKind.TrackLimits when mine:
                     Notice(ev.Seconds > 0 ? $"TRACK LIMITS · +{ev.Seconds:0}S" : $"TRACK LIMITS · WARNING {ev.Strike}", ev.Seconds > 0 ? red : gold, 3, to);
+                    if (ev.Who == you && session == Session.Race) SayRadio(ev.Seconds > 0 ? "penalty" : "warning");
                     break;
-                case RaceEventKind.Blue when mine: Notice("BLUE FLAG · LET THEM BY", blue, 3, to); break;
+                case RaceEventKind.Blue when mine:
+                    Notice("BLUE FLAG · LET THEM BY", blue, 3, to);
+                    if (ev.Who == you) SayRadio("blue");
+                    break;
+                case RaceEventKind.PitOut when mine:
+                    Notice("PIT EXIT", TrackView.Hex(0x5fe0d0), 1.5, to);
+                    if (ev.Who == you) SayRadio("pit-out");
+                    break;
                 case RaceEventKind.PitStop when mine:
                     Notice($"PIT STOP · {ev.Seconds:0.0}S · {Tyres.Name(race.Entrants[ev.Who].Tyres.Compound)}", ink, 3, to);
                     if (ev.Who == you && session == Session.Race) Play(new PlayEvent { Kind = PlayKind.Pit });
                     break;
-                case RaceEventKind.Wreck when mine: Notice("WRECKED", red, 4, to); break;
+                case RaceEventKind.Wreck when mine:
+                    Notice("WRECKED", red, 4, to);
+                    if (ev.Who == you) SayRadio("wreck");
+                    break;
                 case RaceEventKind.Crash: Crashed(ev); break;
                 case RaceEventKind.PitRepaired: debris.Refit(views[ev.Who], race.Clock); break;
                 case RaceEventKind.Retired when !mine: Notice($"{DriverName(driverOf[ev.Who])} OUT", ink, 3); break;
-                case RaceEventKind.Rain: Notice(ev.On ? "RAIN · THE TRACK IS GETTING WET" : "THE RAIN HAS STOPPED · THE TRACK WILL DRY", TrackView.Hex(0x8fb8e8), 2.5); break;
+                case RaceEventKind.Rain:
+                    Notice(ev.On ? "RAIN · THE TRACK IS GETTING WET" : "THE RAIN HAS STOPPED · THE TRACK WILL DRY", TrackView.Hex(0x8fb8e8), 2.5);
+                    SayRadio(ev.On ? "rain" : "rain-stops");
+                    break;
                 case RaceEventKind.TrackCondition when sinceStart >= noticeUntil:
                     Notice($"TRACK {ev.Condition.ToString().ToUpperInvariant()} · {Tyres.Name(Tyres.TyreFor(Tyres.WetnessOf(ev.Condition), track.Dirt))}", TrackView.Hex(0x8fb8e8), 2);
                     break;
@@ -958,6 +975,7 @@ namespace CornerCutters.Game
                 TyreColor = TrackView.Hex(Tyres.Color(me.Tyres.Compound)),
                 Pit = mine ? PitBanner() : null, TyreNext = tyreNext, TyreNextColor = nextColor,
                 Notice = sinceStart < (mine ? noticeUntil : noticeUntil2) ? (mine ? notice : notice2) : held,
+                Radio = mine && !RadioHidden ? radioQ.Now : null, RadioColor = mine ? RadioColor() : default,
                 NoticeColor = sinceStart < (mine ? noticeUntil : noticeUntil2) ? (mine ? noticeColor : noticeColor2) : TrackView.Hex(0xf2c14e),
                 Others = race.Entrants.Select((e, i) => (e, i)).Where(t => t.i != who && !t.e.Progress.Retired).Select(t => (t.e.Car.X, t.e.Car.Y)).ToList(),
             };

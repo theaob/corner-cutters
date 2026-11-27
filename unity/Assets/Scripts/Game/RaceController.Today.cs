@@ -80,6 +80,7 @@ namespace CornerCutters.Game
             {
                 Me.Progress.Penalty += Launch.JumpPenalty;
                 Notice($"JUMP START · +{Launch.JumpPenalty:0} S", TrackView.Hex(0xd8323c), 3);
+                SayRadio("jump-start");
             }
             else if (v == LaunchVerdict.Great || v == LaunchVerdict.Good)
             {
