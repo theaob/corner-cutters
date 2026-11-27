@@ -1,0 +1,26 @@
+{
+  "name": "CornerCutters.Game",
+  "rootNamespace": "CornerCutters.Game",
+  "references": [
+    "CornerCutters.Core",
+    "Unity.InputSystem",
+    "com.rlabrecque.steamworks.net",
+    "UnityEngine.Purchasing",
+    "UnityEngine.Purchasing.Stores",
+    "Unity.Notifications.Android",
+    "Unity.Notifications.iOS"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [
+    { "name": "com.rlabrecque.steamworks.net", "expression": "", "define": "STEAMWORKS_NET" },
+    { "name": "com.unity.purchasing", "expression": "4.8.0", "define": "UNITY_PURCHASING" },
+    { "name": "com.unity.mobile.notifications", "expression": "2.1.0", "define": "UNITY_MOBILE_NOTIFICATIONS" }
+  ],
+  "noEngineReferences": false
+}

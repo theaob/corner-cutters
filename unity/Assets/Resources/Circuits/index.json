@@ -1,0 +1,135 @@
+[
+ {
+  "id": "crescent-park",
+  "name": "Crescent Park",
+  "country": "TR",
+  "about": "anticlockwise · over the hills, the long Turn 8",
+  "bridge": false
+ },
+ {
+  "id": "southern-lake",
+  "name": "Southern Lake",
+  "country": "AU",
+  "about": "clockwise · round the lake, fast sweeps, hard stops",
+  "bridge": false
+ },
+ {
+  "id": "jade-spiral",
+  "name": "Jade Spiral",
+  "country": "CN",
+  "about": "clockwise · the snail, the long back straight",
+  "bridge": false
+ },
+ {
+  "id": "silver-heath",
+  "name": "Silver Heath",
+  "country": "GB",
+  "about": "clockwise · fast, two hard stops",
+  "bridge": false
+ },
+ {
+  "id": "harbour",
+  "name": "Harbour",
+  "country": "MC",
+  "about": "clockwise · tight streets, walls close",
+  "bridge": false
+ },
+ {
+  "id": "maple-island",
+  "name": "Maple Island",
+  "country": "CA",
+  "about": "a stop-and-go island · the long straights, the final chicane",
+  "bridge": false
+ },
+ {
+  "id": "royal-park",
+  "name": "Royal Park",
+  "country": "IT",
+  "about": "clockwise · the banking, the longest straight",
+  "bridge": false
+ },
+ {
+  "id": "ardennes",
+  "name": "Ardennes",
+  "country": "BE",
+  "about": "clockwise · the longest, up and down through the forest",
+  "bridge": false
+ },
+ {
+  "id": "alpine-ring",
+  "name": "Alpine Ring",
+  "country": "AT",
+  "about": "clockwise · short and steep, in the mountains",
+  "bridge": false
+ },
+ {
+  "id": "twin-lakes",
+  "name": "Twin Lakes",
+  "country": "BR",
+  "about": "anticlockwise · a bowl of a circuit, down and up",
+  "bridge": false
+ },
+ {
+  "id": "oasis",
+  "name": "Oasis",
+  "country": "BH",
+  "about": "clockwise · in the desert, under the lights, hard on the brakes",
+  "bridge": false
+ },
+ {
+  "id": "pearl-sands",
+  "name": "Pearl Sands",
+  "country": "QA",
+  "about": "clockwise · fast and flowing, in the desert",
+  "bridge": false
+ },
+ {
+  "id": "baku",
+  "name": "Caspian Shores",
+  "country": "AZ",
+  "about": "anticlockwise · the castle, then flat out by the sea",
+  "bridge": false
+ },
+ {
+  "id": "suzuka",
+  "name": "Nippon",
+  "country": "JP",
+  "about": "a figure of eight · the esses, over the bridge, 130R",
+  "bridge": true
+ },
+ {
+  "id": "dune-coast",
+  "name": "Dune Coast",
+  "country": "NL",
+  "about": "clockwise · over the dunes, two banked bends",
+  "bridge": false
+ },
+ {
+  "id": "vegas",
+  "name": "Neon Strip",
+  "country": "US",
+  "about": "anticlockwise · at night, down the Strip under the neon",
+  "bridge": false
+ },
+ {
+  "id": "glacier-pass",
+  "name": "Glacier Pass",
+  "about": "clockwise · up the switchbacks, over two jumps",
+  "bridge": false,
+  "free": true
+ },
+ {
+  "id": "dust-bowl",
+  "name": "Dust Bowl",
+  "about": "clockwise · on dirt, off-road tyres, over the jump",
+  "bridge": false,
+  "free": true
+ },
+ {
+  "id": "volcano-isle",
+  "name": "Volcano Isle",
+  "about": "clockwise · round a smoking volcano, over the lava",
+  "bridge": false,
+  "free": true
+ }
+]

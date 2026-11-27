@@ -1,0 +1,4 @@
+<!-- Kept whole by the IL2CPP linker (Switch, consoles): RaceSave reads and writes the Core's classes field by field by reflection. -->
+<linker>
+  <assembly fullname="CornerCutters.Core" preserve="all" />
+</linker>
