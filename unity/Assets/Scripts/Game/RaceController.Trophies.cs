@@ -3,7 +3,7 @@
 // said); the next medal's target shows under the clock; achievements unlock as they happen (a launch, a jump start,
 // cars hit off the start at the Ardennes, a stop, lapping a car, a wreck), at your flag from how the race went, as
 // medals, titles, the streak and the day's missions bring them, each said with a toast. Kept on the device
-// (PlayerPrefs "trophies", the web save's trophies section).
+// (the save's trophies section, as the web game keeps it).
 using System.Collections.Generic;
 using System.Linq;
 using CornerCutters.Core;
@@ -13,8 +13,8 @@ namespace CornerCutters.Game
 {
     public sealed partial class RaceController
     {
-        public static Trophies LoadTrophies() => Trophies.Parse(PlayerPrefs.GetString("trophies", ""));
-        public static void SaveTrophies(Trophies t) => PlayerPrefs.SetString("trophies", t.Write());
+        public static Trophies LoadTrophies() => Trophies.Parse(Save.SectionText("trophies"));
+        public static void SaveTrophies(Trophies t) => Save.SetSectionText("trophies", t.Write());
 
         /// <summary>the cars you've hit off the start (their places in the field), for TORPEDO</summary>
         readonly HashSet<int> startHits = new HashSet<int>();

@@ -1,6 +1,6 @@
 // The new controls, on Unity's Input System. Defined in code (no .inputactions asset to merge or lose) so a binding is a
 // one-line change; the KEYS screen in the settings rebinds the driving keys and pad buttons (binding overrides, kept on
-// the device: PlayerPrefs keys.*).
+// the device: the save's device section, keys.*, left out of a save moved elsewhere).
 //
 // Design (see unity/README.md, "Controls"):
 //  * Keyboard: W/Up gas, S/Down brake and reverse, A/D or Left/Right steer, Space or Shift drift. The wheel is eased
@@ -119,13 +119,20 @@ namespace CornerCutters.Game
                 new Bind("CAMERA", camera, 0, "<Keyboard>/c", 1, "<Gamepad>/buttonEast"),
                 new Bind("WEATHER", weather, 0, "<Keyboard>/f", 1, "<Gamepad>/select"),
             };
+            LoadBinds();
+        }
+
+        /// <summary>The bindings kept on the device put on the controls (again, after a save's been moved here).</summary>
+        public void LoadBinds()
+        {
+            foreach (var a in all) a.RemoveAllBindingOverrides();
             for (int i = 0; i < Binds.Length; i++)
             {
                 var b = Binds[i];
-                b.KeyPath = PlayerPrefs.GetString($"keys.{i}.key", b.KeyDefault);
+                b.KeyPath = Save.String("device", $"keys.{i}.key", b.KeyDefault);
                 if (b.KeyPath != b.KeyDefault) b.Action.ApplyBindingOverride(b.KeyIndex, b.KeyPath);
                 if (b.PadIndex < 0) continue;
-                b.PadPath = PlayerPrefs.GetString($"keys.{i}.pad", b.PadDefault);
+                b.PadPath = Save.String("device", $"keys.{i}.pad", b.PadDefault);
                 if (b.PadPath != b.PadDefault) b.Action.ApplyBindingOverride(b.PadIndex, b.PadPath);
             }
         }
@@ -224,7 +231,7 @@ namespace CornerCutters.Game
             var b = Binds[i];
             if (pad) b.PadPath = path; else b.KeyPath = path;
             b.Action.ApplyBindingOverride(pad ? b.PadIndex : b.KeyIndex, path);
-            PlayerPrefs.SetString($"keys.{i}.{(pad ? "pad" : "key")}", path);
+            Save.Set("device", $"keys.{i}.{(pad ? "pad" : "key")}", path);
         }
 
         /// <summary>Every control back on its own keys and buttons.</summary>
@@ -235,8 +242,8 @@ namespace CornerCutters.Game
                 var b = Binds[i];
                 b.KeyPath = b.KeyDefault;
                 b.PadPath = b.PadDefault;
-                PlayerPrefs.DeleteKey($"keys.{i}.key");
-                PlayerPrefs.DeleteKey($"keys.{i}.pad");
+                Save.Set("device", $"keys.{i}.key", null);
+                Save.Set("device", $"keys.{i}.pad", null);
             }
             foreach (var a in all) a.RemoveAllBindingOverrides();
         }

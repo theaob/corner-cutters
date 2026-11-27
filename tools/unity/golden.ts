@@ -58,6 +58,8 @@ import { CAR_STYLES } from '../../src/f1/carStyle';
 import { ghostPose, newRecorder, recordFrame, toGhost } from '../../src/f1/timeTrial';
 import { packGhost } from '../../src/f1/boards';
 import { CC_SAVE } from '../../src/f1/save';
+import { migrateSave, parseSaveDoc } from '../../src/engine/save';
+import { recordAttack, recordLap, recordQualifying, recordRace, recordsFrom } from '../../src/f1/records';
 import type { AiDriver } from '../../src/f1/racing';
 import { keysWheel, newProgress, nearestSample, stepProgress, wheelInput, stickWheel, type Track, type WheelPad } from '../../src/f1/racing';
 
@@ -790,7 +792,51 @@ function goldenFeel() {
   console.log(`feel: ${runs.length} drives, ${zooms.length} zooms, ${governors.length} governor traces, ${kept.length} kept levels`);
 }
 
+/** The save's document as the web game reads it (engine/save.ts parseSaveDoc), its migrations, and the records in it (f1/records.ts). */
+function goldenSave() {
+  const texts = [
+    '', 'nope', '7', 'null', '[]', '{}', '{"version":0,"data":{}}', '{"version":1.5,"data":{}}', '{"version":"2","data":{}}',
+    '{"version":2}', '{"version":2,"data":[]}', '{"version":2,"data":{"settings":{"sound":0.4},"bad":7,"list":[1],"ghosts":{"crescent-park":1}}}',
+    '{"version":3,"data":{"future":{"x":true}}}',
+    JSON.stringify({ version: 2, data: { settings: { sound: 0.35, music: 0, vibration: false, stickSide: 'left', driving: 'steer', graphics: 'saver', motion: 'reduced', largeText: true },
+      choices: { circuit: 'maple-island', team: 'rosso', difficulty: 'hard', weather: 'wet', qualifying: 'off', laps: '10', carStyle: 'gold' },
+      records: { circuits: { 'crescent-park': { bestLap: 71.234, bestRace: { 5: 372.5 }, bestQualifying: 70.9 }, 'crescent-park:wet': { bestLap: 80.5, bestRace: {}, bestAttack: 12 } } },
+      trophies: { medals: { 'crescent-park': { trial: 'gold' } }, titles: 1, achievements: ['first-win'], raced: ['crescent-park'] },
+      streak: { now: { days: 4, best: 9, last: '2026-11-20' } }, profile: { id: '0c2f4b52-3c1e-4d8a-9b0e-0f1e2d3c4b5a', name: 'ONR' }, device: { quality: { level: 1, locked: false, at: 1, version: 'x' } } } }),
+  ];
+  const parsed = texts.map((t) => [t, parseSaveDoc(t) ?? null]);
+  const docs = [
+    { version: 1, data: { settings: { stickSide: 'left', sound: 0.5 } } },
+    { version: 1, data: { settings: { stickSide: 'right' } } },
+    { version: 1, data: { choices: { circuit: 'a' } } },
+    { version: 2, data: { settings: { stickSide: 'left' } } },
+    { version: 3, data: { settings: { stickSide: 'left' } } },
+  ];
+  const migrated = docs.map((d) => [d, migrateSave(structuredClone(d), CC_SAVE)]);
+  const raws = [
+    null, 7, {}, { circuits: 3 }, { circuits: { a: null, b: 5, c: {} } },
+    { circuits: { a: { bestLap: 60, bestRace: { 3: 190, x: 5, 0: 4, '-1': 3, 2.5: 9, 4: -1, 5: 'no' }, bestQualifying: 0, bestAttack: 3.5 }, 'b:wet': { bestLap: -2, bestQualifying: 61.5, bestAttack: 7 } } },
+  ];
+  const records = raws.map((r) => [r, recordsFrom(r)]);
+  // (a run of records noted, and what each said)
+  const rng = seededRandom(41);
+  const r = recordsFrom(null);
+  const ops: unknown[] = [];
+  for (let i = 0; i < 300; i++) {
+    const id = ['a', 'a:wet', 'b', 'b:damp'][Math.floor(rng() * 4)];
+    const kind = Math.floor(rng() * 4);
+    const t = Math.round((50 + rng() * 30) * 1000) / 1000;
+    if (kind === 0) ops.push(['lap', id, t, recordLap(r, id, t)]);
+    else if (kind === 1) ops.push(['qualifying', id, t, recordQualifying(r, id, t)]);
+    else if (kind === 2) { const laps = [3, 5, 10][Math.floor(rng() * 3)]; ops.push(['race', id, laps, t * laps, recordRace(r, id, laps, t * laps)]); }
+    else { const n = Math.floor(rng() * 20); ops.push(['attack', id, n, recordAttack(r, id, n)]); }
+  }
+  writeFileSync('unity/Tests~/Core.Tests/save.json', JSON.stringify({ version: CC_SAVE.version, parsed, migrated, records, ops, final: r.circuits }));
+  console.log(`save: ${texts.length} documents, ${ops.length} records noted`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'save') goldenSave();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'feel') goldenFeel();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'trophies') goldenTrophies();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'touch') goldenTouch();
@@ -814,6 +860,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenTouch();
   goldenFeel();
   goldenTrophies();
+  goldenSave();
   goldenRaces();
   goldenQualifying();
   goldenFx();

@@ -29,7 +29,7 @@ namespace CornerCutters.Game
         StartLights lights;
         StandView stands;
         HudView hud;
-        /// <summary>the best lap ever on this circuit (PlayerPrefs)</summary>
+        /// <summary>the best race lap ever here in this weather (the save's records)</summary>
         double record = double.NaN;
         CircuitData circuit;
         Grid grid;
@@ -130,20 +130,40 @@ namespace CornerCutters.Game
             weatherView = new WeatherView();
             particles = new Particles(220);
             ceremony = new Ceremony(transform);
-            weatherChoice = (WeatherChoice)Mathf.Clamp(PlayerPrefs.GetInt("weather", 0), 0, 3);
+            weatherChoice = Menu.SavedWeather;
             safetyCar = new SafetyCarView();
             safetyCar.Root.transform.SetParent(transform, false);
             safetyCar.Root.SetActive(false);
             ids = CircuitLoader.Ids();
-            circuitIndex = Mathf.Max(0, new List<string>(ids).IndexOf(PlayerPrefs.GetString("circuit", "crescent-park")));
+            circuitIndex = Mathf.Max(0, new List<string>(ids).IndexOf(Save.String("choices", "circuit", "crescent-park")));
             OpenMenu(Menu.Screen.Title);
             LoadCircuit(circuitIndex);
             PlayStats.Track("launch");
             PlayStats.StartClock();
             SendWaiting();
+            Save.Replaced += SaveReplaced;
         }
 
-        void OnDestroy() => input?.Disable();
+        void OnDestroy()
+        {
+            input?.Disable();
+            Save.Replaced -= SaveReplaced;
+        }
+
+        /// <summary>A save moved here (IMPORT SAVE): what's read from it at the start read again, the menu opened afresh on it.</summary>
+        void SaveReplaced()
+        {
+            input.LoadBinds();
+            SoundOut.Synth?.SetVolume(SoundOut.SoundVolume);
+            SoundOut.Music?.VolumeChanged();
+            Picture.ApplyFrameCap();
+            int was = circuitIndex;
+            circuitIndex = Mathf.Max(0, new List<string>(ids).IndexOf(Save.String("choices", "circuit", "crescent-park")));
+            if (menu == null) return;
+            OpenMenu(Menu.Screen.Modes);
+            menu.OpenPage("privacy", 0);
+            if (circuitIndex != was) LoadCircuit(circuitIndex);
+        }
 
         // ---- the play stats (metrics.ts, race.ts): the km you drive and the time on the circuit, by session ----
 
@@ -216,7 +236,11 @@ namespace CornerCutters.Game
             KeepNow();
             NoteDriven();
             PlayStats.Away();
+            Save.Flush(true);
         }
+
+        /// <summary>the save written once a frame, if anything in it changed (a lap's records, its ghost, the kept race: one write)</summary>
+        void LateUpdate() => Save.Flush();
 
         // ---- the world boards (boards.ts): your qualifying records on them, and where you are ----
 
@@ -259,7 +283,7 @@ namespace CornerCutters.Game
             deckSkids?.Dispose();
             if (circuitView != null) Destroy(circuitView);
             circuit = CircuitLoader.Load(ids[circuitIndex]);
-            PlayerPrefs.SetString("circuit", circuit.id);
+            Save.Set("choices", "circuit", circuit.id);
             grid = circuit.ToGrid();
             track = circuit.ToTrack();
             pit = circuit.ToPitLane();
@@ -288,7 +312,7 @@ namespace CornerCutters.Game
             debris = new DebrisView(transform, grid);
             hud = new HudView(circuit);
             hud2 = new HudView(circuit);
-            record = PlayerPrefs.HasKey("rec." + circuit.id) ? PlayerPrefs.GetFloat("rec." + circuit.id) : double.NaN;
+            record = LoadRecords().Circuits.TryGetValue(RecordId, out var rec) && rec.BestLap.HasValue ? rec.BestLap.Value : double.NaN;
             bestLap = double.NaN;
             weatherView.Night = circuit.night;
             weatherView.Forget();
@@ -352,9 +376,9 @@ namespace CornerCutters.Game
             qualiTimes = Qualifying.AiTimes(weekend.Drivers.Select(d => d.Ai == null ? (double?)null : d.Ai.Pace).ToList(), reference.Value, new SeededRandom(seed + 1));
             qualiTimes[weekend.YouDriver] = time;
             newQualiRecord = false;
-            string key = "quali." + circuit.id + "." + WeatherLooks.Name(weatherChoice);
-            double best = PlayerPrefs.HasKey(key) ? PlayerPrefs.GetFloat(key) : double.NaN;
-            if (time.HasValue && (double.IsNaN(best) || time.Value < best)) { best = time.Value; newQualiRecord = true; PlayerPrefs.SetFloat(key, (float)best); }
+            var records = LoadRecords();
+            if (time.HasValue && records.Qualifying(RecordId, time.Value)) { newQualiRecord = true; SaveRecords(records); }
+            double? best = records.Circuits.TryGetValue(RecordId, out var qr) ? qr.BestQualifying : null;
             qualiGrid = Qualifying.GridOrder(qualiTimes);
             var rows = Results.QualifyingRows(qualiGrid, qualiTimes, weekend.Drivers.Select((d, k) => DriverName(k)).ToList(), weekend.Drivers.Select(d => d.Team.Code).ToList(), weekend.YouDriver);
             int place = rows.First(r => r.You).Place;
@@ -362,7 +386,7 @@ namespace CornerCutters.Game
             {
                 Title = $"QUALIFYING · {difficulty.Name} · {WeatherLooks.Name(weatherChoice)}", Rows = rows,
                 Start = place == 1 ? "POLE POSITION!" : $"YOU START P{place}",
-                Note = $"QUALIFYING RECORD {Results.FormatTime(double.IsNaN(best) ? (double?)null : best)}", NoteNew = newQualiRecord,
+                Note = $"QUALIFYING RECORD {Results.FormatTime(best)}", NoteNew = newQualiRecord,
             };
             session = Session.QualiOver;
             tableUp = 0;
@@ -395,7 +419,7 @@ namespace CornerCutters.Game
             FreshRace();
             if (you2 >= 0 && !GameInput.AnyPad) Notice("PLAYER 2: PLUG IN A PAD", TrackView.Hex(0xf2c14e), 6);
             // the grid walk first (Enter or A skips it; GRID WALK off in the settings: straight to the lights)
-            if (PlayerPrefs.GetInt("gridWalk", 1) != 0)
+            if (Options.GridWalk)
             {
                 panT = 0;
                 panLength = GridPan.LengthOf(slots.Count);
@@ -637,7 +661,7 @@ namespace CornerCutters.Game
         void NextWeather()
         {
             weatherChoice = (WeatherChoice)(((int)weatherChoice + 1) % 4);
-            PlayerPrefs.SetInt("weather", (int)weatherChoice);
+            Menu.SaveWeather(weatherChoice);
             NewWeekend();
         }
 
@@ -691,7 +715,8 @@ namespace CornerCutters.Game
                     if (!double.IsNaN(record)) sounds?.Record();
                     record = t;
                     newLapRecord = true;
-                    PlayerPrefs.SetFloat("rec." + circuit.id, (float)t);
+                    var records = LoadRecords();
+                    if (records.Lap(RecordId, t)) SaveRecords(records);
                 }
                 if (session == Session.Race) Play(new PlayEvent { Kind = PlayKind.Lap });
                 if (session == Session.Race) KeepNow();
@@ -1059,7 +1084,7 @@ namespace CornerCutters.Game
                 Banner = PanBanner(out var bannerColor) ?? (replay != null && (Time.unscaledTime * 2 % 2) < 1.4f ? "REPLAY" : null),
                 BannerColor = replay != null ? TrackView.Hex(0xd8323c) : bannerColor,
                 Skip = panT.HasValue || replay != null ? "SKIP" : null,
-                GridWalk = PlayerPrefs.GetInt("gridWalk", 1) != 0,
+                GridWalk = Options.GridWalk,
                 Online = Backend.Online, StatsOn = Profile.StatsOn, Name = Profile.Initials, Edit = nameEdit,
                 Daily = daily.HasValue, WeatherFixed = season != null, Shop = shopOpen ? ShopState() : null, PauseFocus = pauseFocus,
                 Clock = attack != null && (session == Session.Attack || session == Session.AttackOver) ? attack.Left : null,

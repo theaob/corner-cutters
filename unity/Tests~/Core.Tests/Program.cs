@@ -57,6 +57,7 @@ static class Program
         TouchControls(root);
         FeelChecks(root);
         TrophyChecks(root);
+        SaveChecks(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -500,6 +501,64 @@ static class Program
     }
 
     /// <summary>The touch deck against the web game's: the thumbstick, the floating stick, the slider, the deck's labels.</summary>
+    /// <summary>JSON with its keys sorted, numbers as doubles: two documents the same whatever their keys' order.</summary>
+    static string Canon(JsonElement e) => e.ValueKind switch
+    {
+        JsonValueKind.Object => "{" + string.Join(",", e.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal).Select(p => JsonSerializer.Serialize(p.Name) + ":" + Canon(p.Value))) + "}",
+        JsonValueKind.Array => "[" + string.Join(",", e.EnumerateArray().Select(Canon)) + "]",
+        JsonValueKind.Number => e.GetDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+        _ => e.GetRawText(),
+    };
+    static string Canon(string json) => json == null ? "null" : Canon(JsonDocument.Parse(json).RootElement);
+
+    static void SaveChecks(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/save.json"))).RootElement;
+        Check(SaveDoc.Version == g.GetProperty("version").GetInt32(), "save: the version");
+        foreach (var p in g.GetProperty("parsed").EnumerateArray())
+        {
+            var d = SaveDoc.Parse(p[0].GetString());
+            Check(Canon(d?.Write()) == Canon(p[1]), $"save read: {p[0].GetString()}");
+        }
+        foreach (var m in g.GetProperty("migrated").EnumerateArray())
+        {
+            var d = SaveDoc.Parse(m[0].GetRawText()).Migrated();
+            Check(Canon(d.Write()) == Canon(m[1]), $"save migrated: {m[0].GetRawText()}");
+        }
+        foreach (var r in g.GetProperty("records").EnumerateArray())
+        {
+            var raw = Json.Parse(r[0].GetRawText());
+            var rec = Records.From(raw is Dictionary<string, object> o && o.TryGetValue("circuits", out var c) ? c : null);
+            Check(Canon(Json.Write(rec.ToValue())) == Canon(r[1].GetProperty("circuits")), $"records read: {r[0].GetRawText()}");
+        }
+        var recs = Records.From(null);
+        foreach (var op in g.GetProperty("ops").EnumerateArray())
+        {
+            string kind = op[0].GetString(), id = op[1].GetString();
+            bool got = kind switch
+            {
+                "lap" => recs.Lap(id, op[2].GetDouble()),
+                "qualifying" => recs.Qualifying(id, op[2].GetDouble()),
+                "race" => recs.Race(id, op[2].GetInt32(), op[3].GetDouble()),
+                _ => recs.Attack(id, op[2].GetInt32()),
+            };
+            Check(got == op[op.GetArrayLength() - 1].GetBoolean(), $"record noted: {op.GetRawText()}");
+        }
+        Check(Canon(Json.Write(recs.ToValue())) == Canon(g.GetProperty("final")), "records: after them all");
+        // (written and read back: the same; the device's sections left out of a save moved, and kept over one moved here)
+        var full = SaveDoc.Parse(g.GetProperty("parsed")[13][0].GetString());
+        Check(Canon(SaveDoc.Parse(full.Write()).Write()) == Canon(full.Write()), "save: written and read back");
+        var ex = full.ForExport();
+        Check(!ex.Data.ContainsKey("device") && ex.Data.ContainsKey("trophies"), "save export: no device section");
+        var here = new SaveDoc();
+        here.Set("device", "uiScale", 1.4);
+        var moved = here.Replaced(ex);
+        Check(moved != null && moved.Get("device", "uiScale") is double u && u == 1.4 && moved.Get("choices", "circuit") as string == "maple-island", "save replaced: the device's own kept");
+        Check(here.Replaced(new SaveDoc { At = SaveDoc.Version + 1 }) == null, "save replaced: not by a newer game's");
+        Check(Records.IdOf("a", "dry") == "a" && Records.IdOf("a", "wet") == "a:wet", "records: ids");
+        Check(full.Summary().Contains("BEST STREAK 9") && new SaveDoc().Summary() == "AN EMPTY SAVE", $"save summary: {full.Summary()}");
+    }
+
     static void TrophyChecks(string root)
     {
         var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/trophies.json"))).RootElement;

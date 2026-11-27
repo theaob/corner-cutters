@@ -1,7 +1,7 @@
 // The game's sound out of the speakers (audio.ts's context, master gain and limiter): the synth (Core/Synth.cs) fed to
 // Unity's audio thread from an AudioSource with no clip (OnAudioFilterRead fills its buffer), and the music
 // (MusicPlayer) beside it. Both are kept for the whole session; their volumes are settings kept on the device
-// (PlayerPrefs settings.sound and settings.music, 0.7 unless changed: OFF, LOW, MEDIUM, HIGH). The game paused, or out
+// (the save's settings.sound and settings.music, 0.7 unless changed: OFF, LOW, MEDIUM, HIGH). The game paused, or out
 // of sight, is silent: the synth's one-shots aren't played then, and the music holds where it was.
 using CornerCutters.Core;
 using UnityEngine;
@@ -57,20 +57,20 @@ namespace CornerCutters.Game
 
         public static double SoundVolume
         {
-            get => Mathf.Clamp01(PlayerPrefs.GetFloat("settings.sound", 0.7f));
+            get => System.Math.Clamp(Save.Number("settings", "sound", 0.7), 0, 1);
             set
             {
-                PlayerPrefs.SetFloat("settings.sound", (float)value);
+                Save.Set("settings", "sound", value);
                 Synth?.SetVolume(value);
             }
         }
 
         public static double MusicVolume
         {
-            get => Mathf.Clamp01(PlayerPrefs.GetFloat("settings.music", 0.7f));
+            get => System.Math.Clamp(Save.Number("settings", "music", 0.7), 0, 1);
             set
             {
-                PlayerPrefs.SetFloat("settings.music", (float)value);
+                Save.Set("settings", "music", value);
                 Music?.VolumeChanged();
             }
         }

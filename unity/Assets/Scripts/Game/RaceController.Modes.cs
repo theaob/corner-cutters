@@ -26,7 +26,16 @@ namespace CornerCutters.Game
             return 0;
         }
 
-        static void SaveSeason(Season s) => PlayerPrefs.SetString("season", Championship.Write(s));
+        /// <summary>A circuit unlocked (the save's progress.unlocked, unlocks.ts).</summary>
+        static void Unlock(string id)
+        {
+            var list = Save.Get("progress", "unlocked") as List<object> ?? new List<object>();
+            if (list.Contains(id)) return;
+            list = new List<object>(list) { id };
+            Save.Set("progress", "unlocked", list);
+        }
+
+        static void SaveSeason(Season s) => Save.SetText("championship", "season", s == null ? null : Championship.Write(s));
 
         /// <summary>A new season with the team, qualifying and length picked, the difficulty from the settings: a round on every circuit (but the free ones), kept.</summary>
         Season NewSeason(Menu m)
@@ -65,6 +74,9 @@ namespace CornerCutters.Game
                 var out_ = new HashSet<int>(order.Where(i => race.Entrants[i].Progress.Retired).Select(i => driverOf[i]));
                 Championship.RecordRound(season, finish, out_);
                 SaveSeason(season);
+                // (reaching the next round's circuit unlocks it, as the web game keeps it: everything's open here, but a
+                // save moved to the phone, where circuits open as a season goes, keeps what's been reached)
+                if (!season.Over && season.Round < season.Rounds.Count) Unlock(season.Rounds[season.Round]);
                 // the season won: into the trophy cabinet
                 if (season.Over && Championship.Standings(season)[0].Driver == season.You) WonTitle();
             }
@@ -95,7 +107,12 @@ namespace CornerCutters.Game
         TrialState trial;
         CarView ghostView;
 
-        string GhostKey => $"ghost.{circuit.id}.{WeatherLooks.Name(weatherChoice)}";
+        /// <summary>your records' id here in this weather (race.ts recordId): the circuit's, with ':weather' after it unless dry</summary>
+        string RecordId => Records.IdOf(circuit.id, WeatherLooks.Name(weatherChoice).ToLowerInvariant());
+
+        /// <summary>your records on every circuit (the save's records section, as the web game keeps it)</summary>
+        static Records LoadRecords() => Records.From(Save.Get("records", "circuits"));
+        static void SaveRecords(Records r) => Save.Set("records", "circuits", r.ToValue());
 
         // (the splits' colours as COLOURS says: purple, green, amber, or colour-safe blue, white, orange and in words too)
         static Color SplitRecord => Options.SplitColor(SplitMark.Record);
@@ -110,7 +127,7 @@ namespace CornerCutters.Game
             session = Session.Trial;
             race = Qualifying.NewQualifying(track, grid, difficulty.Handling(), SessionWeather);
             Ghost record = null;
-            try { record = Ghost.Parse(Json.Parse(PlayerPrefs.GetString(GhostKey, ""))); } catch { }
+            try { record = Ghost.Parse(Save.Get("ghosts", RecordId)); } catch { }
             trial = new TrialState { Record = record };
             // (the medals' laps are shares of it)
             reference ??= Qualifying.ReferenceLap(track, grid, difficulty.Handling(), SessionWeather);
@@ -171,7 +188,7 @@ namespace CornerCutters.Game
             if (record == null || g.Time < record.Time)
             {
                 trial.Record = g;
-                PlayerPrefs.SetString(GhostKey, Json.Write(g.ToJson()));
+                Save.Set("ghosts", RecordId, g.ToJson());
                 Notice($"NEW RECORD {Results.FormatTime(g.Time)}{(record != null ? " · " + Signed(g.Time - record.Time) : "")}", SplitRecord, 3);
                 sounds?.Record();
                 // (on to the circuit's world board, as a record lap of qualifying's is)

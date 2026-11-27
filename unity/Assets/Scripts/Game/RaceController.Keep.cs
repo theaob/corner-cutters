@@ -1,5 +1,5 @@
 // The race kept on the device to come back to (raceSave.ts, race.ts's keepNow and resumeRace): a Quick Race or a
-// Championship round under way (lights out, your flag still to come) is kept (PlayerPrefs "race.kept") as you pause,
+// Championship round under way (lights out, your flag still to come) is kept (the save's unity.kept: the web game's race.kept is its own shape) as you pause,
 // as each lap of yours is done and as the game loses focus or closes; it's thrown away at your flag, or when you
 // leave the race or start it again. RESUME on the menu builds the same weekend again (its seed, its grid), lays the
 // kept state over it, and waits paused for you to go on.
@@ -31,8 +31,8 @@ namespace CornerCutters.Game
                     Round = season?.Round ?? -1, Team = team.Id, Difficulty = difficulty.Id, Weather = WeatherLooks.Name(weatherChoice), Laps = laps,
                     Seed = seed, Grid = new List<int>(driverOf), You = you, State = RaceSave.Snapshot(race),
                 };
-                PlayerPrefs.SetString("race.kept", RaceSave.Write(k));
-                PlayerPrefs.Save();
+                Save.SetText("unity", "kept", RaceSave.Write(k));
+                Save.Flush(true);
                 keptHere = true;
             }
             catch (System.Exception e)
@@ -45,7 +45,7 @@ namespace CornerCutters.Game
         /// <summary>Throw the kept race away, if it's this race's (another session leaves a kept race be).</summary>
         void DropOurs()
         {
-            if (keptHere && PlayerPrefs.HasKey("race.kept")) PlayerPrefs.DeleteKey("race.kept");
+            if (keptHere && Save.Has("unity", "kept")) Save.Set("unity", "kept", null);
             keptHere = false;
         }
 

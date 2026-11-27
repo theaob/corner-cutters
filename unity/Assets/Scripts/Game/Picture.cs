@@ -28,12 +28,12 @@ namespace CornerCutters.Game
 
         static void Start()
         {
-            // (kept: "level,locked,at,version")
+            // (kept: {level, locked, at, version}, the web game's device.quality)
             int level = 0;
             bool locked = false;
-            var parts = PlayerPrefs.GetString("device.quality", "").Split(',');
-            if (parts.Length == 4 && int.TryParse(parts[0], out int l) && double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double at)
-                && QualityGovernor.Kept(l, parts[1] == "1", at, parts[3], NowMs, Version, out int kl, out bool kk))
+            if (Save.Get("device", "quality") is System.Collections.Generic.Dictionary<string, object> q && q.TryGetValue("level", out var lv) && lv is double l && l == System.Math.Floor(l)
+                && q.TryGetValue("at", out var av) && av is double at && q.TryGetValue("version", out var vv) && vv is string ver
+                && QualityGovernor.Kept((int)l, q.TryGetValue("locked", out var kv) && kv is bool lk && lk, at, ver, NowMs, Version, out int kl, out bool kk))
             {
                 level = kl;
                 locked = kk;
@@ -67,7 +67,7 @@ namespace CornerCutters.Game
                 {
                     keptLevel = governor.Level;
                     keptLocked = governor.Locked;
-                    PlayerPrefs.SetString("device.quality", string.Join(",", keptLevel, keptLocked ? "1" : "0", NowMs.ToString(System.Globalization.CultureInfo.InvariantCulture), Version));
+                    Save.Set("device", "quality", new JsonObj { { "level", keptLevel }, { "locked", keptLocked }, { "at", NowMs }, { "version", Version } });
                 }
             }
             var q = Now;

@@ -255,7 +255,7 @@ namespace CornerCutters.Game
             else if (choice == HudView.PauseChoice.Restart) Restart();
             else if (choice == HudView.PauseChoice.SkipQualifying) StartRace(null);
             else if (choice == HudView.PauseChoice.Weather && !daily.HasValue) NextWeather();
-            else if (choice == HudView.PauseChoice.GridWalk) PlayerPrefs.SetInt("gridWalk", PlayerPrefs.GetInt("gridWalk", 1) != 0 ? 0 : 1);
+            else if (choice == HudView.PauseChoice.GridWalk) Options.GridWalk = !Options.GridWalk;
             else if (choice == HudView.PauseChoice.MainMenu) OpenMenu();
         }
     }

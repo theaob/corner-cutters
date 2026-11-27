@@ -25,13 +25,13 @@ namespace CornerCutters.Game
 
         // ---- kept on the device ----
 
-        static DailyLog LoadDaily() => Daily.Parse(PlayerPrefs.GetString("daily", ""));
-        static void SaveDaily(DailyLog log) => PlayerPrefs.SetString("daily", Daily.Write(log));
-        static Streak LoadStreak() => Streaks.Parse(PlayerPrefs.GetString("streak", ""), LoadDaily());
+        static DailyLog LoadDaily() => Daily.Parse(Save.SectionText("daily"));
+        static void SaveDaily(DailyLog log) => Save.SetSectionText("daily", Daily.Write(log));
+        static Streak LoadStreak() => Streaks.Parse(Save.Text("streak", "now"), LoadDaily());
         static string Today => Streaks.LocalDay(DateTime.Now);
 
         /// <summary>Your car's look: the one picked in the shop, if your best streak has earned it.</summary>
-        static CarStyle MyStyle => Streaks.StyleOf(PlayerPrefs.GetString("carStyle", "standard"), LoadStreak().Best);
+        static CarStyle MyStyle => Streaks.StyleOf(Save.String("choices", "carStyle", "standard"), LoadStreak().Best);
 
         /// <summary>A team's livery with your look over it (yours only).</summary>
         static Livery Styled(Livery look, CarStyle s)
@@ -55,7 +55,7 @@ namespace CornerCutters.Game
             var s = LoadStreak();
             var step = Streaks.PlayedOn(s, Today);
             if (!step.Grew) return;
-            PlayerPrefs.SetString("streak", Streaks.Write(s));
+            Save.SetText("streak", "now", Streaks.Write(s));
             // (said in toasts, as the web game's day news: the day, then any look it's earned; and the streak's achievements)
             var next = Streaks.NextReward(step.Days);
             HudView.Toast("STREAK", $"DAY {step.Days}", step.Forgave ? "A MISSED DAY FORGIVEN: KEEP IT GOING" : step.Days == 1 ? "PLAY TOMORROW FOR DAY 2" : next != null ? $"{next.Days - step.Days} MORE FOR THE {next.Name}" : "EVERY LOOK EARNED: KEEP IT GOING");
@@ -163,10 +163,10 @@ namespace CornerCutters.Game
             if (medal > medalHad) table.Lines.Add(($"{Medals.NameOf(medal)} MEDAL!", Medals.ColorOf(medal)));
             if (!daily.HasValue)
             {
-                // (your best here, in this weather, at this difficulty: kept on the device)
-                string key = $"attack.{circuit.id}.{WeatherLooks.Name(weatherChoice)}.{difficulty.Id}";
-                int had = PlayerPrefs.GetInt(key, -1);
-                if (passed > had) PlayerPrefs.SetInt(key, passed);
+                // (your best here, in this weather: the save's records, as the web game keeps them)
+                var records = LoadRecords();
+                int had = records.Circuits.TryGetValue(RecordId, out var cr) && cr.BestAttack.HasValue ? cr.BestAttack.Value : -1;
+                if (records.Attack(RecordId, passed)) SaveRecords(records);
                 if (passed > had && had >= 0) sounds?.Record();
                 sounds?.Quiet();
                 table.Lines.Add(passed > had && had >= 0 ? ("NEW RECORD!", 0xf2c14e) : ($"BEST · {Attack.Distance(System.Math.Max(passed, had))}", 0xf4f2fa));
@@ -282,7 +282,7 @@ namespace CornerCutters.Game
         /// <summary>A look picked in the shop: worn from now on (your car rebuilt in it).</summary>
         void PickStyle(string id)
         {
-            PlayerPrefs.SetString("carStyle", id);
+            Save.Set("choices", "carStyle", id);
             int k = driverOf.IndexOf(weekend.YouDriver);
             if (k >= 0 && k < views.Count) AddView(k);
         }

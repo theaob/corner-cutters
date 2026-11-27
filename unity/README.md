@@ -81,6 +81,21 @@ Attack medals, and the 27 achievements (Core/Trophies.cs, checked against medals
 achievements, missions done and the streak's days are said in toasts as they come. (Not yet: the language setting,
 the circuits locked until a Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
 
+**Saves.** Everything the game keeps is the web game's own save document (`engine/save.ts`, `f1/save.ts`):
+`{version: 2, data: {section: {name: value}}}` under `cc:save`, with the same sections, names and values (settings,
+choices, records, ghosts, championship, progress, trophies, boards, daily, streak, missions, profile, device), the
+ghosts under keys of their own, a damaged save set aside and a newer game's never written over (Core/SaveDoc.cs,
+Game/Save.cs, checked against `parseSaveDoc`, `migrateSave` and `records.ts`). So records are kept by circuit and
+weather, as the web game's are, with race times by length and the best Time Attack run. What only this port has (two
+players, a season's qualifying, the race kept to resume in its own form) is in a section of its own, `unity`; the UI
+and minimap scale and the keys are the device's, left behind when a save moves. SETTINGS > PRIVACY & DATA has
+EXPORT SAVE (your save as text, on the clipboard) and IMPORT SAVE (read from the clipboard, what's in it shown, picked
+again to replace yours, the old one kept as `cc:save.bak`); and a `cc-save.json` in the app's files is taken in once at
+the first start, if nothing's been played yet, for an Android app that hands its save over when it's replaced. The
+save is written once a frame when something changed, and to disk as the game's put away. It's in PlayerPrefs for now;
+`Game/Save.cs` is the one place to change for Switch's save data. (Not carried over: saves of this draft from before,
+which were never shipped; the web game's own kept race, whose form is its own.)
+
 **Daily Challenge, streak and shop.** As the web game (`daily.ts`, `timeAttack.ts`, `streak.ts`, `carStyle.ts`):
 DAILY CHALLENGE on the menu takes you to the day's circuit in the day's weather (drawn from the UTC date, the
 same rotation as the web game's, so the same challenge everyone else has that day), against the clock: it starts at

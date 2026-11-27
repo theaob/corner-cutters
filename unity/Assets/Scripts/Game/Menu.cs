@@ -2,7 +2,7 @@
 // screens/carShop.ts, screens/championship.ts): the title, the modes as tiles (DAILY CHALLENGE, QUICK RACE,
 // CHAMPIONSHIP, TIME ATTACK, TIME TRIAL; SETTINGS and SHOP small under them), the Championship's season screen, a mode's circuit screen (the circuit, then its rows: TEAM, WEATHER, QUALIFYING, LAPS), the
 // settings, the shop and your name. Played with the keys, a pad or the mouse: up and down move between the rows, left
-// and right change a row, A or ENTER picks, B or ESC goes back. What's picked is kept (PlayerPrefs) for next time.
+// and right change a row, A or ENTER picks, B or ESC goes back. What's picked is kept (the save's choices, by the web game's ids) for next time.
 using CornerCutters.Core;
 using System;
 using System.Collections.Generic;
@@ -45,15 +45,21 @@ namespace CornerCutters.Game
         public HudView.NameEdit Edit;
 
         // what's picked (kept for next time)
-        public string Mode = PlayerPrefs.GetString("menu.mode", "race");
+        public string Mode = Save.String("choices", "mode", "race");
         public int Circuit;
-        public int Team = Mathf.Clamp(PlayerPrefs.GetInt("menu.team", 0), 0, Field.Teams.Length - 1);
-        public WeatherChoice Weather = (WeatherChoice)Mathf.Clamp(PlayerPrefs.GetInt("weather", 0), 0, 3);
-        public bool Qualifying = PlayerPrefs.GetInt("menu.qualifying", 1) != 0;
-        public int Laps = PlayerPrefs.GetInt("menu.laps", 5);
+        public int Team = Math.Max(0, Array.FindIndex(Field.Teams, t => t.Id == Save.String("choices", "team")));
+        public WeatherChoice Weather = SavedWeather;
+        /// <summary>(on unless turned off: the web game's is off unless turned on)</summary>
+        public bool Qualifying = Save.String("choices", "qualifying") != "off";
+        public int Laps = int.TryParse(Save.String("choices", "laps", "5"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int l) ? l : 5;
         /// <summary>a Quick Race for two, split screen (the second player on a pad)</summary>
-        public bool TwoPlayers = PlayerPrefs.GetInt("menu.players", 1) == 2;
-        public int Difficulty = Mathf.Clamp(PlayerPrefs.GetInt("menu.difficulty", 1), 0, Field.Difficulties.Length - 1);
+        public bool TwoPlayers = Save.Number("unity", "players", 1) == 2;
+        public int Difficulty = Math.Max(0, Array.FindIndex(Field.Difficulties, d => d.Id == Save.String("choices", "difficulty", "normal")));
+
+        static readonly string[] WeatherIds = { "dry", "damp", "wet", "changeable" };
+        /// <summary>the weather picked last (choices.weather, by id), in WeatherChoice's order</summary>
+        public static WeatherChoice SavedWeather => (WeatherChoice)Math.Max(0, Array.IndexOf(WeatherIds, Save.String("choices", "weather", "dry")));
+        public static void SaveWeather(WeatherChoice w) => Save.Set("choices", "weather", WeatherIds[(int)w]);
 
         /// <summary>a Quick Race's laps to choose from (laps.ts LAP_CHOICES)</summary>
         public static readonly int[] LapChoices = { 1, 2, 3, 5, 7, 10, 15, 20 };
@@ -94,15 +100,15 @@ namespace CornerCutters.Game
 
         public void Keep()
         {
-            PlayerPrefs.SetString("menu.mode", Mode);
-            PlayerPrefs.SetInt("menu.team", Team);
-            PlayerPrefs.SetInt("weather", (int)Weather);
-            PlayerPrefs.SetInt("menu.qualifying", Qualifying ? 1 : 0);
-            PlayerPrefs.SetInt("menu.laps", Laps);
-            PlayerPrefs.SetInt("menu.difficulty", Difficulty);
-            PlayerPrefs.SetInt("menu.players", TwoPlayers ? 2 : 1);
-            PlayerPrefs.SetInt("season.qualifying", SeasonQualifying ? 1 : 0);
-            PlayerPrefs.SetInt("season.laps", SeasonLaps);
+            Save.Set("choices", "mode", Mode);
+            Save.Set("choices", "team", Field.Teams[Team].Id);
+            SaveWeather(Weather);
+            Save.Set("choices", "qualifying", Qualifying ? "on" : "off");
+            Save.Set("choices", "laps", Laps.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Save.Set("choices", "difficulty", Field.Difficulties[Difficulty].Id);
+            Save.Set("unity", "players", TwoPlayers ? 2.0 : 1.0);
+            Save.Set("unity", "seasonQualifying", SeasonQualifying);
+            Save.Set("choices", "season-laps", SeasonLaps.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         public void Open(Screen s, int focus = 0)
@@ -129,13 +135,13 @@ namespace CornerCutters.Game
 
         static KeptRace LoadKept()
         {
-            var k = RaceSave.Parse(PlayerPrefs.GetString("race.kept", ""), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            var k = RaceSave.Parse(Save.Text("unity", "kept"), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             if (k != null && k.Mode == "championship")
             {
-                var s = Championship.Parse(PlayerPrefs.GetString("season", ""));
+                var s = Championship.Parse(Save.Text("championship", "season"));
                 if (s == null || s.Over || s.Round != k.Round || s.Rounds[s.Round] != k.Circuit) k = null;
             }
-            if (k == null && PlayerPrefs.HasKey("race.kept")) PlayerPrefs.DeleteKey("race.kept");
+            if (k == null && Save.Has("unity", "kept")) Save.Set("unity", "kept", null);
             return k;
         }
         /// <summary>a mode's tile</summary>
@@ -146,7 +152,7 @@ namespace CornerCutters.Game
         public List<MenuTile> Tiles()
         {
             var c = Daily.On(Daily.DayOf(DateTime.UtcNow));
-            var streak = Streaks.Parse(PlayerPrefs.GetString("streak", ""), Daily.Parse(PlayerPrefs.GetString("daily", "")));
+            var streak = Streaks.Parse(Save.Text("streak", "now"), Daily.Parse(Save.SectionText("daily")));
             int days = Streaks.Now(streak, Streaks.LocalDay(DateTime.Now));
             string w = c.Weather == Core.Weather.Wet ? "WET" : c.Weather == Core.Weather.Damp ? "DAMP" : "DRY";
             return new List<MenuTile>
@@ -240,10 +246,10 @@ namespace CornerCutters.Game
         // ---- the Championship (screens/championship.ts) ----
 
         /// <summary>the season in progress (or just over), kept on the device; null: none yet</summary>
-        public Season Season = Championship.Parse(PlayerPrefs.GetString("season", ""));
+        public Season Season = Championship.Parse(Save.Text("championship", "season"));
         /// <summary>a new season's choices: qualifying, each round's laps</summary>
-        public bool SeasonQualifying = PlayerPrefs.GetInt("season.qualifying", 1) != 0;
-        public int SeasonLaps = PlayerPrefs.GetInt("season.laps", Championship.SprintLaps) == Championship.GrandPrixLaps ? Championship.GrandPrixLaps : Championship.SprintLaps;
+        public bool SeasonQualifying = Save.Bool("unity", "seasonQualifying", true);
+        public int SeasonLaps = Save.String("choices", "season-laps") == "10" ? Championship.GrandPrixLaps : Championship.SprintLaps;
         /// <summary>NEW SEASON picked once over a season in progress: picked again, it's thrown away</summary>
         bool sure;
 
@@ -343,6 +349,9 @@ namespace CornerCutters.Game
         {
             Open(Screen.Settings, row);
             Page = page;
+            exported = false;
+            importing = null;
+            importNote = null;
         }
 
         public List<MenuRow> SettingsRows()
@@ -370,7 +379,7 @@ namespace CornerCutters.Game
                 case "game":
                     {
                         var d = Field.Difficulties[Difficulty];
-                        bool walk = PlayerPrefs.GetInt("gridWalk", 1) != 0;
+                        bool walk = Options.GridWalk;
                         var g = Options.Graphics;
                         rows.Add(new MenuRow { Label = "DIFFICULTY", Value = d.Name, About = (d.About ?? "").ToUpperInvariant(), Left = () => Difficulty = (Difficulty + Field.Difficulties.Length - 1) % Field.Difficulties.Length, Right = () => Difficulty = (Difficulty + 1) % Field.Difficulties.Length });
                         rows.Add(new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } });
@@ -401,6 +410,14 @@ namespace CornerCutters.Game
                         rows.Add(new MenuRow { Label = "STATS", Value = Profile.StatsOn ? "SHARE" : "OFF", About = Profile.StatsOn ? "ANONYMOUS PLAY COUNTS, TO IMPROVE THE GAME" : "NOTHING SENT", Left = ToggleStats, Right = ToggleStats });
                         rows.Add(new MenuRow { Label = "PLAYER ID", Value = Profile.PlayerId.Substring(0, 8).ToUpperInvariant(), About = "PICK IT TO COPY IT: QUOTE IT TO HAVE YOUR ENTRIES REMOVED", Pick = () => GUIUtility.systemCopyBuffer = Profile.PlayerId });
                     }
+                    // (a save moved between devices as its text, through the clipboard: the web game's, the phone's, another computer's)
+                    rows.Add(new MenuRow { Label = "EXPORT SAVE", Value = exported ? "COPIED" : "COPY", About = exported ? "PASTE IT INTO IMPORT SAVE ON THE OTHER DEVICE" : "YOUR PROGRESS AS TEXT, TO MOVE IT TO ANOTHER DEVICE", Pick = ExportSave });
+                    rows.Add(new MenuRow
+                    {
+                        Label = "IMPORT SAVE", Value = importing != null ? "SURE?" : importNote ?? "PASTE",
+                        About = importing != null ? $"REPLACES YOUR PROGRESS WITH: {importing.Summary()}" : "COPY A SAVE FIRST, THEN PICK THIS",
+                        Pick = ImportSave,
+                    });
                     break;
             }
             rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = SettingsBack });
@@ -468,8 +485,35 @@ namespace CornerCutters.Game
             ListenSince = Time.unscaledTime;
         }
 
-        static void ToggleWalk() => PlayerPrefs.SetInt("gridWalk", PlayerPrefs.GetInt("gridWalk", 1) != 0 ? 0 : 1);
+        static void ToggleWalk() => Options.GridWalk = !Options.GridWalk;
         static void ToggleStats() => Profile.StatsOn = !Profile.StatsOn;
+
+        // ---- moving a save ----
+
+        bool exported;
+        /// <summary>a save read from the clipboard, to replace this one's with if IMPORT SAVE is picked again; why one wasn't</summary>
+        SaveDoc importing;
+        string importNote;
+
+        void ExportSave()
+        {
+            GUIUtility.systemCopyBuffer = Save.Export();
+            exported = true;
+        }
+
+        /// <summary>IMPORT SAVE: the clipboard read (and what it holds shown) the first time, the save replaced the second.</summary>
+        void ImportSave()
+        {
+            if (importing != null)
+            {
+                var d = importing;
+                importing = null;
+                importNote = Save.Replace(d) ? "DONE" : "CAN'T";
+                return;
+            }
+            importing = Save.Read(GUIUtility.systemCopyBuffer);
+            importNote = importing == null ? "NOT A SAVE" : null;
+        }
 
         public static string Version => $"VERSION {Application.version.ToUpperInvariant()}";
 

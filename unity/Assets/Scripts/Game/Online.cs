@@ -1,5 +1,5 @@
 // You, the play stats and the lap boards, on the backend (Backend.cs), as the web game has them (src/f1/profile.ts,
-// metrics.ts, boards.ts). Kept in PlayerPrefs: a random id the device makes for itself the first time (nothing
+// metrics.ts, boards.ts). Kept in the save: a random id the device makes for itself the first time (nothing
 // personal: it only tells one player's events and board laps from another's), your initials for the boards, whether
 // the play stats are sent (STATS: on unless turned off), and the laps waiting to go on a board.
 using CornerCutters.Core;
@@ -19,10 +19,10 @@ namespace CornerCutters.Game
         {
             get
             {
-                string id = PlayerPrefs.GetString("profile.id", "");
+                string id = Save.String("profile", "id", "");
                 if (Uuid.IsMatch(id)) return id;
                 string made = Guid.NewGuid().ToString();
-                PlayerPrefs.SetString("profile.id", made);
+                Save.Set("profile", "id", made);
                 return made;
             }
         }
@@ -32,17 +32,17 @@ namespace CornerCutters.Game
         {
             get
             {
-                string n = PlayerPrefs.GetString("profile.name", "");
+                string n = Save.String("profile", "name", "");
                 return Boards.Initials.IsMatch(n) ? n : null;
             }
-            set { if (value != null && Boards.Initials.IsMatch(value)) PlayerPrefs.SetString("profile.name", value); }
+            set { if (value != null && Boards.Initials.IsMatch(value)) Save.Set("profile", "name", value); }
         }
 
         /// <summary>STATS: the anonymous play stats sent (on unless turned off).</summary>
         public static bool StatsOn
         {
-            get => PlayerPrefs.GetInt("stats", 1) != 0;
-            set => PlayerPrefs.SetInt("stats", value ? 1 : 0);
+            get => Save.Bool("settings", "stats", true);
+            set => Save.Set("settings", "stats", value);
         }
 
         /// <summary>The build, as the backend's rows say it (the web's are its package version and commit): unity-, then the player's version.</summary>
@@ -128,15 +128,12 @@ namespace CornerCutters.Game
     /// <summary>The online lap boards: your new records waiting to go, sent with your initials, and a board read back.</summary>
     public static class LapBoards
     {
-        const string Key = "boards.pending";
-
-        public static List<PendingLap> Pending => Boards.Parse(PlayerPrefs.GetString(Key, ""));
+        public static List<PendingLap> Pending => Boards.Parse(Save.Text("boards", "pending"));
 
         static void Keep(IList<PendingLap> laps)
         {
             string s = Boards.Write(laps);
-            if (s == null) PlayerPrefs.DeleteKey(Key);
-            else PlayerPrefs.SetString(Key, s);
+            Save.SetText("boards", "pending", s);
         }
 
         /// <summary>A new lap record of yours on `circuit` in `weather`: to send (the quicker, if one's waiting there already).</summary>

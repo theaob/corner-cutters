@@ -414,8 +414,9 @@ namespace CornerCutters.Game
         public static readonly float[] UiScales = { 0f, 1f, 1.2f, 1.4f, 1.6f, 1.8f };
         public static float UiScale
         {
-            get { float v = PlayerPrefs.GetFloat("uiScale", 0f); return v == 0f || (v >= 0.9f && v <= 2f) ? v : 0f; }
-            set => PlayerPrefs.SetFloat("uiScale", value);
+            // (the device's own: a save moved to another screen leaves it)
+            get { float v = (float)Save.Number("device", "uiScale", 0); return v == 0f || (v >= 0.9f && v <= 2f) ? v : 0f; }
+            set => Save.Set("device", "uiScale", System.Math.Round(value, 2));
         }
 
         /// <summary>
@@ -437,8 +438,8 @@ namespace CornerCutters.Game
         public static readonly float[] MapScales = { 1f, 1.5f, 2f };
         public static float MapScale
         {
-            get { float v = PlayerPrefs.GetFloat("mapScale", 1.5f); return v >= 0.9f && v <= 2.5f ? v : 1.5f; }
-            set => PlayerPrefs.SetFloat("mapScale", value);
+            get { float v = (float)Save.Number("device", "mapScale", 1.5); return v >= 0.9f && v <= 2.5f ? v : 1.5f; }
+            set => Save.Set("device", "mapScale", System.Math.Round(value, 2));
         }
 
         /// <summary>Top right: the minimap, you a gold square (race.ts, ten times a second there; every frame here).</summary>

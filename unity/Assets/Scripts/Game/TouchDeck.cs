@@ -20,15 +20,15 @@ namespace CornerCutters.Game
 
         public static DriveStyle Style
         {
-            get { int v = PlayerPrefs.GetInt("settings.driving", 0); return v >= 0 && v <= 2 ? (DriveStyle)v : DriveStyle.Auto; }
-            set => PlayerPrefs.SetInt("settings.driving", (int)value);
+            get { string v = Save.String("settings", "driving"); return v == "point" ? DriveStyle.Point : v == "steer" ? DriveStyle.Steer : DriveStyle.Auto; }
+            set => Save.Set("settings", "driving", value == DriveStyle.Point ? "point" : value == DriveStyle.Steer ? "steer" : "auto");
         }
 
         /// <summary>the thumbstick on the right (A on the left): the web game's default</summary>
         public static bool StickRight
         {
-            get => PlayerPrefs.GetInt("settings.stickRight", 1) != 0;
-            set => PlayerPrefs.SetInt("settings.stickRight", value ? 1 : 0);
+            get => Save.String("settings", "stickSide") != "left";
+            set => Save.Set("settings", "stickSide", value ? "right" : "left");
         }
 
         /// <summary>what each button does now ("" or null: hidden); the driving controls shown (racing, not paused or done); on dirt (DRIFT up)</summary>
