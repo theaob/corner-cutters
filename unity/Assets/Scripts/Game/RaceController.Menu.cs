@@ -75,7 +75,7 @@ namespace CornerCutters.Game
                 case Menu.Screen.Name:
                     menu.Edit.Steer(input.NavX, input.NavY);
                     if (input.AcceptPressed) SaveName();
-                    else if (input.BackPressed) menu.Open(Menu.Screen.Settings, 2);
+                    else if (input.BackPressed) menu.Open(Menu.Screen.Settings, 4);
                     break;
             }
             Asked();
@@ -85,7 +85,7 @@ namespace CornerCutters.Game
         {
             Profile.Initials = menu.Edit.ToString();
             SendWaiting();
-            menu.Open(Menu.Screen.Settings, 2);
+            menu.Open(Menu.Screen.Settings, 4);
         }
 
         /// <summary>What the menu asked for: a race or a Time Attack on the circuit picked, or today's challenge.</summary>
@@ -163,7 +163,7 @@ namespace CornerCutters.Game
                     {
                         var c = hud.DrawName(menu.Edit);
                         if (c == HudView.PauseChoice.NameSave) SaveName();
-                        else if (c == HudView.PauseChoice.NameCancel) menu.Open(Menu.Screen.Settings, 2);
+                        else if (c == HudView.PauseChoice.NameCancel) menu.Open(Menu.Screen.Settings, 4);
                         break;
                     }
             }

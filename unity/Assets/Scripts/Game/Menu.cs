@@ -141,6 +141,8 @@ namespace CornerCutters.Game
             return list[((i + by) % list.Count + list.Count) % list.Count];
         }
 
+        static float Nearest(float[] list, float v) => list.OrderBy(x => Mathf.Abs(x - v)).First();
+
         static readonly string[] WeatherAbout = { "SUN ALL RACE", "A DAMP TRACK, LESS GRIP", "RAIN: INTERS OR WETS", "IT MAY RAIN, OR DRY OUT" };
 
         public List<MenuRow> CircuitRows()
@@ -174,6 +176,8 @@ namespace CornerCutters.Game
             {
                 new MenuRow { Label = "DIFFICULTY", Value = d.Name, About = (d.About ?? "").ToUpperInvariant(), Left = () => Difficulty = (Difficulty + Field.Difficulties.Length - 1) % Field.Difficulties.Length, Right = () => Difficulty = (Difficulty + 1) % Field.Difficulties.Length },
                 new MenuRow { Label = "GRID WALK", Value = walk ? "ON" : "SKIP", About = walk ? "THE CAMERA DOWN THE GRID BEFORE THE LIGHTS" : "STRAIGHT TO THE START LIGHTS", Left = ToggleWalk, Right = ToggleWalk },
+                new MenuRow { Label = "UI SCALE", Value = $"{Mathf.RoundToInt(HudView.UiScale * 100)}%", About = "THE HUD AND THE TABLES, BIGGER OR SMALLER", Left = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), -1), Right = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), 1) },
+                new MenuRow { Label = "MINIMAP", Value = HudView.MapScale < 1.25f ? "SMALL" : HudView.MapScale < 1.75f ? "LARGE" : "HUGE", About = "THE MAP AND THE TIMING TOWER, TOP RIGHT", Left = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), -1), Right = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), 1) },
                 new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } },
             };
             if (Backend.Online)

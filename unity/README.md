@@ -57,7 +57,7 @@ from `lap_board`. The laps are the same physics as the web game's, so they share
 **Menus.** As the web game's (`circuitSelect.ts`, `menuTiles.ts`, `settingsRows.ts`): the title, then the modes as
 tiles (DAILY CHALLENGE with today's circuit and your streak, QUICK RACE, TIME ATTACK; SETTINGS and SHOP small under
 them), a mode's circuit screen (the circuit's outline and name, TEAM, WEATHER, and for a Quick Race QUALIFYING and LAPS),
-the settings (DIFFICULTY, GRID WALK, NAME, STATS, PLAYER ID, the version), the shop and your name. Keys, a pad or the
+the settings (DIFFICULTY, GRID WALK, UI SCALE for the HUD and tables, MINIMAP size, NAME, STATS, PLAYER ID, the version), the shop and your name. Keys, a pad or the
 mouse: arrows or the d-pad move, left and right change a row, ENTER or A picks, ESC or B goes back. What you pick is
 kept for next time. The pause screen has RESUME, RESTART, SKIP QUALIFYING, WEATHER, GRID WALK and MAIN MENU, with the
 keys and the pad too. (Not yet: the web game's sound, controls, accessibility and language settings, the trophy cabinet,
