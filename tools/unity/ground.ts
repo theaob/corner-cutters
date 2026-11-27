@@ -41,7 +41,7 @@ window.paintGround = (id: string) => {
     if (!found && img instanceof HTMLCanvasElement && img.width === W && img.height === H) found = img;
   });
   if (!found) throw new Error(`no ${W}x${H} ground picture in ${id}'s scene`);
-  return found.toDataURL('image/png');
+  return gravelToTheKerb(c, found).toDataURL('image/png');
 };
 /** The scene's still parts for Unity (scenery.ts), the file as base64. */
 window.scenery = (id: string) => {
@@ -57,3 +57,54 @@ window.scenery = (id: string) => {
 };
 
 window.groundReady = true;
+
+/** What the web painter lays under the track's and kerbs' tiles (circuitScene.ts): grass (mown stripes, and its dots), or in
+ * the desert the run-off's smoothed sand (its stripes, and its specks). */
+const GRASS = [0x5aa84f, 0x62b156, 0x3f8a3c];
+const RUNOFF_SAND = [0xe4c896, 0xdcbf8a, 0xc49e66];
+
+/**
+ * The picture with the gravel traps run right up to the kerbs. The web painter paints tile by tile, the track's and kerbs'
+ * tiles grass (the smooth track is painted over them), so where a tile pokes out past the track's edge beside a trap, a
+ * step of grass shows between the kerb and the gravel; here that grass is the trap's gravel instead (its colour and specks,
+ * as the painter's).
+ */
+function gravelToTheKerb(c: ReturnType<typeof circuitOf>, picture: HTMLCanvasElement): HTMLCanvasElement {
+  const T = c.grid.tile;
+  const out = document.createElement('canvas');
+  out.width = picture.width;
+  out.height = picture.height;
+  const x = out.getContext('2d')!;
+  x.drawImage(picture, 0, 0);
+  const desert = !!c.layout.desert;
+  const base = desert ? 0xc08a5e : 0xd8c49a;
+  const dots = desert ? [0xad7a50, 0xd29e72] : [0xc4ae82, 0xe6d6b0];
+  const cell = (i: number, j: number) => (i >= 0 && j >= 0 && i < c.width && j < c.height ? c.cells[j * c.width + i] : 'wall');
+  /** near enough one of the painter's colours under the track (the picture may come back a shade off) */
+  const under = desert ? RUNOFF_SAND : GRASS;
+  const grassy = (r: number, g: number, b: number) => under.some((k) => Math.abs(r - (k >> 16)) + Math.abs(g - ((k >> 8) & 255)) + Math.abs(b - (k & 255)) <= 6);
+  let seed = 41;
+  const r = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  let tiles = 0;
+  for (let j = 0; j < c.height; j++) {
+    for (let i = 0; i < c.width; i++) {
+      const k = cell(i, j);
+      if (k !== 'track' && k !== 'kerb') continue;
+      if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([di, dj]) => cell(i + di, j + dj) === 'gravel')) continue;
+      const img = x.getImageData(i * T, j * T, T, T);
+      const d = img.data;
+      let changed = false;
+      for (let q = 0; q < T * T; q++) {
+        if (!grassy(d[q * 4], d[q * 4 + 1], d[q * 4 + 2])) continue;
+        const col = r() < 0.04 ? dots[r() < 0.5 ? 0 : 1] : base;
+        d[q * 4] = col >> 16;
+        d[q * 4 + 1] = (col >> 8) & 255;
+        d[q * 4 + 2] = col & 255;
+        changed = true;
+      }
+      if (changed) { x.putImageData(img, i * T, j * T); tiles++; }
+    }
+  }
+  console.log(`${c.layout.id}: gravel run up to the kerb on ${tiles} tiles`);
+  return out;
+}
