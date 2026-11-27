@@ -39,7 +39,7 @@ namespace CornerCutters.Game
                 yetiSize = numbers.yeti.size;
                 yetiRoar = numbers.yeti.roar;
             }
-            material = MeshBuilder.VertexColorMaterial();
+            material = MeshBuilder.PlainMaterial();
             var chunks = new Dictionary<int, BakedScenery.Chunk>();
             int count = r.ReadInt32();
             for (int k = 0; k < count; k++)

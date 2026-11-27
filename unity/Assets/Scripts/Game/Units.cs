@@ -18,8 +18,9 @@ namespace CornerCutters.Game
         public static Quaternion Rotation(Car car, Grid grid, double heading)
         {
             Driving.BodyTilt(car, grid, out double pitch, out double roll);
-            // Unity's +X rotation pitches the nose down and +Z rolls the right side down: both signs flip
-            return Quaternion.Euler((float)(-pitch * 180.0 / System.Math.PI), Yaw(heading), (float)(-roll * 180.0 / System.Math.PI));
+            // Unity's +X rotation pitches the nose down (the map's z is mirrored), so pitch flips; +Z turns +X toward +Y, raising
+            // the right side as three.js's does, so roll keeps its sign (flipped, the cars leaned out of a banking)
+            return Quaternion.Euler((float)(-pitch * 180.0 / System.Math.PI), Yaw(heading), (float)(roll * 180.0 / System.Math.PI));
         }
     }
 }

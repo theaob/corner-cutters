@@ -18,13 +18,16 @@
 //     float3 positions, sbyte4 normals (x, y, z, 0; /127), byte4 colours (sRGB, alpha), float2 uvs (textured parts only),
 //     indices (ushort under 65,536 vertices, else int),
 //     int places; per place: float12 matrix (3 rows of 4), byte4 tint (sRGB, 255).
-//   then the movers' tracks (where a moving thing is, frame by frame: a plane, a boat, a bird, a petal; every part of
+//   then the movers' tracks (where a moving thing is, frame by frame: a plane, a boat, a bird; every part of
 //     it rides on the one track): int tracks, float seconds between frames, int frames; per track: float3 origin, then
 //     per frame half3 position (from the origin), half9 rotation and scale (the matrix's 3 x 3, rows), all zeros where
 //     it's hidden.
 //   then int moving parts; per moving part: the part as above, int copies; per copy: int track, float12 matrix (its
 //     place on the track: world = track x this), byte4 tint.
 // Textures: Resources/Scenery/<id>-<n>.png.
+//
+// The cherry trees, where there's blossom (its petals are kicked up by the cars, so the port runs them itself: PetalView,
+// Core's PetalField): Resources/Scenery/<id>-blossoms.json, {trees: [{x, y, h}]}.
 //
 // The airliners over a circuit with an airport (they come and go, aimed over the camera, so the port flies them itself:
 // ScenePlanes, a copy of planes.ts's PlaneRun): Resources/Scenery/<id>-planes.bytes,
@@ -48,6 +51,7 @@ import { HIDES } from '../../src/f1/town3d';
 import { GOPHER, gopherModel } from '../../src/f1/gopher';
 import { YETI, yetiAvoids, yetiModel } from '../../src/f1/yeti';
 import { HALF_WIDTH } from '../../src/f1/circuit';
+import { treesOf } from '../../src/f1/forest3d';
 import type { Circuit } from '../../src/f1/circuit';
 
 /** the web game's light on a face (its sky, a hemisphere at 1.35, and sun at 2.6; Lambert): BakedScenery does the same in C# */
@@ -117,6 +121,13 @@ function movers(scene: Scene, tick: () => void): Set<THREE.Object3D> {
   return all;
 }
 
+/** PetalView's own: the cherry blossom's petals (circuitScene.ts's buildPetals: one instanced plane, 5 x 3.4), which the
+ * cars kick up, so the port runs them itself (Core's PetalField). */
+function petalView(mesh: THREE.Mesh): boolean {
+  const p = (mesh.geometry as THREE.BufferGeometry & { parameters?: Record<string, number> }).parameters;
+  return !!p && (mesh as THREE.InstancedMesh).isInstancedMesh && mesh.geometry.type === 'PlaneGeometry' && p.width === 5 && p.height === 3.4;
+}
+
 /** StandView's own: the crowd's spectators (crowd3d.ts's boxes) and the stands' flags (13 x 8 planes). */
 function standViews(mesh: THREE.Mesh): boolean {
   const p = (mesh.geometry as THREE.BufferGeometry & { parameters?: Record<string, number> }).parameters;
@@ -132,7 +143,7 @@ interface Glow { tex: number; uv: [number, number, number, number]; rate: [numbe
 interface Proto { tex: number; flags: number; opacity: number; emissive: THREE.Color; glow?: Glow; pos: number[]; nor: number[]; col: number[]; uv: number[]; idx: number[]; places: Place[] }
 
 /** The web game's scene for circuit `c`, as the Unity file, and what moves, by name. */
-export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): { file: ArrayBuffer; planes?: ArrayBuffer; gopher?: ArrayBuffer; yeti?: ArrayBuffer; textures: string[]; moving: string[]; stats: string } {
+export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): { file: ArrayBuffer; planes?: ArrayBuffer; gopher?: ArrayBuffer; yeti?: ArrayBuffer; blossoms?: string; textures: string[]; moving: string[]; stats: string } {
   const scene = createCircuitScene(c, DRY);
   // (an emissive map's scroll, as the scene's animation runs it: its offset a frame apart, before the first tick)
   const glowRate = new Map<THREE.Texture, [number, number]>();
@@ -331,7 +342,7 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
     const img0 = mat0?.map?.image as HTMLCanvasElement | undefined;
     // (the ground: the port has its picture already)
     if (img0 && img0.width === groundSize.w && img0.height === groundSize.h) return;
-    if (critter(mesh)) return;
+    if (critter(mesh) || petalView(mesh)) return;
     const inst = (mesh as THREE.InstancedMesh).isInstancedMesh ? (mesh as THREE.InstancedMesh) : undefined;
     if (moving.has(mesh)) {
       if (standViews(mesh)) return;
@@ -550,11 +561,14 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
       ...y.legs.map((l, k) => ({ role: 4 + k, node: l, pivot: l.position.clone(), root: y.group })),
     ]);
   }
+  // (the cherry trees the petals fall from: PetalView's)
+  const blossoms = c.layout.blossoms ? JSON.stringify({ trees: treesOf(c).filter((t) => t.kind === 'blossom').map((t) => ({ x: t.x, y: t.y, h: t.h })) }) : undefined;
   return {
     file,
     planes,
     gopher,
     yeti,
+    blossoms,
     textures,
     moving: [...movingNames].sort(),
     stats: `${list.length} parts in ${placed} places, ${verts} vertices placed, ${moverParts.length} moving parts (${copies} copies on ${used.length} tracks), ${textures.length} textures, ${(file.byteLength / 1048576).toFixed(1)} MB`,

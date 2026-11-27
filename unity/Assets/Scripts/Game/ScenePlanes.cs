@@ -37,7 +37,7 @@ namespace CornerCutters.Game
             sink = r.ReadSingle(); climb = r.ReadSingle(); lead = r.ReadSingle(); beyond = r.ReadSingle(); aside = r.ReadSingle();
             arrivals = r.ReadSingle();
             wait = first;
-            material = MeshBuilder.VertexColorMaterial();
+            material = MeshBuilder.PlainMaterial();
             // (lit as they fly: level, along the runway)
             var level = Yaw(-runway);
             int count = r.ReadInt32();

@@ -231,7 +231,8 @@ namespace CornerCutters.Game
             var go = new GameObject("crowd");
             go.transform.SetParent(parent.transform, false);
             go.AddComponent<MeshFilter>().sharedMesh = crowd;
-            go.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.VertexColorMaterial();
+            // (no uvs: plain, not the atlas, whose first cell is grass)
+            go.AddComponent<MeshRenderer>().sharedMaterial = MeshBuilder.PlainMaterial();
         }
 
         static double Frac(double v) => v - System.Math.Floor(v);

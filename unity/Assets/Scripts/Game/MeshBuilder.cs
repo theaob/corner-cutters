@@ -142,7 +142,15 @@ namespace CornerCutters.Game
             return m;
         }
 
-        static Material shared, shadow;
+        static Material shared, plain, shadow;
+        /// <summary>The solid material with no texture (white): for meshes with no uvs (the web game's baked parts: the
+        /// critters, the planes, the crowd), which on the atlas would all sample its first cell, the grass.</summary>
+        public static Material PlainMaterial()
+        {
+            if (plain == null) plain = new Material(VertexColorMaterial()) { name = "Plain", mainTexture = Texture2D.whiteTexture };
+            return plain;
+        }
+
         /// <summary>The one solid material: the pixel atlas, tinted by vertex colours, unlit, opaque, writes depth.</summary>
         public static Material VertexColorMaterial()
         {

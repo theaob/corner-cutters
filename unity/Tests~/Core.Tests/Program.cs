@@ -47,6 +47,7 @@ static class Program
         Clock();
         MathBits(root);
         Critters(root);
+        Petals(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -352,6 +353,51 @@ static class Program
         Check(Qualifying.JudgeLap(q2, p2, false, out _) == QualiCall.Void, "a deleted lap ends void");
         p2.LapTimes.Add(79);
         Check(Qualifying.JudgeLap(q2, p2, false, out double t2) == QualiCall.Time && t2 == 79, "a good lap is timed");
+    }
+
+    /// <summary>The cherry blossom's petals (Core/Petals.cs) against the web game's PetalField (petals.json).</summary>
+    static void Petals(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/petals.json"))).RootElement;
+        var opts = new JsonSerializerOptions { IncludeFields = true };
+        var c = JsonSerializer.Deserialize<CircuitData>(File.ReadAllText(Path.Combine(root, "Assets/Resources/Circuits/suzuka.json")), opts);
+        var trees = JsonSerializer.Deserialize<BlossomTrees>(File.ReadAllText(Path.Combine(root, "Assets/Resources/Scenery/suzuka-blossoms.json")), opts).trees;
+        var field = new PetalField(c.ToGrid(), c.ToTrack(), trees);
+        Check(PetalTuning.Max == g.GetProperty("max").GetInt32(), "petals: the most at once");
+        var start = g.GetProperty("start");
+        Check(field.Petals.Count == start[0].GetInt32(), "petals: on the track at the start");
+        double sum0 = 0;
+        foreach (var p in field.Petals) sum0 += p.X + p.Y + p.Z + p.Spin;
+        Near(sum0, start[1].GetDouble(), 1e-6, "petals: where they lie at the start");
+        double dt = D(g, "dt");
+        var cars = new List<JsonElement>(g.GetProperty("cars").EnumerateArray());
+        var marks = new List<JsonElement>(g.GetProperty("marks").EnumerateArray());
+        var two = new List<PetalCar>(2);
+        int m = 0;
+        for (int f = 0; f * 2 < cars.Count; f++)
+        {
+            two.Clear();
+            for (int k = 0; k < 2; k++)
+            {
+                var r = cars[f * 2 + k];
+                two.Add(new PetalCar { X = r[0].GetDouble(), Y = r[1].GetDouble(), Vx = r[2].GetDouble(), Vy = r[3].GetDouble(), Z = r[4].GetDouble(), Airborne = r[5].GetDouble() != 0 });
+            }
+            field.Step(dt, two, two[0].X, two[0].Y);
+            if (f % 30 != 29) continue;
+            var w = marks[m++];
+            field.Counts(out int resting, out int flying);
+            Check(field.Petals.Count == w[1].GetInt32() && resting == w[2].GetInt32() && flying == w[3].GetInt32(), $"petals frame {f}: {field.Petals.Count} ({resting} lying, {flying} flying), want {w[1]} ({w[2]}, {w[3]})");
+            double sum = 0;
+            foreach (var p in field.Petals) sum += p.X + p.Y + p.Z + p.Vx + p.Vy + p.Vz + p.Spin;
+            Near(sum, w[4].GetDouble(), 1e-5, $"petals frame {f}: sum");
+            for (int i = 0; i < Math.Min(4, field.Petals.Count); i++)
+            {
+                var p = field.Petals[i];
+                var got = new[] { p.X, p.Y, p.Z, p.Vx, p.Vy, p.Vz, p.Spin, p.Tumble, p.Resting ? 1 : 0, double.IsInfinity(p.Life) ? -1 : p.Life, p.OnTrack ? 1 : 0, p.Shade, p.Phase };
+                for (int j = 0; j < got.Length; j++) Near(got[j], w[5 + i * 13 + j].GetDouble(), 1e-7, $"petals frame {f}: petal {i} [{j}]");
+            }
+        }
+        Check(m == marks.Count, "petals: every mark checked");
     }
 
     /// <summary>Debris, the grid pan and the replay's recording (Core/Debris.cs, Replay.cs) against the web game's (fx.json).</summary>

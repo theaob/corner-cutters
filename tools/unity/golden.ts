@@ -9,6 +9,8 @@ import type { Grid } from '../../src/engine/sim';
 import { handlingFor, DIFFICULTIES } from '../../src/f1/difficulty';
 import { GOPHER, GopherRun } from '../../src/f1/gopher';
 import { YETI, YetiRun } from '../../src/f1/yeti';
+import { PETALS, PetalField } from '../../src/f1/petals';
+import { groundAt } from '../../src/engine/sim';
 import { HALF_WIDTH } from '../../src/f1/circuit';
 import { aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, paceRanks } from '../../src/f1/difficulty';
 import { aiReaction } from '../../src/f1/launch';
@@ -480,7 +482,45 @@ function goldenDaily() {
   console.log(`daily: ${challenges.length} days, ${logSteps.length} runs, ${attacks.map((a) => a.trace.length).join('/')} clock steps, ${streakSteps.length} streak days`);
 }
 
+/**
+ * The cherry blossom's petals (Suzuka's, its trees as the scenery bake wrote them): two cars driving round through them for
+ * a minute, the field's count and sums and its first petals every second.
+ */
+function goldenPetals() {
+  const dt = 1 / 30;
+  const { grid, track } = loadRace('suzuka');
+  const trees = JSON.parse(readFileSync('unity/Assets/Resources/Scenery/suzuka-blossoms.json', 'utf8')).trees as { x: number; y: number; h: number }[];
+  const field = new PetalField(grid, track, trees);
+  const start = [field.petals.length, field.petals.reduce((a, p) => a + p.x + p.y + p.z + p.spin, 0)];
+  const cars: number[][] = [];
+  const marks: number[][] = [];
+  let along = 0;
+  for (let f = 0; f < 1800; f++) {
+    const t = f * dt;
+    const v = 220 + 80 * Math.sin(t * 0.13);
+    along = (along + (v * dt) / track.spacing) % track.samples.length;
+    const two = [0, 1].map((k) => {
+      const p = track.samples[(Math.floor(along) + k * 7) % track.samples.length];
+      const off = 30 * Math.sin(t * 0.9 + k * 2);
+      const x = p.x + Math.cos(p.dir) * off;
+      const y = p.y + Math.sin(p.dir) * off;
+      return { x, y, vx: Math.sin(p.dir) * v, vy: -Math.cos(p.dir) * v, z: groundAt(grid, x, y).h, airborne: k === 1 && f % 90 < 10 };
+    });
+    for (const c of two) cars.push([c.x, c.y, c.vx, c.vy, c.z, c.airborne ? 1 : 0]);
+    field.step(dt, two, two[0]);
+    if (f % 30 === 29) {
+      const c = field.counts();
+      const sum = field.petals.reduce((a, p) => a + p.x + p.y + p.z + p.vx + p.vy + p.vz + p.spin, 0);
+      const first = field.petals.slice(0, 4).flatMap((p) => [p.x, p.y, p.z, p.vx, p.vy, p.vz, p.spin, p.tumble, p.resting ? 1 : 0, Number.isFinite(p.life) ? p.life : -1, p.onTrack ? 1 : 0, p.shade, p.phase]);
+      marks.push([f, field.petals.length, c.resting, c.flying, sum, ...first]);
+    }
+  }
+  writeFileSync('unity/Tests~/Core.Tests/petals.json', JSON.stringify({ dt, max: PETALS.max, start, cars, marks }));
+  console.log(`petals: ${start[0]} on the track at the start, ${marks[marks.length - 1][1]} after a minute (${marks.reduce((a, m) => Math.max(a, m[3]), 0)} in the air at most)`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'petals') goldenPetals();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'net') (goldenNet(), goldenDaily());
 else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenMath();
@@ -488,6 +528,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenDaily();
   goldenAll();
   goldenCritters();
+  goldenPetals();
   goldenRaces();
   goldenQualifying();
   goldenFx();

@@ -34,6 +34,7 @@ try {
       const sc = await page.evaluate((i) => window.scenery(i), id);
       writeFileSync(`${sceneryOut}/${id}.bytes`, Buffer.from(sc.file, 'base64'));
       for (const k of ['planes', 'gopher', 'yeti']) if (sc[k]) writeFileSync(`${sceneryOut}/${id}-${k}.bytes`, Buffer.from(sc[k], 'base64'));
+      if (sc.blossoms) writeFileSync(`${sceneryOut}/${id}-blossoms.json`, sc.blossoms);
       sc.textures.forEach((t, k) => writeFileSync(`${sceneryOut}/${id}-${k}.png`, Buffer.from(t.slice(t.indexOf(',') + 1), 'base64')));
       writeFileSync(`${sceneryOut}/${id}.moving.txt`, sc.moving.join('\n') + '\n');
       console.log(`${id} scenery: ${sc.stats}; moving: ${sc.moving.join(', ') || 'nothing'}`);

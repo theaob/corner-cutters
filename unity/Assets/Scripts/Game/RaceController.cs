@@ -39,6 +39,7 @@ namespace CornerCutters.Game
         SceneryMovers movers;
         ScenePlanes planes;
         CritterView critters;
+        PetalView petals;
         int circuitIndex;
         IReadOnlyList<string> ids;
         double bestLap = double.NaN;
@@ -257,6 +258,7 @@ namespace CornerCutters.Game
             movers = baked ? BakedScenery.Build(circuitView, circuit) : null;
             planes = baked ? ScenePlanes.Load(circuit.id) : null;
             critters = baked ? CritterView.Load(circuit) : null;
+            petals = baked ? PetalView.Load(circuitView, circuit) : null;
             if (!baked)
             {
                 SceneryView.Build(circuitView, circuit);
@@ -818,6 +820,8 @@ namespace CornerCutters.Game
             movers?.Step(frame);
             planes?.Step(frame, me.X, me.Y, car.Vx, car.Vy);
             critters?.Step(frame, me.X, me.Y, car.Vx, car.Vy);
+            // (the cherry blossom's petals: still while paused; in a replay, no car about to kick them)
+            petals?.Step(paused ? 0 : frame, replaying ? null : race.Entrants, me.X, me.Y);
             // the camera: down the grid (closer in), on the car a replay follows as it was, or on yours
             zoom += ((panT.HasValue ? (float)GridPan.Zoom : 1) - zoom) * (1 - Mathf.Exp(-frame * 4));
             chase.Zoom = zoom;
