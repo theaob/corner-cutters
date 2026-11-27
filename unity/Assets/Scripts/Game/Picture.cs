@@ -29,7 +29,8 @@ namespace CornerCutters.Game
         static void Start()
         {
             // (kept: {level, locked, at, version}, the web game's device.quality)
-            int level = 0;
+            // (the Switch starts a step down, at medium: its budget, until AUTO's seen how it runs)
+            int level = Platforms.Switch ? 1 : 0;
             bool locked = false;
             if (Save.Get("device", "quality") is System.Collections.Generic.Dictionary<string, object> q && q.TryGetValue("level", out var lv) && lv is double l && l == System.Math.Floor(l)
                 && q.TryGetValue("at", out var av) && av is double at && q.TryGetValue("version", out var vv) && vv is string ver
@@ -73,7 +74,8 @@ namespace CornerCutters.Game
             var q = Now;
             TiltShiftEffect.BloomOn = q.Bloom;
             TiltShiftEffect.BlurOn = q.Blur;
-            TiltShiftEffect.HalfSize = q.Res < 2;
+            // (the Switch's finish pass always at half the screen's size: 720p docked, 360p of passes handheld)
+            TiltShiftEffect.HalfSize = q.Res < 2 || Platforms.Switch;
             return governor.Level;
         }
 

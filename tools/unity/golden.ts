@@ -26,6 +26,9 @@ import { RUMBLE, newRumble, rumble } from '../../src/f1/rumble';
 import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality, KEEP_QUALITY_DAYS } from '../../src/engine/render/quality';
 import { GRAPHICS_SETTINGS, frameCap, heldLevel } from '../../src/f1/graphics';
 import { splitColor } from '../../src/f1/access';
+import { championshipOpen, circuitsOpen } from '../../src/f1/purchase';
+import { openCircuits } from '../../src/f1/unlocks';
+import { reminderText } from '../../src/f1/reminder';
 import { MEDALS, MEDAL_COLOR, MEDAL_PACE, attackMedal, attackTargets, lapMedal, lapTargets, parseTrophies } from '../../src/f1/medals';
 import { ACHIEVEMENTS, TORPEDO, medalAchievements, raceAchievements } from '../../src/f1/achievements';
 import { STREAK_ACHIEVEMENTS } from '../../src/f1/today';
@@ -51,7 +54,7 @@ import type { PitLane } from '../../src/f1/pits';
 import { batchesOf, kmOf, type Event as StatEvent } from '../../src/f1/metrics';
 import { pendingLaps, queueLap } from '../../src/f1/boards';
 import { useSave, type SaveStore } from '../../src/engine/save';
-import { LAYOUTS } from '../../src/f1/layouts';
+import { FREE_LAYOUTS, LAYOUTS } from '../../src/f1/layouts';
 import { challengeOn, logRun, streakOn, type DailyLog } from '../../src/f1/daily';
 import { newAttack, stepAttack, distance, shortDistance } from '../../src/f1/timeAttack';
 import { playedOn, streakNow, addDays, type Streak } from '../../src/f1/streak';
@@ -852,7 +855,34 @@ function goldenNight() {
   console.log(`night: ${skies.length} skies, ${Object.keys(NIGHT_LOOKS).length} looks`);
 }
 
+/** What's open where the Championship's sold (purchase.ts, unlocks.ts), and the daily reminder's words (reminder.ts). */
+function goldenPaywall() {
+  const ids = LAYOUTS.map((l) => l.id);
+  const free = FREE_LAYOUTS.map((l) => l.id);
+  const cases: [boolean, string[], string[]][] = [
+    [false, [], []],
+    [true, [], []],
+    [false, [ids[3], ids[5]], [ids[7] + ':wet']],
+    [true, [ids[3], ids[5]], [ids[7] + ':wet', ids[2]]],
+    [true, ids, []],
+    [true, ['nowhere'], ['nowhere:wet']],
+  ];
+  const open = cases.map(([owned, unlocked, records]) => {
+    const reached = openCircuits(ids, unlocked, records, free);
+    return { owned, unlocked, records, reached: [...reached].sort(), open: [...circuitsOpen(owned, ids[0], reached, free)].sort() };
+  });
+  const gates = [[false, false], [false, true], [true, false], [true, true]].map(([paywall, bought]) => [paywall, bought, championshipOpen(paywall, bought)]);
+  const reminders: unknown[] = [];
+  for (const day of ['2026-11-27', '2026-12-01', '2027-01-15', '2027-03-03']) for (const streak of [0, 1, 12]) {
+    const c = challengeOn(day);
+    reminders.push({ day, streak, circuit: c.layout.id, name: c.layout.name, weather: c.weather.name, ...reminderText(day, streak) });
+  }
+  writeFileSync('unity/Tests~/Core.Tests/paywall.json', JSON.stringify({ ids, free, open, gates, reminders }));
+  console.log(`paywall: ${open.length} cases, ${reminders.length} reminders`);
+}
+
 if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'fx') goldenFx();
+else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'paywall') goldenPaywall();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'night') goldenNight();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'save') goldenSave();
 else if (process.argv[1]?.endsWith('golden.mjs') && process.env.GOLDEN_ONLY === 'feel') goldenFeel();
@@ -880,6 +910,7 @@ else if (process.argv[1]?.endsWith('golden.mjs')) {
   goldenTrophies();
   goldenSave();
   goldenNight();
+  goldenPaywall();
   goldenRaces();
   goldenQualifying();
   goldenFx();

@@ -87,8 +87,8 @@ letter by letter, your team on its colours, the season in numbers, fireworks, co
 still card under MOTION: REDUCED. MOTION: AUTO follows the device's own reduce-motion setting (Android's animation
 scale off, iOS Reduce Motion, Windows' animations off, macOS Reduce motion, GNOME's animations off), read as the game
 starts and as it comes back to the front. The menu music is the web game's: `theme.mp3` (its own menu tune is a
-placeholder there too). (Not yet: the circuits locked until a
-Championship, and the moving menu backdrop: the circuit holds still, dimmed, behind.)
+placeholder there too). What's open follows where the game's sold (Platforms, below). (Not yet: the moving menu
+backdrop: the circuit holds still, dimmed, behind.)
 
 **Saves.** Everything the game keeps is the web game's own save document (`engine/save.ts`, `f1/save.ts`):
 `{version: 2, data: {section: {name: value}}}` under `cc:save`, with the same sections, names and values (settings,
@@ -101,8 +101,9 @@ and minimap scale and the keys are the device's, left behind when a save moves. 
 EXPORT SAVE (your save as text, on the clipboard) and IMPORT SAVE (read from the clipboard, what's in it shown, picked
 again to replace yours, the old one kept as `cc:save.bak`); and a `cc-save.json` in the app's files is taken in once at
 the first start, if nothing's been played yet, for an Android app that hands its save over when it's replaced. The
-save is written once a frame when something changed, and to disk as the game's put away. It's in PlayerPrefs for now;
-`Game/Save.cs` is the one place to change for Switch's save data. (Not carried over: saves of this draft from before,
+save is written once a frame when something changed, and to disk as the game's put away. Where its text is kept is
+the platform's (`Game/Platform/SaveStore.cs`): files in the game's folder on a computer (`persistentDataPath/save`,
+each written beside the old and moved over it), PlayerPrefs on a phone, the save data on the Switch. (Not carried over: saves of this draft from before,
 which were never shipped; the web game's own kept race, whose form is its own.)
 
 **Languages.** The web game's seven (Español, Français, Deutsch, Português, Italiano, Türkçe, 日本語) from its own
@@ -123,8 +124,48 @@ the line, each checkpoint adds time, a cut takes 3 s off, TIME UP ends the run. 
 chase (`daily_ghost`); your best goes on the day's board with its ghost (`submit_daily`) and the end shows your place
 (`daily_board`). A race finished or a Daily run over keeps your streak going (one missed day a week forgiven), and the
 streak earns the web game's nine looks for your car (helmets, gold wings, black and gold, three whole-car liveries),
-picked in the SHOP. (Not yet: the web game's Time Trial and Time Attack on any circuit, medals,
-the day's missions, the 3D previews in the shop, and the Championship, which the shop's purchase is for.)
+picked in the SHOP. (Not yet: the 3D previews in the shop.)
+
+## Platforms
+
+One project for every store; what differs is in `Game/Platform/` (Platforms.cs). Each store's SDK is compiled only
+when its package is in the project (the Game asmdef's versionDefines), so the project opens and builds without any.
+The play stats say which platform a row is from (windows, macos, linux, switch, android, ios; the version unity-...
+tells this build from the web game and the Capacitor app), which `supabase/schema.sql` takes from schema version 3.
+
+- **Computers and the Switch**: the game is bought, so everything is open from the start (every circuit, the
+  Championship). Achievements go on the platform's list too as they're won (and all of them again at each start).
+- **Phones**: as the Google Play and App Store apps sell it (`purchase.ts`): free, with Crescent Park and the free
+  circuits open; the Championship is the one purchase, `championship`, the same product the Capacitor apps sell, and
+  with it each circuit opens as a season reaches it. The CHAMPIONSHIP tile and a locked circuit open its shop (UNLOCK at
+  the store's price, RESTORE PURCHASE, BACK); it's checked with the store at each start (a refund takes it back).
+  DAILY REMINDER on the GAME page plans the week's notifications as the web app does (`reminder.ts`, Core/Paywall.cs).
+- **Builds** (`Editor/BuildScript.cs`): BuildWindows64, BuildMacOS, BuildLinux64, BuildAndroid (an AAB on the
+  Capacitor app's id `io.github.theaob.cornercutters` and upload key, versionCode 1,000,000 plus the run number, so
+  above every Capacitor build), BuildIOS (an Xcode project, same bundle id) and BuildSwitch. The version is
+  package.json's. `.github/workflows/unity.yml` runs the golden tests on every change to the web game or the port, and
+  the desktop and Android builds once there's a Unity licence in the secrets.
+
+What only Onur can do, per store:
+
+- **Stats**: run `supabase/schema.sql` again in the SQL Editor (or just its `events_platform_check` lines) before a
+  Unity build sends stats from a computer; until then those rows are turned away (phones' aren't: android and ios are
+  already allowed).
+- **Steam**: make the app in Steamworks and put its id in `SteamPlatform.AppId` (and in a `steam_appid.txt` beside
+  the project to run it from the editor); add Steamworks.NET in the Package Manager from its git URL
+  (`https://github.com/rlabrecque/Steamworks.NET.git?path=/com.rlabrecque.steamworks.net`); make the 27 achievements
+  from `Platform/steam-achievements.csv` (API name, name, description; icons to draw); and turn on Steam Auto-Cloud for
+  the save folder, pattern `*.json`, path `Corner Cutters/Corner Cutters/save` under the root `WinAppDataLocalLow`
+  (Windows), `MacAppSupport` (macOS) and `LinuxXdgConfigHome` plus `unity3d/` (Linux): Unity's persistentDataPath.
+- **Google Play and the App Store**: add Unity IAP (com.unity.purchasing 4.8 or later) and Mobile Notifications
+  (com.unity.mobile.notifications 2.1 or later) in the Package Manager; Android's notifications need the
+  POST_NOTIFICATIONS permission, which the package adds. The upload key's secrets are the ones android.yml uses.
+  The Play listing's sale offer (`championship-newyear-90`) isn't picked by Unity IAP: the full price shows.
+- **Switch**: Nintendo developer access, Unity's Switch support and the SDK (never in this repo). With them, fill in
+  the three marked SDK calls in `Game/Platform/SwitchSave.cs` (mount the user's save data, commit it). The Switch
+  already starts at medium quality with the finish pass at half size; lotcheck is to come.
+- **CI builds**: a Unity licence as UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD in the repository's secrets
+  (game-ci's activation steps).
 
 ## Layout
 
@@ -172,7 +213,8 @@ back between frames, all bit for bit; and (`net.json`) the play stats' batches b
 528 days, the daily log, Time Attack's clock to TIME UP at three difficulties, the streak over 150 days, the car looks,
 and a ghost recorded, read back and packed to send, all as the web game's. (`GOLDEN_ONLY=fx npm run unity:golden` remakes that one alone, in a second.) JsMath's trig and exp are checked against V8's on 29,000 values, also bit for bit. Today: about 435,000 checks.
 (The player's wheel still uses .NET's `Math.Pow`, a last bit off now and then: the recorded lap drifts about 2e-12 px.) If the web game's tuning changes, re-run `npm run unity:bake && npm run unity:golden`
-and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.)
+and the test says whether the C# still agrees. (Needs the .NET SDK, not Unity.) The `unity` workflow does both on every
+change, and fails if the recordings committed aren't what the web game records now.
 
 ## Not verified yet
 

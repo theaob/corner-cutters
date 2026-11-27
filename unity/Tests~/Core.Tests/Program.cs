@@ -60,6 +60,7 @@ static class Program
         SaveChecks(root);
         LangChecks(root);
         NightChecks(root);
+        PaywallChecks(root);
         Races(root);
         QualifyingSessions(root);
         Fx(root);
@@ -551,6 +552,42 @@ static class Program
         Check(Lang.Say("SETTINGS") == "SETTINGS" && Lang.Upper("istanbul") == "ISTANBUL", "lang: English");
         var have = new[] { "en", "es", "tr", "ja" };
         Check(Lang.Pick("tr", new[] { "ja" }, have) == "tr" && Lang.Pick(null, new[] { "ja-JP" }, have) == "ja" && Lang.Pick("xx", new[] { "nl" }, have) == "en", "lang: the pick");
+    }
+
+    static void PaywallChecks(string root)
+    {
+        var g = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Tests~/Core.Tests/paywall.json"))).RootElement;
+        var ids = g.GetProperty("ids").EnumerateArray().Select(e => e.GetString()).ToList();
+        var free = g.GetProperty("free").EnumerateArray().Select(e => e.GetString()).ToList();
+        // (the circuits baked here in the web game's order, the free ones marked as its are)
+        var order = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Assets/Resources/Circuits/order.json"))).RootElement.GetProperty("ids").EnumerateArray().Select(e => e.GetString()).ToList();
+        Check(order.SequenceEqual(ids), "paywall: the circuits in the web game's order");
+        var index = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Assets/Resources/Circuits/index.json"))).RootElement;
+        var bakedFree = index.EnumerateArray().Where(e => e.TryGetProperty("free", out var f) && f.ValueKind == JsonValueKind.True).Select(e => e.GetProperty("id").GetString()).OrderBy(x => x).ToList();
+        Check(bakedFree.SequenceEqual(free.OrderBy(x => x)), $"paywall: the free circuits ({string.Join(", ", bakedFree)})");
+        foreach (var c in g.GetProperty("open").EnumerateArray())
+        {
+            List<string> L(string k) => c.GetProperty(k).EnumerateArray().Select(e => e.GetString()).ToList();
+            var reached = Paywall.Reached(ids, L("unlocked"), L("records"), free);
+            var open = Paywall.CircuitsOpen(c.GetProperty("owned").GetBoolean(), ids[0], reached, free);
+            Check(reached.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(L("reached")) && open.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(L("open")), $"paywall: open with {string.Join(",", L("unlocked"))} / {string.Join(",", L("records"))}");
+        }
+        foreach (var gate in g.GetProperty("gates").EnumerateArray())
+            Check(Paywall.ChampionshipOpen(gate[0].GetBoolean(), gate[1].GetBoolean()) == gate[2].GetBoolean(), "paywall: the Championship's gate");
+        foreach (var r in g.GetProperty("reminders").EnumerateArray())
+        {
+            string day = r.GetProperty("day").GetString();
+            var ch = Daily.On(day);
+            var (title, body) = Reminders.Text(r.GetProperty("name").GetString(), r.GetProperty("weather").GetString(), r.GetProperty("streak").GetInt32());
+            Check(ch.Circuit == r.GetProperty("circuit").GetString() && title == r.GetProperty("title").GetString() && body == r.GetProperty("body").GetString(), $"reminder {day}: {title} / {body}");
+        }
+        // the plan: a week ahead at 18:00, from tomorrow once today's played, an hour gone by left out
+        var now = new DateTime(2026, 11, 27, 19, 0, 0, DateTimeKind.Local);
+        var played = new Streak { Last = "2026-11-27", Days = 3, Best = 3 };
+        var plan = Reminders.Plan(now, 18, played, id => id);
+        Check(plan.Count == 6 && plan[0].Id == Reminders.FirstId + 1 && plan[0].At == new DateTime(2026, 11, 28, 18, 0, 0) && plan[0].Title.Contains("3-day"), $"reminders: the week planned ({plan.Count}, {(plan.Count > 0 ? plan[0].Title : "")})");
+        var morning = Reminders.Plan(new DateTime(2026, 11, 27, 8, 0, 0, DateTimeKind.Local), 9, new Streak(), id => id);
+        Check(morning.Count == 7 && morning[0].Id == Reminders.FirstId && morning[0].Title == "Today's Daily Challenge", "reminders: today's too, before its hour");
     }
 
     static void NightChecks(string root)

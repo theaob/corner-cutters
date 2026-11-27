@@ -85,6 +85,9 @@ namespace CornerCutters.Game
                 case Menu.Screen.Season:
                     menu.Steer(menu.SeasonRows(), input, () => menu.Open(Menu.Screen.Modes, 2));
                     break;
+                case Menu.Screen.Buy:
+                    menu.Steer(menu.BuyRows(), input, menu.BuyBackPressed);
+                    break;
                 case Menu.Screen.Shop:
                     {
                         var shop = ShopState();
@@ -188,10 +191,12 @@ namespace CornerCutters.Game
                 case Menu.Screen.Settings:
                 case Menu.Screen.Season:
                 case Menu.Screen.Keys:
+                case Menu.Screen.Buy:
                     {
                         bool onCircuit = menu.At == Menu.Screen.Circuit, onSeason = menu.At == Menu.Screen.Season, onKeys = menu.At == Menu.Screen.Keys;
-                        var rows = onCircuit ? menu.CircuitRows() : onSeason ? menu.SeasonRows() : onKeys ? menu.KeyRows(input) : menu.SettingsRows();
-                        string title = onCircuit ? Menu.TitleOf(menu.Mode) : onSeason ? menu.SeasonTitle() : onKeys ? "KEYS" : menu.SettingsTitle;
+                        bool onBuy = menu.At == Menu.Screen.Buy;
+                        var rows = onCircuit ? menu.CircuitRows() : onSeason ? menu.SeasonRows() : onKeys ? menu.KeyRows(input) : onBuy ? menu.BuyRows() : menu.SettingsRows();
+                        string title = onCircuit ? Menu.TitleOf(menu.Mode) : onSeason ? menu.SeasonTitle() : onKeys ? "KEYS" : onBuy ? "CHAMPIONSHIP" : menu.SettingsTitle;
                         int picked = hud.DrawRows(title, rows, menu.Focus, onCircuit ? HudView.Outline(menu.CircuitId) : null, menu.At == Menu.Screen.Settings && menu.Page == null ? Menu.Version : null, out int arrow, out int hover, onSeason ? menu.StandingRows() : null);
                         // (waiting for a key: the mouse picks nothing)
                         if (onKeys && menu.Listening >= 0) break;

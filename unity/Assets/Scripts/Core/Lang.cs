@@ -121,6 +121,8 @@ namespace CornerCutters.Core
 
         /// <summary>Capitals by the language's rules (Turkish: i to İ, ı to I).</summary>
         public static string Upper(string s) => s == null ? null : culture.TextInfo.ToUpper(s);
+        /// <summary>Lower case by the language's rules (i18n.ts lower()).</summary>
+        public static string Lower(string s) => s == null ? null : culture.TextInfo.ToLower(s);
 
         /// <summary>a line in capitals (no lower-case letters in it)</summary>
         static bool InCaps(string s)

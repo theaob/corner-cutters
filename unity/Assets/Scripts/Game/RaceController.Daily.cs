@@ -27,7 +27,7 @@ namespace CornerCutters.Game
 
         static DailyLog LoadDaily() => Daily.Parse(Save.SectionText("daily"));
         static void SaveDaily(DailyLog log) => Save.SetSectionText("daily", Daily.Write(log));
-        static Streak LoadStreak() => Streaks.Parse(Save.Text("streak", "now"), LoadDaily());
+        internal static Streak LoadStreak() => Streaks.Parse(Save.Text("streak", "now"), LoadDaily());
         static string Today => Streaks.LocalDay(DateTime.Now);
 
         /// <summary>Your car's look: the one picked in the shop, if your best streak has earned it.</summary>

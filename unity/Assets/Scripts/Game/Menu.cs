@@ -34,7 +34,7 @@ namespace CornerCutters.Game
 
     public sealed class Menu
     {
-        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season, Keys, Trophies }
+        public enum Screen { Title, Modes, Circuit, Settings, Shop, Name, Season, Keys, Trophies, Buy }
 
         /// <summary>What the menu wants done.</summary>
         public enum Go { None, Play, Daily, Round, NewSeason, Resume }
@@ -82,6 +82,109 @@ namespace CornerCutters.Game
                         about[s] = (d.TryGetValue("name", out var n) ? (n as string ?? s) : s, d.TryGetValue("country", out var c) ? c as string : null, d.TryGetValue("about", out var a) ? a as string : null);
                         if (d.TryGetValue("free", out var f) && f is bool fb && fb) free.Add(s);
                     }
+            OpenIds = OpenCircuits();
+        }
+
+        // ---- what's open (purchase.ts, unlocks.ts): everything on a computer or the Switch; on a phone, Crescent Park and
+        // the free circuits, and with the Championship bought the circuits a season has reached ----
+
+        /// <summary>the circuits open for a Quick Race, a Time Attack or a Time Trial</summary>
+        public HashSet<string> OpenIds;
+
+        public HashSet<string> OpenCircuits()
+        {
+            if (!Platforms.Paywall) return new HashSet<string>(ids);
+            var unlocked = (Save.Get("progress", "unlocked") as List<object> ?? new List<object>()).OfType<string>();
+            var records = Records.From(Save.Get("records", "circuits")).Circuits.Keys;
+            return Paywall.CircuitsOpen(Platforms.OwnsChampionship, ids[0], Paywall.Reached(ids.ToList(), unlocked, records, free), free);
+        }
+
+        public bool IsOpen(string id) => OpenIds.Contains(id);
+
+        /// <summary>A race asked for on the circuit picked: if it's open; else, the Championship not bought, its shop.</summary>
+        void PlayIfOpen()
+        {
+            if (IsOpen(CircuitId)) Asked = Go.Play;
+            else if (!Platforms.OwnsChampionship) OpenBuy(Screen.Circuit);
+        }
+
+        /// <summary>where the Championship's shop goes back to</summary>
+        public Screen BuyBack = Screen.Modes;
+        /// <summary>the shop busy with the store, and what it last said</summary>
+        public bool Buying;
+        public string BuyStatus;
+
+        public void OpenBuy(Screen back)
+        {
+            BuyBack = back;
+            BuyStatus = null;
+            Open(Screen.Buy);
+        }
+
+        void BuyClosed()
+        {
+            if (BuyBack == Screen.Circuit) Open(Screen.Circuit);
+            else Open(Screen.Modes, 2);
+        }
+
+        /// <summary>Bought (or found): what's open worked out again, and on to the Championship.</summary>
+        void Owned()
+        {
+            OpenIds = OpenCircuits();
+            if (BuyBack == Screen.Circuit) Open(Screen.Circuit);
+            else Open(Screen.Season, Season != null && !Season.Over ? 0 : 1);
+        }
+
+        /// <summary>The Championship's shop (screens/shop.ts): what it brings, UNLOCK at the store's price, RESTORE PURCHASE, BACK.</summary>
+        public List<MenuRow> BuyRows()
+        {
+            var shop = Platforms.Shop;
+            string store = Application.platform == RuntimePlatform.IPhonePlayer ? "THE APP STORE" : "GOOGLE PLAY";
+            string label = Buying ? Lang.T("WITH {store}…", "store", store)
+                : shop?.Price != null ? Lang.T("UNLOCK · {price}", "price", shop.Price)
+                : shop?.Error != null || shop == null ? Lang.T("UNLOCK") : Lang.T("CONNECTING TO {store}…", "store", store);
+            string status = BuyStatus ?? shop?.Error ?? (shop == null ? Lang.T("{store} ISN’T AVAILABLE HERE", "store", store) : null);
+            return new List<MenuRow>
+            {
+                new MenuRow { Label = label, Button = true, About = Lang.T("A SEASON OF {n} ROUNDS: F1 POINTS, STANDINGS, A TITLE TO WIN", "n", SeasonRounds().Count), Pick = () =>
+                {
+                    if (Buying || shop == null || !shop.Ready) return;
+                    Buying = true;
+                    shop.Buy(ok => { Buying = false; if (ok || Platforms.Bought) Owned(); });
+                } },
+                new MenuRow { Label = "RESTORE PURCHASE", Button = true, About = status ?? Lang.T("ONE PURCHASE, YOURS FOR GOOD"), Pick = () =>
+                {
+                    if (Buying || shop == null) return;
+                    Buying = true;
+                    BuyStatus = Lang.T("LOOKING FOR YOUR PURCHASE…");
+                    shop.Restore(ok =>
+                    {
+                        Buying = false;
+                        BuyStatus = null;
+                        if (ok) Owned();
+                        else BuyStatus = shop.Error ?? Lang.T("NO PURCHASE FOUND ON THIS {account} ACCOUNT", "account", store == "GOOGLE PLAY" ? "GOOGLE" : "APPLE");
+                    });
+                } },
+                new MenuRow { Label = "BACK", Button = true, Pick = BuyClosed },
+            };
+        }
+
+        public void BuyBackPressed() { if (!Buying) BuyClosed(); }
+
+        static Dictionary<string, string> names;
+
+        /// <summary>A circuit's name as it's written (Circuits/index.json), for the daily reminder's words.</summary>
+        public static string CircuitName(string id)
+        {
+            if (names == null)
+            {
+                names = new Dictionary<string, string>();
+                var index = Resources.Load<TextAsset>("Circuits/index");
+                if (index != null && Json.Parse(index.text) is List<object> list)
+                    foreach (var o in list)
+                        if (o is Dictionary<string, object> d && d.TryGetValue("id", out var i) && i is string s && d.TryGetValue("name", out var n) && n is string name) names[s] = name;
+            }
+            return names.TryGetValue(id, out var nm) ? nm : id;
         }
 
         public string CircuitId => ids[Circuit];
@@ -172,6 +275,7 @@ namespace CornerCutters.Game
         public void PickTile(int i)
         {
             if (i == 0) Asked = Go.Daily;
+            else if (i == 2 && !Platforms.OwnsChampionship) OpenBuy(Screen.Modes);
             else if (i == 2) Open(Screen.Season, Season != null && !Season.Over ? 0 : 1);
             else if (i >= 1 && i < Modes.Length)
             {
@@ -227,7 +331,7 @@ namespace CornerCutters.Game
             var weathers = Mode == "race" ? new[] { WeatherChoice.Dry, WeatherChoice.Damp, WeatherChoice.Wet, WeatherChoice.Changeable } : new[] { WeatherChoice.Dry, WeatherChoice.Damp, WeatherChoice.Wet };
             var rows = new List<MenuRow>
             {
-                new MenuRow { Label = "CIRCUIT", Value = NameOf(CircuitId), About = AboutOf(CircuitId), Flag = FlagOf(CircuitId), Left = () => Circuit = (Circuit + ids.Count - 1) % ids.Count, Right = () => Circuit = (Circuit + 1) % ids.Count, Pick = () => Asked = Go.Play },
+                new MenuRow { Label = "CIRCUIT", Value = NameOf(CircuitId), About = IsOpen(CircuitId) ? AboutOf(CircuitId) : Paywall.LockedLine(Platforms.OwnsChampionship), Flag = FlagOf(CircuitId), Left = () => Circuit = (Circuit + ids.Count - 1) % ids.Count, Right = () => Circuit = (Circuit + 1) % ids.Count, Pick = PlayIfOpen },
                 new MenuRow { Label = "TEAM", Value = team.Name.ToUpperInvariant(), About = string.Join(" · ", team.Drivers), Swatch = new[] { team.Body, team.Trim }.Concat(team.Accent >= 0 ? new[] { team.Accent } : new int[0]).ToArray(),
                     Left = () => Team = (Team + Field.Teams.Length - 1) % Field.Teams.Length, Right = () => Team = (Team + 1) % Field.Teams.Length },
                 new MenuRow { Label = "WEATHER", Value = WeatherLooks.Name(Weather), About = WeatherAbout[(int)Weather], Left = () => Weather = Turn(weathers, Weather, -1), Right = () => Weather = Turn(weathers, Weather, 1) },
@@ -238,7 +342,7 @@ namespace CornerCutters.Game
                 if (!TwoPlayers) rows.Add(new MenuRow { Label = "QUALIFYING", Value = Qualifying ? "ON" : "OFF", About = Qualifying ? "ONE FLYING LAP SETS YOUR GRID SLOT" : "START MID-GRID", Left = () => Qualifying = !Qualifying, Right = () => Qualifying = !Qualifying });
                 rows.Add(new MenuRow { Label = "LAPS", Value = $"{Laps}", About = Laps <= 2 ? "A DASH" : Laps <= 5 ? "A SPRINT" : Laps <= 10 ? "A RACE" : "A LONG ONE: TYRES AND STOPS", Left = () => Laps = Turn(LapChoices, Laps, -1), Right = () => Laps = Turn(LapChoices, Laps, 1) });
             }
-            rows.Add(new MenuRow { Label = Mode == "race" ? "RACE" : "GO", Button = true, Pick = () => Asked = Go.Play });
+            rows.Add(new MenuRow { Label = IsOpen(CircuitId) ? (Mode == "race" ? "RACE" : "GO") : Platforms.OwnsChampionship ? "LOCKED" : "UNLOCK", Button = true, Pick = PlayIfOpen });
             rows.Add(new MenuRow { Label = "BACK", Button = true, Pick = () => Open(Screen.Modes, TileOf(Mode)) });
             return rows;
         }
@@ -386,6 +490,12 @@ namespace CornerCutters.Game
                         rows.Add(new MenuRow { Label = "DIFFICULTY", Value = d.Name, About = (d.About ?? "").ToUpperInvariant(), Left = () => Difficulty = (Difficulty + Field.Difficulties.Length - 1) % Field.Difficulties.Length, Right = () => Difficulty = (Difficulty + 1) % Field.Difficulties.Length });
                         rows.Add(new MenuRow { Label = "NAME", Value = Profile.Initials ?? "---", About = "THREE LETTERS, FOR THE WORLD BOARDS", Pick = () => { Edit = new HudView.NameEdit(Profile.Initials); Open(Screen.Name); } });
                         rows.Add(new MenuRow { Label = "GRAPHICS", Value = GraphicsNames[(int)g], About = GraphicsAbout[(int)g], Left = () => Options.Graphics = (GraphicsSetting)(((int)g + 3) % 4), Right = () => Options.Graphics = (GraphicsSetting)(((int)g + 1) % 4) });
+                        // (a phone: the daily reminder, after GRAPHICS as on the web game's page)
+                        if (DailyReminder.Here)
+                        {
+                            int hr = DailyReminder.Hour;
+                            rows.Add(new MenuRow { Label = "DAILY REMINDER", Value = DailyReminder.NameOf(hr), About = hr == 0 ? "NO NOTIFICATIONS" : "ON A DAY YOU HAVEN'T PLAYED: THE DAILY CHALLENGE AND YOUR STREAK", Left = () => DailyReminder.Turn(-1), Right = () => DailyReminder.Turn(1) });
+                        }
                         rows.Add(new MenuRow { Label = "GRID WALK", Value = walk ? "ON" : "SKIP", About = walk ? "THE CAMERA DOWN THE GRID BEFORE THE LIGHTS" : "STRAIGHT TO THE START LIGHTS", Left = ToggleWalk, Right = ToggleWalk });
                         rows.Add(new MenuRow { Label = "UI SCALE", Value = HudView.UiScale == 0 ? "AUTO" : $"{Mathf.RoundToInt(HudView.UiScale * 100)}%", About = "THE HUD AND THE TABLES: AUTO FITS THE WINDOW", Left = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), -1), Right = () => HudView.UiScale = Turn(HudView.UiScales, Nearest(HudView.UiScales, HudView.UiScale), 1) });
                         rows.Add(new MenuRow { Label = "MINIMAP", Value = HudView.MapScale < 1.25f ? "SMALL" : HudView.MapScale < 1.75f ? "LARGE" : "HUGE", About = "THE MAP AND THE TIMING TOWER, TOP RIGHT", Left = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), -1), Right = () => HudView.MapScale = Turn(HudView.MapScales, Nearest(HudView.MapScales, HudView.MapScale), 1) });

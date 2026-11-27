@@ -56,11 +56,11 @@ namespace CornerCutters.Game
         }
 
         /// <summary>
-        /// The platform the stats say. The backend's events table only takes web, android and ios (supabase/schema.sql's
-        /// events_platform_check), so until it knows a desktop one this build says none, and its version (unity-…) tells
-        /// its rows apart.
+        /// The platform the stats say: windows, macos, linux, switch, android or ios (supabase/schema.sql's
+        /// events_platform_check takes them all once it's been run again); its version (unity-…) tells this build's rows
+        /// from the web game's and the Capacitor app's.
         /// </summary>
-        public const string Platform = null;
+        public static string Platform => Platforms.StatsName;
     }
 
     /// <summary>The play stats: noted, and sent every 20 s (and as the game goes to the background or closes).</summary>

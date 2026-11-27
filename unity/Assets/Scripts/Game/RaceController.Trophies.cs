@@ -14,7 +14,12 @@ namespace CornerCutters.Game
     public sealed partial class RaceController
     {
         public static Trophies LoadTrophies() => Trophies.Parse(Save.SectionText("trophies"));
-        public static void SaveTrophies(Trophies t) => Save.SetSectionText("trophies", t.Write());
+        public static void SaveTrophies(Trophies t)
+        {
+            Save.SetSectionText("trophies", t.Write());
+            // (and on the platform's own list: Steam's)
+            Platforms.Unlocked(t.Unlocked);
+        }
 
         /// <summary>the cars you've hit off the start (their places in the field), for TORPEDO</summary>
         readonly HashSet<int> startHits = new HashSet<int>();

@@ -26,3 +26,9 @@ Tests~/**/obj/
 # the backend's address and public key (Backend.cs): written by a build, never committed
 /Assets/Resources/Backend.json
 /Assets/Resources/Backend.json.meta
+
+# a signing key, written by a build (never committed)
+*.keystore
+*.jks
+# Steam's app id for a run from the editor (steam_appid.txt: README, Platforms)
+/steam_appid.txt

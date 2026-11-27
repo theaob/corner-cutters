@@ -144,12 +144,26 @@ namespace CornerCutters.Game
             PlayStats.StartClock();
             SendWaiting();
             Save.Replaced += SaveReplaced;
+            // (the platform's services: Steam, the store, the reminders; the race paused under Steam's overlay)
+            Platforms.Start(LoadTrophies().Unlocked);
+            Platforms.OverlayOpened += OverlayOpened;
+            DailyReminder.Plan();
+        }
+
+        /// <summary>The platform's overlay up (Steam's): a race pauses under it, as it does for the pause key.</summary>
+        void OverlayOpened()
+        {
+            if (menu != null || paused) return;
+            paused = true;
+            Haptics.Stop();
+            KeepNow();
         }
 
         void OnDestroy()
         {
             input?.Disable();
             Save.Replaced -= SaveReplaced;
+            Platforms.OverlayOpened -= OverlayOpened;
         }
 
         /// <summary>A save moved here (IMPORT SAVE): what's read from it at the start read again, the menu opened afresh on it.</summary>
@@ -232,13 +246,18 @@ namespace CornerCutters.Game
             else PlayStats.Back();
         }
 
-        void OnApplicationQuit() => Away();
+        void OnApplicationQuit()
+        {
+            Away();
+            Platforms.Stop();
+        }
 
         void Away()
         {
             KeepNow();
             NoteDriven();
             PlayStats.Away();
+            DailyReminder.Plan();
             Save.Flush(true);
         }
 
@@ -535,6 +554,7 @@ namespace CornerCutters.Game
             Picture.Step(frame);
             Haptics.Tick();
             PlayStats.Tick(frame);
+            Platforms.Tick();
             // a menu up: it alone takes the keys, and the circuit behind holds still
             if (menu != null)
             {
