@@ -15,7 +15,7 @@ namespace CornerCutters.Game
 {
     public static class BakedScenery
     {
-        internal const int SeeThrough = 1, Nearest = 2, Repeat = 4, Unlit = 8, TwoSided = 16;
+        internal const int SeeThrough = 1, Nearest = 2, Repeat = 4, Unlit = 8, TwoSided = 16, Glowing = 32;
         const float ChunkUnits = 64;
         const int MaxVerts = 600000;
 
@@ -61,6 +61,11 @@ namespace CornerCutters.Game
             public int Tex, Flags;
             public float Opacity;
             public Color Emissive;
+            /// <summary>a glowing part's light map (the flame towers' flames): its texture, its uv from the part's (scale u,
+            /// v, offset u, v) and its scroll (uv a second)</summary>
+            public int GlowTex = -1;
+            public Vector4 GlowUv;
+            public Vector2 GlowRate;
             public Vector3[] Pos, Nor;
             public Color[] Col;
             public Vector2[] Uv;
@@ -71,6 +76,12 @@ namespace CornerCutters.Game
         {
             var p = new Part { Tex = r.ReadInt32(), Flags = r.ReadInt32(), Opacity = r.ReadSingle() };
             p.Emissive = new Color(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+            if ((p.Flags & Glowing) != 0)
+            {
+                p.GlowTex = r.ReadInt32();
+                p.GlowUv = new Vector4(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                p.GlowRate = new Vector2(r.ReadSingle(), r.ReadSingle());
+            }
             int nv = r.ReadInt32(), ni = r.ReadInt32();
             p.Pos = new Vector3[nv];
             for (int i = 0; i < nv; i++) p.Pos[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
@@ -116,7 +127,8 @@ namespace CornerCutters.Game
                     var L = LightOn(n);
                     lit = new Color(c0.r * L.r / Flat.r, c0.g * L.g / Flat.g, c0.b * L.b / Flat.b);
                 }
-                lit += new Color(p.Emissive.r / Flat.r, p.Emissive.g / Flat.g, p.Emissive.b / Flat.b, 0);
+                // (a glowing part's light is its map's, drawn by the shader)
+                if ((flags & Glowing) == 0) lit += new Color(p.Emissive.r / Flat.r, p.Emissive.g / Flat.g, p.Emissive.b / Flat.b, 0);
                 ch.Col.Add(new Color(ToSrgb(Mathf.Clamp01(lit.r)), ToSrgb(Mathf.Clamp01(lit.g)), ToSrgb(Mathf.Clamp01(lit.b)), (flags & SeeThrough) != 0 ? p.Opacity * p.Col[i].a : 1));
                 ch.Uv.Add(p.Tex >= 0 ? p.Uv[i] : Vector2.zero);
             }
@@ -136,8 +148,8 @@ namespace CornerCutters.Game
             int texCount = r.ReadInt32(), partCount = r.ReadInt32();
             var root = new GameObject("scenery");
             root.transform.SetParent(parent.transform, false);
-            var chunks = new Dictionary<(int, int, int, int), Chunk>();
-            var done = new List<((int tex, int flags) key, Chunk chunk)>();
+            var chunks = new Dictionary<(int, int, int, int, int), Chunk>();
+            var done = new List<((int tex, int flags) key, Part glow, Chunk chunk)>();
 
             for (int pi = 0; pi < partCount; pi++)
             {
@@ -148,12 +160,12 @@ namespace CornerCutters.Game
                     var m = ReadPlace(r, out var tint);
                     // which chunk: by where its first vertex lands (in Unity units)
                     var first = m.MultiplyPoint3x4(p.Pos[p.Idx.Length > 0 ? p.Idx[0] : 0]);
-                    var key = (p.Tex, p.Flags, Mathf.FloorToInt(first.x / 16 / ChunkUnits), Mathf.FloorToInt(first.z / 16 / ChunkUnits));
+                    var key = (p.Tex, p.Flags, (p.Flags & Glowing) != 0 ? pi : -1, Mathf.FloorToInt(first.x / 16 / ChunkUnits), Mathf.FloorToInt(first.z / 16 / ChunkUnits));
                     if (!chunks.TryGetValue(key, out var ch) || ch.Pos.Count + p.Pos.Length > MaxVerts)
                     {
                         ch = new Chunk();
                         chunks[key] = ch;
-                        done.Add(((p.Tex, p.Flags), ch));
+                        done.Add(((p.Tex, p.Flags), (p.Flags & Glowing) != 0 ? p : null, ch));
                     }
                     Add(ch, p, m, m, tint);
                 }
@@ -164,20 +176,43 @@ namespace CornerCutters.Game
             for (int t = 0; t < texCount; t++) texes[t] = Resources.Load<Texture2D>($"Scenery/{c.id}-{t}");
             var solid = MeshBuilder.VertexColorMaterial();
             var seeThrough = Resources.Load<Shader>("Shaders/PixelSeeThrough");
+            var glowing = Resources.Load<Shader>("Shaders/PixelGlow");
             var mats = new Dictionary<(int, int), Material>();
-            Material MaterialFor(int tex, int flags)
+            var glows = new Dictionary<Part, Material>();
+            Texture2D TexAt(int tex, int flags)
             {
-                var key = (tex, flags & (SeeThrough | Nearest | Repeat));
-                if (mats.TryGetValue(key, out var m)) return m;
-                bool clear = (flags & SeeThrough) != 0;
-                m = clear && seeThrough != null ? new Material(seeThrough) : new Material(solid);
-                // (no texture: the white one, so vertex colour alone shows)
                 Texture2D t = tex >= 0 && tex < texes.Length ? texes[tex] : null;
                 if (t != null)
                 {
                     t.filterMode = (flags & Nearest) != 0 ? FilterMode.Point : FilterMode.Bilinear;
                     t.wrapMode = (flags & Repeat) != 0 ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
                 }
+                return t;
+            }
+            Material MaterialFor(int tex, int flags, Part glow = null)
+            {
+                if (glow != null && glowing != null)
+                {
+                    if (glows.TryGetValue(glow, out var gm)) return gm;
+                    gm = new Material(glowing);
+                    var main = TexAt(tex, flags);
+                    gm.mainTexture = main != null ? (Texture)main : Texture2D.whiteTexture;
+                    // (the flames' texture repeats and is drawn soft, as three.js draws its canvases)
+                    var lights = TexAt(glow.GlowTex, flags | Repeat);
+                    gm.SetTexture("_GlowTex", lights != null ? (Texture)lights : Texture2D.blackTexture);
+                    gm.SetVector("_GlowUv", glow.GlowUv);
+                    gm.SetVector("_GlowRate", new Vector4(glow.GlowRate.x, glow.GlowRate.y, 0, 0));
+                    gm.SetColor("_GlowColor", new Color(glow.Emissive.r / Flat.r, glow.Emissive.g / Flat.g, glow.Emissive.b / Flat.b, 1));
+                    gm.name = $"scenery {tex} glowing {glow.GlowTex}";
+                    glows[glow] = gm;
+                    return gm;
+                }
+                var key = (tex, flags & (SeeThrough | Nearest | Repeat));
+                if (mats.TryGetValue(key, out var m)) return m;
+                bool clear = (flags & SeeThrough) != 0;
+                m = clear && seeThrough != null ? new Material(seeThrough) : new Material(solid);
+                // (no texture: the white one, so vertex colour alone shows)
+                var t = TexAt(tex, flags);
                 m.mainTexture = t != null ? (Texture)t : Texture2D.whiteTexture;
                 m.name = $"scenery {tex} {flags}";
                 mats[key] = m;
@@ -185,14 +220,14 @@ namespace CornerCutters.Game
             }
 
             int count = 0;
-            foreach (var (key, ch) in done)
+            foreach (var (key, glow, ch) in done)
             {
                 if (ch.Idx.Count == 0) continue;
                 var mesh = ch.ToMesh($"scenery {count}");
                 var go = new GameObject(mesh.name);
                 go.transform.SetParent(root.transform, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
-                go.AddComponent<MeshRenderer>().sharedMaterial = MaterialFor(key.tex, key.flags);
+                go.AddComponent<MeshRenderer>().sharedMaterial = MaterialFor(key.tex, key.flags, glow);
                 count++;
             }
 
@@ -224,7 +259,7 @@ namespace CornerCutters.Game
                 tracks[t] = tr;
             }
             // (each track's parts in one mesh per material, in place on the track: S L v, lit as at its first sight)
-            var rides = new Dictionary<(int, int, int), Chunk>();
+            var rides = new Dictionary<(int, int, int, Part), Chunk>();
             int moverParts = r.ReadInt32();
             for (int pi = 0; pi < moverParts; pi++)
             {
@@ -234,7 +269,7 @@ namespace CornerCutters.Game
                 {
                     int t = r.ReadInt32();
                     var local = ReadPlace(r, out var tint);
-                    var key = (t, p.Tex, p.Flags);
+                    var key = (t, p.Tex, p.Flags, (p.Flags & Glowing) != 0 ? p : null);
                     if (!rides.TryGetValue(key, out var ch)) rides[key] = ch = new Chunk();
                     Add(ch, p, local, firstSeen[t] * local, tint);
                 }
@@ -242,8 +277,8 @@ namespace CornerCutters.Game
             var movers = new SceneryMovers(dt, frames, tracks);
             foreach (var kv in rides)
             {
-                var (t, tex, flags) = kv.Key;
-                movers.Add(t, kv.Value.ToMesh($"mover {t}"), MaterialFor(tex, flags));
+                var (t, tex, flags, glow) = kv.Key;
+                movers.Add(t, kv.Value.ToMesh($"mover {t}"), MaterialFor(tex, flags, glow));
             }
             return movers;
         }

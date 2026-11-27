@@ -12,8 +12,9 @@
 //
 // The file (Resources/Scenery/<id>.bytes, little-endian), sizes in the web game's px and its axes (y up, z = map y):
 //   "CCS3", int textures, int parts; per part:
-//     int texture (-1: none), int flags (1 see-through, 2 nearest, 4 repeat, 8 unlit, 16 two-sided), float opacity,
-//     float3 emissive (linear), int vertices, int indices,
+//     int texture (-1: none), int flags (1 see-through, 2 nearest, 4 repeat, 8 unlit, 16 two-sided, 32 glowing),
+//     float opacity, float3 emissive (linear), [glowing: int glow texture, float4 its uv from the part's (scale u, v,
+//     offset u, v), float2 its scroll (uv a second)], int vertices, int indices,
 //     float3 positions, sbyte4 normals (x, y, z, 0; /127), byte4 colours (sRGB, alpha), float2 uvs (textured parts only),
 //     indices (ushort under 65,536 vertices, else int),
 //     int places; per place: float12 matrix (3 rows of 4), byte4 tint (sRGB, 255).
@@ -127,11 +128,25 @@ function standViews(mesh: THREE.Mesh): boolean {
 }
 
 interface Place { m: THREE.Matrix4; tint: THREE.Color }
-interface Proto { tex: number; flags: number; opacity: number; emissive: THREE.Color; pos: number[]; nor: number[]; col: number[]; uv: number[]; idx: number[]; places: Place[] }
+interface Glow { tex: number; uv: [number, number, number, number]; rate: [number, number] }
+interface Proto { tex: number; flags: number; opacity: number; emissive: THREE.Color; glow?: Glow; pos: number[]; nor: number[]; col: number[]; uv: number[]; idx: number[]; places: Place[] }
 
 /** The web game's scene for circuit `c`, as the Unity file, and what moves, by name. */
 export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): { file: ArrayBuffer; planes?: ArrayBuffer; gopher?: ArrayBuffer; yeti?: ArrayBuffer; textures: string[]; moving: string[]; stats: string } {
   const scene = createCircuitScene(c, DRY);
+  // (an emissive map's scroll, as the scene's animation runs it: its offset a frame apart, before the first tick)
+  const glowRate = new Map<THREE.Texture, [number, number]>();
+  const glowMaps: THREE.Texture[] = [];
+  scene.scene.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial | THREE.MeshLambertMaterial[] | undefined;
+    for (const x of Array.isArray(m) ? m : m ? [m] : []) if (x.emissiveMap && !glowMaps.includes(x.emissiveMap)) glowMaps.push(x.emissiveMap);
+  });
+  if (glowMaps.length) {
+    scene.animate(0);
+    const at0 = glowMaps.map((t) => [t.offset.x, t.offset.y]);
+    scene.animate(FRAME);
+    glowMaps.forEach((t, i) => glowRate.set(t, [(t.offset.x - at0[i][0]) / FRAME, (t.offset.y - at0[i][1]) / FRAME]));
+  }
   const tick = ticker(scene, c);
   const moving = movers(scene, tick);
   scene.scene.updateMatrixWorld(true);
@@ -189,7 +204,18 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
         const base = anyMat.color ? anyMat.color.clone() : new THREE.Color(0.7, 0.7, 0.7);
         const lam = mat as THREE.MeshLambertMaterial;
         const emissive = lam.emissive ? lam.emissive.clone().multiplyScalar(lam.emissiveIntensity ?? 1) : new THREE.Color(0, 0, 0);
-        proto = { tex, flags, opacity, emissive, pos: [], nor: [], col: [], uv: [], idx: [], places: [] };
+        // (a glowing map, as the flame towers' lights: its uv from the part's, and how it scrolls)
+        let glow: Glow | undefined;
+        const em = lam.emissiveMap;
+        if (em && em.image && map && tex >= 0) {
+          const gt = texOf(em);
+          if (gt >= 0) {
+            const su = em.repeat.x / map.repeat.x, sv = em.repeat.y / map.repeat.y;
+            glow = { tex: gt, uv: [su, sv, em.offset.x - map.offset.x * su, em.offset.y - map.offset.y * sv], rate: glowRate.get(em) ?? [0, 0] };
+            flags |= 32;
+          }
+        }
+        proto = { tex, flags, opacity, emissive, glow, pos: [], nor: [], col: [], uv: [], idx: [], places: [] };
         const remap = new Map<number, number>();
         const end = Math.min(grp.start + grp.count, index ? index.count : pos.count);
         for (let i = grp.start; i < end; i++) {
@@ -213,6 +239,8 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
         }
         if (tex >= 0 && proto.uv.length !== (proto.pos.length / 3) * 2) {
           proto.tex = -1;
+          proto.flags &= ~32;
+          proto.glow = undefined;
           proto.uv = [];
         }
         if (still) pool.set(key, proto);
@@ -536,6 +564,12 @@ export function bakeScenery(c: Circuit, groundSize: { w: number; h: number }): {
 function writePart(enc: Encoder, p: Proto) {
   const nv = p.pos.length / 3;
   enc.int(p.tex); enc.int(p.flags); enc.flt(p.opacity); enc.flt(p.emissive.r); enc.flt(p.emissive.g); enc.flt(p.emissive.b);
+  if (p.flags & 32) {
+    const g = p.glow!;
+    enc.int(g.tex);
+    for (const x of g.uv) enc.flt(x);
+    enc.flt(g.rate[0]); enc.flt(g.rate[1]);
+  }
   enc.int(nv); enc.int(p.idx.length);
   for (const x of p.pos) enc.flt(x);
   for (let i = 0; i < p.nor.length; i += 3) {
