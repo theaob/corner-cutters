@@ -102,6 +102,8 @@ namespace CornerCutters.Game
         readonly List<CarView> views = new List<CarView>();
         readonly List<Compound> viewTyres = new List<Compound>();
         SafetyCarView safetyCar;
+        /// <summary>the skid marks on the ground, and on a bridge's deck</summary>
+        SkidLayer skids, deckSkids;
         // a call of the race's on the screen (SAFETY CAR, a penalty, your pit stop...), till a race time
         string notice;
         Color noticeColor;
@@ -249,6 +251,8 @@ namespace CornerCutters.Game
             // (the km on the circuit you're leaving, noted on it)
             if (race != null) NoteDriven();
             circuitIndex = ((index % ids.Count) + ids.Count) % ids.Count;
+            skids?.Dispose();
+            deckSkids?.Dispose();
             if (circuitView != null) Destroy(circuitView);
             circuit = CircuitLoader.Load(ids[circuitIndex]);
             PlayerPrefs.SetString("circuit", circuit.id);
@@ -260,6 +264,11 @@ namespace CornerCutters.Game
             bool baked = BakedScenery.Has(circuit.id);
             circuitView = TrackView.Build(circuit, barriers: !baked);
             circuitView.transform.SetParent(transform, false);
+            // skid marks over the ground (and over a bridge's deck, for the laps up there)
+            var ground = grid;
+            skids = new SkidLayer(circuitView.transform, (x, y) => Sim.GroundAt(ground, x, y).H);
+            var deck = track.Levels?.Upper;
+            deckSkids = deck != null ? new SkidLayer(circuitView.transform, (x, y) => Sim.GroundAt(deck, x, y).H, "deck skids") : null;
             movers = baked ? BakedScenery.Build(circuitView, circuit) : null;
             planes = baked ? ScenePlanes.Load(circuit.id) : null;
             critters = baked ? CritterView.Load(circuit) : null;
@@ -414,6 +423,8 @@ namespace CornerCutters.Game
             paused = false;
             particles.Clear();
             debris.Clear();
+            skids?.Clear();
+            deckSkids?.Clear();
             fx.Clear();
             for (int k = 0; k < race.Entrants.Count; k++) fx.Add(new CarFx());
             healthWas = race.Entrants.Select(e => e.Car.Health).ToArray();
@@ -887,6 +898,11 @@ namespace CornerCutters.Game
                 var ev = lastEvents[k];
                 float dust = !replaying && ev.OnRough && speed > 25 ? (float)System.Math.Min(1, speed / 120) : 0;
                 fx[k].Update(dt, condition, particles, view, (float)x, (float)y, (float)z, dust);
+                // skid marks under the rear wheels as it slides (on the deck when it's up there); none in the replay
+                bool onDeck = deckSkids != null && Bridge.GridFor(track, grid, e.Progress.Idx) != grid;
+                if (ev.Skidding && !replaying && dt > 0) (onDeck ? deckSkids : skids).Mark(k, e.Car.X, e.Car.Y, e.Car.Heading, System.Math.Min(1, speed / e.Car.Cls.TopSpeed), e.Car.Cls.Width, e.Car.Cls.Length);
+                if (!ev.Skidding || replaying || onDeck) skids.Lift(k);
+                if (!ev.Skidding || replaying || !onDeck) deckSkids?.Lift(k);
                 if (replaying || dt == 0) continue;
                 // sparks: off a hit (a wall, another car), thrown back the way it was going, and off a hard landing
                 double lost = healthWas[k] - e.Car.Health;
@@ -919,6 +935,8 @@ namespace CornerCutters.Game
             if (cam2.enabled) cam2.backgroundColor = cam.backgroundColor;
             if (!paused && !replaying) weatherView.Spray(race.Entrants, race.Rain, frame, particles);
             particles.Step(dt, cam);
+            skids?.Update(dt);
+            deckSkids?.Update(dt);
             var me = Between(you, alpha);
             var car = Me.Car;
             // (the crowds sway on while paused, as the web game's: frame is 0 then only if the clock stops)

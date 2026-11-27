@@ -240,6 +240,12 @@ namespace CornerCutters.Game
                         for (int j = 0; j < row.Swatch.Length; j++) Fill(R(cx - (tw + sw + 6) / 2 + j * 9, y + rh / 2 - 6, 8, 12), Hex(row.Swatch[j]), 2 * k);
                         cx += (sw + 6) / 2;
                     }
+                    if (row.Flag != null)
+                    {
+                        // (the circuit's country's flag before its name, 3:2, as the web game's circuit list has it)
+                        GUI.DrawTexture(R(cx - (tw + 24 + 6) / 2, y + rh / 2 - 8, 24, 16), row.Flag);
+                        cx += (24 + 6) / 2;
+                    }
                     Text(cx - tw / 2 - 4, y, tw + 8, rh, row.Value ?? "", vst);
                     if (arrow == 0 && GUI.Button(r, GUIContent.none, GUIStyle.none)) clicked = i;
                 }

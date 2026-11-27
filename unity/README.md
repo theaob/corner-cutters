@@ -26,7 +26,8 @@ a moment later the crash plays again, slowed through the impact. A few seconds a
 then the top three spray champagne in parc fermé (trophies, confetti, fireworks, the camera's sweep from third to the
 winner), then the results. Enter or A skips the walk, a replay or the ceremony. Sound is the web game's, made the same way (synthesised on
 the device: Core/Synth.cs, Core/Sounds.cs), with its three composed tracks in Resources/Music and the menu tune's
-placeholder rendered on the device. Not yet: skid marks.
+placeholder rendered on the device. Sliding tyres leave skid marks on the ground (Game/SkidLayer.cs), and the
+circuit menu shows each circuit's country flag (drawn from the web game's flags by `npm run unity:flags`).
 
 **Look.** The camera is the web game's (north up, 26 degree lens, 52 degree pitch). Each circuit's ground is the web
 game's own picture (asphalt, white edge lines, kerbs, mown grass, gravel, pit lane, grid boxes, chequered line: baked from its

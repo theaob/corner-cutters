@@ -19,6 +19,8 @@ namespace CornerCutters.Game
         public bool Button;
         /// <summary>colours to show beside the value (a team's livery)</summary>
         public int[] Swatch;
+        /// <summary>a country's flag to show before the value (a circuit's)</summary>
+        public Texture2D Flag;
         public Action Left, Right, Pick;
     }
 
@@ -78,6 +80,16 @@ namespace CornerCutters.Game
         public string CircuitId => ids[Circuit];
         public string NameOf(string id) => (about.TryGetValue(id, out var a) ? a.name : id).ToUpperInvariant();
         public string AboutOf(string id) => about.TryGetValue(id, out var a) ? (a.country ?? "").ToUpperInvariant() : "";
+
+        static readonly Dictionary<string, Texture2D> flags = new Dictionary<string, Texture2D>();
+
+        /// <summary>The flag of the country a circuit's in (flags.ts's, drawn by tools/unity/flags.ts into Resources/Flags), or none: a circuit of our own.</summary>
+        public Texture2D FlagOf(string id)
+        {
+            if (!about.TryGetValue(id, out var a) || string.IsNullOrEmpty(a.country)) return null;
+            if (!flags.TryGetValue(a.country, out var tex)) flags[a.country] = tex = Resources.Load<Texture2D>("Flags/" + a.country);
+            return tex;
+        }
 
         public void Keep()
         {
@@ -204,7 +216,7 @@ namespace CornerCutters.Game
             var weathers = Mode == "race" ? new[] { WeatherChoice.Dry, WeatherChoice.Damp, WeatherChoice.Wet, WeatherChoice.Changeable } : new[] { WeatherChoice.Dry, WeatherChoice.Damp, WeatherChoice.Wet };
             var rows = new List<MenuRow>
             {
-                new MenuRow { Label = "CIRCUIT", Value = NameOf(CircuitId), About = AboutOf(CircuitId), Left = () => Circuit = (Circuit + ids.Count - 1) % ids.Count, Right = () => Circuit = (Circuit + 1) % ids.Count, Pick = () => Asked = Go.Play },
+                new MenuRow { Label = "CIRCUIT", Value = NameOf(CircuitId), About = AboutOf(CircuitId), Flag = FlagOf(CircuitId), Left = () => Circuit = (Circuit + ids.Count - 1) % ids.Count, Right = () => Circuit = (Circuit + 1) % ids.Count, Pick = () => Asked = Go.Play },
                 new MenuRow { Label = "TEAM", Value = team.Name.ToUpperInvariant(), About = string.Join(" · ", team.Drivers), Swatch = new[] { team.Body, team.Trim }.Concat(team.Accent >= 0 ? new[] { team.Accent } : new int[0]).ToArray(),
                     Left = () => Team = (Team + Field.Teams.Length - 1) % Field.Teams.Length, Right = () => Team = (Team + 1) % Field.Teams.Length },
                 new MenuRow { Label = "WEATHER", Value = WeatherLooks.Name(Weather), About = WeatherAbout[(int)Weather], Left = () => Weather = Turn(weathers, Weather, -1), Right = () => Weather = Turn(weathers, Weather, 1) },
