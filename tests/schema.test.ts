@@ -15,8 +15,9 @@ describe('supabase/schema.sql', () => {
     const floors = [...block.matchAll(/\('([a-z0-9-]+)',\s*[\d.]+\)/g)].map((m) => m[1]);
     expect([...floors].sort()).toEqual(LAYOUTS.map((l) => l.id).sort());
   });
-  it('lets every platform the game reports through (web, android, ios), on events and reports', () => {
-    expect(schema.match(/platform in \('web', 'android', 'ios'\)/g)?.length).toBe(4);
+  it('lets every platform the game reports through, on events (the Unity build too) and reports', () => {
+    expect(schema.match(/platform in \('web', 'android', 'ios', 'windows', 'macos', 'linux', 'switch'\)/g)?.length).toBe(2);
+    expect(schema.match(/platform in \('web', 'android', 'ios'\)/g)?.length).toBe(2);
     expect(schema).not.toMatch(/platform in \('web', 'android'\)/);
   });
   it('stamps the version the dashboard expects', () => {
